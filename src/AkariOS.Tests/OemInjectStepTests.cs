@@ -26,9 +26,14 @@ public class OemInjectStepTests : IDisposable
 
         var scripts = Path.Combine(staging, OemInjectStep.ScriptsRelativePath);
         Assert.True(File.Exists(Path.Combine(scripts, "WinSux.ps1")));
+        // SetupComplete must NOT run WinSux directly — only register the RunOnce hook.
         var cmd = File.ReadAllText(Path.Combine(scripts, OemInjectStep.BootstrapCmdFileName));
-        Assert.Contains("WinSux.ps1", cmd);
-        Assert.Contains("-ExecutionPolicy Bypass", cmd);
+        Assert.Contains(OemInjectStep.RunOnceValueName, cmd);
+        Assert.DoesNotContain(".ps1", cmd, StringComparison.OrdinalIgnoreCase);
+        Assert.True(File.Exists(Path.Combine(scripts, OemInjectStep.LogonCmdFileName)));
+        var logon = File.ReadAllText(Path.Combine(scripts, OemInjectStep.LogonCmdFileName));
+        Assert.Contains("WinSux.ps1", logon);
+        Assert.Contains("-ExecutionPolicy Bypass", logon);
         // $OEM$ path must be literal (no env expansion in the name)
         Assert.Contains("$OEM$", OemInjectStep.ScriptsRelativePath);
     }
