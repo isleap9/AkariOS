@@ -1,6 +1,7 @@
 using AkariOS.Core.Inject;
 using AkariOS.Core.Iso;
 using AkariOS.Core.Pipeline;
+using AkariOS.Core.Wim;
 using Microsoft.Extensions.Logging;
 
 namespace AkariOS.Core;
@@ -17,7 +18,8 @@ public static class AkariPipelineFactory
     public static InjectionPipeline Create(
         ILogger<AkariOS.Core.Pipeline.InjectionPipeline>? pipelineLogger = null,
         ILogger<IsoMountService>? mountLogger = null,
-        ILogger<OscdimgService>? oscdimgLogger = null)
+        ILogger<OscdimgService>? oscdimgLogger = null,
+        ILogger<WimServiceStep>? wimLogger = null)
     {
         var mountService = new IsoMountService(mountLogger);
 
@@ -30,6 +32,8 @@ public static class AkariPipelineFactory
             new MountStep(mountService),
             new StagingStep(),
             new OemInjectStep(),
+            // Bake the same payload into install.wim itself (skipped for ESD media).
+            new WimServiceStep(new WimService(), wimLogger),
             new IsoRebuildStep(new OscdimgService(oscdimgLogger), new OscdimgAcquisitionService()),
             // Cleanup steps run last; they never fail the build.
             new DismountStep(mountService),

@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Thin SDK-style wrapper around the vendored ManagedWimLib sources (LGPLv3).
+    The original third_party csproj is legacy net46-only; this one compiles the
+    same sources for modern .NET and ships the native wimlib binaries.
+    Call Wim.GlobalInit(pathToDll) explicitly before any other API.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <UseWinUI>false</UseWinUI>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>ManagedWimLib</AssemblyName>
+    <RootNamespace>ManagedWimLib</RootNamespace>
+    <NoWarn>$(NoWarn);CS0649;CS0169;SYSLIB1054</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Joveler.DynLoader" />
+  </ItemGroup>
+
+  <!-- Vendored .cs sources are picked up by default globbing. -->
+
+  <!-- Ship native wimlib per-RID; resolved automatically for self-contained publishes. -->
+  <ItemGroup>
+    <None Include="runtimes\**\native\*" Pack="true" PackagePath="runtimes" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

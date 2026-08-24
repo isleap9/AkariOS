@@ -14,6 +14,9 @@
     <!-- MVVM -->
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
 
+    <!-- WIM servicing (vendored wrapper) -->
+    <PackageVersion Include="Joveler.DynLoader" Version="2.3.0" />
+
     <!-- Extensions / DI / Hosting / Logging -->
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.11" />
