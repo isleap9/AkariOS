@@ -93,7 +93,19 @@ public sealed class OscdimgService(ILogger<OscdimgService>? logger = null)
         using var process = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start oscdimg.exe");
         var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
         var stderrTask = process.StandardError.ReadToEndAsync(ct);
-        await process.WaitForExitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await process.WaitForExitAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancel must actually stop the build: kill oscdimg (and its partial
+            // output), then rethrow so the pipeline reports "cancelled".
+            try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+            catch (InvalidOperationException) { /* already exited */ }
+            try { if (File.Exists(outputIsoPath)) File.Delete(outputIsoPath); } catch (IOException) { }
+            throw;
+        }
 
         var stdout = await stdoutTask.ConfigureAwait(false);
         var stderr = await stderrTask.ConfigureAwait(false);

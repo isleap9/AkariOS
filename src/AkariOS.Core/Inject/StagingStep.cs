@@ -8,7 +8,7 @@ public sealed class StagingStep : IBuildStep
 {
     public string Name => "Stage ISO contents";
 
-    public Task ExecuteAsync(InjectionOptions options, BuildContext context, IProgress<ProgressReport> progress, CancellationToken ct)
+    public async Task ExecuteAsync(InjectionOptions options, BuildContext context, IProgress<ProgressReport> progress, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(context.MountedDrive))
             throw new InvalidOperationException("ISO is not mounted.");
@@ -30,12 +30,28 @@ public sealed class StagingStep : IBuildStep
         };
         progress.Report(new ProgressReport(BuildStage.Staging, null, "Copying ISO contents…"));
         using var process = System.Diagnostics.Process.Start(psi)!;
-        process.WaitForExit();
+        try
+        {
+            await process.WaitForExitAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancel must actually stop the copy: kill robocopy, then rethrow so
+            // the pipeline reports "cancelled" instead of waiting it out.
+            TryKill(process);
+            throw;
+        }
         if (process.ExitCode > 7)
             throw new IOException($"robocopy failed with exit code {process.ExitCode} while staging the ISO.");
 
         context.StagingDirectory = staging;
-        return Task.CompletedTask;
+    }
+
+    private static void TryKill(System.Diagnostics.Process process)
+    {
+        try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+        catch (InvalidOperationException) { /* already exited */ }
+        catch (System.ComponentModel.Win32Exception) { /* access denied — best effort */ }
     }
 }
 
