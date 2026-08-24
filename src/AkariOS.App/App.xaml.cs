@@ -37,6 +37,20 @@ public partial class App : Application
 
     public static string SettingsFilePath => Path.Combine(SettingsFolder, "settings.json");
 
+    /// <summary>Win32 HWND of the main window, for WinRT pickers initialized outside the window class.</summary>
+    public static IntPtr MainWindowHandle => MainWindow is null
+        ? IntPtr.Zero
+        : WinRT.Interop.WindowNative.GetWindowHandle(MainWindow);
+
+    /// <summary>Marshals an action onto the UI thread; safe to call from background pipeline callbacks.</summary>
+    public static void MainWindowEnqueue(Action action)
+    {
+        if (MainWindow is null) { action(); return; }
+        var queue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+        if (queue is null || queue.HasThreadAccess) action();
+        else queue.TryEnqueue(() => action());
+    }
+
     public App()
     {
         InitializeComponent();
@@ -115,6 +129,14 @@ public partial class App : Application
         // View models.
         builder.Services.AddTransient<HomeViewModel>();
         builder.Services.AddTransient<SettingsViewModel>();
+        builder.Services.AddTransient<BuilderViewModel>();
+
+        // AkariOS injection pipeline.
+        builder.Services.AddSingleton(sp =>
+            AkariOS.Core.AkariPipelineFactory.Create(
+                sp.GetService<ILogger<AkariOS.Core.Pipeline.InjectionPipeline>>(),
+                sp.GetService<ILogger<AkariOS.Core.Iso.IsoMountService>>(),
+                sp.GetService<ILogger<AkariOS.Core.Iso.OscdimgService>>()));
 
         // Navigation: pages are created through the DI container.
         builder.Services.AddSingleton<INavigationService>(sp =>

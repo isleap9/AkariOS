@@ -70,6 +70,7 @@ public sealed partial class MainWindow : Window
     public IReadOnlyList<NavigationItem> NavItems { get; } =
     [
         new("Home", "\uE80F", typeof(HomePage)),
+        new("Builder", "\uE8E5", typeof(BuilderPage)),
     ];
 
     /// <summary>Navigation items pinned to the bottom of the pane (footer).</summary>

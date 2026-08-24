@@ -1,0 +1,75 @@
+<Page
+    x:Class="AkariOS.App.Views.BuilderPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Padding="32" RowSpacing="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Drop zone -->
+        <Border x:Name="DropZone"
+                Grid.Row="0"
+                Background="{ThemeResource LayerFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="2"
+                CornerRadius="12"
+                AllowDrop="True"
+                Drop="OnDrop"
+                DragOver="OnDragOver"
+                DragLeave="OnDragLeave">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
+                <FontIcon Glyph="&#xE8E5;" FontSize="42" Opacity="0.7" />
+                <TextBlock
+                    x:Name="DropZoneText"
+                    Text="Drag &amp; drop your Windows ISO here"
+                    Style="{StaticResource SubtitleTextBlockStyle}"
+                    HorizontalAlignment="Center"
+                    TextTrimming="CharacterEllipsis" />
+                <TextBlock
+                    Text="Windows 10 and 11 · the tweaks are applied automatically after installation"
+                    Opacity="0.7"
+                    HorizontalAlignment="Center"
+                    TextWrapping="Wrap" />
+                <Button Content="or browse…"
+                        HorizontalAlignment="Center"
+                        Command="{x:Bind ViewModel.PickIsoCommand}" />
+            </StackPanel>
+        </Border>
+
+        <!-- Build + progress -->
+        <StackPanel Grid.Row="1" Spacing="8">
+            <Button x:Name="BuildButton"
+                    Content="Create AkariOS ISO"
+                    Style="{StaticResource AccentButtonStyle}"
+                    HorizontalAlignment="Center"
+                    Command="{x:Bind ViewModel.BuildCommand}" />
+
+            <ProgressBar Value="{x:Bind ViewModel.ProgressPercent, Mode=OneWay}"
+                         IsIndeterminate="{x:Bind ViewModel.IsBuilding, Mode=OneWay}"
+                         Maximum="100" />
+
+            <TextBlock Text="{x:Bind ViewModel.StatusText, Mode=OneWay}"
+                       TextWrapping="Wrap"
+                       HorizontalAlignment="Center" />
+        </StackPanel>
+
+        <!-- Log -->
+        <Border Grid.Row="2"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="12"
+                MaxHeight="220"
+                Visibility="Collapsed"
+                x:Name="LogBorder">
+            <ListView ItemsSource="{x:Bind ViewModel.LogLines, Mode=OneWay}"
+                      FontFamily="Consolas"
+                      FontSize="12"
+                      SelectionMode="None" />
+        </Border>
+    </Grid>
+</Page>
