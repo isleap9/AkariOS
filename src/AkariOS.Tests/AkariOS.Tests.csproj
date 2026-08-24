@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AkariOS.Framework\AkariOS.Framework.csproj" />
+    <ProjectReference Include="..\AkariOS.Core\AkariOS.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
