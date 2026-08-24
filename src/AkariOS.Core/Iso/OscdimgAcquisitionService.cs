@@ -75,15 +75,18 @@ public sealed partial class OscdimgAcquisitionService(ILogger<OscdimgAcquisition
                 throw new IOException($"ADK download failed with exit code {setup.ExitCode}.");
         }
 
-        // Step 3: find + run the Oscdimg MSI silently into our tools dir.
+        // Step 3: find + administratively extract the Oscdimg MSI into our tools dir.
+        // NOTE: a normal `msiexec /i INSTALLDIR=...` install fails outside the ADK's
+        // expected location (exit 67); an /a admin extract works reliably.
         progress.Report((80, "Installing oscdimg…"));
         var msi = Directory.EnumerateFiles(layoutDir, "*Oscdimg*.msi", SearchOption.AllDirectories).FirstOrDefault()
             ?? throw new FileNotFoundException("Oscdimg component not found in downloaded ADK.");
 
+        var extractDir = Path.Combine(layoutDir, "extract");
         var msiPsi = new ProcessStartInfo
         {
             FileName = "msiexec.exe",
-            Arguments = $"/i \"{msi}\" /quiet INSTALLDIR=\"{ToolsDir}\"",
+            Arguments = $"/a \"{msi}\" /qn TARGETDIR=\"{extractDir}\"",
             UseShellExecute = false,
             CreateNoWindow = true,
         };
@@ -91,8 +94,17 @@ public sealed partial class OscdimgAcquisitionService(ILogger<OscdimgAcquisition
         {
             await msiProc.WaitForExitAsync(ct);
             if (msiProc.ExitCode != 0)
-                throw new IOException($"oscdimg install failed with exit code {msiProc.ExitCode}.");
+                throw new IOException($"oscdimg extract failed with exit code {msiProc.ExitCode}.");
         }
+
+        // The MSI extracts to a full 'Windows Kits\...' tree; grab amd64 first, then x86.
+        var exe = Directory.EnumerateFiles(extractDir, "oscdimg.exe", SearchOption.AllDirectories)
+            .OrderBy(p => p.Contains("amd64") ? 0 : 1)
+            .FirstOrDefault()
+            ?? throw new FileNotFoundException("oscdimg.exe not present after MSI extract.");
+
+        File.Copy(exe, ExpectedOscdimgPath, overwrite: true);
+        Directory.Delete(layoutDir, true);
 
         if (!File.Exists(ExpectedOscdimgPath))
             throw new FileNotFoundException($"Installed but oscdimg.exe not at expected location ({ExpectedOscdimgPath}).");
