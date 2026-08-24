@@ -42,13 +42,21 @@ public partial class App : Application
         ? IntPtr.Zero
         : WinRT.Interop.WindowNative.GetWindowHandle(MainWindow);
 
+    /// <summary>UI DispatcherQueue captured at startup, for marshalling to the UI thread.</summary>
+    private static DispatcherQueue? UiDispatcher { get; set; }
+
+    /// <summary>Called from the UI thread during startup so background callbacks can marshal safely.</summary>
+    public static void CaptureUiDispatcher() => UiDispatcher = DispatcherQueue.GetForCurrentThread();
+
     /// <summary>Marshals an action onto the UI thread; safe to call from background pipeline callbacks.</summary>
     public static void MainWindowEnqueue(Action action)
     {
-        if (MainWindow is null) { action(); return; }
-        var queue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
-        if (queue is null || queue.HasThreadAccess) action();
-        else queue.TryEnqueue(() => action());
+        if (UiDispatcher is { } queue && !queue.HasThreadAccess)
+        {
+            queue.TryEnqueue(() => action());
+            return;
+        }
+        action();
     }
 
     public App()
@@ -91,6 +99,7 @@ public partial class App : Application
 
         // Create and show the main window (it wires itself into navigation and theme).
         MainWindow = Services.GetRequiredService<MainWindow>();
+        CaptureUiDispatcher(); // must run on the UI thread so background callbacks can marshal
         MainWindow.Closed += (_, _) => Shutdown();
         MainWindow.Activate();
 
