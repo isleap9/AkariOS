@@ -26,7 +26,7 @@ public static class AkariPipelineFactory
             new MountStep(mountService),
             new StagingStep(),
             new OemInjectStep(),
-            new IsoRebuildStep(new OscdimgService(oscdimgLogger)),
+            new IsoRebuildStep(new OscdimgService(oscdimgLogger), new OscdimgAcquisitionService()),
             // Cleanup steps run last; they never fail the build.
             new DismountStep(mountService),
             new StagingCleanupStep(),

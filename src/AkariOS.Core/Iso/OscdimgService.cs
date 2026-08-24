@@ -11,9 +11,24 @@ namespace AkariOS.Core.Iso;
 /// </summary>
 public sealed class OscdimgService(ILogger<OscdimgService>? logger = null)
 {
+    private string? _externalPath;
+
+    /// <summary>Registers an oscdimg path found by the acquisition service.</summary>
+    public void SetExternalPath(string path) => _externalPath = path;
+
+    /// <summary>True if a usable oscdimg exists (without acquiring).</summary>
+    public bool CanLocate()
+    {
+        try { _ = LocateOscdimg(); return true; }
+        catch (FileNotFoundException) { return false; }
+    }
+
     /// <summary>Returns the path to a usable oscdimg.exe, or throws with actionable guidance.</summary>
     public string LocateOscdimg()
     {
+        if (_externalPath is { } p && File.Exists(p))
+            return p;
+
         // 1) Bundled next to the app executable.
         var bundled = Path.Combine(AppContext.BaseDirectory, "tools", "oscdimg", "oscdimg.exe");
         if (File.Exists(bundled))
@@ -65,8 +80,8 @@ public sealed class OscdimgService(ILogger<OscdimgService>? logger = null)
     }
 }
 
-/// <summary>Pipeline step that rebuilds the ISO; sets <see cref="BuildContext.OutputIsoPath"/>.</summary>
-public sealed class IsoRebuildStep(OscdimgService service) : IBuildStep
+/// <summary>Pipeline step that ensures oscdimg exists, then rebuilds the ISO; sets <see cref="BuildContext.OutputIsoPath"/>.</summary>
+public sealed class IsoRebuildStep(OscdimgService service, OscdimgAcquisitionService? acquisition = null) : IBuildStep
 {
     public string Name => "Build AkariOS ISO";
 
@@ -78,6 +93,16 @@ public sealed class IsoRebuildStep(OscdimgService service) : IBuildStep
         var output = options.OutputIsoPath ?? Path.Combine(
             Path.GetDirectoryName(options.SourceIsoPath)!,
             Path.GetFileNameWithoutExtension(options.SourceIsoPath) + "_AkariOS.iso");
+
+        // Auto-acquire oscdimg on first use so users never see the ADK.
+        if (!service.CanLocate() && acquisition is not null)
+        {
+            progress.Report(new ProgressReport(BuildStage.Rebuilding, 0, "First run: downloading the ISO creation tool from Microsoft…"));
+            var path = await acquisition.AcquireAsync(
+                new Progress<(int?, string)>(r => progress.Report(new ProgressReport(BuildStage.Rebuilding, r.Item1, r.Item2))),
+                ct).ConfigureAwait(false);
+            service.SetExternalPath(path);
+        }
 
         progress.Report(new ProgressReport(BuildStage.Rebuilding, 0, $"Building {Path.GetFileName(output)}…"));
         context.OutputIsoPath = await service.BuildIsoAsync(context.StagingDirectory, output, ct).ConfigureAwait(false);
