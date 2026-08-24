@@ -31,5 +31,5 @@ Living document — update this file as items land. Checked = shipped.
 - [ ] Build cancellation
 
 ### Distribution
+- [x] Release builds + GitHub Releases CI (`.github/workflows/release.yml`, tag `v*`)
 - [ ] USB flasher — write finished ISO straight to a bootable drive
-- [ ] Release builds + GitHub Releases CI
