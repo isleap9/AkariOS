@@ -61,17 +61,6 @@ public partial class App : Application
     {
         base.OnLaunched(args);
 
-        // Allow unelevated Explorer to drag-drop onto this (elevated) window.
-        AkariOS.App.Services.UiPiDragDropFix.AllowDragDropMessages();
-
-        // ISO mounting / robocopy staging / oscdimg all behave best elevated.
-        // Relaunch self with the runas verb; if the user declines UAC, keep going
-        // unprivileged (builds may still work, but warn in the UI via log).
-        if (!IsElevated() && RelaunchElevatedIfRequired())
-        {
-            return;
-        }
-
         // Single-instance: only the first process becomes the primary instance.
         // Duplicate launches forward their activation to it and exit silently.
         var mainInstance = AppInstance.FindOrRegisterForKey("AkariOS");
