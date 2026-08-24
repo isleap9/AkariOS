@@ -16,10 +16,10 @@ public sealed partial class IsoMountService(ILogger<IsoMountService>? logger = n
         var result = await RunPowerShell(
             $"""
             $img = Mount-DiskImage -ImagePath '{Escape(isoPath)}' -PassThru
-            ($img | Get-Volume).DriveLetter
+            ($img | Get-Volume).DriveLetter + ':'
             """, cancellationToken).ConfigureAwait(false);
 
-        var letter = result.Trim().Trim('"');
+        var letter = result.Trim();
         if (letter.Length != 2 || letter[1] != ':')
             throw new InvalidOperationException($"Failed to mount ISO '{isoPath}'. Mount-DiskImage returned: '{result}'");
 
