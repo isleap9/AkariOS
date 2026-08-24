@@ -21,6 +21,9 @@ public static class AkariPipelineFactory
     {
         var mountService = new IsoMountService(mountLogger);
 
+        // Reclaim staging folders leaked by previous failed/cancelled runs (~10 GB each).
+        StagingCleanupStep.SweepStaleTempFolders();
+
         IBuildStep[] steps =
         [
             new MountStep(mountService),

@@ -1,4 +1,5 @@
 using AkariOS.Core.Pipeline;
+using Microsoft.Extensions.Logging;
 
 namespace AkariOS.Core.Inject;
 
@@ -42,6 +43,21 @@ public sealed class StagingStep : IBuildStep
 public sealed class StagingCleanupStep : IBuildStep
 {
     public string Name => "Cleanup staging";
+
+    /// <summary>Also removes staging folders leaked by earlier failed runs (crash/kill leaves ~10 GB each).</summary>
+    internal static void SweepStaleTempFolders(ILogger? logger = null)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "AkariOS");
+        if (!Directory.Exists(root)) return;
+        foreach (var dir in Directory.EnumerateDirectories(root))
+        {
+            try { Directory.Delete(dir, recursive: true); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                logger?.LogWarning(ex, "Could not delete stale staging dir {Dir}", dir);
+            }
+        }
+    }
 
     public Task ExecuteAsync(InjectionOptions options, BuildContext context, IProgress<ProgressReport> progress, CancellationToken ct)
     {
