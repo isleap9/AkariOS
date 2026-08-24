@@ -51,7 +51,7 @@ public sealed class OscdimgService(ILogger<OscdimgService>? logger = null)
     }
 
     /// <summary>Runs oscdimg to produce a dual-boot (BIOS+UEFI) ISO from <paramref name="stagingDirectory"/>.</summary>
-    public async Task<string> BuildIsoAsync(string stagingDirectory, string outputIsoPath, CancellationToken ct)
+    public async Task<string> BuildIsoAsync(string stagingDirectory, string outputIsoPath, CancellationToken ct, Action<string>? log = null)
     {
         var oscdimg = LocateOscdimg();
         Directory.CreateDirectory(Path.GetDirectoryName(outputIsoPath)!);
@@ -90,9 +90,18 @@ public sealed class OscdimgService(ILogger<OscdimgService>? logger = null)
         };
 
         logger?.LogInformation("Running oscdimg: {Args}", psi.Arguments);
+        log?.Invoke($"> oscdimg -m -o -u2 -udfver102 -bootdata:… \"{stagingDirectory}\" \"{outputIsoPath}\"");
         using var process = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start oscdimg.exe");
-        var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
-        var stderrTask = process.StandardError.ReadToEndAsync(ct);
+
+        static async Task StreamLinesAsync(StreamReader reader, Action<string>? write, CancellationToken ct)
+        {
+            while (await reader.ReadLineAsync(ct).ConfigureAwait(false) is { } line)
+                write?.Invoke(line);
+        }
+
+        var capturedStderr = new List<string>();
+        var stdoutTask = Task.Run(() => StreamLinesAsync(process.StandardOutput, log, ct), ct);
+        var stderrTask = Task.Run(() => StreamLinesAsync(process.StandardError, line => { lock (capturedStderr) capturedStderr.Add(line); log?.Invoke(line); logger?.LogWarning("oscdimg: {Line}", line); }, ct), ct);
         try
         {
             await process.WaitForExitAsync(ct).ConfigureAwait(false);
@@ -107,11 +116,12 @@ public sealed class OscdimgService(ILogger<OscdimgService>? logger = null)
             throw;
         }
 
-        var stdout = await stdoutTask.ConfigureAwait(false);
-        var stderr = await stderrTask.ConfigureAwait(false);
+        await stdoutTask.ConfigureAwait(false);
+        await stderrTask.ConfigureAwait(false);
 
+        var stderr = string.Join(Environment.NewLine, capturedStderr);
         if (process.ExitCode != 0 || !File.Exists(outputIsoPath))
-            throw new IOException($"oscdimg failed (exit {process.ExitCode}): {stderr.Trim()} {stdout.Trim()}".Trim());
+            throw new IOException($"oscdimg failed (exit {process.ExitCode}): {stderr}".Trim());
 
         return outputIsoPath;
     }
@@ -142,7 +152,7 @@ public sealed class IsoRebuildStep(OscdimgService service, OscdimgAcquisitionSer
         }
 
         progress.Report(new ProgressReport(BuildStage.Rebuilding, 0, $"Building {Path.GetFileName(output)}…"));
-        context.OutputIsoPath = await service.BuildIsoAsync(context.StagingDirectory, output, ct).ConfigureAwait(false);
+        context.OutputIsoPath = await service.BuildIsoAsync(context.StagingDirectory, output, ct, context.Log).ConfigureAwait(false);
         progress.Report(new ProgressReport(BuildStage.Rebuilding, 100, "ISO created."));
     }
 }

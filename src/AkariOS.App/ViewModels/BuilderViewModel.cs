@@ -18,6 +18,18 @@ public partial class IsoItem : ObservableObject
     [ObservableProperty]
     public partial double Progress { get; set; }
 
+    /// <summary>Ring-buffered build log lines (raw tool output), newest at the end.</summary>
+    public ObservableCollection<string> LogLines { get; } = [];
+
+    internal void AppendLog(string line)
+    {
+        LogLines.Add(line);
+        while (LogLines.Count > MaxLogLines)
+            LogLines.RemoveAt(0);
+    }
+
+    internal const int MaxLogLines = 500;
+
     public IsoItem() { }
 }
 
@@ -125,7 +137,8 @@ public partial class BuilderViewModel : ObservableObject
             if (options.PayloadFiles.Count == 0)
                 throw new FileNotFoundException("WinSux.ps1 payload missing next to the app.");
 
-            var result = await _pipeline.RunAsync(options, progress, _cts.Token);
+            var result = await _pipeline.RunAsync(options, progress, _cts.Token, log: line =>
+                App.MainWindowEnqueue(() => iso.AppendLog(line)));
             iso.Status = result.Success
                 ? "Done! AkariOS.iso created next to your source ISO."
                 : $"Failed: {result.ErrorMessage}";

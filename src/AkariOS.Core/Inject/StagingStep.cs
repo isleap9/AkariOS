@@ -27,9 +27,14 @@ public sealed class StagingStep : IBuildStep
             Arguments = $"\"{context.MountedDrive}\" \"{staging}\" /E /R:2 /W:2 /NFL /NDL /NP",
             UseShellExecute = false,
             CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
         };
         progress.Report(new ProgressReport(BuildStage.Staging, null, "Copying ISO contents…"));
+        context.WriteLog($"> robocopy \"{context.MountedDrive}\" → staging");
         using var process = System.Diagnostics.Process.Start(psi)!;
+        var pumpStdout = process.StandardOutput.ReadToEndAsync().ContinueWith(t => context.WriteLog(t.Result), TaskScheduler.Default);
+        var pumpStderr = process.StandardError.ReadToEndAsync().ContinueWith(t => context.WriteLog(t.Result), TaskScheduler.Default);
         try
         {
             await process.WaitForExitAsync(ct).ConfigureAwait(false);
@@ -44,6 +49,7 @@ public sealed class StagingStep : IBuildStep
         if (process.ExitCode > 7)
             throw new IOException($"robocopy failed with exit code {process.ExitCode} while staging the ISO.");
 
+        await Task.WhenAll(pumpStdout, pumpStderr).ConfigureAwait(false);
         context.StagingDirectory = staging;
     }
 

@@ -27,6 +27,18 @@ public sealed class BuildContext
     /// <summary>Resolved output ISO path.</summary>
     public string? OutputIsoPath { get; set; }
 
+    /// <summary>
+    /// Optional per-build log sink for raw tool output (oscdimg, robocopy…).
+    /// Set by <see cref="InjectionPipeline.RunAsync"/> when the caller supplies one.
+    /// </summary>
+    public Action<string>? Log { get; set; }
+
+    public void WriteLog(string line)
+    {
+        if (Log is { } sink && !string.IsNullOrWhiteSpace(line))
+            sink(line.TrimEnd());
+    }
+
     public void ThrowIfCancellationRequested(CancellationToken ct) => ct.ThrowIfCancellationRequested();
 }
 
@@ -42,9 +54,9 @@ public sealed class InjectionPipeline
         _logger = logger;
     }
 
-    public async Task<BuildResult> RunAsync(InjectionOptions options, IProgress<ProgressReport> progress, CancellationToken cancellationToken = default)
+    public async Task<BuildResult> RunAsync(InjectionOptions options, IProgress<ProgressReport> progress, CancellationToken cancellationToken = default, Action<string>? log = null)
     {
-        var context = new BuildContext();
+        var context = new BuildContext { Log = log };
         try
         {
             foreach (var step in _steps)

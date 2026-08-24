@@ -37,6 +37,24 @@
                 <TextBlock Text="{x:Bind ViewModel.SelectedIso.Status, Mode=OneWay}"
                            TextWrapping="Wrap"
                            FontSize="13" />
+
+                <Expander Header="Build log" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
+                    <ScrollViewer MaxHeight="240" VerticalScrollBarVisibility="Auto"
+                                  x:Name="LogScroller">
+                        <ItemsRepeater ItemsSource="{x:Bind ViewModel.SelectedIso.LogLines, Mode=OneWay}">
+                            <ItemsRepeater.Layout>
+                                <StackLayout />
+                            </ItemsRepeater.Layout>
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <TextBlock Text="{x:Bind}" FontFamily="Consolas" FontSize="12"
+                                               TextWrapping="NoWrap" IsTextSelectionEnabled="True"
+                                               Opacity="0.85" />
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                    </ScrollViewer>
+                </Expander>
             </StackPanel>
 
         </StackPanel>
