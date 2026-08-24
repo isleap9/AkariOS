@@ -128,7 +128,8 @@ public partial class App : Application
 
         // View models.
         builder.Services.AddTransient<SettingsViewModel>();
-        builder.Services.AddTransient<BuilderViewModel>();
+        // Singleton: MainWindow (pane) and BuilderPage (main area) must share one VM.
+        builder.Services.AddSingleton<BuilderViewModel>();
 
         // AkariOS injection pipeline.
         builder.Services.AddSingleton(sp =>
