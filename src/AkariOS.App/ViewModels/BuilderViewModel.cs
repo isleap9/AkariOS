@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using AkariOS.Core;
 using AkariOS.Core.Pipeline;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -7,29 +6,52 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace AkariOS.App.ViewModels;
 
+/// <summary>An ISO added to the sidebar via drag-drop or browse.</summary>
+public partial class IsoItem : ObservableObject
+{
+    public string Path { get; init; } = "";
+    public string FileName => System.IO.Path.GetFileName(Path);
+
+    [ObservableProperty]
+    public partial string Status { get; set; } = "Ready";
+
+    [ObservableProperty]
+    public partial double Progress { get; set; }
+
+    public IsoItem() { }
+}
+
 public partial class BuilderViewModel : ObservableObject
 {
     private readonly InjectionPipeline _pipeline;
     private CancellationTokenSource? _cts;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSelection))]
     [NotifyCanExecuteChangedFor(nameof(BuildCommand))]
-    private string? _sourceIsoPath;
+    public partial IsoItem? SelectedIso { get; set; }
 
     [ObservableProperty]
-    private bool _isBuilding;
+    public partial bool IsBuilding { get; set; }
 
-    [ObservableProperty]
-    private string _statusText = "";
+    public ObservableCollection<IsoItem> Isos { get; } = [];
 
-    [ObservableProperty]
-    private double _progressPercent;
-
-    public ObservableCollection<string> LogLines { get; } = [];
+    public bool HasSelection => SelectedIso is not null;
 
     public BuilderViewModel(InjectionPipeline pipeline)
     {
         _pipeline = pipeline;
+    }
+
+    /// <summary>Adds dropped/browsed ISOs to the sidebar (dedup by path).</summary>
+    public void AddIso(string path)
+    {
+        if (!System.IO.Path.GetExtension(path).Equals(".iso", StringComparison.OrdinalIgnoreCase)) return;
+        if (Isos.Any(i => i.Path.Equals(path, StringComparison.OrdinalIgnoreCase))) return;
+
+        var item = new IsoItem { Path = path };
+        Isos.Add(item);
+        SelectedIso ??= item;
     }
 
     [RelayCommand]
@@ -38,46 +60,37 @@ public partial class BuilderViewModel : ObservableObject
         var picker = new Windows.Storage.Pickers.FileOpenPicker();
         WinRT.Interop.InitializeWithWindow.Initialize(picker, App.MainWindowHandle);
         picker.FileTypeFilter.Add(".iso");
-        var file = await picker.PickSingleFileAsync();
-        if (file is not null)
-        {
-            SourceIsoPath = file.Path;
-            StatusText = "";
-        }
+        foreach (var file in await picker.PickMultipleFilesAsync())
+            AddIso(file.Path);
     }
 
-    /// <summary>Called by the drop zone when the user drops one or more files; takes the first .iso.</summary>
     [RelayCommand]
-    private void DropIso(string path)
+    private void RemoveIso(IsoItem? item)
     {
-        if (IsBuilding) return;
-        if (Path.GetExtension(path).Equals(".iso", StringComparison.OrdinalIgnoreCase))
-        {
-            SourceIsoPath = path;
-            StatusText = "";
-        }
+        if (item is null || IsBuilding) return;
+        Isos.Remove(item);
+        if (SelectedIso == item) SelectedIso = Isos.FirstOrDefault();
     }
 
-    private bool CanBuild() => SourceIsoPath is not null && !IsBuilding;
+    private bool CanBuild() => SelectedIso is not null && !IsBuilding;
 
     [RelayCommand(CanExecute = nameof(CanBuild))]
     private async Task BuildAsync()
     {
-        if (SourceIsoPath is null) return;
+        if (SelectedIso is null) return;
+        var iso = SelectedIso;
 
         IsBuilding = true;
-        ProgressPercent = 0;
-        LogLines.Clear();
-        StatusText = "";
-
+        iso.Status = "Starting…";
+        iso.Progress = 0;
         _cts = new CancellationTokenSource();
+
         var progress = new Progress<ProgressReport>(report =>
         {
             App.MainWindowEnqueue(() =>
             {
-                LogLines.Add($"[{report.Stage}] {report.Message}");
-                if (report.Percent.HasValue) ProgressPercent = report.Percent.Value;
-                StatusText = report.Message;
+                if (report.Percent.HasValue) iso.Progress = report.Percent.Value;
+                iso.Status = report.Message;
             });
         });
 
@@ -85,39 +98,27 @@ public partial class BuilderViewModel : ObservableObject
         {
             var options = new InjectionOptions
             {
-                SourceIsoPath = SourceIsoPath,
+                SourceIsoPath = iso.Path,
                 PayloadFiles = AkariPipelineFactory.DefaultPayload.Where(File.Exists).ToList(),
             };
             if (options.PayloadFiles.Count == 0)
                 throw new FileNotFoundException("WinSux.ps1 payload missing next to the app.");
 
             var result = await _pipeline.RunAsync(options, progress, _cts.Token);
-            StatusText = result.Success
-                ? $"Done! Created {result.OutputIsoPath}"
-                : $"Build failed: {result.ErrorMessage}";
+            iso.Status = result.Success
+                ? $"Done → {System.IO.Path.GetFileName(result.OutputIsoPath)}"
+                : $"Failed: {result.ErrorMessage}";
+            if (!result.Success) iso.Progress = 0;
         }
         catch (Exception ex)
         {
-            StatusText = $"Build failed: {ex.Message}";
+            iso.Status = $"Failed: {ex.Message}";
         }
         finally
         {
             IsBuilding = false;
             _cts?.Dispose();
             _cts = null;
-        }
-    }
-
-    [RelayCommand]
-    private void OpenOutputFolder()
-    {
-        if (SourceIsoPath is not null)
-        {
-            var output = Path.Combine(
-                Path.GetDirectoryName(SourceIsoPath)!,
-                Path.GetFileNameWithoutExtension(SourceIsoPath) + "_AkariOS.iso");
-            if (Path.GetDirectoryName(output) is { } dir && Directory.Exists(dir))
-                Process.Start(new ProcessStartInfo("explorer.exe", $"\"{dir}\""));
         }
     }
 }

@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using AkariOS.App.ViewModels;
 
 namespace AkariOS.App.Views;
@@ -12,51 +13,42 @@ public sealed partial class BuilderPage : Page
     {
         ViewModel = viewModel;
         InitializeComponent();
-        ViewModel.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName is nameof(ViewModel.LogLines))
-            {
-                LogBorder.Visibility = ViewModel.LogLines.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-            }
-            else if (e.PropertyName is nameof(ViewModel.SourceIsoPath) && ViewModel.SourceIsoPath is { } iso)
-            {
-                DropZoneText.Text = iso; // show the chosen file in the drop zone
-            }
-            else if (e.PropertyName is nameof(ViewModel.IsBuilding))
-            {
-                BuildButton.IsEnabled = !ViewModel.IsBuilding && ViewModel.SourceIsoPath is not null;
-            }
-        };
     }
 
     private void OnDragOver(object sender, DragEventArgs e)
     {
         e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
-        DropZone.Opacity = 0.8;
+        DropHint.Opacity = 0.9;
     }
 
-    private void OnDragLeave(object sender, DragEventArgs e) => DropZone.Opacity = 1;
+    private void OnDragLeave(object sender, DragEventArgs e) => DropHint.Opacity = 0;
 
     private async void OnDrop(object sender, DragEventArgs e)
     {
-        DropZone.Opacity = 1;
+        DropHint.Opacity = 0;
         var deferral = e.GetDeferral();
         try
         {
-            if (e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems))
-            {
-                var items = await e.DataView.GetStorageItemsAsync();
-                var file = items.FirstOrDefault(i => i.Path.EndsWith(".iso", StringComparison.OrdinalIgnoreCase));
-                if (file is not null)
-                {
-                    ViewModel.DropIsoCommand.Execute(file.Path);
-                    return;
-                }
-            }
+            if (!e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems))
+                return;
+
+            var items = await e.DataView.GetStorageItemsAsync();
+            foreach (var item in items.Where(i => i.Path.EndsWith(".iso", StringComparison.OrdinalIgnoreCase)))
+                ViewModel.AddIso(item.Path);
         }
         finally
         {
             deferral.Complete();
+        }
+    }
+
+    private void OnItemRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string path })
+        {
+            var item = ViewModel.Isos.FirstOrDefault(i => i.Path == path);
+            if (item is not null && !ViewModel.IsBuilding)
+                ViewModel.RemoveIsoCommand.Execute(item);
         }
     }
 }

@@ -11,6 +11,8 @@
             </ResourceDictionary.MergedDictionaries>
 
             <conv:EnumToStringConverter x:Key="EnumToStringConverter" />
+            <conv:BooleanToVisibilityConverter x:Key="BooleanToVisibility" />
+            <conv:InvertedBooleanToVisibilityConverter x:Key="InvertedBooleanToVisibility" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>
