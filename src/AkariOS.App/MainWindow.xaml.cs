@@ -5,12 +5,14 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using AkariOS.App.Views;
+using AkariOS.App.ViewModels;
 using AkariOS.Framework;
 using AkariOS.Framework.Messaging;
 using AkariOS.Framework.Navigation;
 using AkariOS.Framework.Services;
 using Windows.Graphics;
 using Windows.UI;
+
 
 namespace AkariOS.App;
 
@@ -20,7 +22,10 @@ public sealed partial class MainWindow : Window
     private readonly IThemeService _theme;
     private readonly IMessenger _messenger;
 
+    public BuilderViewModel ViewModel { get; }
+
     public MainWindow(
+        BuilderViewModel builderViewModel,
         INavigationService navigation,
         IInfoBarService infoBar,
         IThemeService theme,
@@ -28,6 +33,7 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
 
+        ViewModel = builderViewModel;
         _navigation = navigation;
         InfoBar = infoBar;
         _theme = theme;
@@ -38,17 +44,19 @@ public sealed partial class MainWindow : Window
         SystemBackdrop = new MicaBackdrop();
 
         ExtendsContentIntoTitleBar = true;
+
         SetTitleBar(AppTitleBar);
         ConfigureWindow();
 
+        // Single page: the shell's pane is the ISO list; the frame shows the details page.
         _navigation.SetFrame(ContentFrame);
-        _navigation.NavigateTo<HomePage>();
+        _navigation.NavigateTo<BuilderPage>();
         _navigation.Navigated += (_, _) => RefreshShellState();
         RefreshShellState();
 
+        ViewModel.Isos.CollectionChanged += (_, _) => UpdatePaneHint();
+
         _messenger.Register<ThemeChangedMessage>(this, (r, m) => ((MainWindow)r).ApplyTheme(m.Theme));
-        _messenger.Register<NavigationRequestedMessage>(this, (r, m) =>
-            ((MainWindow)r)._navigation.NavigateTo(m.PageType, m.Parameter));
     }
 
     /// <summary>Global info-bar state bound by the shell.</summary>
@@ -66,20 +74,12 @@ public sealed partial class MainWindow : Window
         return File.Exists(path) ? new BitmapImage(new Uri(path)) : null!;
     }
 
-    /// <summary>Navigation items for the shell NavigationView (top of the pane).</summary>
-    public IReadOnlyList<NavigationItem> NavItems { get; } =
-    [
-        new("Home", "\uE80F", typeof(HomePage)),
-        new("Builder", "\uE8E5", typeof(BuilderPage)),
-    ];
-
-    /// <summary>Navigation items pinned to the bottom of the pane (footer).</summary>
+    /// <summary>Footer items (bottom of the pane).</summary>
     public IReadOnlyList<NavigationItem> FooterNavItems { get; } =
     [
         new("Settings", "\uE713", typeof(SettingsPage)),
     ];
 
-    /// <summary>Applies an application theme to this window's content and title bar.</summary>
     public void ApplyTheme(AppTheme theme)
     {
         RootElement.RequestedTheme = theme switch
@@ -115,7 +115,7 @@ public sealed partial class MainWindow : Window
     private void RefreshShellState()
     {
         var current = _navigation.CurrentPageType;
-        var item = NavItems.Concat(FooterNavItems).FirstOrDefault(i => i.PageType == current);
+        var item = FooterNavItems.FirstOrDefault(i => i.PageType == current);
 
         if (item is not null && !ReferenceEquals(NavView.SelectedItem, item))
         {
@@ -123,70 +123,62 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void ConfigureWindow()
+    // ===== Pane drag & drop =====
+
+    private void OnPaneDragOver(object sender, DragEventArgs e)
     {
-        var appWindow = GetAppWindow();
-        if (appWindow is null)
-        {
-            return;
-        }
-
-        try
-        {
-            var workArea = DisplayArea.GetFromWindowId(appWindow.Id, DisplayAreaFallback.Nearest).WorkArea;
-            var width = Math.Min(1150, workArea.Width - 60);
-            var height = Math.Min(800, workArea.Height - 80);
-            appWindow.Resize(new SizeInt32((int)width, (int)height));
-
-            appWindow.Move(new PointInt32(
-                workArea.X + (workArea.Width - (int)width) / 2,
-                workArea.Y + (workArea.Height - (int)height) / 2));
-
-            var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
-            if (File.Exists(iconPath))
-            {
-                appWindow.SetIcon(iconPath);
-            }
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"Window configuration failed: {ex.Message}");
-        }
-
-        ApplyTitleBarColors(_theme.CurrentTheme);
+        e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
+        PaneDropArea.Opacity = 0.75;
     }
 
-    private AppWindow? GetAppWindow()
+    private void OnPaneDragLeave(object sender, DragEventArgs e) => PaneDropArea.Opacity = 1;
+
+    private async void OnPaneDrop(object sender, DragEventArgs e)
     {
-        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-        var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
-        return AppWindow.GetFromWindowId(windowId);
+        PaneDropArea.Opacity = 1;
+        var deferral = e.GetDeferral();
+        try
+        {
+            if (!e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems))
+                return;
+
+            var items = await e.DataView.GetStorageItemsAsync();
+            foreach (var item in items.Where(i => i.Path.EndsWith(".iso", StringComparison.OrdinalIgnoreCase)))
+                ViewModel.AddIso(item.Path);
+        }
+        finally
+        {
+            deferral.Complete();
+        }
+    }
+
+    private void UpdatePaneHint() =>
+        PaneDropHint.Visibility = ViewModel.Isos.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    private void ConfigureWindow()
+    {
+        var appWindow = AppWindow;
+        appWindow.Resize(new SizeInt32(1100, 700));
+        appWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
     }
 
     private void ApplyTitleBarColors(AppTheme theme)
     {
-        var appWindow = GetAppWindow();
-        if (appWindow?.TitleBar is null)
-        {
-            return;
-        }
+        var appWindow = AppWindow;
+        if (appWindow?.TitleBar is not { } titleBar) return;
 
-        var isDark = theme switch
-        {
-            AppTheme.Dark => true,
-            AppTheme.Light => false,
-            _ => RootElement.ActualTheme == ElementTheme.Dark,
-        };
+        var fg = theme == AppTheme.Light ? Microsoft.UI.Colors.Black : Microsoft.UI.Colors.White;
+        var bg = Microsoft.UI.Colors.Transparent;
 
-        var foreground = isDark ? Microsoft.UI.Colors.White : Microsoft.UI.Colors.Black;
-        var hoverBackground = isDark ? Microsoft.UI.Colors.Gray : Microsoft.UI.Colors.Transparent;
-
-        appWindow.TitleBar.ForegroundColor = foreground;
-        appWindow.TitleBar.BackgroundColor = Microsoft.UI.Colors.Transparent;
-        appWindow.TitleBar.ButtonForegroundColor = foreground;
-        appWindow.TitleBar.ButtonBackgroundColor = Microsoft.UI.Colors.Transparent;
-        appWindow.TitleBar.ButtonHoverForegroundColor = foreground;
-        appWindow.TitleBar.ButtonHoverBackgroundColor = hoverBackground;
-        appWindow.TitleBar.ButtonPressedBackgroundColor = hoverBackground;
+        titleBar.ForegroundColor = fg;
+        titleBar.BackgroundColor = bg;
+        titleBar.ButtonForegroundColor = fg;
+        titleBar.ButtonBackgroundColor = bg;
+        titleBar.ButtonHoverForegroundColor = fg;
+        titleBar.ButtonHoverBackgroundColor = Color.FromArgb(0x20, fg.R, fg.G, fg.B);
+        titleBar.ButtonPressedForegroundColor = fg;
+        titleBar.ButtonPressedBackgroundColor = Color.FromArgb(0x40, fg.R, fg.G, fg.B);
+        titleBar.ButtonInactiveForegroundColor = Color.FromArgb(0xFF, 0x80, 0x80, 0x80);
+        titleBar.ButtonInactiveBackgroundColor = bg;
     }
 }

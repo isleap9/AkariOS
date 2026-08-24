@@ -127,7 +127,6 @@ public partial class App : Application
         builder.Services.AddSingleton<MainWindow>();
 
         // View models.
-        builder.Services.AddTransient<HomeViewModel>();
         builder.Services.AddTransient<SettingsViewModel>();
         builder.Services.AddTransient<BuilderViewModel>();
 
