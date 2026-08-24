@@ -47,8 +47,18 @@ public sealed class StagingCleanupStep : IBuildStep
     {
         if (context.StagingDirectory is { } dir && Directory.Exists(dir))
         {
-            try { Directory.Delete(dir, recursive: true); }
-            catch (IOException)
+            try
+            {
+                // Robocopy preserves read-only attributes (e.g. autorun.inf); clear them so delete works.
+                foreach (var f in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
+                {
+                    var attr = File.GetAttributes(f);
+                    if ((attr & FileAttributes.ReadOnly) != 0)
+                        File.SetAttributes(f, attr & ~FileAttributes.ReadOnly);
+                }
+                Directory.Delete(dir, recursive: true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 progress.Report(new ProgressReport(BuildStage.Cleanup, null, $"Could not delete temp folder '{dir}'. You can remove it manually.", ProgressSeverity.Warning));
             }

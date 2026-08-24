@@ -56,6 +56,10 @@ public sealed class OscdimgService(ILogger<OscdimgService>? logger = null)
         var oscdimg = LocateOscdimg();
         Directory.CreateDirectory(Path.GetDirectoryName(outputIsoPath)!);
 
+        // oscdimg refuses to overwrite an existing file — remove any previous output.
+        if (File.Exists(outputIsoPath))
+            File.Delete(outputIsoPath);
+
         var bootData =
             $"2#p0,e,b{stagingDirectory}\\boot\\etfsboot.com#pEF,e,b{stagingDirectory}\\efi\\microsoft\\boot\\efisys.bin";
 
@@ -71,10 +75,15 @@ public sealed class OscdimgService(ILogger<OscdimgService>? logger = null)
 
         logger?.LogInformation("Running oscdimg: {Args}", psi.Arguments);
         using var process = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start oscdimg.exe");
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
+        var stderrTask = process.StandardError.ReadToEndAsync(ct);
         await process.WaitForExitAsync(ct).ConfigureAwait(false);
 
+        var stdout = await stdoutTask.ConfigureAwait(false);
+        var stderr = await stderrTask.ConfigureAwait(false);
+
         if (process.ExitCode != 0 || !File.Exists(outputIsoPath))
-            throw new IOException($"oscdimg failed (exit {process.ExitCode}): {await process.StandardError.ReadToEndAsync(ct).ConfigureAwait(false)}");
+            throw new IOException($"oscdimg failed (exit {process.ExitCode}): {stderr.Trim()} {stdout.Trim()}".Trim());
 
         return outputIsoPath;
     }
