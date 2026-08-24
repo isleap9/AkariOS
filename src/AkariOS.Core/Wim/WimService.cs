@@ -76,6 +76,9 @@ public sealed class WimService(ILogger<WimService>? logger = null)
         EnsureInitialized();
 
         var wimPath = Path.Combine(stagingDirectory, WimRelativePath);
+        // Files copied off mounted ISO media carry the read-only attribute; wimlib then
+        // fails with [WimIsReadOnly] "Permission denied". Clear it before opening for write.
+        ClearReadOnly(wimPath);
         // WriteAccess: required for Overwrite() to commit changes to the file.
         using var wim = WimLib.OpenWim(wimPath, OpenFlags.WriteAccess);
 
@@ -134,6 +137,21 @@ public sealed class WimService(ILogger<WimService>? logger = null)
             "@echo off\r\nreg add \"HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce\" /v " +
             Inject.OemInjectStep.RunOnceValueName + " /t REG_SZ /d \"%WINDIR%\\Setup\\Scripts\\" +
             Inject.OemInjectStep.LogonCmdFileName + "\" /f >nul 2>&1\r\n");
+    }
+
+    /// <summary>Clears the read-only attribute so wimlib can open the WIM for writing.</summary>
+    private static void ClearReadOnly(string path)
+    {
+        try
+        {
+            var attr = File.GetAttributes(path);
+            if ((attr & FileAttributes.ReadOnly) != 0)
+                File.SetAttributes(path, attr & ~FileAttributes.ReadOnly);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or FileNotFoundException)
+        {
+            // Opening the WIM will surface a clearer error than this would.
+        }
     }
 
     /// <summary>Throwaway directory for building AddTree inputs.</summary>

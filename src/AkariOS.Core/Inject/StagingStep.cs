@@ -50,7 +50,38 @@ public sealed class StagingStep : IBuildStep
             throw new IOException($"robocopy failed with exit code {process.ExitCode} while staging the ISO.");
 
         await Task.WhenAll(pumpStdout, pumpStderr).ConfigureAwait(false);
+
+        // Robocopy preserves the read-only attribute from the ISO (all files on mounted
+        // media are read-only). wimlib then refuses to service install.wim with
+        // [WimIsReadOnly] "Permission denied", and cleanup can't delete the tree either.
+        // Clear it across the staged tree before anything tries to modify it.
+        ClearReadOnlyAttributes(staging, context);
+
         context.StagingDirectory = staging;
+    }
+
+    /// <summary>Strips the read-only attribute from every staged file (ISO media is read-only).</summary>
+    internal static void ClearReadOnlyAttributes(string root, BuildContext? context = null)
+    {
+        var cleared = 0;
+        foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+        {
+            try
+            {
+                var attr = File.GetAttributes(file);
+                if ((attr & FileAttributes.ReadOnly) != 0)
+                {
+                    File.SetAttributes(file, attr & ~FileAttributes.ReadOnly);
+                    cleared++;
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Best effort: a single stubborn file shouldn't fail the build here.
+            }
+        }
+        if (cleared > 0)
+            context?.WriteLog($"> cleared read-only attribute on {cleared} staged file(s)");
     }
 
     private static void TryKill(System.Diagnostics.Process process)

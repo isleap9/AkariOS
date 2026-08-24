@@ -72,6 +72,41 @@ public sealed class WimServiceTests : IDisposable
     }
 
     [Fact]
+    public void InjectPayload_ReadOnlyWim_StillServices()
+    {
+        // Regression: robocopy preserves the read-only attribute from mounted ISO media, so
+        // staged install.wim arrived read-only and wimlib failed with
+        // [WimIsReadOnly] "Can't modify ...: Permission denied".
+        WimService.EnsureInitialized();
+
+        var srcTree = Path.Combine(_dir, "ro-tree");
+        Directory.CreateDirectory(srcTree);
+        File.WriteAllText(Path.Combine(srcTree, "marker.txt"), "ro");
+
+        var wimPath = Path.Combine(_dir, "sources", "install.wim");
+        Directory.CreateDirectory(Path.GetDirectoryName(wimPath)!);
+        using (var wim = WimLib.CreateNewWim(CompressionType.None))
+        {
+            wim.AddImage(srcTree, "Windows 11 Pro", null, AddFlags.None);
+            wim.Write(wimPath, WimLib.AllImages, WriteFlags.None, WimLib.DefaultThreads);
+        }
+
+        // Exactly what staging off an ISO produces.
+        File.SetAttributes(wimPath, File.GetAttributes(wimPath) | FileAttributes.ReadOnly);
+        Assert.True((File.GetAttributes(wimPath) & FileAttributes.ReadOnly) != 0);
+
+        var payload = Path.Combine(_dir, "WinSux.ps1");
+        File.WriteAllText(payload, "Write-Host 'ro'");
+
+        var service = new WimService(NullLogger<WimService>.Instance);
+        // Must not throw WimLibException(WimIsReadOnly).
+        service.InjectPayload(_dir, [payload], [1]);
+
+        using var verify = WimLib.OpenWim(wimPath, OpenFlags.None);
+        Assert.True(verify.FileExists(1, @"\Windows\Setup\Scripts\WinSux.ps1"));
+    }
+
+    [Fact]
     public void ListImages_MultiEdition_ReturnsAllNames()
     {
         WimService.EnsureInitialized();

@@ -151,6 +151,9 @@ public partial class App : Application
         // WIM servicing (edition enumeration + injection).
         builder.Services.AddSingleton<AkariOS.Core.Wim.WimService>();
 
+        // ISO mount/dismount — used by the edition scan at intake.
+        builder.Services.AddSingleton<AkariOS.Core.Iso.IsoMountService>();
+
         // Navigation: pages are created through the DI container.
         builder.Services.AddSingleton<INavigationService>(sp =>
             new FrameNavigationService(pageType => (Page)ActivatorUtilities.CreateInstance(sp, pageType)));
