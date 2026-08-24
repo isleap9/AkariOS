@@ -70,10 +70,7 @@ AkariOS/
 
 ## Roadmap
 
-- [ ] Direct WIM image servicing via `ManagedWimLib` (inject without `$OEM$`)
-- [ ] Per-ISO tweak selection UI
-- [ ] USB flasher — write the finished ISO straight to a bootable drive
-- [ ] Custom payload support (bring your own scripts alongside WinSux)
+See [ROADMAP.md](ROADMAP.md) — the living tracker for what's shipped and what's next.
 
 ## Acknowledgements
 
