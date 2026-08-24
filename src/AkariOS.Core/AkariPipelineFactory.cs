@@ -26,6 +26,7 @@ public static class AkariPipelineFactory
 
         IBuildStep[] steps =
         [
+            new ValidationStep(),
             new MountStep(mountService),
             new StagingStep(),
             new OemInjectStep(),
