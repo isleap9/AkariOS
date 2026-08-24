@@ -29,6 +29,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- oscdimg bundled with the app: no ADK install or 2GB download needed. -->
+    <Content Include="tools\oscdimg\oscdimg.exe" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Payload copied next to the exe so the pipeline can inject it into ISOs. -->
     <None Include="..\..\WinSux\WinSux.ps1" Link="assets\WinSux\WinSux.ps1" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
