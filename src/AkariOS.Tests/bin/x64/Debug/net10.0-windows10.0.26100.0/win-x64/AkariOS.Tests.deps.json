@@ -9,6 +9,7 @@
     ".NETCoreApp,Version=v10.0/win-x64": {
       "AkariOS.Tests/1.0.0": {
         "dependencies": {
+          "AkariOS.Core": "1.0.0",
           "AkariOS.Framework": "1.0.0",
           "Microsoft.Extensions.DependencyInjection": "10.0.11",
           "Microsoft.Extensions.Logging.Abstractions": "10.0.11",
@@ -633,6 +634,17 @@
           }
         }
       },
+      "AkariOS.Core/1.0.0": {
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.11"
+        },
+        "runtime": {
+          "AkariOS.Core.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
       "AkariOS.Framework/1.0.0": {
         "dependencies": {
           "CommunityToolkit.Mvvm": "8.4.2",
@@ -871,6 +883,11 @@
       "sha512": "sha512-yMb6vMESlSrE3Wfj7V6cjQ3S4TXdXpRqYeNEI3zsX31uTsGMJjEw6oD5F5u1cHnMptjhEECnmZSsPxB6ChZHDQ==",
       "path": "xunit.extensibility.execution/2.9.3",
       "hashPath": "xunit.extensibility.execution.2.9.3.nupkg.sha512"
+    },
+    "AkariOS.Core/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
     },
     "AkariOS.Framework/1.0.0": {
       "type": "project",
