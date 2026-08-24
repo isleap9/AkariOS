@@ -24,7 +24,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\AkariOS.Framework\AkariOS.Framework.csproj" />
+    <ItemGroup>
+      <ProjectReference Include="..\AkariOS.Framework\AkariOS.Framework.csproj" />
+      <ProjectReference Include="..\AkariOS.Core\AkariOS.Core.csproj" />
+    </ItemGroup>
+
+  <ItemGroup>
+    <!-- Payload copied next to the exe so the pipeline can inject it into ISOs. -->
+    <None Include="..\..\WinSux\WinSux.ps1" Link="assets\WinSux\WinSux.ps1" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
   </ItemGroup>
 
   <ItemGroup>
