@@ -1,0 +1,11 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+  </Configurations>
+  <Folder Name="/src/">
+    <Project Path="src/AkariOS.App/AkariOS.App.csproj" />
+    <Project Path="src/AkariOS.Framework/AkariOS.Framework.csproj" />
+    <Project Path="src/AkariOS.Tests/AkariOS.Tests.csproj" />
+  </Folder>
+</Solution>
