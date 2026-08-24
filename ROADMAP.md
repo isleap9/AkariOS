@@ -27,8 +27,8 @@ Living document — update this file as items land. Checked = shipped.
 ### UX
 - [ ] Per-ISO tweak selection UI (choose which parts of the playbook to apply)
 - [ ] Custom payload support — bring your own scripts alongside WinSux
-- [ ] Build log viewer in-app
 - [ ] Build cancellation
+- [x] Build log viewer in-app (collapsible mono pane per ISO item; streams oscdimg/robocopy output)
 
 ### Distribution
 - [x] Release builds + GitHub Releases CI (`.github/workflows/release.yml`, tag `v*`)

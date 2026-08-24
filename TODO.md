@@ -7,8 +7,8 @@ _Next-session plan. Sync with [ROADMAP.md](ROADMAP.md) as items land._
 - Attach artifact to a GitHub Release
 
 ## 2. UX polish
-- [ ] Build cancellation support in the pipeline (`CancellationToken` already flows through steps)
-- [ ] In-app build log viewer (tail build output per ISO item)
+- [x] Build cancellation support — robocopy/oscdimg are killed on cancel, partial output deleted (0bc3e2a)
+- [x] In-app build log viewer (a5af2a3)
 
 ## 3. Direct WIM servicing via ManagedWimLib 🏗 big one
 - Library is vendored in `third_party/` but unused
