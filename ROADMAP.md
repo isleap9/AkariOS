@@ -22,7 +22,7 @@ Living document — update this file as items land. Checked = shipped.
 
 ### Servicing
 - [x] Direct WIM image servicing via ManagedWimLib — payload baked into `install.wim` (`\Windows\Setup\Scripts` + RunOnce hook) in addition to `$OEM$`; auto-skips ESD media (6a243b7)
-- [ ] Edition/index selection UI when a WIM contains several images (enumeration already implemented via `WimService.ListImages`; currently all editions are serviced)
+- [x] Edition/index selection UI — editions scanned at intake (mount → wimlib → dismount), checkbox picker per ISO, unticked editions left untouched (2d4a842)
 
 ### UX
 - [ ] Per-ISO tweak selection UI (choose which parts of the playbook to apply)

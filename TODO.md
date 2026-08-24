@@ -14,7 +14,7 @@ _Next-session plan. Sync with [ROADMAP.md](ROADMAP.md) as items land._
 - SDK-style wrapper `ManagedWimLib.net` over vendored sources; ships libwim-15.dll
 - `WimServiceStep` bakes payload into every edition of `install.wim`; ESD skipped
 - Gotchas solved: OpenFlags.WriteAccess required for Overwrite; wimlib reads file data at commit time (keep temp sources alive); use WriteFlags.Rebuild
-- Next: edition/index selection UI (ListImages already exists)
+- Next: ✅ edition/index selection UI shipped (2d4a842) — intake scans editions, checkbox picker, SelectedImageIndexes flows through InjectionOptions
 
 ## Done recently
 - VM-tested end-to-end install (WinSux runs post-install via SetupComplete.cmd)
