@@ -3,7 +3,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <RootNamespace>AkariOS.App</RootNamespace>
-    <AssemblyName>AkariOS.App</AssemblyName>
+    <AssemblyName>AkariOS</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
     <WindowsPackageType>None</WindowsPackageType>
