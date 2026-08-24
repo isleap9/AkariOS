@@ -40,6 +40,12 @@ public sealed record InjectionOptions
 
     /// <summary>Payload files to inject into sources\$OEM$\$$\Setup\Scripts\.</summary>
     public required IReadOnlyList<string> PayloadFiles { get; init; }
+
+    /// <summary>
+    /// install.wim image indexes to service. Null or empty = all editions.
+    /// Ignored when the media has no servable install.wim (ESD).
+    /// </summary>
+    public IReadOnlyList<int>? SelectedImageIndexes { get; init; }
 }
 
 /// <summary>Result of a pipeline run.</summary>

@@ -145,7 +145,11 @@ public partial class App : Application
             AkariOS.Core.AkariPipelineFactory.Create(
                 sp.GetService<ILogger<AkariOS.Core.Pipeline.InjectionPipeline>>(),
                 sp.GetService<ILogger<AkariOS.Core.Iso.IsoMountService>>(),
-                sp.GetService<ILogger<AkariOS.Core.Iso.OscdimgService>>()));
+                sp.GetService<ILogger<AkariOS.Core.Iso.OscdimgService>>(),
+                sp.GetService<ILogger<AkariOS.Core.Wim.WimServiceStep>>()));
+
+        // WIM servicing (edition enumeration + injection).
+        builder.Services.AddSingleton<AkariOS.Core.Wim.WimService>();
 
         // Navigation: pages are created through the DI container.
         builder.Services.AddSingleton<INavigationService>(sp =>

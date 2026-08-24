@@ -26,15 +26,25 @@ public sealed class WimServiceStep(WimService service, ILogger<WimServiceStep>? 
         logger?.LogInformation("install.wim contains {Count} image(s): {Names}",
             images.Count, string.Join(", ", images.Select(i => i.Name)));
 
-        // v1: bake into every edition. Index selection UI comes later.
+        // Service the user-selected editions; default = every edition on the media.
+        var selected = options.SelectedImageIndexes is { Count: > 0 } picked
+            ? images.Where(i => picked.Contains(i.Index)).ToList()
+            : images;
+        if (selected.Count == 0)
+        {
+            logger?.LogWarning("None of the selected indexes {Picked} exist in install.wim — servicing all editions instead",
+                options.SelectedImageIndexes);
+            selected = images;
+        }
+
         service.InjectPayload(
             context.StagingDirectory,
             options.PayloadFiles,
-            images.Select(i => i.Index).ToList(),
+            selected.Select(i => i.Index).ToList(),
             progress,
             ct);
 
-        context.WriteLog($"> install.wim serviced ({images.Count} edition(s))");
+        context.WriteLog($"> install.wim serviced ({string.Join(", ", selected.Select(i => i.Name))})");
         return Task.CompletedTask;
     }
 }

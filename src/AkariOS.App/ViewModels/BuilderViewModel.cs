@@ -3,8 +3,27 @@ using AkariOS.Core;
 using AkariOS.Core.Pipeline;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.UI.Xaml;
 
 namespace AkariOS.App.ViewModels;
+
+/// <summary>One selectable Windows edition inside the source ISO's install.wim.</summary>
+public partial class EditionItem : ObservableObject
+{
+    public int Index { get; init; }
+    public string Name { get; init; } = "";
+
+    [ObservableProperty]
+    public partial bool IsSelected { get; set; } = true;
+
+    public EditionItem(int index, string name)
+    {
+        Index = index;
+        Name = name;
+    }
+}
 
 /// <summary>An ISO added to the sidebar via drag-drop or browse.</summary>
 public partial class IsoItem : ObservableObject
@@ -17,6 +36,25 @@ public partial class IsoItem : ObservableObject
 
     [ObservableProperty]
     public partial double Progress { get; set; }
+
+    /// <summary>Editions found in the source ISO's install.wim (empty while scanning / ESD media).</summary>
+    public ObservableCollection<EditionItem> Editions { get; } = [];
+
+    [ObservableProperty]
+    public partial string EditionsHeader { get; set; } = "Editions";
+
+    public bool HasMultipleEditions => Editions.Count > 1;
+
+    public Visibility EditionsVisibility => HasMultipleEditions ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Fills the picker from a scan result and refreshes visibility bindings.</summary>
+    internal void SetEditions(IEnumerable<(int Index, string Name)> images)
+    {
+        foreach (var (index, name) in images)
+            Editions.Add(new EditionItem(index, name));
+        OnPropertyChanged(nameof(HasMultipleEditions));
+        OnPropertyChanged(nameof(EditionsVisibility));
+    }
 
     /// <summary>Ring-buffered build log lines (raw tool output), newest at the end.</summary>
     public ObservableCollection<string> LogLines { get; } = [];
@@ -36,6 +74,8 @@ public partial class IsoItem : ObservableObject
 public partial class BuilderViewModel : ObservableObject
 {
     private readonly InjectionPipeline _pipeline;
+    private readonly Core.Wim.WimService _wimService;
+    private readonly Core.Iso.IsoMountService _mountService;
     private CancellationTokenSource? _cts;
 
     [ObservableProperty]
@@ -52,12 +92,14 @@ public partial class BuilderViewModel : ObservableObject
 
     public bool HasSelection => SelectedIso is not null;
 
-    public BuilderViewModel(InjectionPipeline pipeline)
+    public BuilderViewModel(InjectionPipeline pipeline, Core.Wim.WimService wimService, Core.Iso.IsoMountService mountService)
     {
         _pipeline = pipeline;
+        _wimService = wimService;
+        _mountService = mountService;
     }
 
-    /// <summary>Adds dropped/browsed ISOs to the sidebar (dedup by path).</summary>
+    /// <summary>Adds dropped/browsed ISOs to the sidebar (dedup by path), then scans editions.</summary>
     public void AddIso(string path)
     {
         if (!System.IO.Path.GetExtension(path).Equals(".iso", StringComparison.OrdinalIgnoreCase)) return;
@@ -66,6 +108,37 @@ public partial class BuilderViewModel : ObservableObject
         var item = new IsoItem { Path = path };
         Isos.Add(item);
         SelectedIso ??= item;
+
+        _ = ScanEditionsAsync(item);
+    }
+
+    /// <summary>
+    /// Background edition scan: mount the ISO, read install.wim's image table via wimlib
+    /// (metadata only — fast), dismount. Never blocks intake; failures leave the picker hidden.
+    /// </summary>
+    private async Task ScanEditionsAsync(IsoItem item)
+    {
+        try
+        {
+            var drive = await Task.Run(() => _mountService.MountAsync(item.Path)).ConfigureAwait(false);
+            try
+            {
+                // MountAsync returns a bare letter ("H:"); wimlib needs "H:\" to join sources\install.wim.
+                var root = drive.EndsWith(':') ? $"{drive}\\" : drive;
+                var images = await Task.Run(() => _wimService.ListImages(root)).ConfigureAwait(false);
+
+                App.MainWindowEnqueue(() => item.SetEditions(images.Select(i => (i.Index, i.Name))));
+            }
+            finally
+            {
+                await Task.Run(() => _mountService.DismountAsync(item.Path)).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex)
+        {
+            // ESD media or unreadable WIM: no picker, all-edition default applies at build time.
+            App.Services.GetService<ILogger<BuilderViewModel>>()?.LogWarning(ex, "Edition scan failed for {Iso}", item.Path);
+        }
     }
 
     [RelayCommand]
@@ -133,6 +206,7 @@ public partial class BuilderViewModel : ObservableObject
             {
                 SourceIsoPath = iso.Path,
                 PayloadFiles = AkariPipelineFactory.DefaultPayload.Where(File.Exists).ToList(),
+                SelectedImageIndexes = iso.Editions.Where(e => e.IsSelected).Select(e => e.Index).ToList(),
             };
             if (options.PayloadFiles.Count == 0)
                 throw new FileNotFoundException("WinSux.ps1 payload missing next to the app.");
