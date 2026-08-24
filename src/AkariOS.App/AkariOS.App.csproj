@@ -3,6 +3,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <RootNamespace>AkariOS.App</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>AkariOS</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>

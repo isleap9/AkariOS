@@ -57,8 +57,24 @@ public sealed class OscdimgService(ILogger<OscdimgService>? logger = null)
         Directory.CreateDirectory(Path.GetDirectoryName(outputIsoPath)!);
 
         // oscdimg refuses to overwrite an existing file — remove any previous output.
+        // The old file may be briefly locked (AV scan, Explorer preview); retry a few times.
         if (File.Exists(outputIsoPath))
-            File.Delete(outputIsoPath);
+        {
+            Exception? last = null;
+            for (var attempt = 0; attempt < 5; attempt++)
+            {
+                try { File.Delete(outputIsoPath); last = null; break; }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    last = ex;
+                    await Task.Delay(500, ct);
+                }
+            }
+            if (last is not null)
+                throw new IOException(
+                    $"Cannot replace the previous output '{Path.GetFileName(outputIsoPath)}' — it is open in another program " +
+                    "(close it, or eject the ISO if it's mounted, then try again).", last);
+        }
 
         var bootData =
             $"2#p0,e,b{stagingDirectory}\\boot\\etfsboot.com#pEF,e,b{stagingDirectory}\\efi\\microsoft\\boot\\efisys.bin";

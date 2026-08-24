@@ -57,13 +57,14 @@ public partial class BuilderViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task PickIsoAsync()
+    private void PickIso()
     {
-        var picker = new Windows.Storage.Pickers.FileOpenPicker();
-        WinRT.Interop.InitializeWithWindow.Initialize(picker, App.MainWindowHandle);
-        picker.FileTypeFilter.Add(".iso");
-        foreach (var file in await picker.PickMultipleFilesAsync())
-            AddIso(file.Path);
+        // WinRT FileOpenPicker throws COMException in elevated processes; use Win32 dialog.
+        var path = Services.Win32FilePicker.PickIso(App.MainWindowHandle);
+        if (path is not null)
+        {
+            AddIso(path);
+        }
     }
 
     [RelayCommand]
