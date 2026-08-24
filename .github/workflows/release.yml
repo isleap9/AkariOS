@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore src/AkariOS.App/AkariOS.App.csproj -r win-x64
+
+      - name: Build & publish (self-contained win-x64)
+        run: >
+          dotnet publish src/AkariOS.App/AkariOS.App.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:Platform=x64
+          -o publish
+
+      - name: Run tests
+        run: dotnet test src/AkariOS.Tests/AkariOS.Tests.csproj -c Release
+
+      # Sanity check: the deliverable must be named AkariOS.exe.
+      - name: Verify output
+        shell: pwsh
+        run: |
+          if (!(Test-Path publish/AkariOS.exe)) { throw "publish/AkariOS.exe missing" }
+          Get-ChildItem publish | Select-Object Name, Length
+
+      - name: Zip artifact
+        shell: pwsh
+        run: Compress-Archive -Path publish/* -DestinationPath AkariOS-${{ github.ref_name }}-win-x64.zip
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: AkariOS-${{ github.ref_name }}-win-x64.zip
