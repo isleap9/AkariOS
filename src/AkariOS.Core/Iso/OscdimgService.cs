@@ -116,8 +116,8 @@ public sealed class IsoRebuildStep(OscdimgService service, OscdimgAcquisitionSer
             throw new InvalidOperationException("No staging directory.");
 
         var output = options.OutputIsoPath ?? Path.Combine(
-            Path.GetDirectoryName(options.SourceIsoPath)!,
-            Path.GetFileNameWithoutExtension(options.SourceIsoPath) + "_AkariOS.iso");
+            Path.GetDirectoryName(options.SourceIsoPath) ?? Environment.CurrentDirectory,
+            "AkariOS.iso");
 
         // Auto-acquire oscdimg on first use so users never see the ADK.
         if (!service.CanLocate() && acquisition is not null)

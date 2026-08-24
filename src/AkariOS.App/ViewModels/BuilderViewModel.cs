@@ -75,6 +75,10 @@ public partial class BuilderViewModel : ObservableObject
         if (SelectedIso == item) SelectedIso = Isos.FirstOrDefault();
     }
 
+    /// <summary>Output is always written next to the source as AkariOS.iso.</summary>
+    public static string GetOutputPathFor(string sourceIso) =>
+        System.IO.Path.Combine(System.IO.Path.GetDirectoryName(sourceIso) ?? "", "AkariOS.iso");
+
     private void NotifyBuildStates()
     {
         BuildCommand.NotifyCanExecuteChanged();
@@ -123,7 +127,7 @@ public partial class BuilderViewModel : ObservableObject
 
             var result = await _pipeline.RunAsync(options, progress, _cts.Token);
             iso.Status = result.Success
-                ? $"Done → {System.IO.Path.GetFileName(result.OutputIsoPath)}"
+                ? "Done! AkariOS.iso created next to your source ISO."
                 : $"Failed: {result.ErrorMessage}";
             if (!result.Success) iso.Progress = 0;
         }
