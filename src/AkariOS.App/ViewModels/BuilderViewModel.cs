@@ -34,6 +34,8 @@ public partial class BuilderViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsBuilding { get; set; }
 
+    partial void OnIsBuildingChanged(bool value) => NotifyBuildStates();
+
     public ObservableCollection<IsoItem> Isos { get; } = [];
 
     public bool HasSelection => SelectedIso is not null;
@@ -70,6 +72,20 @@ public partial class BuilderViewModel : ObservableObject
         if (item is null || IsBuilding) return;
         Isos.Remove(item);
         if (SelectedIso == item) SelectedIso = Isos.FirstOrDefault();
+    }
+
+    private void NotifyBuildStates()
+    {
+        BuildCommand.NotifyCanExecuteChanged();
+        CancelBuildCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanCancel() => IsBuilding;
+
+    [RelayCommand(CanExecute = nameof(CanCancel))]
+    private void CancelBuild()
+    {
+        _cts?.Cancel();
     }
 
     private bool CanBuild() => SelectedIso is not null && !IsBuilding;

@@ -22,9 +22,13 @@
             <!-- Details -->
             <StackPanel Spacing="16"
                         Visibility="{x:Bind ViewModel.HasSelection, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
-                <Button Content="Create AkariOS ISO"
-                        Style="{StaticResource AccentButtonStyle}"
-                        Command="{x:Bind ViewModel.BuildCommand}" />
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Button Content="Create AkariOS ISO"
+                            Style="{StaticResource AccentButtonStyle}"
+                            Command="{x:Bind ViewModel.BuildCommand}" />
+                    <Button Content="Cancel"
+                            Command="{x:Bind ViewModel.CancelBuildCommand}" />
+                </StackPanel>
 
                 <TextBlock Text="The tweaks are applied automatically after Windows installation completes — just install normally from the generated ISO."
                            TextWrapping="Wrap"
