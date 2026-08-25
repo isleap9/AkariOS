@@ -10,7 +10,33 @@
             <TextBlock x:Name="Subtitle"
                        Text="Customize how the playbook will be applied to your system."
                        Opacity="0.75" TextWrapping="Wrap" />
-            <!-- Feature page cards are built in code-behind from playbook.conf -->
+
+            <!-- Summary card -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="16">
+                <StackPanel Spacing="12">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0" Spacing="2">
+                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}">
+                                <Run>Configure Options</Run>
+                            </TextBlock>
+                            <TextBlock Opacity="0.65" FontSize="13">Setup playbook functionalities</TextBlock>
+                        </StackPanel>
+                        <Button Grid.Column="1" x:Name="SelectOptionsButton"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Content="Select Options"
+                                Click="OnSelectOptionsClick" />
+                    </Grid>
+
+                    <InfoBar x:Name="NotConfiguredBar" IsOpen="True" IsClosable="False"
+                             Severity="Informational"
+                             Message="You must configure the playbook options before proceeding." />
+
+                    <TextBlock x:Name="SelectionsSummary" Visibility="Collapsed"
+                               FontSize="13" Opacity="0.85" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </local:WizardStepPage>

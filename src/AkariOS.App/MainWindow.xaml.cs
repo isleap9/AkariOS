@@ -146,6 +146,7 @@ public sealed partial class MainWindow : Window
     private static bool CanLeaveStep(int index) => index switch
     {
         0 => Views.WizardFlow.LicenseAccepted,   // must tick the license checkbox
+        2 => Views.ConfigurationPage.ConfiguredAtLeastOnce, // must run Select Options
         _ => true,
     };
 
@@ -174,11 +175,10 @@ public sealed partial class MainWindow : Window
 
         // Leaving Configuration captures the selected option names for the engine run.
         if (_navigation.CurrentPageType == typeof(ConfigurationPage)
-            && ContentFrame.Content is ConfigurationPage config
-            && config.Manifest is { } manifest)
+            && ContentFrame.Content is ConfigurationPage config)
         {
             WizardFlow.SelectedOptions.Clear();
-            WizardFlow.SelectedOptions.AddRange(manifest.SelectedOptions);
+            WizardFlow.SelectedOptions.AddRange(Views.ConfigurationPage.SelectedOptionsList);
         }
 
         if (current < Views.WizardFlow.Steps.Count - 1)

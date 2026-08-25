@@ -24,14 +24,10 @@ public sealed partial class ConfigurationPage : WizardStepPage
         try
         {
             if (!File.Exists(Path.Combine(dir, "playbook.conf")))
-            {
-                // Extract on demand so Configuration works even if the user never hit Apply.
-                _ = Services.EngineService.EnsurePlaybookExtracted();
-            }
+                Services.EngineService.EnsurePlaybookExtracted();
 
             Manifest = PlaybookManifest.Parse(dir);
             Subtitle.Text = $"{Manifest.Title} v{Manifest.Version} — customize how the playbook will be applied.";
-            BuildCards();
         }
         catch (Exception ex)
         {
@@ -43,44 +39,69 @@ public sealed partial class ConfigurationPage : WizardStepPage
                 Message = ex.Message,
                 IsClosable = false,
             });
+            SelectOptionsButton.IsEnabled = false;
         }
     }
 
-    private void BuildCards()
+    /// <summary>Opens the feature pages as sequential ContentDialogs (Nexus-style flow).</summary>
+    private async void OnSelectOptionsClick(object sender, RoutedEventArgs e)
     {
-        foreach (var page in Manifest!.FeaturePages)
+        if (Manifest is null) return;
+
+        var pages = Manifest.FeaturePages.ToList();
+        for (var i = 0; i < pages.Count; i++)
         {
-            var card = new Border
-            {
-                Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
-                BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(8),
-                Padding = new Thickness(16),
-            };
-
-            var stack = new StackPanel { Spacing = 10 };
-            stack.Children.Add(new TextBlock
-            {
-                Text = page.Description,
-                Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"],
-            });
-
-            foreach (var option in page.Options)
-            {
-                var cb = new CheckBox
-                {
-                    Content = option.Text,
-                    IsChecked = option.IsSelected,
-                    MinWidth = 0,
-                };
-                cb.Checked += (_, _) => option.IsSelected = true;
-                cb.Unchecked += (_, _) => option.IsSelected = false;
-                stack.Children.Add(cb);
-            }
-
-            card.Child = stack;
-            Root.Children.Add(card);
+            var page = pages[i];
+            var dialog = BuildPageDialog(page, i + 1, pages.Count);
+            dialog.XamlRoot = Root.XamlRoot;
+            await dialog.ShowAsync();
         }
+
+        UpdateSummary();
     }
+
+    private ContentDialog BuildPageDialog(PlaybookFeaturePage page, int index, int total)
+    {
+        var stack = new StackPanel { Spacing = 10, MinWidth = 380 };
+
+        foreach (var option in page.Options)
+        {
+            var cb = new CheckBox { Content = option.Text, IsChecked = option.IsSelected };
+            cb.Checked += (_, _) => option.IsSelected = true;
+            cb.Unchecked += (_, _) => option.IsSelected = false;
+            stack.Children.Add(cb);
+        }
+
+        var dialog = new ContentDialog
+        {
+            Title = $"{page.Description}   ({index}/{total})",
+            Content = new ScrollViewer { MaxHeight = 400, Content = stack },
+            PrimaryButtonText = index == total ? "Done" : "Next",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        return dialog;
+    }
+
+    private void UpdateSummary()
+    {
+        var selected = Manifest!.FeaturePages.SelectMany(p => p.Options).Where(o => o.IsSelected).ToList();
+
+        NotConfiguredBar.IsOpen = selected.Count == 0;
+        NotConfiguredBar.Message = "You must configure the playbook options before proceeding.";
+
+        SelectionsSummary.Text = selected.Count == 0
+            ? ""
+            : $"Selected: {string.Join(", ", selected.Select(o => o.Text))}";
+        SelectionsSummary.Visibility = selected.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        // Expose to the shell (MainWindow reads this when leaving Configuration).
+        SelectedOptionsList.Clear();
+        SelectedOptionsList.AddRange(selected.Select(o => o.Name));
+        ConfiguredAtLeastOnce = true;
+    }
+
+    /// <summary>Option names captured from the last completed pass (read by MainWindow).</summary>
+    public static readonly List<string> SelectedOptionsList = [];
+    public static bool ConfiguredAtLeastOnce { get; private set; }
 }
