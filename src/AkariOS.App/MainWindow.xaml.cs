@@ -102,33 +102,26 @@ public sealed partial class MainWindow : Window
 
     private void OnNavSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
-        Type? pageType = null;
-
-        switch (args.SelectedItem)
+        // The pane is a step PROGRESS indicator, not free navigation: the only selectable
+        // item is Settings (footer). Wizard pages are reached via Next/Back in-page.
+        if (args.SelectedItem is NavigationItem item && item.PageType == typeof(SettingsPage))
         {
-            case NavigationItem item:
-                pageType = item.PageType;
-                break;
-            case NavigationViewItem navItem when navItem.Tag is Type type:
-                pageType = type;
-                break;
+            if (_navigation.CurrentPageType != typeof(SettingsPage))
+                _navigation.NavigateTo<SettingsPage>();
+            return;
         }
 
-        if (pageType is not null && pageType != _navigation.CurrentPageType)
-        {
-            _navigation.NavigateTo(pageType);
-        }
+        // Revert any selection of a wizard step so it never looks clickable-active.
+        RefreshShellState();
     }
 
     private void RefreshShellState()
     {
         var current = _navigation.CurrentPageType;
-        var item = FooterNavItems.FirstOrDefault(i => i.PageType == current);
 
-        if (item is not null && !ReferenceEquals(NavView.SelectedItem, item))
-        {
-            NavView.SelectedItem = item;
-        }
+        // Only Settings is ever selected; wizard steps show state via IsEnabled visuals.
+        var settings = FooterNavItems.FirstOrDefault(i => i.PageType == typeof(SettingsPage));
+        NavView.SelectedItem = current == typeof(SettingsPage) ? settings : null;
     }
 
     private void ConfigureWindow()
