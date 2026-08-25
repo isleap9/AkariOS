@@ -28,12 +28,13 @@ Living document — update this file as items land. Checked = shipped.
 
 ## 🚧 In Progress
 
-- [x] **Phase 0: IPC bridge spike — CLOSED.** net10→net472 in-process loading verified
-      (`EngineBridgeProbe`); TrustedInstaller escalation + full V5 playbook execution
-      verified in VM (`LauncherSpike`). One upstream bug found (null-options crash) with a
-      workaround that fits our product design.
-- [ ] **Phase 2 (next): UI wiring** — mode switch, FeaturePages options UI, and capturing the
-      engine's progress/status into our own progress bar and log pane.
+- [x] ~~**Phase 0: IPC bridge spike**~~ CLOSED — net10→net472 in-process verified; escalation
+      + full V5 playbook run verified in VM.
+- [x] **Phase 2: wizard UI — DONE, VM-verified.** Five-step flow (License → System Check →
+      Configuration → Optimization → Finished), real requirement cards with one-click fixes,
+      live progress via the engine bridge, red/black branding.
+- [ ] **Next: docs refresh + first release** (re-tag `v0.1.0`, verify release zip carries
+      `engine\` + playbook).
 
 ## 📋 Backlog
 

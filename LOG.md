@@ -10,6 +10,69 @@ Conventions:
 
 ---
 
+## 2026-08-25 (session 2) — Phase 2: the wizard is real and works end-to-end
+
+**Milestone: AkariOS applies its own playbook through a full GUI wizard — verified in the VM.**
+
+### What shipped
+
+- **ISO removed from the UI** (code kept): nav pane now lists the five playbook steps as pages.
+- **Wizard footer** on every step: Back / Next (Accept & Continue → Next → Finish) + Akari Labs
+  Discord button.
+- **License step**: warning card + acceptance checkbox gating Next.
+- **System Check**: specs panel + real requirement evaluation from playbook.conf
+  (`Internet`, `NoAntivirus`, `PluggedIn`, `DefenderToggled`, `UCPDDisabled`), rendered as
+  Nexus-style cards with one-click fixes; page polls every 2 s so fixes unlock Next live.
+- **Configuration**: parses `playbook.conf` FeaturePages; "Select Options" walks them as
+  sequential popups with pre-ticked defaults; selections captured for the run.
+- **Optimization**: runs the engine via the elevated bridge with those options; progress bar +
+  current-task text parsed from mirrored output; console stays visible for debugging.
+- **Finished**: success banner + Restart now.
+- **Branding**: title bar says AkariOS, new logo everywhere, wallpaper banner atop the pane,
+  system accent recolored to logo red, Settings entry removed.
+
+### Architecture piece worth remembering
+
+Unelevated UI can't `runas` AND capture output simultaneously (UseShellExecute conflict).
+Solution: `AkariOS.EngineBridge.exe` (net472, headless, launched via runas) spawns the CLI
+with redirected pipes and mirrors output to `%TEMP%\AkariOS-Engine\out.txt`; the UI tails it.
+Progress parsing handles fractional percentages (`44.4502344…%`) — integers-only regex was
+bug #1; bare nested-tool lines (`100%`) slamming the bar to full was bug #2 (now ignored,
+bar never regresses).
+
+### Bugs found by testing (user's VM runs)
+
+1. Defender requirement checked MsMpEng process presence — it keeps running even when all
+   toggles are off → Next locked forever. Fixed by porting AME's exact registry logic
+   (`GetDefenderToggles`: Real-Time Protection, SpyNet reporting/consent, TamperProtection;
+   policy key first).
+2. My first registry guess for toggles didn't exist on stock Windows — guessing lost again;
+   reading AME's source won.
+3. Defender "fix" button ran elevated PowerShell just to open a settings page → AV freaked
+   out. Now opens `windowsdefender://protection` unelevated.
+4. Checks were one-shot: user had to restart the app after fixing something. Now polled
+   every 2 s while on System Check (simple fix, per user).
+5. Next button didn't re-evaluate on in-page state changes (license tick, options done) —
+   needed a sidebar click. Added `WizardFlow.StateChanged`.
+6. Upstream CLI bug: crashes when invoked with zero option args (null string[] into IPC).
+   We always pass explicit options, so unaffected — but noted upstream.
+7. Leftover TrustedInstaller nodes from an unclean run cause named-pipe access-denied on the
+   next run. Reboot/kill processes before re-testing.
+
+### Rule reinforced
+
+Engine/playbook runs NEVER on the host machine — VM only, started by the user. (Saved to
+persistent memory.)
+
+### Where we left off
+
+- All work committed & pushed (through `d2bd0f6`). Working tree clean.
+- Full wizard verified working in the VM by the user ("okay its working").
+- Remaining backlog: USB flasher / ISO download / custom OOBE absorbable from AME Core;
+  docs refresh (LOG/TODO/ROADMAP Phase 2 completion); re-tag `v0.1.0` for first release.
+
+---
+
 ## 2026-08-25 — Phase 0 spike: engine bridge + playbook discovery
 
 ### Verified: engine source does NOT build here
