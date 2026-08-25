@@ -125,7 +125,7 @@ public sealed partial class EngineService(ILogger<EngineService>? logger = null)
     }
 
     /// <summary>Extracts the bundled .apbx over the work dir (idempotent, version-stamped).</summary>
-    private string EnsurePlaybookExtracted()
+    public static string EnsurePlaybookExtracted()
     {
         var dir = PlaybookWorkDir;
         if (Directory.Exists(dir) && File.Exists(Path.Combine(dir, "playbook.conf")))
@@ -139,7 +139,6 @@ public sealed partial class EngineService(ILogger<EngineService>? logger = null)
 
         Directory.CreateDirectory(dir);
         RunSevenZip($"x \"{BundledPlaybookPath}\" -o\"{dir}\" -pmalte -y");
-        logger?.LogInformation("Playbook extracted to {Dir}", dir);
         return dir;
     }
 

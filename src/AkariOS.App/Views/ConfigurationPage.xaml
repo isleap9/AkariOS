@@ -5,14 +5,12 @@
     xmlns:local="using:AkariOS.App.Views">
 
     <ScrollViewer Padding="32,24">
-        <StackPanel Spacing="14" MaxWidth="720" HorizontalAlignment="Left">
+        <StackPanel Spacing="16" MaxWidth="760" HorizontalAlignment="Left" x:Name="Root">
             <TextBlock Text="Configuration" Style="{StaticResource TitleTextBlockStyle}" />
-            <TextBlock Text="Customize how the playbook will be applied to your system."
+            <TextBlock x:Name="Subtitle"
+                       Text="Customize how the playbook will be applied to your system."
                        Opacity="0.75" TextWrapping="Wrap" />
-
-            <InfoBar IsOpen="True" Severity="Informational" IsClosable="False"
-                     Title="Options land in Slice 3"
-                     Message="The playbook's FeaturePages (security, settings, removals, extras) will be rendered here." />
+            <!-- Feature page cards are built in code-behind from playbook.conf -->
         </StackPanel>
     </ScrollViewer>
 </local:WizardStepPage>
