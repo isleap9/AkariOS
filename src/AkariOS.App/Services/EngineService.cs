@@ -35,7 +35,7 @@ public sealed partial class EngineService(ILogger<EngineService>? logger = null)
     /// <summary>True if the engine payload is present and looks usable.</summary>
     public static bool IsEnginePresent() => File.Exists(CliExe);
 
-    [GeneratedRegex(@"^\s*(\d{1,3})%\s*(.*)$")]
+    [GeneratedRegex(@"^\s*(\d+(?:\.\d+)?)\s*%\s*(.*)$")]
     private static partial Regex ProgressLineRegex();
 
     /// <summary>
@@ -110,8 +110,12 @@ public sealed partial class EngineService(ILogger<EngineService>? logger = null)
 
                     onLogLine?.Invoke(line);
                     var m = line.Length <= 200 ? progressRegex.Match(line) : Match.Empty;
-                    if (m.Success && int.TryParse(m.Groups[1].Value, out var pct))
+                    if (m.Success && double.TryParse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture, out var pctValue))
+                    {
+                        // CLI emits fractional percentages (e.g. 44.4502344…); clamp to int for the bar.
+                        var pct = Math.Clamp((int)Math.Round(pctValue), 0, 100);
                         onProgress?.Invoke(pct, m.Groups[2].Value.TrimEnd('.', ' ').Trim());
+                    }
                 }
             }
 
