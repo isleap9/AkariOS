@@ -145,7 +145,13 @@ public sealed partial class EngineService(ILogger<EngineService>? logger = null)
 
     private static void RunSevenZip(string args)
     {
-        var sevenZip = Path.Combine(AppContext.BaseDirectory, "engine", "7z.exe");
+        // CLI-Standalone ships 7za.exe (standalone console build); accept plain 7z.exe too.
+        var sevenZip = new[] { "7za.exe", "7z.exe" }
+            .Select(n => Path.Combine(AppContext.BaseDirectory, "engine", n))
+            .FirstOrDefault(File.Exists)
+        ?? throw new FileNotFoundException(
+            "Neither engine\\7za.exe nor engine\\7z.exe was found next to the app — needed to extract the playbook.");
+
         using var p = Process.Start(new ProcessStartInfo
         {
             FileName = sevenZip,
