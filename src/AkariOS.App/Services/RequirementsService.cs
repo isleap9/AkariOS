@@ -109,48 +109,82 @@ public sealed partial class RequirementsService
 
     private static RequirementCheck CheckDefenderToggles()
     {
-        // The AME CLI requires all 4 Windows Security toggles OFF. Those toggles persist as
-        // registry values under Windows Defender Security Center policies; MsMpEng keeps
-        // RUNNING even when they're all off, so process presence is NOT a valid signal.
-        var (allOff, detail) = GetDefenderToggleState();
+        // Exact same logic as the AME CLI's GetDefenderToggles (CLI.cs:389) — the playbook
+        // will only run when all four return "off". Checks policy key first, falls back to
+        // the Defender key, matching what the toggles actually write.
+        var toggles = GetDefenderToggles();
+        var offCount = toggles.Count(t => !t);
+        var allOff = toggles.All(t => !t);
+
         return allOff
-            ? new("defender", "Windows Defender", "All Windows Security toggles are off.", true, true)
+            ? new("defender", "Windows Defender", $"All 4 toggles are off ({string.Join(", ", toggles.Select((t, i) => $"#{i + 1}:{(t ? "on" : "off")}"))}).", true, true)
             : new("defender", "Windows Defender",
-                  "Turn off all 4 toggles in Windows Security (real-time, cloud, sample submission, tamper).",
+                  $"Turn off all 4 toggles in Windows Security — {offCount}/4 currently off.",
                   false, true);
     }
 
-    /// <summary>Reads the 4 Defender toggle states from policy/registry. True = all off.</summary>
-    private static (bool AllOff, string Detail) GetDefenderToggleState()
+    /// <summary>
+    /// Port of AME CLI GetDefenderToggles: [realtime, spynet-reporting, spynet-consent, tamper].
+    /// true = toggle is ON (protection active), false = OFF.
+    /// </summary>
+    private static List<bool> GetDefenderToggles()
     {
-        const string keyPath = @"SOFTWARE\Microsoft\Windows Defender Security Center\Real-time security";
-        var names = new[]
-        {
-            "DisableRealtimeMonitoring",          // Virus & threat protection settings
-            "DisableBehaviorMonitoring",
-            "DisableIOAVProtection",
-            "DisableScriptScanning",
-        };
+        var result = new List<bool>();
 
-        var off = 0;
+        using var defenderKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows Defender");
+        using var policiesKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Policies\Microsoft\Windows Defender");
+
+        // 1) Real-time protection
         try
         {
-            using var base1 = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(keyPath);
-            if (base1 is null)
-                return (false, "registry key missing");
-
-            foreach (var name in names)
-            {
-                var v = base1.GetValue(name);
-                // Value present and = 1 means that toggle was switched OFF by the user.
-                if (v is int i && i == 1) off++;
-            }
-            return (off >= 4, $"{off}/4 toggles off");
+            using var realtimePolicy = policiesKey?.OpenSubKey("Real-Time Protection");
+            using var realtimeKey = realtimePolicy ?? defenderKey?.OpenSubKey("Real-Time Protection");
+            if (realtimeKey is null)
+                result.Add(false);
+            else
+                result.Add((int?)realtimeKey.GetValue("DisableRealtimeMonitoring") != 1);
         }
         catch
         {
-            return (false, "could not read toggle state");
+            result.Add(false);
         }
+
+        // 2+3) SpyNet (cloud reporting + sample consent)
+        try
+        {
+            using var spynetPolicy = policiesKey?.OpenSubKey("SpyNet");
+            using var spynetKey = spynetPolicy ?? defenderKey?.OpenSubKey("SpyNet");
+
+            int reporting = 0, consent = 0;
+            if (spynetKey is not null)
+            {
+                reporting = (int?)spynetKey.GetValue("SpyNetReporting") ?? 0;
+                consent = (int?)spynetKey.GetValue("SubmitSamplesConsent") ?? 0;
+            }
+            if (reporting == 0 && spynetPolicy != null)
+                reporting = (int?)defenderKey?.OpenSubKey("SpyNet")?.GetValue("SpyNetReporting") ?? 0;
+
+            result.Add(reporting != 0);
+            result.Add(consent != 0 && consent != 2 && consent != 4);
+        }
+        catch
+        {
+            result.Add(false);
+            result.Add(false);
+        }
+
+        // 4) Tamper protection
+        try
+        {
+            var tamper = (int)defenderKey!.OpenSubKey("Features")!.GetValue("TamperProtection")!;
+            result.Add(tamper != 4 && tamper != 0);
+        }
+        catch
+        {
+            result.Add(false);
+        }
+
+        return result;
     }
 
     private static RequirementCheck CheckUcpd()
