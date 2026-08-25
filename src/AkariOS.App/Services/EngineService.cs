@@ -39,11 +39,9 @@ public sealed partial class EngineService(ILogger<EngineService>? logger = null)
     private static partial Regex ProgressLineRegex();
 
     /// <summary>
-    /// Runs the playbook. <paramref name="showConsole"/> keeps the CLI's own window visible
-    /// (debugging); when false the console is hidden and stdout is captured for parsing.
-    ///
-    /// NOTE: with a visible console we CANNOT capture stdout (two owners of one pipe), so
-    /// progress reporting only works in hidden mode. Visible mode = debugging, no parse.
+    /// Runs the playbook via the elevated bridge. The bridge (launched with runas) starts
+    /// the CLI with redirected pipes and mirrors all output to %TEMP%\AkariOS-Engine\out.txt;
+    /// we tail that file so the UI gets live progress while the CLI's console stays visible.
     /// </summary>
     public async Task<EngineRunResult> RunPlaybookAsync(
         IReadOnlyList<string> options,
@@ -62,28 +60,21 @@ public sealed partial class EngineService(ILogger<EngineService>? logger = null)
         // (SerializationException in InterLink.GetParameters). 'akariserv' ships ticked by default.
         if (options.Count == 0) options = ["akariserv"];
 
+        var bridgeExe = Path.Combine(CliDir, "AkariOS.EngineBridge.exe");
+        if (!File.Exists(bridgeExe))
+            throw new FileNotFoundException("The engine bridge is missing.", bridgeExe);
+
         var psi = new ProcessStartInfo
         {
-            FileName = CliExe,
-            Arguments = $"\"{playbookDir}\" {string.Join(" ", options.Select(a => $"\"{a}\""))}",
+            FileName = bridgeExe,
+            Arguments = $"\"{CliExe}\" \"{playbookDir}\" {string.Join(" ", options.Select(a => $"\"{a}\""))}",
             WorkingDirectory = CliDir,
             UseShellExecute = true,   // required for Verb=runas
             Verb = "runas",           // single UAC prompt at engine start
-            CreateNoWindow = !showConsole,
+            CreateNoWindow = true,    // the bridge is headless; the CLI it spawns has its own window
         };
 
-        // Hidden mode: capture output so we can parse progress.
-        if (!showConsole)
-        {
-            psi.RedirectStandardOutput = true;
-            psi.RedirectStandardError = true;
-            psi.UseShellExecute = false;  // incompatible with redirect; runas no longer applies!
-            // NOTE: UseShellExecute=false means no Verb=runas → the child inherits our token.
-            // A hidden+elevated launch needs either an elevated helper or app-compat flag;
-            // for now hidden mode requires AkariOS itself to be running elevated.
-        }
-
-        logger?.LogInformation("Launching engine: {Exe} {Args} (console={Show})", CliExe, psi.Arguments, showConsole);
+        logger?.LogInformation("Launching engine via bridge: {Args}", psi.Arguments);
 
         using var process = new Process { StartInfo = psi };
         try
@@ -96,32 +87,45 @@ public sealed partial class EngineService(ILogger<EngineService>? logger = null)
             return new EngineRunResult(-1, Cancelled: true);
         }
 
-        if (showConsole)
-        {
-            await process.WaitForExitAsync(ct).ConfigureAwait(false);
-            return new EngineRunResult(process.ExitCode, Cancelled: ct.IsCancellationRequested);
-        }
-
-        // ---- hidden mode: pump + parse ------------------------------------
+        var outFile = Path.Combine(Path.GetTempPath(), "AkariOS-Engine", "out.txt");
         var progressRegex = ProgressLineRegex();
-        void Pump(string? line)
-        {
-            if (string.IsNullOrWhiteSpace(line)) return;
-            onLogLine?.Invoke(line);
-            var m = line.Length <= 200 ? progressRegex.Match(line) : Match.Empty;
-            if (m.Success)
-                onProgress?.Invoke(
-                    int.Parse(m.Groups[1].Value),
-                    m.Groups[2].Value.TrimEnd('.', ' ').Trim());
-        }
+        var lastLength = 0L;
 
-        var outTask = process.StandardOutput.ReadLineLoopAsync(l => Pump(l), ct);
-        var errTask = process.StandardError.ReadLineLoopAsync(l => Pump(l), ct);
+        // Tail out.txt until the bridge exits (it writes "EXIT <code>" as its final line).
+        while (!process.HasExited || FileLength(outFile) > lastLength)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            if (File.Exists(outFile))
+            {
+                using var stream = new FileStream(outFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                stream.Seek(lastLength, SeekOrigin.Begin);
+                using var reader = new StreamReader(stream);
+                string? line;
+                while ((line = await reader.ReadLineAsync().ConfigureAwait(false)) is not null)
+                {
+                    lastLength += reader.CurrentEncoding.GetBytes(line + Environment.NewLine).Length;
+
+                    if (line.StartsWith("EXIT ", StringComparison.Ordinal)) continue;
+
+                    onLogLine?.Invoke(line);
+                    var m = line.Length <= 200 ? progressRegex.Match(line) : Match.Empty;
+                    if (m.Success && int.TryParse(m.Groups[1].Value, out var pct))
+                        onProgress?.Invoke(pct, m.Groups[2].Value.TrimEnd('.', ' ').Trim());
+                }
+            }
+
+            if (process.HasExited) break;
+            await Task.Delay(250, ct).ConfigureAwait(false);
+        }
 
         await process.WaitForExitAsync(ct).ConfigureAwait(false);
-        try { await Task.WhenAll(outTask, errTask).ConfigureAwait(false); } catch { /* cancelled */ }
-
         return new EngineRunResult(process.ExitCode, Cancelled: ct.IsCancellationRequested);
+    }
+
+    private static long FileLength(string path)
+    {
+        try { return new FileInfo(path).Length; } catch { return 0; }
     }
 
     /// <summary>Extracts the bundled .apbx over the work dir (idempotent, version-stamped).</summary>

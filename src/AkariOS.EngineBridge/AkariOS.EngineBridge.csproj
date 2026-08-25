@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Elevated bridge between AkariOS (unelevated UI) and the AME CLI.
+    AkariOS launches this with Verb=runas; the bridge (already elevated) starts the CLI
+    with redirected pipes and mirrors all output to %TEMP%\AkariOS-Engine\out.txt,
+    which the UI tails. This gives live progress AND a visible console.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>AkariOS.EngineBridge</AssemblyName>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <!-- net472 console app: runs on any Windows 10/11 machine with .NET FX 4.7.2+ (always present). -->
+  </PropertyGroup>
+
+</Project>
