@@ -54,6 +54,8 @@ public sealed partial class OptimizationPage : WizardStepPage
                 ct: CancellationToken.None).ConfigureAwait(true);
 
             RunCompleted = result.ExitCode == 0 && !result.Cancelled;
+            WizardFlow.RunCompleted = RunCompleted;
+            WizardFlow.NotifyStateChanged(); // gate/unlock the shell's Next button
             DoneBar.Severity = RunCompleted ? InfoBarSeverity.Success : InfoBarSeverity.Error;
             DoneBar.Title = RunCompleted ? "Playbook applied" : $"Engine exited with code {result.ExitCode}";
             DoneBar.Message = RunCompleted

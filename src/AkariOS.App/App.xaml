@@ -8,7 +8,25 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+                <ResourceDictionary Source="ms-appx:///Themes/AkariTheme.xaml" />
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- AkariOS red/black branding: recolor the system accent so all
+                 AccentButtonStyle buttons, progress bars and highlights use logo red. -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Dark">
+                    <Color x:Key="SystemAccentColor">#ff1a1a</Color>
+                    <Color x:Key="SystemAccentColorLight">#ff4d4d</Color>
+                    <Color x:Key="SystemAccentColorDark">#cc0000</Color>
+                    <SolidColorBrush x:Key="SystemAccentColorPrimaryBrush" Color="#ff1a1a" />
+                    <SolidColorBrush x:Key="SystemAccentColorSecondaryBrush" Color="#ff4d4d" />
+                    <SolidColorBrush x:Key="SystemAccentColorTertiaryBrush" Color="#cc0000" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <Color x:Key="SystemAccentColor">#e60000</Color>
+                    <SolidColorBrush x:Key="SystemAccentColorPrimaryBrush" Color="#e60000" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
 
             <conv:EnumToStringConverter x:Key="EnumToStringConverter" />
             <conv:BooleanToVisibilityConverter x:Key="BooleanToVisibility" />

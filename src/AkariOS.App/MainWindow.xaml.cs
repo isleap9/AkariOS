@@ -146,8 +146,9 @@ public sealed partial class MainWindow : Window
     /// <summary>Per-step gates for advancing forward.</summary>
     private static bool CanLeaveStep(int index) => index switch
     {
-        0 => Views.WizardFlow.LicenseAccepted,   // must tick the license checkbox
-        2 => Views.ConfigurationPage.ConfiguredAtLeastOnce, // must run Select Options
+        0 => Views.WizardFlow.LicenseAccepted,               // must tick the license checkbox
+        2 => Views.ConfigurationPage.ConfiguredAtLeastOnce,  // must run Select Options
+        3 => Views.WizardFlow.RunCompleted,                  // must finish the engine run
         _ => true,
     };
 

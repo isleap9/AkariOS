@@ -1,0 +1,22 @@
+<!--
+    AkariOS branding, derived from the AkariOS Wallpaper palette:
+    - background: near-black with red undertones (#080202 / #1f0505)
+    - accent:     logo red (#ff1a1a), soft red glow (#ff4d4d)
+    - text:       stark white (#ffffff)
+
+    Applied as a merged dictionary so every wizard page picks it up.
+-->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Color x:Key="AkariBgColor">#080202</Color>
+    <Color x:Key="AkariPanelColor">#1f0505</Color>
+    <Color x:Key="AkariRedColor">#ff1a1a</Color>
+    <Color x:Key="AkariGlowColor">#ff4d4d</Color>
+
+    <SolidColorBrush x:Key="AkariAccentBrush" Color="{StaticResource AkariRedColor}" />
+    <SolidColorBrush x:Key="AkariGlowBrush" Color="{StaticResource AkariGlowColor}" />
+    <SolidColorBrush x:Key="AkariPanelBrush" Color="{StaticResource AkariPanelColor}" />
+
+</ResourceDictionary>
