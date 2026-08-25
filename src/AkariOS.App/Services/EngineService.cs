@@ -90,6 +90,7 @@ public sealed partial class EngineService(ILogger<EngineService>? logger = null)
         var outFile = Path.Combine(Path.GetTempPath(), "AkariOS-Engine", "out.txt");
         var progressRegex = ProgressLineRegex();
         var lastLength = 0L;
+        var maxPct = 0;
 
         // Tail out.txt until the bridge exits (it writes "EXIT <code>" as its final line).
         while (!process.HasExited || FileLength(outFile) > lastLength)
@@ -112,9 +113,24 @@ public sealed partial class EngineService(ILogger<EngineService>? logger = null)
                     var m = line.Length <= 200 ? progressRegex.Match(line) : Match.Empty;
                     if (m.Success && double.TryParse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture, out var pctValue))
                     {
-                        // CLI emits fractional percentages (e.g. 44.4502344…); clamp to int for the bar.
                         var pct = Math.Clamp((int)Math.Round(pctValue), 0, 100);
-                        onProgress?.Invoke(pct, m.Groups[2].Value.TrimEnd('.', ' ').Trim());
+                        var status = m.Groups[2].Value.TrimEnd('.', ' ').Trim();
+
+                        // Ignore bare percentage lines (e.g. nested robocopy "100%") — they'd
+                        // slam the bar full while the playbook is still mid-run. Only trust
+                        // lines carrying a status label.
+                        if (status.Length == 0) continue;
+
+                        // Progress can arrive out of order in the tail; never regress.
+                        if (pct >= maxPct)
+                        {
+                            maxPct = pct;
+                            onProgress?.Invoke(pct, status);
+                        }
+                        else
+                        {
+                            onProgress?.Invoke(maxPct, status);
+                        }
                     }
                 }
             }
