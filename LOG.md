@@ -10,6 +10,83 @@ Conventions:
 
 ---
 
+## 2026-08-25 — Phase 0 spike: engine bridge + playbook discovery
+
+### Verified: engine source does NOT build here
+
+`MSBuild 18.9.1` (VS 2026 Community) + the v4.7.2 targeting pack are installed, and NuGet
+restore of `TrustedUninstaller.sln` succeeded. The build still fails:
+
+```
+CSC : error CS1566: Error reading resource
+'TrustedUninstaller.Shared.Properties.Z-AME-NoDefender-Package31bf3856ad364e35amd641.0.0.0.cab'
+-- Could not find file
+```
+
+Two embedded Defender-removal `.cab` blobs are referenced by the csproj (lines 220–221) but
+are **not committed to the public repo**. Only `UsrClass.dat`, `uefi-ntfs-ame*.img` are present.
+Not fixable on our side.
+
+→ **Decision: consume the released binaries.** Downloaded `CLI-Standalone.zip` 0.8.4 (9.5 MB
+zip → 18 MB extracted); the shipped `TrustedUninstaller.Shared.dll` has the cab baked in.
+Benefits: no fork, no net472 build chain, trivial version pinning.
+
+### Verified: net10 CAN load + execute the net472 engine in-process
+
+Built `tools/EngineBridgeProbe` (commit `ebe5d8e`), reflection-based so it reports *where* it
+breaks rather than failing to compile:
+
+```
+[bridge] runtime : .NET 10.0.11
+  [OK] load TrustedUninstaller.Shared      v0.8.4.0 (IL runtime v4.0.30319)
+  [OK] resolve AmeliorationUtil
+  [OK] resolve RunPlaybook overloads       14 params, 23 params
+  [OK] resolve InterLink + progress types  InterProgress=True; InterMessageReporter=True
+  [OK] EXECUTE engine code                 DeserializePlaybook threw DirectoryNotFoundException
+[bridge] VERDICT: net10 CAN load and execute the net472 engine in-process.
+```
+
+**This invalidated my own plan.** TODO.md had asserted "it cannot be ProjectReference'd from
+net10" and budgeted 2–4 days for a custom IPC bridge. Wrong on both counts: `InterLink` ships
+*inside* `Shared.dll` (no shared-source-project boundary), and .NET's compat shims load the
+net472 assembly fine. Dependencies resolve via an `AssemblyResolve` hook pointed at the engine
+folder. TODO corrected in place rather than quietly edited.
+
+Still unproven, and it's the harder half: **TrustedInstaller escalation**. Loading ≠ escalating.
+Open risks — `InterLink.LaunchNode` re-launches *itself* at higher levels (may assume the
+net472 CLI layout), and the release ships `TrustedUninstaller.CLI.exe.config` whose binding
+redirects a net10 host will not apply.
+
+Architecture note: even though in-process now works, a **separate engine process is still
+probably right** — the UI must stay `asInvoker` or drag-and-drop breaks again (UIPI), and a
+crash in ~49k lines of privileged Win32 shouldn't kill the UI.
+
+### Discovered: the AkariOS V5 playbook already exists and is AME-native
+
+The user pointed out `AkariOS-Playbook.apbx` (18 MB) was already committed at the repo root.
+Extracted with 7-Zip + password `malte` → 68 folders / 186 files / 35 MB:
+
+- `playbook.conf` — **AkariOS V5, v5.0.4, `SupportsISO=true`**, supported builds 19044→26200,
+  `DisableBitLocker` + `DisableHardwareRequirements`, OOBE bullet points, and **5 FeaturePages**
+  of user-facing options (security, settings ×2, removals, extras)
+- `Configuration/` — `custom.yml` → 7 task files; `registry.yml` alone is 82 KB
+- `Executables/` — 34 MB of bundled tools/scripts
+- **881 actions**: `registryValue` 466, `service` 246, `appx` 71, `run` 29, `writeStatus` 16,
+  `cmd` 12, `powerShell` 10, `file` 10, `taskKill` 8, `task` 7, `download` 2
+
+**Phase 1 is therefore ~done** — it becomes verification + wiring, not authoring. Also means
+`WinSux.ps1` + `$OEM$` is superseded; the V5 playbook already contains those tweaks in
+engine-native form. Only 2 actions carry `iso: true`, so almost everything currently runs
+live/OOBE — worth revisiting for offline reliability, but only with VM testing.
+
+### Where we left off
+
+- Pushed: `ebe5d8e` (probe), docs update following.
+- Next: **TrustedInstaller escalation test** — the last unknown in Phase 0.
+- Note: `v0.1.0` tag still points at a commit predating the CI fixes; re-tag before releasing.
+
+---
+
 ## 2026-08-24 → 08-25 — Release CI, UX polish, WIM servicing, elevation reversal
 
 ### Shipped

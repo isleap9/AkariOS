@@ -28,7 +28,11 @@ driven by a GUI.
    engine removes protected components. So the engine cannot live in our WinUI process.
 2. **Engine is .NET Framework 4.7.2** and pulls WPF (`PresentationFramework`, `WindowsBase`),
    WinForms, COM (`WUApiLib`, `IWshRuntimeLibrary`), `YamlDotNet`, `DiscUtils.Udf`,
-   `Microsoft.Wim`, `SharpSevenZip`. It cannot be ProjectReference'd from net10.
+   `Microsoft.Wim`, `SharpSevenZip`.
+   ~~It cannot be ProjectReference'd from net10.~~ **Corrected (Phase 0):** a net10 process
+   *can* load and execute `TrustedUninstaller.Shared.dll` directly — verified. What is still
+   true: it can't be built from source here (missing Defender `.cab` blobs), so we reference
+   the **released binaries** and resolve their dependencies with an `AssemblyResolve` hook.
 3. **AkariOS.App must stay `asInvoker`.** Windows UIPI blocks drag-and-drop from Explorer into
    an elevated window — that is what silently broke the ISO drop zone. Verified by
    `tools/ElevationProbe`: the whole current pipeline (mount, robocopy, `$OEM$`, wimlib
@@ -57,35 +61,107 @@ AkariOS.Engine.exe     net472, requireAdministrator → elevates to TrustedInsta
 
 ## Phase 0 — IPC bridge spike ⭐ IN PROGRESS
 
-**Goal:** prove a net10 client can drive `RunPlaybook` in a net472 TrustedInstaller host and
-receive progress. Everything after this is straightforward UI work; if this fails the whole
-architecture changes, so nothing else starts until it's answered.
+**Goal:** prove a net10 client can drive `RunPlaybook` and receive progress. Everything after
+this is straightforward UI work; if this fails the whole architecture changes, so nothing else
+starts until it's answered.
 
-- [ ] Build `TrustedUninstaller.sln` (Release) — confirm the engine compiles here at all
-- [ ] Determine how `Interprocess` crosses the framework boundary. In order of preference:
-      1. include the shared `Interprocess/*.cs` in a net10 project (needs
-         `System.IO.Pipes.AccessControl` for `PipeSecurity` on modern .NET)
-      2. thin net472 host that owns InterLink, plus our own minimal pipe/stdout protocol
-      3. reimplement the pipe contract on our side (last resort)
-- [ ] Minimal `AkariOS.Engine.exe`: wraps `RunPlaybook`, `requireAdministrator`
-- [ ] Console-only net10 client: launch engine, call a trivial playbook, print progress
-- [ ] **Verification:** progress values + status strings arrive in the net10 process, engine
-      exits cleanly, no orphaned elevated process
+### Answered ✅
 
-**Open question to answer here:** does the TrustedInstaller escalation work when the parent is
-an unelevated net10 app, or does the engine need to be launched already-elevated (`runas`)?
+- [x] **Engine source does NOT build here.** `TrustedUninstaller.Shared` references two
+      embedded Defender resources that are **absent from the public repo**:
+      `CSC : error CS1566: Error reading resource '...Z-AME-NoDefender-Package...amd64...cab'`.
+      Not fixable on our side.
+      → **Decision: consume the released binaries** (`CLI-Standalone.zip` 0.8.4, 18 MB
+      extracted), not a source build. No fork, no net472 build toolchain, easy version pinning.
+      (MSBuild 18.9.1 + the v4.7.2 targeting pack ARE installed; restore succeeded — the
+      failure is purely the missing binary blobs.)
+- [x] **net10 CAN load and execute the net472 engine in-process** — verified by
+      `tools/EngineBridgeProbe` (commit `ebe5d8e`):
+      - `TrustedUninstaller.Shared` v0.8.4 (IL v4.0.30319) loads under .NET 10.0.11
+      - `AmeliorationUtil` resolves; both `RunPlaybook` overloads present (14 + 23 params)
+      - `Interprocess.InterLink` + `InterProgress` + `InterMessageReporter` all resolve
+      - engine code actually **runs** (`DeserializePlaybook` threw a normal
+        `DirectoryNotFoundException`)
+      → This **invalidates the original assumption** that a net472 host + custom IPC bridge was
+      mandatory. `InterLink` ships *inside* `Shared.dll`, so there is no shared-source-project
+      boundary to solve. Dependencies resolve from the engine folder via an `AssemblyResolve` hook.
 
-## Phase 1 — AkariOS playbook
+### Still open — the harder half
 
-- [ ] Author `AkariOS.apbx` from the WinSux tweaks using their action types
-      (`!registryValue`, `!service`, `!appx`, `!cmd`, `!powershell`, `!scheduledTask`, …)
-- [ ] Ship it **pre-extracted** (`Configuration/` + `playbook.conf`) so we skip the 7z /
-      password-`malte` decryption path entirely
-- [ ] `playbook.conf`: `SupportsISO`, `OOBE` bullet points, optional
-      `ISO/DisableBitLocker` + `DisableHardwareRequirements`
-- [ ] Use `iso:` / `oobe:` per-action flags to split offline-vs-live work
-      (offline is more reliable for service/package removal; scripts are OOBE-only)
-- [ ] **Verification:** run in a VM via their CLI first, before any AkariOS wiring
+Loading the assembly is NOT the same as escalating and running a playbook.
+
+- [ ] **Escalation test:** does `InterLink` reach `Level.TrustedInstaller` when the host is a
+      net10 process? `LaunchNode` re-launches *itself* at higher levels, which may assume the
+      net472 CLI's own exe/layout.
+- [ ] **Binding redirects:** the release ships `TrustedUninstaller.CLI.exe.config`; a net10 host
+      does not apply app.config binding redirects. Watch for assembly-version conflicts
+      (`System.Text.Json`, `System.Memory`, `Newtonsoft.Json`).
+- [ ] **Verification:** run a trivial 2–3 action playbook end-to-end, progress + status arriving
+      in the net10 process, engine exits cleanly, no orphaned elevated process.
+
+### Architecture decision (revisit after the escalation test)
+
+In-process now looks technically possible, but **a separate engine process is still probably
+right**, for reasons independent of framework compatibility:
+
+1. The UI must stay `asInvoker` so drag-and-drop keeps working (UIPI). If the engine ran
+   in-process at TrustedInstaller level, the whole UI would be elevated → DnD breaks again.
+2. A crash inside ~49k lines of privileged Win32 code should not take the UI down.
+3. UAC then appears only when the user presses Run/Build.
+
+So: prefer `AkariOS.Engine.exe` (its own process, elevates itself), with the UI talking to it.
+In-process loading remains a useful fallback for cheap, unprivileged calls
+(playbook parsing, option enumeration, requirement checks) where no elevation is needed.
+
+- [ ] Decide: engine process launched via `runas` on demand vs. `InterLink`-managed nodes
+- [ ] `AkariOS.Engine.exe` — net472 or net10 host wrapping `RunPlaybook`
+
+## Phase 1 — AkariOS playbook ✅ ALREADY EXISTS
+
+**`AkariOS-Playbook.apbx` (18 MB, repo root) is the AkariOS V5 playbook and it is already a
+complete, AME-compatible playbook.** This phase is therefore mostly *verification + wiring*,
+not authoring. Upstream: <https://github.com/isleap9/AkariOS-Playbook>
+
+Verified contents (extract with 7-Zip, password `malte` → 68 folders / 186 files / 35 MB):
+
+```
+playbook.conf     AkariOS V5 · v5.0.4 · SupportsISO=true
+                  SupportedBuilds: 19044 19045 22621 22631 26100 26200
+                  Requirements: DefenderToggled, NoAntivirus, Internet, PluggedIn
+                  ISO: DisableBitLocker=true, DisableHardwareRequirements=true
+                  OOBE bullet points present
+                  5 FeaturePages (security, settings 1/2 + 2/2, removals, extras)
+Configuration/    custom.yml → 7 task files
+                  registry.yml (82 KB), services.yml (22 KB), appx.yml, components.yml,
+                  commands.yml, ScheduledTasks.yml, FinalTasks.yml
+Executables/      34 MB of bundled scripts/tools (AkariOS.pow, DevManView, Edge/Copilot
+                  removal, Defender scripts, service batches, PostInstall, …)
+playbook.png
+```
+
+Action mix (881 actions total): `registryValue` 466, `service` 246, `appx` 71, `run` 29,
+`writeStatus` 16, `cmd` 12, `powerShell` 10, `file` 10, `taskKill` 8, `task` 7, `download` 2.
+Only 2 actions currently carry `iso: true` (commands.yml:70,75).
+
+### Remaining work
+
+- [ ] Decide how the playbook ships: keep the `.apbx` and decrypt at runtime (engine already
+      does this, password `malte`), or ship **pre-extracted** to skip decryption entirely.
+      Pre-extracted is simpler but exposes the tweaks as loose files.
+- [ ] Wire "one download, self-updating": `<Git>` already points at the playbook repo, so we can
+      check for playbook updates independently of app updates.
+- [ ] Map the 5 `FeaturePages` → our options UI (checkbox pages with defaults, `IsRequired`).
+- [ ] **Review `iso:` / `oobe:` coverage.** With only 2 `iso: true` actions, nearly everything
+      runs live/OOBE today. Offline injection is more reliable for service/package removal, so
+      revisit once ISO mode works — but do NOT bulk-flip flags without VM testing.
+- [ ] `Requirements` incl. `Internet` + `NoAntivirus` + `PluggedIn` must be pre-flighted in OUR
+      UI (see Phase 2) — the CLI blocks on `Console.ReadKey()` for these.
+- [ ] **Verification:** run this exact playbook via their CLI in a VM before any AkariOS wiring.
+
+### Consequence for the project
+
+The old `WinSux/WinSux.ps1` + `$OEM$` mechanism is superseded by this playbook. Do not port
+WinSux tweaks into a new playbook — V5 already contains them in engine-native form.
 
 ## Phase 2 — UI rework
 
