@@ -124,20 +124,28 @@ public sealed partial class SystemCheckPage : WizardStepPage
 
         if (!check.IsMet && check.CanAutoFix)
         {
-            var btn = new Button { Content = "Disable" };
+            var btn = new Button { Content = check.Id == "defender" ? "Open Windows Security" : "Disable" };
             btn.Click += async (_, _) =>
             {
-                btn.IsEnabled = false;
                 var ok = RequirementsService.TryAutoFix(check.Id);
-                if (ok)
+                if (!ok)
                 {
-                    // Give the action a beat to take effect, then re-verify everything.
-                    await Task.Delay(2500);
+                    btn.IsEnabled = true;
+                    return;
+                }
+
+                if (check.Id == "defender")
+                {
+                    // User flips toggles in Windows Security; re-verify when they come back.
+                    await Task.Delay(1500);
                     EvaluateRequirements();
                 }
                 else
                 {
-                    btn.IsEnabled = true;
+                    // Elevated service fix: give it a beat, then re-verify.
+                    btn.IsEnabled = false;
+                    await Task.Delay(2500);
+                    EvaluateRequirements();
                 }
             };
             grid.Children.Add(btn);

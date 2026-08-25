@@ -109,12 +109,48 @@ public sealed partial class RequirementsService
 
     private static RequirementCheck CheckDefenderToggles()
     {
-        // MsMpEng running means real-time protection is active → toggles are still on.
-        var defenderRunning = Process.GetProcessesByName("MsMpEng").Length > 0;
-        return !defenderRunning
-            ? new("defender", "Windows Defender", "Defender is disabled.", true, true)
+        // The AME CLI requires all 4 Windows Security toggles OFF. Those toggles persist as
+        // registry values under Windows Defender Security Center policies; MsMpEng keeps
+        // RUNNING even when they're all off, so process presence is NOT a valid signal.
+        var (allOff, detail) = GetDefenderToggleState();
+        return allOff
+            ? new("defender", "Windows Defender", "All Windows Security toggles are off.", true, true)
             : new("defender", "Windows Defender",
-                  "Must be toggled off prior to execution (all 4 Windows Security toggles).", false, true);
+                  "Turn off all 4 toggles in Windows Security (real-time, cloud, sample submission, tamper).",
+                  false, true);
+    }
+
+    /// <summary>Reads the 4 Defender toggle states from policy/registry. True = all off.</summary>
+    private static (bool AllOff, string Detail) GetDefenderToggleState()
+    {
+        const string keyPath = @"SOFTWARE\Microsoft\Windows Defender Security Center\Real-time security";
+        var names = new[]
+        {
+            "DisableRealtimeMonitoring",          // Virus & threat protection settings
+            "DisableBehaviorMonitoring",
+            "DisableIOAVProtection",
+            "DisableScriptScanning",
+        };
+
+        var off = 0;
+        try
+        {
+            using var base1 = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(keyPath);
+            if (base1 is null)
+                return (false, "registry key missing");
+
+            foreach (var name in names)
+            {
+                var v = base1.GetValue(name);
+                // Value present and = 1 means that toggle was switched OFF by the user.
+                if (v is int i && i == 1) off++;
+            }
+            return (off >= 4, $"{off}/4 toggles off");
+        }
+        catch
+        {
+            return (false, "could not read toggle state");
+        }
     }
 
     private static RequirementCheck CheckUcpd()
@@ -138,19 +174,29 @@ public sealed partial class RequirementsService
     }
 
     /// <summary>
-    /// One-click fixes for requirements that support it. Runs elevated via runas;
-    /// returns false when the user declines UAC or the action fails.
+    /// One-click fixes. UCPD needs an elevated service stop; Defender just opens
+    /// Windows Security (unelevated) for the user to flip the toggles manually.
+    /// Returns false when the user declines UAC or the action fails.
     /// </summary>
     public static bool TryAutoFix(string id)
     {
         try
         {
+            // Defender: simply open the right settings page — no elevation, no scripts.
+            if (id == "defender")
+            {
+                using var p = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "windowsdefender://protection",
+                    UseShellExecute = true,
+                });
+                return p != null;
+            }
+
             var script = id switch
             {
-                // Stop + disable UCPD driver service.
+                // Stop + disable UCPD driver service (needs elevation).
                 "ucpd" => "sc stop UCPD; sc config UCPD start= disabled",
-                // Open Windows Security's protection settings for manual toggle-off.
-                "defender" => "start windowsdefender://protection",
                 _ => null,
             };
             if (script is null) return false;
@@ -163,8 +209,8 @@ public sealed partial class RequirementsService
                 Verb = "runas",
                 CreateNoWindow = true,
             };
-            using var p = Process.Start(psi);
-            return p != null;
+            using var p2 = Process.Start(psi);
+            return p2 != null;
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
         {
