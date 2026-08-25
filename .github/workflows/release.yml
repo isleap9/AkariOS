@@ -17,6 +17,17 @@ jobs:
         with:
           submodules: recursive
 
+      # The AME Wizard Core engine binaries (MIT, Ameliorated LLC) are not committed —
+      # they're ~22 MB of third-party payload. Fetch the pinned release here instead.
+      - name: Fetch bundled engine binaries
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path third_party/engine-bin | Out-Null
+          $zip = Join-Path $env:RUNNER_TEMP "cli.zip"
+          Invoke-WebRequest -Uri "https://github.com/Ameliorated-LLC/trusted-uninstaller-cli/releases/download/0.8.4/CLI-Standalone.zip" -OutFile $zip
+          Expand-Archive -Path $zip -DestinationPath third_party/engine-bin -Force
+          Get-ChildItem third_party/engine-bin | Select-Object -First 5 Name
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:

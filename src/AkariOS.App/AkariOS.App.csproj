@@ -16,12 +16,24 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="Assets\AppIcon.ico">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\AppIcon.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+      <Content Include="Assets\AppIcon.ico">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Assets\AppIcon.png">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+      <!-- Bundled playbook: extracted on demand by EngineService. -->
+      <Content Include="assets\AkariOS-Playbook.apbx" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+      <!-- Bundled AME Wizard Core engine (TrustedUninstaller.CLI, MIT, Ameliorated LLC).
+           Consumed as released binaries; launched elevated only when the user applies. -->
+      <None Include="..\..\third_party\engine-bin\**\*" LinkBase="engine\" CopyToOutputDirectory="PreserveNewest"
+            Visible="false" />
   </ItemGroup>
 
   <ItemGroup>
