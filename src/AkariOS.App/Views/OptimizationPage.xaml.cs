@@ -28,8 +28,8 @@ public sealed partial class OptimizationPage : WizardStepPage
         RunCompleted = false;
 
         // Options come from the Configuration page's manifest selections.
-        var options = WizardState.SelectedOptions.Count > 0
-            ? WizardState.SelectedOptions.ToList()
+        var options = WizardFlow.SelectedOptions.Count > 0
+            ? WizardFlow.SelectedOptions.ToList()
             : LoadOptionsFromManifest();
 
         var log = new System.Collections.ObjectModel.ObservableCollection<string>();

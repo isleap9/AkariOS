@@ -118,11 +118,78 @@ public sealed partial class MainWindow : Window
     private void RefreshShellState()
     {
         var current = _navigation.CurrentPageType;
+        var stepIndex = Views.WizardFlow.IndexOf(current);
+        var isWizardStep = stepIndex >= 0;
+
+        // Wizard footer only on playbook step pages.
+        WizardFooter.Visibility = isWizardStep ? Visibility.Visible : Visibility.Collapsed;
+
+        if (isWizardStep)
+        {
+            BackButton.IsEnabled = stepIndex > 0;
+            NextButton.IsEnabled = CanLeaveStep(stepIndex);
+
+            NextButton.Content = stepIndex switch
+            {
+                0 => "Accept & Continue",
+                var i when i == Views.WizardFlow.Steps.Count - 1 => "Finish",
+                _ => "Next",
+            };
+        }
 
         // Only Settings is ever selected; wizard steps show state via IsEnabled visuals.
         var settings = FooterNavItems.FirstOrDefault(i => i.PageType == typeof(SettingsPage));
         NavView.SelectedItem = current == typeof(SettingsPage) ? settings : null;
     }
+
+    /// <summary>Per-step gates for advancing forward.</summary>
+    private static bool CanLeaveStep(int index) => index switch
+    {
+        0 => Views.WizardFlow.LicenseAccepted,   // must tick the license checkbox
+        _ => true,
+    };
+
+    private void OnWizardBack(object sender, RoutedEventArgs e)
+    {
+        var current = Views.WizardFlow.IndexOf(_navigation.CurrentPageType);
+        if (current > 0)
+        {
+            _navigation.NavigateTo(Views.WizardFlow.Steps[current - 1].PageType);
+            RefreshShellState();
+        }
+    }
+
+    private void OnWizardNext(object sender, RoutedEventArgs e)
+    {
+        var current = Views.WizardFlow.IndexOf(_navigation.CurrentPageType);
+        if (current < 0 || !CanLeaveStep(current)) return;
+
+        // Leaving the license step records acceptance from the page's checkbox.
+        if (_navigation.CurrentPageType == typeof(LicensePage)
+            && ContentFrame.Content is LicensePage license)
+        {
+            Views.WizardFlow.LicenseAccepted = license.Accepted;
+            if (!Views.WizardFlow.LicenseAccepted) return; // gate: checkbox unticked
+        }
+
+        // Leaving Configuration captures the selected option names for the engine run.
+        if (_navigation.CurrentPageType == typeof(ConfigurationPage)
+            && ContentFrame.Content is ConfigurationPage config
+            && config.Manifest is { } manifest)
+        {
+            WizardFlow.SelectedOptions.Clear();
+            WizardFlow.SelectedOptions.AddRange(manifest.SelectedOptions);
+        }
+
+        if (current < Views.WizardFlow.Steps.Count - 1)
+        {
+            _navigation.NavigateTo(Views.WizardFlow.Steps[current + 1].PageType);
+            RefreshShellState();
+        }
+    }
+
+    private void OnDiscordClick(object sender, RoutedEventArgs e) =>
+        _ = Windows.System.Launcher.LaunchUriAsync(new Uri("https://discord.gg/UjjmYM6ytj"));
 
     private void ConfigureWindow()
     {

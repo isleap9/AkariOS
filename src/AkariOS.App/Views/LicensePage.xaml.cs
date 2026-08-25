@@ -12,5 +12,5 @@ public sealed partial class LicensePage : WizardStepPage
     public bool Accepted => AcceptCheck.IsChecked == true;
 
     private void OnAcceptChanged(object sender, RoutedEventArgs e) =>
-        WizardState.LicenseAccepted = Accepted;
+        WizardFlow.LicenseAccepted = Accepted;
 }
