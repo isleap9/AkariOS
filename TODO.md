@@ -90,14 +90,16 @@ starts until it's answered.
 
 Loading the assembly is NOT the same as escalating and running a playbook.
 
-- [ ] **Escalation test (VM, user-run):** does the CLI reach `Level.TrustedInstaller` when
-      launched via `runas` from an unelevated net10 process? Procedure in LOG.md.
-      Tool ready: `tools/LauncherSpike`. **Never run against the host machine.**
+- [x] **Escalation test (VM, user-run): PASSED.** The CLI, launched via `runas` from the
+      unelevated spike, accepted UAC, reached TrustedInstaller level, and **applied the full
+      AkariOS V5 playbook** to the VM. Phase 0 complete.
 - [ ] **Binding redirects:** the release ships `TrustedUninstaller.CLI.exe.config`; a net10 host
       does not apply app.config binding redirects. Watch for assembly-version conflicts
       (`System.Text.Json`, `System.Memory`, `Newtonsoft.Json`).
+      (Moot if we spawn their CLI exe rather than loading Shared.dll in-process.)
 - [ ] **Verification:** run a trivial 2–3 action playbook end-to-end, progress + status arriving
       in the net10 process, engine exits cleanly, no orphaned elevated process.
+      (Superseded: full V5 playbook ran; progress capture still to prove from our side.)
 
 ### Architecture decision (revisit after the escalation test)
 

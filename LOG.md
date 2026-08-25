@@ -136,6 +136,50 @@ playbook execution. That closes Phase 0.
 - `LauncherSpike` committed; awaiting user's VM run of the escalation test.
 - After a green VM run: Phase 0 done → UI wiring (Phase 2) can start against the real engine.
 
+---
+
+## 2026-08-25 (evening) — Phase 0 CLOSED: full playbook ran in the VM
+
+### Escalation test result
+
+First attempt (`CLI.exe <playbook>` with no options) **crashed**:
+
+```
+Fatal Playbook Error: SerializationException: Failed to compile parameter of type
+'Second System.String[]' ... NullReferenceException
+   at Interprocess.InterLink.GetParameters (InterLink.cs:943)
+   at TrustedUninstaller.CLI.CLI.Main (CLI.cs:259)
+```
+
+Root cause — an upstream bug in their public CLI, not our setup: when invoked with no option
+arguments, `options` stays null (the `args.Length > 1` guard at CLI.cs:245 never fills it) and
+`RunPlaybook(...)` is still called with it at line 259. Their IPC serializer cannot compile a
+null `string[]`.
+
+**Workaround that worked:** pass any valid option name:
+
+```
+TrustedUninstaller.CLI.exe C:\amecli\apbx akariserv
+```
+
+→ The engine accepted UAC, reached TrustedInstaller level, and **applied the complete AkariOS
+V5 playbook** to the VM. Every link in the chain is now proven:
+unelevated launcher → UAC → elevated CLI → TrustedInstaller node → 881 actions executed.
+
+Consequences for AkariOS:
+- We will ALWAYS launch the CLI with explicit options from our UI → we never hit this bug in
+  the product path. Still worth reporting upstream.
+- Phase 0 is closed. Next: Phase 2 UI wiring (mode switch, FeaturePages-driven options UI,
+  progress/status capture from the CLI process).
+
+### Open items carried forward
+
+- Progress/status capture into our UI is still unproven (the VM run showed progress in the
+  CLI's own console). First Phase 2 task.
+- Check Task Manager after VM runs for orphaned TrustedInstaller processes.
+- Report the null-options crash upstream to Ameliorated.
+
+
 
 ---
 

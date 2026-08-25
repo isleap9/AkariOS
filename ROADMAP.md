@@ -28,9 +28,12 @@ Living document — update this file as items land. Checked = shipped.
 
 ## 🚧 In Progress
 
-- [ ] **Phase 0: IPC bridge spike** — prove a net10 client can drive the engine's
-      `RunPlaybook` in a net472 TrustedInstaller host and receive progress.
-      Blocks everything below. See [TODO.md](TODO.md).
+- [x] **Phase 0: IPC bridge spike — CLOSED.** net10→net472 in-process loading verified
+      (`EngineBridgeProbe`); TrustedInstaller escalation + full V5 playbook execution
+      verified in VM (`LauncherSpike`). One upstream bug found (null-options crash) with a
+      workaround that fits our product design.
+- [ ] **Phase 2 (next): UI wiring** — mode switch, FeaturePages options UI, and capturing the
+      engine's progress/status into our own progress bar and log pane.
 
 ## 📋 Backlog
 
