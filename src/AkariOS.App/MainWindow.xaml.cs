@@ -54,6 +54,7 @@ public sealed partial class MainWindow : Window
         _navigation.SetFrame(ContentFrame);
         _navigation.NavigateTo<LicensePage>();
         _navigation.Navigated += (_, _) => RefreshShellState();
+        Views.WizardFlow.StateChanged += (_, _) => RefreshShellState();
         RefreshShellState();
         _messenger.Register<ThemeChangedMessage>(this, (r, m) => ((MainWindow)r).ApplyTheme(m.Theme));
     }

@@ -27,6 +27,11 @@ public static class WizardFlow
 
     public static bool LicenseAccepted { get; set; }
 
+    /// <summary>Raised whenever flow state changes so the shell can re-evaluate button gating.</summary>
+    public static event EventHandler? StateChanged;
+
+    public static void NotifyStateChanged() => StateChanged?.Invoke(null, EventArgs.Empty);
+
     /// <summary>Option names ticked on the Configuration page, passed to the engine.</summary>
     public static List<string> SelectedOptions { get; } = [];
 

@@ -58,6 +58,7 @@ public sealed partial class ConfigurationPage : WizardStepPage
         }
 
         UpdateSummary();
+        WizardFlow.NotifyStateChanged(); // re-evaluate the shell's Next button
     }
 
     private ContentDialog BuildPageDialog(PlaybookFeaturePage page, int index, int total)
