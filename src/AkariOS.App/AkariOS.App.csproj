@@ -33,15 +33,13 @@
   <ItemGroup>
       <!-- Elevated bridge: launches the CLI with redirected pipes, mirrors output to
            %TEMP%\AkariOS-Engine\out.txt so the UI can show live progress. -->
-      <Content Include="..\AkariOS.EngineBridge\bin\x64\Release\net472\publish\**\*" LinkBase="engine\" CopyToOutputDirectory="PreserveNewest"
-               Visible="false" />
+      <Content Include="..\AkariOS.EngineBridge\bin\x64\Release\net472\publish\**\*" LinkBase="engine\" CopyToOutputDirectory="PreserveNewest" Visible="false" />
   </ItemGroup>
 
   <ItemGroup>
       <!-- Bundled AME Wizard Core engine (TrustedUninstaller.CLI, MIT, Ameliorated LLC).
            Consumed as released binaries; launched elevated only when the user applies. -->
-      <None Include="..\..\third_party\engine-bin\**\*" LinkBase="engine\" CopyToOutputDirectory="PreserveNewest"
-            Visible="false" />
+      <None Include="..\..\third_party\engine-bin\**\*" LinkBase="engine\" CopyToOutputDirectory="PreserveNewest" Visible="false" />
   </ItemGroup>
 
   <ItemGroup>
@@ -65,6 +63,8 @@
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools.MSIX" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Extensions.Logging.Debug" />
+    <PackageReference Include="System.Management" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" />
   </ItemGroup>
 
 </Project>

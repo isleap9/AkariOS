@@ -5,25 +5,30 @@
     xmlns:local="using:AkariOS.App.Views">
 
     <ScrollViewer Padding="32,24">
-        <StackPanel Spacing="14" MaxWidth="720" HorizontalAlignment="Left">
-            <TextBlock Text="System Check" Style="{StaticResource TitleTextBlockStyle}" />
-            <TextBlock Text="Verifying your system against the playbook requirements."
+        <StackPanel Spacing="16" MaxWidth="760" HorizontalAlignment="Left" x:Name="Root">
+            <TextBlock Text="AkariOS" Style="{StaticResource TitleTextBlockStyle}" />
+            <TextBlock x:Name="Subtitle"
+                       Text="Verifying Windows build and other installation requirements"
                        Opacity="0.75" TextWrapping="Wrap" />
 
-            <InfoBar IsOpen="True" Severity="Informational" IsClosable="False"
-                     Title="Checks land in Slice 2"
-                     Message="Build number, internet, antivirus and power-source checks are wired next." />
-
-            <!-- Placeholder cards; Slice 2 fills real values + requirement states -->
+            <!-- Specs card -->
             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                     BorderThickness="1" CornerRadius="8" Padding="16">
-                <StackPanel Spacing="8">
+                <StackPanel Spacing="6">
                     <TextBlock Text="This system" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                    <TextBlock x:Name="SpecText" Opacity="0.85" FontSize="13" TextWrapping="Wrap"
-                               Text="Gathering…" />
+                    <TextBlock x:Name="SpecText" Opacity="0.85" FontSize="13"
+                               FontFamily="Consolas" TextWrapping="Wrap" Text="Gathering…" />
                 </StackPanel>
             </Border>
+
+            <!-- Requirements status / cards injected in code -->
+            <InfoBar x:Name="AllGoodBar" IsOpen="False" IsClosable="False"
+                     Severity="Success"
+                     Title="All requirements met"
+                     Message="Your system is ready. Click Next to continue." />
+
+            <StackPanel x:Name="RequirementsList" Spacing="10" />
         </StackPanel>
     </ScrollViewer>
 </local:WizardStepPage>

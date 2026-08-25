@@ -134,6 +134,7 @@ public sealed partial class MainWindow : Window
     private static bool CanLeaveStep(int index) => index switch
     {
         0 => Views.WizardFlow.LicenseAccepted,               // must tick the license checkbox
+        1 => Views.WizardFlow.RequirementsMet,               // all playbook requirements satisfied
         2 => Views.ConfigurationPage.ConfiguredAtLeastOnce,  // must run Select Options
         3 => Views.WizardFlow.RunCompleted,                  // must finish the engine run
         _ => true,

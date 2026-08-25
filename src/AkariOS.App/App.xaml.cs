@@ -142,6 +142,7 @@ public partial class App : Application
 
         // AME engine launcher (bundled TrustedUninstaller.CLI.exe).
         builder.Services.AddSingleton<Services.EngineService>();
+        builder.Services.AddSingleton<Services.RequirementsService>();
 
         // AkariOS injection pipeline.
         builder.Services.AddSingleton(sp =>

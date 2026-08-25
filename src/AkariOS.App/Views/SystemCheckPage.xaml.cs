@@ -1,5 +1,8 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using AkariOS.App.Services;
 
 namespace AkariOS.App.Views;
 
@@ -8,21 +11,25 @@ public sealed partial class SystemCheckPage : WizardStepPage
     public SystemCheckPage()
     {
         InitializeComponent();
-        Loaded += (_, _) => FillSpecs();
+        Loaded += (_, _) => RunChecks();
     }
 
     public override WizardStepKind Kind => WizardStepKind.SystemCheck;
+
+    private void RunChecks()
+    {
+        FillSpecs();
+        EvaluateRequirements();
+    }
 
     private unsafe void FillSpecs()
     {
         try
         {
-            // Lightweight native queries — no WMI dependency needed for Slice 1.
             var arch = Environment.Is64BitOperatingSystem ? "x64" : "x86";
             var cores = Environment.ProcessorCount;
             var build = Environment.OSVersion.Version.Build;
             var mem = GetRamGb();
-
             SpecText.Text = $"CPU cores: {cores}\nRAM: {mem:N1} GB\nOS build: {build} ({arch})";
         }
         catch (Exception ex)
@@ -40,6 +47,108 @@ public sealed partial class SystemCheckPage : WizardStepPage
         }
         catch { return "?"; }
     }
+
+    // ----- requirement cards -----
+
+    private void EvaluateRequirements()
+    {
+        var requirements = LoadDeclaredRequirements();
+
+        // Re-run on every visit so toggles made since last time are picked up.
+        RequirementsList.Children.Clear();
+        AllGoodBar.IsOpen = false;
+
+        var service = App.Services.GetRequiredService<Services.RequirementsService>();
+        var results = service.Evaluate(requirements);
+
+        foreach (var check in results.Where(r => !r.IsMet))
+            RequirementsList.Children.Add(BuildRequirementCard(check));
+
+        if (results.Count > 0 && results.All(r => r.IsMet))
+        {
+            AllGoodBar.IsOpen = true;
+            WizardFlow.RequirementsMet = true;
+        }
+        else
+        {
+            WizardFlow.RequirementsMet = false;
+        }
+        WizardFlow.NotifyStateChanged();
+    }
+
+    /// <summary>Requirements declared in playbook.conf, or sensible defaults if unreadable.</summary>
+    private List<string> LoadDeclaredRequirements()
+    {
+        try
+        {
+            var dir = Services.EngineService.PlaybookWorkDir;
+            if (!File.Exists(Path.Combine(dir, "playbook.conf")))
+                Services.EngineService.EnsurePlaybookExtracted();
+            return PlaybookManifest.Parse(dir).Requirements.ToList();
+        }
+        catch
+        {
+            return ["Internet", "NoAntivirus", "PluggedIn", "DefenderToggled", "UCPDDisabled"];
+        }
+    }
+
+    private Border BuildRequirementCard(RequirementCheck check)
+    {
+        var card = new Border
+        {
+            Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
+            BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(16),
+        };
+
+        var grid = new Grid { ColumnSpacing = 12 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var text = new StackPanel { Spacing = 2 };
+        text.Children.Add(new TextBlock
+        {
+            Text = check.Title,
+            Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"],
+        });
+        text.Children.Add(new TextBlock
+        {
+            Text = check.Details ?? check.Description,
+            Opacity = 0.75,
+            FontSize = 13,
+            TextWrapping = TextWrapping.Wrap,
+        });
+        grid.Children.Add(text);
+
+        if (!check.IsMet && check.CanAutoFix)
+        {
+            var btn = new Button { Content = "Disable" };
+            btn.Click += async (_, _) =>
+            {
+                btn.IsEnabled = false;
+                var ok = RequirementsService.TryAutoFix(check.Id);
+                if (ok)
+                {
+                    // Give the action a beat to take effect, then re-verify everything.
+                    await Task.Delay(2500);
+                    EvaluateRequirements();
+                }
+                else
+                {
+                    btn.IsEnabled = true;
+                }
+            };
+            grid.Children.Add(btn);
+            Grid.SetColumn(btn, 1);
+        }
+
+        card.Child = grid;
+        return card;
+    }
+
+    // ----- native memory query -----
 
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
     private struct MEMORYSTATUSEX

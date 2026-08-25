@@ -35,6 +35,9 @@ public static class WizardFlow
     /// <summary>Option names ticked on the Configuration page, passed to the engine.</summary>
     public static List<string> SelectedOptions { get; } = [];
 
+    /// <summary>All playbook requirements satisfied (System Check passed).</summary>
+    public static bool RequirementsMet { get; set; }
+
     /// <summary>The engine run finished successfully at least once.</summary>
     public static bool RunCompleted { get; set; }
 }

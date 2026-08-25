@@ -21,8 +21,8 @@
                 VerticalAlignment="Center">
                 <Image
                     Source="{x:Bind AppIconSource}"
-                    Width="40"
-                    Height="40"
+                    Width="20"
+                    Height="20"
                     Stretch="Uniform" />
                 <TextBlock
                     x:Name="TitleText"
