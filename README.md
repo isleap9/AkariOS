@@ -71,6 +71,8 @@ AkariOS/
 ## Roadmap
 
 See [ROADMAP.md](ROADMAP.md) — the living tracker for what's shipped and what's next.
+The phased working plan is in [TODO.md](TODO.md), and [LOG.md](LOG.md) records each session's
+work, findings, and where things were left off.
 
 ## Acknowledgements
 
