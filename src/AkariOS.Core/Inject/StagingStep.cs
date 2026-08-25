@@ -60,28 +60,31 @@ public sealed class StagingStep : IBuildStep
         context.StagingDirectory = staging;
     }
 
-    /// <summary>Strips the read-only attribute from every staged file (ISO media is read-only).</summary>
+    /// <summary>Strips the read-only attribute from every staged file AND directory (ISO media is read-only).</summary>
     internal static void ClearReadOnlyAttributes(string root, BuildContext? context = null)
     {
         var cleared = 0;
-        foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+        // Directories carry the read-only attribute too (e.g. boot\en-us); a read-only
+        // directory blocks recursive delete even when all its files are writable.
+        foreach (var entry in Directory.EnumerateFileSystemEntries(root, "*", SearchOption.AllDirectories)
+                     .Append(root))
         {
             try
             {
-                var attr = File.GetAttributes(file);
+                var attr = File.GetAttributes(entry);
                 if ((attr & FileAttributes.ReadOnly) != 0)
                 {
-                    File.SetAttributes(file, attr & ~FileAttributes.ReadOnly);
+                    File.SetAttributes(entry, attr & ~FileAttributes.ReadOnly);
                     cleared++;
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                // Best effort: a single stubborn file shouldn't fail the build here.
+                // Best effort: a single stubborn entry shouldn't fail the build here.
             }
         }
         if (cleared > 0)
-            context?.WriteLog($"> cleared read-only attribute on {cleared} staged file(s)");
+            context?.WriteLog($"> cleared read-only attribute on {cleared} staged entr{(cleared == 1 ? "y" : "ies")}");
     }
 
     private static void TryKill(System.Diagnostics.Process process)
@@ -118,13 +121,9 @@ public sealed class StagingCleanupStep : IBuildStep
         {
             try
             {
-                // Robocopy preserves read-only attributes (e.g. autorun.inf); clear them so delete works.
-                foreach (var f in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
-                {
-                    var attr = File.GetAttributes(f);
-                    if ((attr & FileAttributes.ReadOnly) != 0)
-                        File.SetAttributes(f, attr & ~FileAttributes.ReadOnly);
-                }
+                // Robocopy preserves read-only attributes (files AND directories, e.g.
+                // boot\en-us); clear them all so the recursive delete succeeds.
+                StagingStep.ClearReadOnlyAttributes(dir);
                 Directory.Delete(dir, recursive: true);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

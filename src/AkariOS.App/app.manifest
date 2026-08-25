@@ -2,12 +2,15 @@
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
   <assemblyIdentity version="1.0.0.0" name="AkariOS.App.app" />
 
-  <!-- Run as administrator: ISO mounting, robocopy staging and oscdimg all behave
-       best elevated, and this avoids UAC-prompt-per-operation issues. -->
+  <!-- Run at normal user level (asInvoker). Verified by tools/ElevationProbe: the whole
+       pipeline — Mount-DiskImage, robocopy staging, $OEM$ writes, wimlib install.wim
+       servicing and oscdimg ISO rebuild — works WITHOUT administrator rights.
+       This matters for UX: Windows UIPI blocks drag-and-drop from Explorer into an
+       elevated window, so requiring admin silently broke the ISO drop zone. -->
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
-        <requestedExecutionLevel level="requireAdministrator" uiAccess="false" />
+        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
       </requestedPrivileges>
     </security>
   </trustInfo>
