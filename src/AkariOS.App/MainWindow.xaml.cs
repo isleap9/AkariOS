@@ -48,15 +48,13 @@ public sealed partial class MainWindow : Window
         SetTitleBar(AppTitleBar);
         ConfigureWindow();
 
-        // Wizard-first: the playbook flow is the product; the ISO builder stays reachable
-        // from within it later. The pane (ISO drop zone) is unused in wizard mode.
+        // Playbook-first shell: the nav pane lists the wizard steps as pages.
+        // The ISO builder (BuilderPage + pipeline) is kept in the codebase but is not
+        // exposed in this UI; it may return later as an advanced feature.
         _navigation.SetFrame(ContentFrame);
-        _navigation.NavigateTo<WizardPage>();
+        _navigation.NavigateTo<LicensePage>();
         _navigation.Navigated += (_, _) => RefreshShellState();
         RefreshShellState();
-
-        ViewModel.Isos.CollectionChanged += (_, _) => UpdatePaneHint();
-
         _messenger.Register<ThemeChangedMessage>(this, (r, m) => ((MainWindow)r).ApplyTheme(m.Theme));
     }
 
@@ -75,12 +73,21 @@ public sealed partial class MainWindow : Window
         return File.Exists(path) ? new BitmapImage(new Uri(path)) : null!;
     }
 
+    /// <summary>Playbook wizard steps, shown as the main nav entries.</summary>
+    public IReadOnlyList<NavigationItem> MainNavItems { get; } =
+    [
+        new("License Agreement", "\uE8FA", typeof(LicensePage)),      // certificate icon
+        new("System Check", "\uE9D9", typeof(SystemCheckPage)),       // diagnostic icon
+        new("Configuration", "\uE713", typeof(ConfigurationPage)),    // settings icon
+        new("Optimization", "\uE9F5", typeof(OptimizationPage)),      // processing icon
+        new("Finished", "\uE73E", typeof(FinishedPage)),              // checkmark icon
+    ];
+
     /// <summary>Footer items (bottom of the pane).</summary>
     public IReadOnlyList<NavigationItem> FooterNavItems { get; } =
     [
         new("Settings", "\uE713", typeof(SettingsPage)),
     ];
-
     public void ApplyTheme(AppTheme theme)
     {
         RootElement.RequestedTheme = theme switch
@@ -123,38 +130,6 @@ public sealed partial class MainWindow : Window
             NavView.SelectedItem = item;
         }
     }
-
-    // ===== Pane drag & drop =====
-
-    private void OnPaneDragOver(object sender, DragEventArgs e)
-    {
-        e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
-        PaneDropArea.Opacity = 0.75;
-    }
-
-    private void OnPaneDragLeave(object sender, DragEventArgs e) => PaneDropArea.Opacity = 1;
-
-    private async void OnPaneDrop(object sender, DragEventArgs e)
-    {
-        PaneDropArea.Opacity = 1;
-        var deferral = e.GetDeferral();
-        try
-        {
-            if (!e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems))
-                return;
-
-            var items = await e.DataView.GetStorageItemsAsync();
-            foreach (var item in items.Where(i => i.Path.EndsWith(".iso", StringComparison.OrdinalIgnoreCase)))
-                ViewModel.AddIso(item.Path);
-        }
-        finally
-        {
-            deferral.Complete();
-        }
-    }
-
-    private void UpdatePaneHint() =>
-        PaneDropHint.Visibility = ViewModel.Isos.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
     private void ConfigureWindow()
     {

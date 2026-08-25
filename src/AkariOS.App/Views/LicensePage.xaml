@@ -1,0 +1,31 @@
+<local:WizardStepPage
+    x:Class="AkariOS.App.Views.LicensePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:AkariOS.App.Views">
+
+    <ScrollViewer Padding="32,24">
+        <StackPanel Spacing="14" MaxWidth="720" HorizontalAlignment="Left">
+            <TextBlock Text="AkariOS" Style="{StaticResource TitleTextBlockStyle}" />
+            <TextBlock Text="Review the terms before applying the playbook to this system."
+                       Opacity="0.75" TextWrapping="Wrap" />
+
+            <InfoBar IsOpen="True" Severity="Warning" IsClosable="False"
+                     Title="This will modify your system"
+                     Message="The playbook removes services, apps and system components. Only continue on a machine you are willing to reconfigure." />
+
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="16">
+                <ScrollViewer MaxHeight="260">
+                    <TextBlock TextWrapping="Wrap" FontSize="13" Opacity="0.85"
+                               Text="AkariOS is provided as-is, without warranty of any kind. By applying this playbook you accept that system components, applications and services will be removed or reconfigured, and that you are responsible for backing up your data beforehand. Neither the AkariOS authors nor Akari Labs are liable for data loss or misconfiguration." />
+                </ScrollViewer>
+            </Border>
+
+            <CheckBox x:Name="AcceptCheck"
+                      Content="I have read and accept the license agreement"
+                      Checked="OnAcceptChanged" Unchecked="OnAcceptChanged" />
+        </StackPanel>
+    </ScrollViewer>
+</local:WizardStepPage>
