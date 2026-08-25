@@ -140,6 +140,9 @@ public partial class App : Application
         // Singleton: MainWindow (pane) and BuilderPage (main area) must share one VM.
         builder.Services.AddSingleton<BuilderViewModel>();
 
+        // AME engine launcher (bundled TrustedUninstaller.CLI.exe).
+        builder.Services.AddSingleton<Services.EngineService>();
+
         // AkariOS injection pipeline.
         builder.Services.AddSingleton(sp =>
             AkariOS.Core.AkariPipelineFactory.Create(

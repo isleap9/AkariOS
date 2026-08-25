@@ -76,6 +76,7 @@ public partial class BuilderViewModel : ObservableObject
     private readonly InjectionPipeline _pipeline;
     private readonly Core.Wim.WimService _wimService;
     private readonly Core.Iso.IsoMountService _mountService;
+    private readonly Services.EngineService _engine;
     private CancellationTokenSource? _cts;
 
     [ObservableProperty]
@@ -86,17 +87,23 @@ public partial class BuilderViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsBuilding { get; set; }
 
+    /// <summary>Show the engine's own console window (debugging aid).</summary>
+    [ObservableProperty]
+    public partial bool ShowEngineConsole { get; set; } = true;
+
     partial void OnIsBuildingChanged(bool value) => NotifyBuildStates();
 
     public ObservableCollection<IsoItem> Isos { get; } = [];
 
     public bool HasSelection => SelectedIso is not null;
 
-    public BuilderViewModel(InjectionPipeline pipeline, Core.Wim.WimService wimService, Core.Iso.IsoMountService mountService)
+    public BuilderViewModel(InjectionPipeline pipeline, Core.Wim.WimService wimService, Core.Iso.IsoMountService mountService,
+        Services.EngineService engine)
     {
         _pipeline = pipeline;
         _wimService = wimService;
         _mountService = mountService;
+        _engine = engine;
     }
 
     /// <summary>Adds dropped/browsed ISOs to the sidebar (dedup by path), then scans editions.</summary>
@@ -164,10 +171,60 @@ public partial class BuilderViewModel : ObservableObject
     public static string GetOutputPathFor(string sourceIso) =>
         System.IO.Path.Combine(System.IO.Path.GetDirectoryName(sourceIso) ?? "", "AkariOS.iso");
 
+    private bool CanApply() => !IsBuilding && Services.EngineService.IsEnginePresent();
+
+    /// <summary>
+    /// "Apply now": runs the AkariOS playbook against THIS system via the bundled engine.
+    /// One UAC prompt; console visibility follows ShowEngineConsole (debugging aid).
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanApply))]
+    private async Task ApplyNowAsync()
+    {
+        var item = SelectedIso ?? new IsoItem { Path = "(this system)" };
+        IsBuilding = true;
+        item.Status = "Preparing engine…";
+        item.Progress = 0;
+        _cts = new CancellationTokenSource();
+
+        try
+        {
+            // TODO(Phase 2): real options from a FeaturePages UI. Until then, engine defaults.
+            var options = new List<string>();
+
+            var result = await _engine.RunPlaybookAsync(
+                options,
+                onProgress: (pct, status) => App.MainWindowEnqueue(() =>
+                {
+                    item.Progress = pct;
+                    if (!string.IsNullOrEmpty(status)) item.Status = status;
+                }),
+                onLogLine: line => App.MainWindowEnqueue(() => item.AppendLog(line)),
+                showConsole: ShowEngineConsole,
+                ct: _cts.Token).ConfigureAwait(true);
+
+            item.Status = result.Cancelled ? "Cancelled."
+                : result.ExitCode == 0 ? "Done! Playbook applied to this system."
+                : $"Failed (exit {result.ExitCode}) — check the log.";
+            if (result.ExitCode != 0) item.Progress = 0;
+        }
+        catch (Exception ex)
+        {
+            item.Status = $"Failed: {ex.Message}";
+        }
+        finally
+        {
+            IsBuilding = false;
+            _cts?.Dispose();
+            _cts = null;
+            NotifyBuildStates();
+        }
+    }
+
     private void NotifyBuildStates()
     {
         BuildCommand.NotifyCanExecuteChanged();
         CancelBuildCommand.NotifyCanExecuteChanged();
+        ApplyNowCommand.NotifyCanExecuteChanged();
     }
 
     private bool CanCancel() => IsBuilding;

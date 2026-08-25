@@ -27,9 +27,15 @@
                     <Button Content="Create AkariOS ISO"
                             Style="{StaticResource AccentButtonStyle}"
                             Command="{x:Bind ViewModel.BuildCommand}" />
+                    <Button Content="Apply to this PC"
+                            Command="{x:Bind ViewModel.ApplyNowCommand}" />
                     <Button Content="Cancel"
                             Command="{x:Bind ViewModel.CancelBuildCommand}" />
                 </StackPanel>
+
+                <CheckBox Content="Show engine console (debugging)"
+                          IsChecked="{x:Bind ViewModel.ShowEngineConsole, Mode=TwoWay}"
+                          FontSize="12" Opacity="0.8" />
 
                 <TextBlock Text="The tweaks are applied automatically after Windows installation completes — just install normally from the generated ISO."
                            TextWrapping="Wrap"
