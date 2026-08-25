@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Phase 0 spike: can a modern .NET (net10) process load and drive the net472
+    AME Wizard Core engine assembly?
+
+    This is a THROWAWAY probe. It answers one question: whether the engine can be
+    consumed in-process from net10, or whether it must live in a separate net472
+    host process that we talk to over IPC.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWinUI>false</UseWinUI>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <AssemblyName>EngineBridgeProbe</AssemblyName>
+    <NoWarn>$(NoWarn);MSB3277</NoWarn>
+  </PropertyGroup>
+
+  <!-- No compile-time reference on purpose: the probe loads the engine by reflection so it
+       can report exactly WHERE things break instead of failing at build time. -->
+
+</Project>
