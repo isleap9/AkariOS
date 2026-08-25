@@ -90,9 +90,9 @@ starts until it's answered.
 
 Loading the assembly is NOT the same as escalating and running a playbook.
 
-- [ ] **Escalation test:** does `InterLink` reach `Level.TrustedInstaller` when the host is a
-      net10 process? `LaunchNode` re-launches *itself* at higher levels, which may assume the
-      net472 CLI's own exe/layout.
+- [ ] **Escalation test (VM, user-run):** does the CLI reach `Level.TrustedInstaller` when
+      launched via `runas` from an unelevated net10 process? Procedure in LOG.md.
+      Tool ready: `tools/LauncherSpike`. **Never run against the host machine.**
 - [ ] **Binding redirects:** the release ships `TrustedUninstaller.CLI.exe.config`; a net10 host
       does not apply app.config binding redirects. Watch for assembly-version conflicts
       (`System.Text.Json`, `System.Memory`, `Newtonsoft.Json`).

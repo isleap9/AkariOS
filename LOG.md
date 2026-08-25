@@ -87,6 +87,58 @@ live/OOBE — worth revisiting for offline reliability, but only with VM testing
 
 ---
 
+## 2026-08-25 (later) — Launcher spike built; escalation test moved to VM
+
+### What exists now
+
+`tools/LauncherSpike` — a ~50-line net10 console tool that does exactly what AkariOS.App will
+eventually do: launch `TrustedUninstaller.CLI.exe` with `Verb=runas` (one UAC prompt at
+engine-start only), pointing it at an extracted playbook. Console stays visible because the
+CLI's DefenderToggled flow uses `Console.ReadKey()`.
+
+Verified up to the UAC boundary from this machine:
+
+```
+[spike] elevated (this process) : False
+[spike] cli                     : ...\TrustedUninstaller.CLI.exe
+[spike] playbook                : ...\apbx
+[spike] launching CLI elevated (accept the UAC prompt)...
+```
+
+I started a live run against the HOST system; the user correctly stopped it — **an 881-action
+debloat playbook (Defender removal, service deletion, appx stripping) must never be tested on
+the daily driver.** Killed before UAC was accepted; no CLI process ever started; system
+untouched. **Lesson: destructive engine tests go in the VM, always.**
+
+### Escalation test — procedure for the VM (user-run)
+
+Prerequisites to copy into the VM:
+- Extracted CLI: `%LOCALAPPDATA%\Temp\amecli\extracted` (from CLI-Standalone.zip 0.8.4)
+- Extracted playbook: `%LOCALAPPDATA%\Temp\apbx` (AkariOS-Playbook.apbx, 7-Zip pw `malte`)
+- `tools/LauncherSpike` build output
+
+Then:
+```
+LauncherSpike.exe <cliDir> <playbookDir>
+```
+Accept UAC. Expect: CLI banner → likely the "All 4 windows security toggles must be set to
+off… Press any key" prompt (V5 requires `DefenderToggled`) → toggle in Windows Security →
+continue → progress percentages.
+
+Success criteria: reaches progress %, playbook completes or is cleanly cancellable, no
+orphaned TrustedInstaller process afterwards, exit code reported by the spike.
+
+What it proves: unelevated launcher → UAC → elevated engine → TrustedInstaller node → real
+playbook execution. That closes Phase 0.
+
+### Where we left off (end of this stretch)
+
+- `LauncherSpike` committed; awaiting user's VM run of the escalation test.
+- After a green VM run: Phase 0 done → UI wiring (Phase 2) can start against the real engine.
+
+
+---
+
 ## 2026-08-24 → 08-25 — Release CI, UX polish, WIM servicing, elevation reversal
 
 ### Shipped
