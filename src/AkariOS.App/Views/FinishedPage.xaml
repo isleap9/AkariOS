@@ -5,13 +5,16 @@
     xmlns:local="using:AkariOS.App.Views">
 
     <ScrollViewer Padding="32,24">
-        <StackPanel Spacing="14" MaxWidth="720" HorizontalAlignment="Left">
+        <StackPanel Spacing="16" MaxWidth="720" HorizontalAlignment="Left">
             <TextBlock Text="Finished" Style="{StaticResource TitleTextBlockStyle}" />
             <TextBlock Text="System configuration complete."
                        Opacity="0.75" TextWrapping="Wrap" />
+
             <InfoBar IsOpen="True" Severity="Success" IsClosable="False"
-                     Title="Placeholder"
-                     Message="Run summary and restart option land in Slice 4." />
+                     Title="AkariOS playbook applied"
+                     Message="Your system has been configured. A restart is recommended to finalize all changes." />
+
+            <Button Content="Restart now" Click="OnRestartClick" Style="{StaticResource AccentButtonStyle}" />
         </StackPanel>
     </ScrollViewer>
 </local:WizardStepPage>

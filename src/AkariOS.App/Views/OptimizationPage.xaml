@@ -5,14 +5,56 @@
     xmlns:local="using:AkariOS.App.Views">
 
     <ScrollViewer Padding="32,24">
-        <StackPanel Spacing="14" MaxWidth="720" HorizontalAlignment="Left">
+        <StackPanel Spacing="16" MaxWidth="760" HorizontalAlignment="Left" x:Name="Root">
             <TextBlock Text="Optimization" Style="{StaticResource TitleTextBlockStyle}" />
-            <TextBlock Text="Applying the playbook to your system."
+            <TextBlock x:Name="Subtitle"
+                       Text="Applying the playbook to your system."
                        Opacity="0.75" TextWrapping="Wrap" />
 
-            <InfoBar IsOpen="True" Severity="Warning" IsClosable="False"
-                     Title="Engine run lands in Slice 4"
-                     Message="This step will launch the bundled engine with your selected options and stream progress here." />
+            <!-- Idle state -->
+            <StackPanel x:Name="IdlePanel" Spacing="14">
+                <InfoBar IsOpen="True" Severity="Warning" IsClosable="False"
+                         Title="This will modify your system now"
+                         Message="The engine will run with your selected options. Make sure this machine is a test environment." />
+                <Button Content="Start applying the playbook" Style="{StaticResource AccentButtonStyle}"
+                        Click="OnStartClick" />
+            </StackPanel>
+
+            <!-- Running state -->
+            <StackPanel x:Name="RunningPanel" Spacing="12" Visibility="Collapsed">
+                <TextBlock x:Name="CurrentTask" Text="Starting…" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <ProgressBar x:Name="Progress" Maximum="100" Minimum="0" Value="0" />
+                <TextBlock x:Name="PercentText" Opacity="0.75" FontSize="13" Text="0%" />
+
+                <CheckBox x:Name="AutoRestart" Content="Restart PC automatically when the process completes" />
+
+                <TextBlock Text="Please wait for the process to complete. Do NOT shutdown your PC!"
+                           Foreground="{ThemeResource SystemFillColorCautionBrush}" FontSize="13" />
+
+                <CheckBox x:Name="ShowConsoleCheck" Content="Show engine console (debugging)" IsChecked="True"
+                          FontSize="12" Opacity="0.8" />
+
+                <Expander Header="Engine output" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
+                    <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
+                        <ItemsRepeater x:Name="LogList">
+                            <ItemsRepeater.Layout>
+                                <StackLayout />
+                            </ItemsRepeater.Layout>
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <TextBlock Text="{x:Bind}" FontFamily="Consolas" FontSize="12"
+                                               IsTextSelectionEnabled="True" Opacity="0.85" TextWrapping="NoWrap" />
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                    </ScrollViewer>
+                </Expander>
+            </StackPanel>
+
+            <!-- Done state -->
+            <InfoBar x:Name="DoneBar" IsOpen="False" IsClosable="False"
+                     Title="Playbook applied" Severity="Success"
+                     Message="Continue to the Finished step." />
         </StackPanel>
     </ScrollViewer>
 </local:WizardStepPage>
