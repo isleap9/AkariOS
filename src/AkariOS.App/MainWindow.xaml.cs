@@ -48,9 +48,10 @@ public sealed partial class MainWindow : Window
         SetTitleBar(AppTitleBar);
         ConfigureWindow();
 
-        // Single page: the shell's pane is the ISO list; the frame shows the details page.
+        // Wizard-first: the playbook flow is the product; the ISO builder stays reachable
+        // from within it later. The pane (ISO drop zone) is unused in wizard mode.
         _navigation.SetFrame(ContentFrame);
-        _navigation.NavigateTo<BuilderPage>();
+        _navigation.NavigateTo<WizardPage>();
         _navigation.Navigated += (_, _) => RefreshShellState();
         RefreshShellState();
 

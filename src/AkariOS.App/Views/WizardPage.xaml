@@ -1,0 +1,77 @@
+<Page
+    x:Class="AkariOS.App.Views.WizardPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:AkariOS.App.ViewModels">
+
+    <Grid RowDefinitions="Auto,*,Auto" Padding="0">
+        <!-- ===== Header ===== -->
+        <Grid Grid.Row="0" Padding="24,16" Background="{ThemeResource LayerFillColorDefaultBrush}">
+            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                <Image Source="ms-appx:///Assets/AppIcon.png" Width="24" Height="24" />
+                <TextBlock Text="AkariOS Playbook" Style="{StaticResource BodyStrongTextBlockStyle}"
+                           VerticalAlignment="Center" />
+            </StackPanel>
+        </Grid>
+
+        <!-- ===== Body: steps sidebar + content ===== -->
+        <Grid Grid.Row="1" ColumnDefinitions="260,*">
+            <!-- Step tracker -->
+            <ScrollViewer Grid.Column="0" Padding="24,20" Background="{ThemeResource LayerFillColorDefaultBrush}">
+                <StackPanel Spacing="4">
+                    <ItemsRepeater ItemsSource="{x:Bind Vm.Steps}">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Spacing="2" />
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="vm:WizardStep">
+                                <Grid ColumnDefinitions="Auto,*" Padding="8,10" ColumnSpacing="12">
+                                    <!-- state icon -->
+                                    <Grid Grid.Column="0" Width="26" Height="26" VerticalAlignment="Top">
+                                        <Ellipse x:Name="Dot"
+                                                 StrokeThickness="2"
+                                                 Stroke="{ThemeResource ControlStrokeColorSecondaryBrush}"
+                                                 Fill="Transparent"
+                                                 Visibility="Visible"
+                                                 x:Load="True" />
+                                        <FontIcon Glyph="&#xE73E;" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                    </Grid>
+                                    <StackPanel Grid.Column="1" Spacing="1">
+                                        <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                        <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Opacity="0.65" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+
+                    <!-- Discord -->
+                    <Button Margin="0,24,0,0" HorizontalAlignment="Stretch"
+                            Click="OnDiscordClick">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE8F2;" FontSize="16" />
+                            <TextBlock Text="Akari Labs Discord" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Step content (swapped per step) -->
+            <ContentControl Grid.Column="1"
+                            x:Name="StepContent"
+                            HorizontalContentAlignment="Stretch"
+                            VerticalContentAlignment="Stretch"
+                            Padding="32,24" />
+        </Grid>
+
+        <!-- ===== Footer navigation ===== -->
+        <Grid Grid.Row="2" Padding="24,14" Background="{ThemeResource LayerFillColorDefaultBrush}"
+              ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="12">
+            <Button Grid.Column="1" Content="Back" x:Name="BackButton" Click="OnBack" MinWidth="110" />
+            <Button Grid.Column="2" Content="Next" x:Name="NextButton" Click="OnNext" MinWidth="110"
+                    Style="{StaticResource AccentButtonStyle}" />
+            <Button Grid.Column="3" Content="Cancel" x:Name="CancelButton" Click="OnCancel" MinWidth="110" />
+        </Grid>
+    </Grid>
+</Page>
