@@ -84,11 +84,8 @@ public sealed partial class MainWindow : Window
         new("Finished", "\uE73E", typeof(FinishedPage)),              // checkmark icon
     ];
 
-    /// <summary>Footer items (bottom of the pane).</summary>
-    public IReadOnlyList<NavigationItem> FooterNavItems { get; } =
-    [
-        new("Settings", "\uE713", typeof(SettingsPage)),
-    ];
+    /// <summary>Footer items (bottom of the pane) — none: Discord lives in the wizard footer.</summary>
+    public IReadOnlyList<NavigationItem> FooterNavItems { get; } = [];
     public void ApplyTheme(AppTheme theme)
     {
         RootElement.RequestedTheme = theme switch
@@ -103,14 +100,8 @@ public sealed partial class MainWindow : Window
 
     private void OnNavSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
-        // The pane is a step PROGRESS indicator, not free navigation: the only selectable
-        // item is Settings (footer). Wizard pages are reached via Next/Back in-page.
-        if (args.SelectedItem is NavigationItem item && item.PageType == typeof(SettingsPage))
-        {
-            if (_navigation.CurrentPageType != typeof(SettingsPage))
-                _navigation.NavigateTo<SettingsPage>();
-            return;
-        }
+        // The pane is a step PROGRESS indicator, not free navigation.
+        // Wizard pages are reached via Next/Back in the wizard footer only.
 
         // Revert any selection of a wizard step so it never looks clickable-active.
         RefreshShellState();
@@ -137,10 +128,6 @@ public sealed partial class MainWindow : Window
                 _ => "Next",
             };
         }
-
-        // Only Settings is ever selected; wizard steps show state via IsEnabled visuals.
-        var settings = FooterNavItems.FirstOrDefault(i => i.PageType == typeof(SettingsPage));
-        NavView.SelectedItem = current == typeof(SettingsPage) ? settings : null;
     }
 
     /// <summary>Per-step gates for advancing forward.</summary>

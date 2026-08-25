@@ -60,10 +60,10 @@
             <!-- Playbook steps in the nav pane (the ISO drop zone pane was removed
                  when the app went playbook-first; ISO code kept but unexposed) -->
             <NavigationView.PaneCustomContent>
-                <StackPanel Margin="0,4,0,8">
-                    <TextBlock Text="Playbook"
-                               Style="{StaticResource NavigationViewItemHeaderTextStyle}"
-                               Margin="12,4,12,4" />
+                <StackPanel>
+                    <!-- Brand banner (AkariOS wallpaper art), like the reference wizard -->
+                    <Image Source="ms-appx:///Assets/Wallpaper.png"
+                           MaxHeight="120" Stretch="UniformToFill" Margin="-1,0,-1,8" />
                 </StackPanel>
             </NavigationView.PaneCustomContent>
 

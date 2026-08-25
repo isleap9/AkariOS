@@ -27,6 +27,7 @@
   <ItemGroup>
       <!-- Bundled playbook: extracted on demand by EngineService. -->
       <Content Include="assets\AkariOS-Playbook.apbx" CopyToOutputDirectory="PreserveNewest" />
+      <Content Include="Assets\Wallpaper.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

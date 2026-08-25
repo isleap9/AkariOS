@@ -26,7 +26,7 @@ public partial class App : Application
     /// <summary>The primary application window.</summary>
     public static MainWindow? MainWindow { get; private set; }
 
-    public static string AppName => "App Template";
+    public static string AppName => "AkariOS";
 
     public static string AppVersion =>
         typeof(App).Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
