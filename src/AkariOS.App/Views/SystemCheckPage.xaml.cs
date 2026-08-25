@@ -8,10 +8,22 @@ namespace AkariOS.App.Views;
 
 public sealed partial class SystemCheckPage : WizardStepPage
 {
+    // Re-checks requirements every 2s while the user is on this tab, so flipping
+    // toggles / plugging in / fixing things unlocks Next automatically.
+    private readonly DispatcherTimer _pollTimer;
+
     public SystemCheckPage()
     {
         InitializeComponent();
-        Loaded += (_, _) => RunChecks();
+        Loaded += (_, _) =>
+        {
+            RunChecks();
+            _pollTimer.Start();
+        };
+        Unloaded += (_, _) => _pollTimer.Stop();
+
+        _pollTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        _pollTimer.Tick += (_, _) => EvaluateRequirements();
     }
 
     public override WizardStepKind Kind => WizardStepKind.SystemCheck;
@@ -124,28 +136,29 @@ public sealed partial class SystemCheckPage : WizardStepPage
 
         if (!check.IsMet && check.CanAutoFix)
         {
-            var btn = new Button { Content = check.Id == "defender" ? "Open Windows Security" : "Disable" };
+            // Defender opens Windows Security (unelevated); the 2s poller picks up the
+            // toggles automatically. UCPD gets an elevated one-click service fix.
+            var btn = new Button
+            {
+                Content = check.Id == "defender" ? "Open Windows Security" : "Disable",
+            };
             btn.Click += async (_, _) =>
             {
-                var ok = RequirementsService.TryAutoFix(check.Id);
-                if (!ok)
-                {
-                    btn.IsEnabled = true;
-                    return;
-                }
-
                 if (check.Id == "defender")
                 {
-                    // User flips toggles in Windows Security; re-verify when they come back.
-                    await Task.Delay(1500);
+                    RequirementsService.TryAutoFix("defender"); // just opens the settings page
+                    return;                                     // poller handles the rest
+                }
+
+                btn.IsEnabled = false;
+                if (RequirementsService.TryAutoFix(check.Id))
+                {
+                    await Task.Delay(2500);   // elevated service fix needs a beat
                     EvaluateRequirements();
                 }
                 else
                 {
-                    // Elevated service fix: give it a beat, then re-verify.
-                    btn.IsEnabled = false;
-                    await Task.Delay(2500);
-                    EvaluateRequirements();
+                    btn.IsEnabled = true;
                 }
             };
             grid.Children.Add(btn);
