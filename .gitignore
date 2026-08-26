@@ -2,5 +2,4 @@ bin/
 obj/
 .vs/
 *.user
-.hermes/plans/bin/
 obj/
