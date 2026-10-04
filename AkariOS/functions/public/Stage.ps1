@@ -405,12 +405,46 @@ function Invoke-AkariOSStage {
     # caller did not pin one.
     $failureStatePath = if ($StatePath) { $StatePath } else { $script:AkariOSStateDefaultPath }
 
+    # ── Cross-thread state hand-off ─────────────────────────────────────────
+    # State reaches the worker through $sync, NEVER through GetNewClosure().
+    #
+    # GetNewClosure() binds a closure to the MODULE of the scope that created it.
+    # That module does not exist in a runspace built by [runspacefactory]::, so
+    # every variable the closure captured resolves to EMPTY there. Proven on this
+    # exact path: a plain scriptblock over an injected variable returns the value,
+    # the identical text with the variable injected returns the value, and the
+    # same text passed through GetNewClosure() returns "".
+    #
+    # So $enginePath arrived as "", Invoke-AkariOSEngine's mandatory -ScriptPath
+    # failed to bind, the runner's outcome handling swallowed the error, and the
+    # empty result set read as exit code 0 - a stage that launched nothing
+    # reported itself finished in 359 ms.
+    #
+    # $sync is a synchronized hashtable that is ALREADY injected into the worker
+    # (Invoke-RunInBackground.ps1:87), so writing the values there and reading
+    # them by name inside the worker is the mechanism that actually works.
+    # Wrapped in single quotes in the worker's scriptblock: these are looked up
+    # in the worker's own scope at run time, so they must NOT be expanded early.
+    $jobKey = "AkariOSJob"
+    $sync[$jobKey] = @{
+        Stage         = $Stage
+        EnginePath    = $enginePath
+        EngineInvoker = $EngineInvoker
+        StatePath     = $StatePath
+        AssetInvoker  = $AssetInvoker
+        AssetMap      = $map
+    }
+
     $supervisorArgs = @{
         StatusStart = ("Stage {0} is running in a separate console window..." -f $Stage)
         StatusDone  = ("Stage {0} finished." -f $Stage)
         ScriptBlock = {
-            Invoke-AkariOSEngine -ScriptPath $enginePath -EngineInvoker $EngineInvoker
-        }.GetNewClosure()
+            # Read the hand-off off $sync rather than closing over it: the worker
+            # gets $sync injected, and a closure would capture it empty.
+            $job = $sync['AkariOSJob']
+            if (-not $job) { throw "No AkariOS job hand-off present on `$sync." }
+            Invoke-AkariOSEngine -ScriptPath $job.EnginePath -EngineInvoker $job.EngineInvoker
+        }
         OnComplete  = {
             param($Outcome)
             $errText = ""
@@ -422,12 +456,24 @@ function Invoke-AkariOSStage {
             # returns the exit code as its pipeline output, which the runner hands
             # back on $Outcome.Results.
             $exitCode = 0
+            $sawOutput = $false
             foreach ($r in @($Outcome.Results)) {
-                if ($null -ne $r) { $exitCode = [int]$r }
+                if ($null -ne $r) { $exitCode = [int]$r; $sawOutput = $true }
             }
 
-            if ($errText -or $exitCode -ne 0) {
-                $detail = if ($errText) { $errText.Trim() } else { ("Engine exited with code {0}." -f $exitCode) }
+            # A job that produced NO output at all never reached the engine. That
+            # is what the closure bug looked like: -ScriptPath arrived as "",
+            # binding threw, the error was swallowed, and the empty result set
+            # defaulted to exit code 0 - a stage that launched nothing reported
+            # itself finished in 359 ms. An explicit sentinel makes the two cases
+            # indistinguishable no longer possible.
+            $producedNothing = (-not $sawOutput) -and (-not $errText)
+
+            if ($errText -or $exitCode -ne 0 -or $producedNothing) {
+                if ($errText) { $detail = $errText.Trim() }
+                elseif ($producedNothing) {
+                    $detail = "The stage produced no result at all. The engine was most likely never launched - this is a broken build or a missing hand-off, not a clean run."
+                } else { $detail = ("Engine exited with code {0}." -f $exitCode) }
                 Write-AkariOSLog -Level ERROR -Message ("Stage {0} FAILED: {1}" -f $Stage, $detail)
                 Set-AkariOSStageFailure -Stage $Stage -Detail $detail -ExitCode $exitCode -StatePath $failureStatePath
             } else {
