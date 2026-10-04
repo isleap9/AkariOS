@@ -9,22 +9,22 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Pre-Flight
 
-- [ ] **PREF-01**: User sees a pre-flight checklist on launch covering Windows version/build, administrator elevation, internet connectivity, free disk space (≥4 GB), pending reboot state, and battery/AC power on laptops
-- [ ] **PREF-02**: User cannot start the install while a blocking pre-flight check is failing; the reason is shown next to the failing check
-- [ ] **PREF-03**: App self-elevates via UAC on launch and shows a clear error if elevation is declined
+- [x] **PREF-01**: User sees a pre-flight checklist on launch covering Windows version/build, administrator elevation, internet connectivity, free disk space (≥4 GB), pending reboot state, and battery/AC power on laptops
+- [x] **PREF-02**: User cannot start the install while a blocking pre-flight check is failing; the reason is shown next to the failing check
+- [x] **PREF-03**: App self-elevates via UAC on launch and shows a clear error if elevation is declined
 
 ### Safety
 
 - [ ] **SAFE-01**: User can create a system restore point before Stage 1, and sees explicit confirmation that it was created
-- [ ] **SAFE-02**: User must type an acknowledgment ("AKARIOS") at a confirmation gate before the destructive stages run, and the gate states exactly what will be changed
-- [ ] **SAFE-03**: User sees a per-stage explanation panel describing in plain English what that stage does to the PC and what it costs in security or reversibility
-- [ ] **SAFE-04**: User can cancel during Stage 1 (before the first reboot); cancel is disabled once the machine is in a transitional state, and the UI says why
+- [x] **SAFE-02**: User must type an acknowledgment ("AKARIOS") at a confirmation gate before the destructive stages run, and the gate states exactly what will be changed
+- [x] **SAFE-03**: User sees a per-stage explanation panel describing in plain English what that stage does to the PC and what it costs in security or reversibility
+- [x] **SAFE-04**: User can cancel during Stage 1 (before the first reboot); cancel is disabled once the machine is in a transitional state, and the UI says why
 
 ### Progress & Resume
 
-- [ ] **PROG-01**: User sees "Step N of 3" plus a per-stage progress bar and the current action text at all times during the install
-- [ ] **PROG-02**: The install state persists to disk before each reboot, and the app auto-resumes on next launch showing "Resuming Step N of 3" with no user action required
-- [ ] **PROG-03**: The flow survives all reboots unattended — including the Safe Mode stage — when started via the single-click path
+- [x] **PROG-01**: User sees "Step N of 3" plus a per-stage progress bar and the current action text at all times during the install
+- [x] **PROG-02**: The install state persists to disk before each reboot, and the app auto-resumes on next launch showing "Resuming Step N of 3" with no user action required
+- [x] **PROG-03**: The flow survives all reboots unattended — including the Safe Mode stage — when started via the single-click path
 
 ### Flow
 
@@ -38,7 +38,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Diagnostics
 
-- [ ] **DIAG-01**: All actions and errors are written to a timestamped log at `%ProgramData%\AkariOS\install.log`
+- [x] **DIAG-01**: All actions and errors are written to a timestamped log at `%ProgramData%\AkariOS\install.log`
 - [ ] **DIAG-02**: When a stage fails, the user sees an error dialog with the failure detail, a log excerpt, and retry/abort options
 - [ ] **DIAG-03**: User can export the log (with system info) to a location of their choosing
 - [ ] **DIAG-04**: After the install completes, the user sees a "what changed" summary listing what was removed, disabled, and applied, with links to the restore point and the log
@@ -82,21 +82,21 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PREF-01 | Phase 1: Foundation | Pending |
-| PREF-02 | Phase 1: Foundation | Pending |
-| PREF-03 | Phase 1: Foundation | Pending |
+| PREF-01 | Phase 1: Foundation | Complete |
+| PREF-02 | Phase 1: Foundation | Complete |
+| PREF-03 | Phase 1: Foundation | Complete |
 | SAFE-01 | Phase 3: Hardening | Pending |
-| SAFE-02 | Phase 1: Foundation | Pending |
-| SAFE-03 | Phase 1: Foundation | Pending |
-| SAFE-04 | Phase 1: Foundation | Pending |
-| PROG-01 | Phase 1: Foundation | Pending |
-| PROG-02 | Phase 1: Foundation | Pending |
-| PROG-03 | Phase 1: Foundation | Pending |
+| SAFE-02 | Phase 1: Foundation | Complete |
+| SAFE-03 | Phase 1: Foundation | Complete |
+| SAFE-04 | Phase 1: Foundation | Complete |
+| PROG-01 | Phase 1: Foundation | Complete |
+| PROG-02 | Phase 1: Foundation | Complete |
+| PROG-03 | Phase 1: Foundation | Complete |
 | FLOW-01 | Phase 2: Core Engine | Pending |
 | FLOW-02 | Phase 2: Core Engine | Pending |
 | FLOW-03 | Phase 2: Core Engine | Pending |
 | BRND-01 | Phase 3: Hardening | Pending |
-| DIAG-01 | Phase 1: Foundation | Pending |
+| DIAG-01 | Phase 1: Foundation | Complete |
 | DIAG-02 | Phase 2: Core Engine | Pending |
 | DIAG-03 | Phase 3: Hardening | Pending |
 | DIAG-04 | Phase 3: Hardening | Pending |

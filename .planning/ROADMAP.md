@@ -36,6 +36,7 @@ everything else.
 5. User can cancel during Stage 1 before the first reboot; cancel is disabled once the machine is in a transitional state, and the UI says why
 
 **Plans:**
+- [x] 01-PLAN.md
 1. Set up project structure and compile pipeline (Compile.ps1, folder layout)
 2. Port AkariTool shell (MainWindow.xaml, start.ps1, main.ps1) with AkariOS branding
 3. Implement state machine (state.json read/write, atomic updates, RunOnce + bcdedit integration)
