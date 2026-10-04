@@ -113,5 +113,79 @@ $sync.Keys | Where-Object { $_ -like "Btn*" } | ForEach-Object {
     }
 }
 
+# ── Launch-time integration ───────────────────────────────────────────────────
+
+# 1. Log first, so anything that fails afterwards is recorded.
+try {
+    $assetNames = @()
+    if ($sync.assets) { $assetNames = @($sync.assets.Keys) }
+    Initialize-AkariOSLog -Banner @(
+        ("State file: " + $script:AkariOSStateDefaultPath),
+        ("Assets embedded: " + ($assetNames -join ", "))
+    )
+} catch {
+    # Logging must never block startup.
+}
+
+# 2. Seed the progress panel with the UI-SPEC stage descriptions (SAFE-03).
+foreach ($n in 1..3) {
+    $info = Get-StageExplanation -Number $n
+    $ctl  = $sync["Stage{0}Headline" -f $n]
+    if ($ctl -and $info.Description) { $ctl.Text = $info.Description }
+}
+Set-ProgressIdle
+
+# 3. Resume detection on launch (PROG-02). Get-ResumePoint reads the bcdedit
+#    safeboot flag and the RunOnce entries; state.json only corroborates.
+#    Failures here must not stop the app - the user can still start fresh.
+try {
+    $resume = Get-ResumePoint
+    Write-AkariOSLog -Level INFO -Message ("Resume detection: {0} ({1})" -f $resume.ResumePoint, $resume.Reason)
+
+    $evidence = "safeboot: {0} - RunOnce: stage2={1}, stage3={2} - state.json: stage {3} ({4})" -f `
+        $(if ($resume.Safeboot) { $resume.Safeboot } else { "not set" }),
+        $resume.HasStage2, $resume.HasStage3, $resume.StateStage, $resume.StateStatus
+    if ($sync.StateEvidence)  { $sync.StateEvidence.Text  = $evidence }
+    if ($sync.StateDetail)   { $sync.StateDetail.Text   = $resume.Reason }
+
+    switch ($resume.ResumePoint) {
+        "fresh" {
+            if ($sync.StateHeadline) { $sync.StateHeadline.Text = "Ready to install" }
+            if ($sync.BtnResume)     { $sync.BtnResume.Visibility = [System.Windows.Visibility]::Collapsed }
+        }
+        { $_ -in @("stage1","stage2","stage3") } {
+            $stageNo = switch ($resume.ResumePoint) { "stage1" {1} "stage2" {2} "stage3" {3} }
+            if ($sync.StateHeadline) { $sync.StateHeadline.Text = Format-ResumeStep -Stage $stageNo }
+            if ($sync.BtnResume) {
+                $sync.BtnResume.Visibility = [System.Windows.Visibility]::Visible
+                $sync.BtnResume.IsEnabled  = $true
+            }
+            if ($resume.ResumePoint -ne "stage1") {
+                # Safe Mode / later stages cannot be cancelled or driven from the
+                # GUI; the console stage script is already queued via RunOnce.
+                Set-Status "Resuming Step $stageNo of 3 - the queued stage script will run at boot." "#FFA726"
+            }
+        }
+        "inconsistent" {
+            # D-05: no CTA, the user must resolve it manually.
+            if ($sync.StateHeadline)      { $sync.StateHeadline.Text = "Inconsistent state detected" }
+            if ($sync.StateInconsistent)  { $sync.StateInconsistent.Visibility = [System.Windows.Visibility]::Visible }
+            if ($sync.BtnResume)          { $sync.BtnResume.Visibility = [System.Windows.Visibility]::Collapsed }
+            Set-Status "Inconsistent installation state - see the State page." "#FF6B6B"
+            Write-AkariOSLog -Level ERROR -Message ("Inconsistent state: " + $resume.Reason)
+            Show-Panel "PanelState"
+        }
+    }
+} catch {
+    Write-AkariOSLog -Level WARN -Message "Resume detection failed: $_"
+    if ($sync.StateHeadline) { $sync.StateHeadline.Text = "Ready to install" }
+}
+
+# 4. Cancel starts disabled: nothing is running (SAFE-04).
+Sync-CancelButton | Out-Null
+
+# 5. Install stays disabled until pre-flight checks pass (PREF-02).
+Set-InstallButtonEnabled -Enabled $false
+
 # ── Show window ───────────────────────────────────────────────────────────────
 $sync.window.ShowDialog() | Out-Null

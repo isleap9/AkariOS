@@ -97,11 +97,8 @@ function Update-ProgressDisplay {
     # Persist the within-stage position so a resume can pick it up.
     if (Get-Command Set-AkariOSState -ErrorAction SilentlyContinue) {
         try {
-            $s = Get-AkariOSState
-            $s.Stage = $Stage
-            if ($Action) { $s.CurrentAction = $Action }
-            $s.StagePercent = $Percent
-            Set-AkariOSState -State $s
+            if (-not $Action) { $Action = $script:AkariOSProgressDefault }
+            Set-AkariOSState -CurrentStage $Stage -Progress $Percent -Status "installing" -CurrentAction $Action
         } catch {
             Write-AkariOSLog -Level WARN -Message "Could not persist progress: $_"
         }

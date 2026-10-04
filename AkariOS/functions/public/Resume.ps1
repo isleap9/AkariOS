@@ -164,3 +164,45 @@ function Get-ResumePoint {
         RunOnceKeys = $script:AkariOSRunOnceKeys
     }
 }
+
+function Invoke-BtnResume {
+    <#
+    .SYNOPSIS
+        BtnResume handler (PROG-02). Re-runs detection and moves the UI to the
+        stage that is actually pending.
+    .DESCRIPTION
+        Resume here means "take me to the right place", not "run the stage":
+        stages 2 and 3 are already queued as RunOnce console scripts and run at
+        boot, so there is nothing for the GUI to launch. Stage 1 is the only case
+        the GUI can restart, and it goes through the normal confirmation gate.
+    #>
+    $resume = Get-ResumePoint
+    Write-AkariOSLog -Level INFO -Message ("Resume requested: {0}" -f $resume.ResumePoint)
+
+    if ($resume.ResumePoint -eq "inconsistent") {
+        [System.Windows.MessageBox]::Show(
+            ("The installation is in an inconsistent state. Please try again. " +
+             "If the problem persists, check the log at %ProgramData%\AkariOS\install.log."),
+            "AkariOS Setup") | Out-Null
+        return
+    }
+
+    if ($resume.ResumePoint -eq "stage1") {
+        # Stage 1 never completed - restart it through the confirmation gate.
+        Show-Panel "PanelHome"
+        Set-InstallButtonEnabled -Enabled $true -Hint "Resuming Stage 1 - confirm to continue."
+        Invoke-BtnInstall
+        return
+    }
+
+    $stageNo = switch ($resume.ResumePoint) { "stage2" {2} "stage3" {3} default { 0 } }
+    if ($stageNo -eq 0) {
+        Show-Panel "PanelHome"
+        Set-Status "Nothing to resume - starting fresh." "#AAAAAA"
+        return
+    }
+
+    # Stage 2/3 run as console scripts at boot; show where we are and stop there.
+    Set-CurrentStage -Stage $stageNo -Resume
+    Set-Status ("Step {0} of 3 is already queued and will run at the next boot. Do not close this window if it is still installing." -f $stageNo) "#FFA726"
+}

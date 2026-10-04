@@ -464,40 +464,10 @@
             </Grid>
         </Border>
 
-        <!-- ══ CONFIRMATION GATE — modal overlay, hidden until the user clicks Install ══ -->
-        <Grid Grid.RowSpan="3" Name="ConfirmOverlay" Background="#D9000000" Visibility="Collapsed">
-            <Border Style="{StaticResource Card}" Width="560" Padding="24,20"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
-                <StackPanel>
-                    <TextBlock Name="ConfirmHeading" Text="Confirm Installation"
-                               Style="{StaticResource Display}" Margin="0,0,0,12"/>
-                    <TextBlock Name="ConfirmBody"
-                               Text="You are about to make significant changes to your Windows installation. Please review what will happen:"
-                               Style="{StaticResource CardDesc}" Margin="0,0,0,12"/>
-
-                    <Border Style="{StaticResource CardDanger}" Padding="16,12" Margin="0,0,0,14">
-                        <TextBlock Name="ConfirmWarning"
-                                   Text="Type AKARIOS to confirm: This will disable Windows Defender, UAC, memory integrity, VBS, and the vulnerable-driver blocklist. It will remove Edge, UWP apps, and GPU/audio drivers. These changes are not easily reversible. A system restore point is recommended."
-                                   Style="{StaticResource CardDesc}" Foreground="{StaticResource DangerText}" Margin="0"/>
-                    </Border>
-
-                    <TextBlock Name="ConfirmPrompt" Text="Type AKARIOS to confirm you understand:"
-                               Style="{StaticResource Label}" Margin="0,0,0,6"/>
-                    <TextBox Name="ConfirmInput" />
-
-                    <TextBlock Name="ConfirmError"
-                               Text="Confirmation text does not match. Please type AKARIOS exactly."
-                               Style="{StaticResource CardDesc}"
-                               Foreground="{StaticResource DangerText}"
-                               Visibility="Collapsed" Margin="0,6,0,0"/>
-
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
-                        <Button Name="BtnConfirmCancel" Content="Go Back"  Style="{StaticResource Btn}"  Margin="0,0,8,0" MinWidth="120"/>
-                        <Button Name="BtnConfirmGo"    Content="I Understand" Style="{StaticResource BtnAccent}" MinWidth="160"/>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-        </Grid>
+        <!-- CONFIRMATION GATE: intentionally NOT part of this window.
+             Show-ConfirmationGate in functions/public/Confirm.ps1 builds its own
+             modal Window and calls ShowDialog(), so there is no private dispatcher
+             loop here that could fail to terminate. -->
 
     </Grid>
 </Window>

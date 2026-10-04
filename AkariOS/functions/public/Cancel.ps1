@@ -53,7 +53,7 @@ function Get-CanCancel {
 
     # Must be actively installing Stage 1.
     if ($State.Status -ne "installing") { return $false }
-    if ([int]$State.Stage -ne 1)        { return $false }
+    if ([int]$State.CurrentStage -ne 1) { return $false }
 
     # The moment the reboot is queued the machine is transitional.
     if ([bool]$State.RebootPending)    { return $false }
