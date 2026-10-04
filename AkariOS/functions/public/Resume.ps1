@@ -92,6 +92,35 @@ function Get-AkariOSRunOnceEntries {
     }
 }
 
+function Test-AkariOSInstallCompletedOn {
+    <#
+    .SYNOPSIS
+        THE completion predicate: Status "completed" AND CurrentStage -ge 3.
+    .DESCRIPTION
+        The single implementation of this rule in the entire codebase (D-16).
+
+        It was previously an inline expression at Resume.ps1:122 ($stateDone), and
+        the DIAG-04 completion check needed the same answer for the same state
+        object. Restating it in Summary.ps1 would have created two copies that can
+        drift - and a completion check that disagrees with resume detection is worse
+        than no completion check, because the screen would claim an install is done
+        that resume detection says is still in progress.
+
+        So the rule is EXTRACTED here, next to the line that uses it, and BOTH
+        Get-ResumePoint's $stateDone and Test-AkariOSInstallCompleted call it.
+        Behaviour is unchanged: the helper returns exactly what the old expression
+        returned, including $false for a null state object. tools/Test-Summary.ps1
+        asserts the expression appears in exactly one file.
+    .PARAMETER State
+        A state object. $null and $false both mean "not completed".
+    #>
+    [CmdletBinding()]
+    param($State)
+
+    if (-not $State) { return $false }
+    return ([bool]($State.Status -eq "completed" -and $State.CurrentStage -ge 3))
+}
+
 function Get-ResumePoint {
     <#
     .SYNOPSIS
@@ -119,7 +148,10 @@ function Get-ResumePoint {
 
     $safe = ($Safeboot -eq "minimal" -or $Safeboot -eq "network" -or $Safeboot -eq "set")
     $runOnceClean = ($null -eq $RunOnce -or (-not $RunOnce.HasStage2 -and -not $RunOnce.HasStage3))
-    $stateDone = ($State -and $State.Status -eq "completed" -and $State.CurrentStage -ge 3)
+    # The one and only implementation of the completion rule lives in
+    # Test-AkariOSInstallCompletedOn above; this line and the DIAG-04 check in
+    # Summary.ps1 both call it, so they cannot disagree (D-16).
+    $stateDone = (Test-AkariOSInstallCompletedOn -State $State)
 
     $point = "fresh"
     $reason = "No RunOnce entries and no safeboot flag — nothing to resume."
