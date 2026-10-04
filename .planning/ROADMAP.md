@@ -63,6 +63,10 @@ individual stage run buttons, auto-resume after each reboot, and error surfacing
 4. When a stage fails, user sees an error dialog with failure detail, log excerpt, and retry/abort options
 
 **Plans:**
+- [x] 02-01-PLAN.md
+- [ ] 02-02-PLAN.md
+- [ ] 02-03-PLAN.md
+- [ ] 02-04-PLAN.md
 1. Embed WinSux engine scripts as base64 assets
 2. Implement Stage 1 integration (runspace, progress reporting, reboot handling)
 3. Implement Stage 2 integration (Safe Mode console script, TrustedInstaller handling)
