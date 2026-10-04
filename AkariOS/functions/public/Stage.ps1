@@ -319,10 +319,13 @@ function Invoke-AkariOSStage {
     .PARAMETER LogPath
         install.log location. Defaults to the live path; override for tests.
     .PARAMETER OnComplete
-        Optional completion callback, receives the outcome hashtable from the
-        background runner. Added in Plan 02 task 1 so the per-stage button handlers
-        can re-enable themselves when the stage actually ends; additive, and the
-        default behaviour when omitted is unchanged.
+        Optional callback, receives the outcome hashtable from the background
+        runner. Added in Plan 02 task 1 so the per-stage button handlers can
+        re-enable themselves when the stage actually ends; additive, and the
+        default behaviour when omitted is unchanged. Also carries the engine
+        child's exit code: EndInvoke's return value is captured into .Results
+        (Plan 02-03) so a caller can tell a non-zero engine exit from a job that
+        merely completed.
     #>
     [CmdletBinding()]
     param(
@@ -392,6 +395,16 @@ function Invoke-AkariOSStage {
     # -OnComplete receives the outcome hashtable, which is the ONLY way to learn
     # how the job ended: a local captured by the job's closure would be read by
     # value and always look like success.
+    #
+    # T-02-32: this callback is also where a failure becomes a RECORD (DIAG-02).
+    # It works at all only because Plan 01 replaced the by-value capture with the
+    # outcome hashtable — without that fix .Error is always $null and every failing
+    # stage is reported as a success, which makes the whole diagnostics path inert
+    # (T-02-26 in the threat model).
+    # Resolved once so the failure record always has a real path even when the
+    # caller did not pin one.
+    $failureStatePath = if ($StatePath) { $StatePath } else { $script:AkariOSStateDefaultPath }
+
     $supervisorArgs = @{
         StatusStart = ("Stage {0} is running in a separate console window..." -f $Stage)
         StatusDone  = ("Stage {0} finished." -f $Stage)
@@ -400,11 +413,32 @@ function Invoke-AkariOSStage {
         }.GetNewClosure()
         OnComplete  = {
             param($Outcome)
-            if ($Outcome.Error) {
-                Write-AkariOSLog -Level ERROR -Message ("Stage {0} FAILED: {1}" -f $Stage, ($Outcome.Error | Out-String))
-                if ($StatePath) { Set-AkariOSState -Path $StatePath -CurrentStage $Stage -Status "error" }
+            $errText = ""
+            if ($Outcome.Error) { $errText = ($Outcome.Error | Out-String) }
+
+            # A non-zero exit from the engine child is a failure even though the
+            # background job itself completed without throwing — the job ran the
+            # process launcher, and the PROCESS is what failed. Invoke-AkariOSEngine
+            # returns the exit code as its pipeline output, which the runner hands
+            # back on $Outcome.Results.
+            $exitCode = 0
+            foreach ($r in @($Outcome.Results)) {
+                if ($null -ne $r) { $exitCode = [int]$r }
+            }
+
+            if ($errText -or $exitCode -ne 0) {
+                $detail = if ($errText) { $errText.Trim() } else { ("Engine exited with code {0}." -f $exitCode) }
+                Write-AkariOSLog -Level ERROR -Message ("Stage {0} FAILED: {1}" -f $Stage, $detail)
+                Set-AkariOSStageFailure -Stage $Stage -Detail $detail -ExitCode $exitCode -StatePath $failureStatePath
             } else {
                 Write-AkariOSLog -Level INFO -Message ("Stage {0} engine process completed." -f $Stage)
+                # A clean finish clears any stale record for this stage, so the next
+                # launch does not re-report a failure the user already recovered
+                # from. Only the block is touched — nothing else on the machine.
+                if ((Get-Command Clear-AkariOSStageFailure -ErrorAction SilentlyContinue) -and
+                    (Get-AkariOSState -Path $failureStatePath).PSObject.Properties["LastError"]) {
+                    Clear-AkariOSStageFailure -StatePath $failureStatePath | Out-Null
+                }
             }
             if ($OnComplete) { & $OnComplete $Outcome }
         }.GetNewClosure()

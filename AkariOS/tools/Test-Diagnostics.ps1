@@ -253,7 +253,41 @@ try {
     # Retry button: no failure present must NOT launch an arbitrary stage.
     Assert "Retry button no-ops with nothing recorded" ((Invoke-BtnStageRetry -StatePath $statePath -LogPath $logPath) -eq $false)
 
-    # ── 12. Seams are injectable and no ProgramData literal is written ─────────
+    # ── 13. End-to-end: the round trip DIAG-02 actually depends on ──────────────
+    # The launch-time check reads state.json, and the progress panel rewrites it
+    # on every tick while a stage runs. So the property that matters is not "can
+    # we write a failure" (proven in section 2) but "does it still read back
+    # after the very write that used to destroy it".
+    Write-Host "T-02-34: end-to-end round trip through a simulated progress tick"
+    Reset-AkariOSState -Path $statePath
+    Initialize-AkariOSState -Path $statePath | Out-Null
+    Initialize-AkariOSLog -Path $logPath | Out-Null
+    $roundTripDetail = "winsux.ps1 aborted: payload download failed (HTTP 404)."
+
+    Set-AkariOSStageFailure -Stage 1 -Detail $roundTripDetail -ExitCode 404 -StatePath $statePath | Out-Null
+
+    # The UI refreshing five times while the user reads the error is exactly the
+    # sequence that used to erase the record.
+    foreach ($p in @(3, 6, 9, 12, 15)) {
+        Set-AkariOSState -Path $statePath -CurrentStage 1 -Status "running" -Progress $p -CurrentAction ("Working {0}%" -f $p) | Out-Null
+    }
+
+    $readBack = Get-AkariOSStageFailure -StatePath $statePath -LogPath $logPath
+    Assert "the launch-time check still finds the failure" ($null -ne $readBack)
+    Assert "the detail survived verbatim, end to end"      ($readBack.Detail -ceq $roundTripDetail)
+    Assert "the exit code survived, end to end"            ($readBack.ExitCode -eq 404)
+    Assert "the stage survived, end to end"                ($readBack.Stage -eq 1)
+    Assert "a log excerpt came back with it"               (@($readBack.LogTail).Count -ge 1)
+
+    # And what the user would see on the card is populated, not blank.
+    Assert "a message is rendered for the card"   (-not [string]::IsNullOrWhiteSpace([string]$readBack.Detail))
+    Assert "the excerpt is renderable as text"    (([string]$readBack.LogText) -is [string])
+
+    # A clean re-run clears it, so the next launch does not re-report it.
+    Clear-AkariOSStageFailure -StatePath $statePath | Out-Null
+    Assert "after recovery, launch detection is clean" ($null -eq (Get-AkariOSStageFailure -StatePath $statePath -LogPath $logPath))
+
+    # ── 14. Seams are injectable and no ProgramData literal is written ────────
     Write-Host "Every path is injectable and no ProgramData literal is hardcoded"
     foreach ($fn in @("Get-AkariOSStageFailure", "Set-AkariOSStageFailure", "Clear-AkariOSStageFailure")) {
         $keys = @((Get-Command $fn).Parameters.Keys)

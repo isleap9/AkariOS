@@ -157,6 +157,22 @@ if (Test-Path -LiteralPath $compiled) {
     $installDefs = @([regex]::Matches($c, '(?m)^function Start-AkariOSInstall\b'))
     Assert "Start-AkariOSInstall defined once" ($installDefs.Count -eq 1)
 
+    # Plan 02-03: every diagnostics function must survive concatenation into the
+    # single shipped file, exactly once. A duplicate definition is not a warning,
+    # it silently rebinds the name, and a missing one leaves a button dead.
+    foreach ($fn in @("Get-AkariOSStageFailure","Set-AkariOSStageFailure","Clear-AkariOSStageFailure",
+                      "Show-StageError","Resolve-StageFailure",
+                      "Invoke-BtnStageRetry","Invoke-BtnStageAbort")) {
+        Assert ("compiled file defines $fn exactly once") ((@([regex]::Matches($c, '(?m)^function ' + [regex]::Escape($fn) + '\b'))).Count -eq 1)
+    }
+    # And all five Invoke-BtnStage* handlers, so the main.ps1 wiring loop
+    # (Get-Command "Invoke-$btnName") resolves every button it finds.
+    $btnHandlers = @([regex]::Matches($c, '(?m)^function Invoke-BtnStage')) | ForEach-Object { $_.Value }
+    Assert "five Invoke-BtnStage* handlers compiled" ($btnHandlers.Count -eq 5)
+    foreach ($h in @("Invoke-BtnStage1","Invoke-BtnStage2","Invoke-BtnStage3","Invoke-BtnStageRetry","Invoke-BtnStageAbort")) {
+        Assert ("compiled file defines $h") ($c -match ('(?m)^function ' + [regex]::Escape($h) + '\b'))
+    }
+
     # Plan 02-02 task 3: the stage buttons must survive compilation INTO the XAML
     # here-string. A button that is only in the source panel would parse and pass
     # every source-level assertion while being absent from the shipped app, so
@@ -172,6 +188,14 @@ if (Test-Path -LiteralPath $compiled) {
     foreach ($b in @("BtnStage1","BtnStage2","BtnStage3","StageHandoffHint")) {
         Assert ("compiled XAML declares $b") ($xamlBody -like ('*Name="' + $b + '"*'))
         Assert ("compiled XAML has no x:Name for $b") ($xamlBody -notlike ('*x:Name="' + $b + '"*'))
+    }
+    # Plan 02-03: the error card and both its buttons must reach the shipped app
+    # too. Declared only in the panel source they would parse fine and be absent
+    # from every window the user ever sees.
+    foreach ($b in @("StageErrorDetail","StageErrorTitle","StageErrorMessage","StageErrorLog","BtnStageRetry","BtnStageAbort")) {
+        Assert ("compiled XAML declares $b") ($xamlBody -like ('*Name="' + $b + '"*'))
+        Assert ("compiled XAML has no x:Name for $b") ($xamlBody -notlike ('*x:Name="' + $b + '"*'))
+        Assert ("compiled XAML has no Click= on $b") ($b -notmatch 'Click' -and $xamlBody -notmatch ('Name="' + $b + '"[^>]*Click='))
     }
 
     # Concatenation must produce a VALID single file every time it runs, so the
@@ -217,6 +241,76 @@ Assert "reconciliation reads Get-ResumePoint's value, not state.json" (
 Assert "state.json is used only as corroboration in the log line" (
     ($reconBlock -like '*$resume.StateStage*') -and
     (-not ($reconBlock -match '\$sync\["ProgressStep"\]\s*\.')))
+
+Write-Host "Plan 02-03: the failure is recorded at run time and surfaced at launch"
+# The -OnComplete callback is the ONLY trigger, and it exists only because Plan 01
+# fixed the by-value closure capture. Assert the whole chain is present in source,
+# not just in the compiled artefact.
+Assert "the stage runner passes an -OnComplete"     ($src -match 'OnComplete\s*=')
+Assert "the callback records the failure"            ($src -match 'Set-AkariOSStageFailure')
+Assert "a non-zero engine exit counts as a failure"  ($src -match '\$exitCode\s*-ne\s*0')
+Assert "the engine exit code is read from the outcome" ($src -match '\$Outcome\.Results')
+Assert "a clean finish clears a stale record"        ($src -match 'Clear-AkariOSStageFailure')
+
+# main.ps1 must call detection at launch and be able to reach the card.
+Assert "launch calls Get-AkariOSStageFailure"       ($mainRaw -like '*Get-AkariOSStageFailure*')
+Assert "launch names BtnStageRetry"                 ($mainRaw -like '*BtnStageRetry*')
+# Revealing the card is delegated to Reveal-StageError (it owns the card AND both
+# buttons, so the two can never drift), so main.ps1 calls it rather than poking
+# Visibility itself. Asserted against Diagnostics.ps1, which is where the card is
+# actually manipulated.
+Assert "Reveal-StageError manipulates the card"     (
+    (Get-Content -LiteralPath (Join-Path $Root "functions\public\Diagnostics.ps1") -Raw) -like '*$syncRef.StageErrorDetail.Visibility*')
+Assert "the launch step is numbered 7"              ($mainRaw -match '# 7\. Failed-stage detection')
+Assert "the launch check precedes ShowDialog"       (
+    $mainRaw.IndexOf('# 7. Failed-stage detection') -lt $mainRaw.IndexOf('$sync.window.ShowDialog()'))
+Assert "the launch check cannot block ShowDialog"   ($mainRaw -match 'Stage failure detection failed')
+
+# Detection must NOT be a resume case. A machine can sit at a perfectly normal
+# resume point while carrying a failure record from the stage before it, which is
+# exactly why this is an independent check (RESEARCH §7 Decision 3). Asserted on
+# the COMMENT-STRIPPED block: the comment above it legitimately NAMES
+# Get-ResumePoint to explain why the check does not use it.
+$detectBlock = $mainRaw.Substring($mainRaw.IndexOf('# 7. Failed-stage detection'))
+$detectCode = [regex]::Replace([regex]::Replace($detectBlock, '(?s)<#.*?#>', ''), '(?m)^\s*#.*$', '')
+Assert "the launch check never consults Get-ResumePoint" (-not ($detectCode -match 'Get-ResumePoint|\$resume'))
+Assert "the launch check never touches the resume switch" ($detectCode -notmatch 'switch\s*\(')
+# Revealing the card is what enables the two buttons (Reveal-StageError owns both),
+# so step 7 must go through it rather than poking Visibility directly on success.
+Assert "the launch path reveals the card via Reveal-StageError" ($detectCode -match 'Show-StageError -Failure \$failure')
+
+Write-Host "Plan 02-03 T-02-35: no dead !AkariOS relaunch RunOnce entry"
+# DEVIATION, recorded explicitly. Phase 1 research assumed a `!AkariOS` RunOnce
+# entry would relaunch the GUI after Stage 3. steptwo.ps1 deletes and recreates
+# the RunOnce keys in HKCU, HKLM and WOW6432Node (steptwo.ps1:324-333), so that
+# entry is unconditionally destroyed and can never fire. A key that sometimes
+# vanishes is worse than no key: it wastes a VM session debugging a relaunch
+# that was never going to happen. So AkariOS must write no such value anywhere.
+$deadEntry = @()
+foreach ($f in (Get-ChildItem (Join-Path $Root "functions") -Recurse -File -Filter "*.ps1") +
+               (Get-ChildItem (Join-Path $Root "scripts") -Recurse -File -Filter "*.ps1")) {
+    $lines = @(Get-Content -LiteralPath $f.FullName) | ForEach-Object { $i = 0 } { $i++; "$i`:$_" }
+    $hit = @($lines | Where-Object { $_ -match '!AkariOS' -and $_ -notmatch '^\s*\d+\s*#' })
+    if ($hit.Count) { $deadEntry += ($f.Name + ": " + ($hit -join ' | ')) }
+}
+Assert "no !AkariOS RunOnce value is written anywhere" ($deadEntry.Count -eq 0)
+if ($deadEntry.Count -gt 0) { $deadEntry | ForEach-Object { Write-Host ("        " + $_) } }
+# The two entries that DO exist must still come from Phase 1's constants in
+# Resume.ps1, never restated. Stage.ps1 builds the reg.exe line with a -f format
+# that interpolates {0} from the constant, so no literal entry name appears in the
+# file at all — that is the property worth asserting, because a hardcoded name
+# would survive a Phase 1 constant change and silently write the wrong entry.
+Assert "Stage.ps1 never inlines a RunOnce entry name" (-not ($src -match '"\*!stepone"|"!steptwo"'))
+Assert "Stage.ps1 references both Phase 1 constants" (
+    ($src -match '\$script:AkariOSStage2Entry') -and ($src -match '\$script:AkariOSStage3Entry'))
+Assert "the reg.exe line interpolates the entry name, it does not spell it" (
+    ($src -match '-f \$entry, \$value'))
+Assert "Phase 1's entry-name constants are unchanged in Resume.ps1" (
+    (Get-Content -LiteralPath (Join-Path $Root "functions\public\Resume.ps1") -Raw) -match
+    ([regex]::Escape('$script:AkariOSStage2Entry = "' + $script:AkariOSStage2Entry + '"')))
+Assert "Phase 1's stage 3 entry-name constant is unchanged in Resume.ps1" (
+    (Get-Content -LiteralPath (Join-Path $Root "functions\public\Resume.ps1") -Raw) -match
+    ([regex]::Escape('$script:AkariOSStage3Entry = "' + $script:AkariOSStage3Entry + '"')))
 
 if ($fail -eq 0) { Write-Host "`nALL STAGE TESTS PASSED"; exit 0 }
 else { Write-Host "`n$fail STAGE TEST(S) FAILED"; exit 1 }

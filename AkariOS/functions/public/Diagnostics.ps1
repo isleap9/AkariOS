@@ -176,6 +176,9 @@ function Reveal-StageError {
     $work = [System.Action]{
         if ($null -eq $Failure) {
             $syncRef.StageErrorDetail.Visibility = [System.Windows.Visibility]::Collapsed
+            foreach ($btn in @("BtnStageRetry", "BtnStageAbort")) {
+                if ($syncRef[$btn]) { $syncRef[$btn].IsEnabled = $false }
+            }
             return
         }
         if ($syncRef.StageErrorTitle) {
@@ -196,6 +199,11 @@ function Reveal-StageError {
             }
         }
         $syncRef.StageErrorDetail.Visibility = [System.Windows.Visibility]::Visible
+        # The two actions become live only together with the card they belong to.
+        # A visible Retry that is disabled is the same dead button as a hidden one.
+        foreach ($btn in @("BtnStageRetry", "BtnStageAbort")) {
+            if ($syncRef[$btn]) { $syncRef[$btn].IsEnabled = $true }
+        }
     }.GetNewClosure()
 
     if ($syncRef.window) {

@@ -259,5 +259,45 @@ try {
     Write-AkariOSLog -Level WARN -Message "Stage-status reconciliation failed: $_"
 }
 
+# 7. Failed-stage detection at launch (DIAG-02, D-10).
+#    An INDEPENDENT check against state.json, deliberately NOT a new branch in the
+#    resume switch at step 3 and NOT a new ResumePoint value (RESEARCH §7
+#    Decision 3): Phase 1's verified D-03/D-05 decision table stays byte-identical.
+#    Get-ResumePoint answers "where is the machine"; this answers "did something
+#    fail", and a machine can be sitting at a perfectly normal resume point while
+#    carrying a failure record from the stage before it.
+#
+#    It deliberately reads state.json even though Progress.ps1:101's broken
+#    -Status "installing" call means within-stage progress is never persisted: the
+#    LastError block is written through the `Object` set, which is the one write
+#    path that does not throw. Detection therefore never depends on the Phase 1
+#    defect being fixed.
+try {
+    $failure = Get-AkariOSStageFailure
+    if ($failure) {
+        Write-AkariOSLog -Level ERROR -Message (
+            "Recorded stage failure found at launch: stage {0}, exit {1}: {2}" -f
+            $failure.Stage, $failure.ExitCode, $failure.Detail)
+
+        # House three-step recipe: Set-Status, log at ERROR, Show-Panel.
+        Set-Status ("Stage {0} did not finish. Review the error, then retry or abort it." -f $failure.Stage) "#FF6B6B"
+        Show-Panel "PanelProgress"
+        Show-StageError -Failure $failure
+    } else {
+        # No failure: hide the card and leave both buttons disabled, which is how
+        # 02-Progress.xaml declares them. Revealing them unconditionally would put
+        # a live Retry next to no error. Show-StageError enables both buttons when
+        # it reveals the card; this is the mirror of that, done by name so the two
+        # paths cannot drift.
+        Reveal-StageError -Failure $null
+        if ($sync.BtnStageRetry) { $sync.BtnStageRetry.IsEnabled = $false }
+        if ($sync.BtnStageAbort) { $sync.BtnStageAbort.IsEnabled = $false }
+    }
+} catch {
+    # Never fatal: a failure-detection throw between here and ShowDialog() would
+    # leave the user with no window at all.
+    Write-AkariOSLog -Level WARN -Message "Stage failure detection failed: $_"
+}
+
 # ── Show window ───────────────────────────────────────────────────────────────
 $sync.window.ShowDialog() | Out-Null

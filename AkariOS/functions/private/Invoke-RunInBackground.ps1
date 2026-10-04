@@ -110,7 +110,17 @@
     $timer.Add_Tick({
         if ($handle.IsCompleted) {
             $timer.Stop()
-            try   { $outcome.Error = $ps.EndInvoke($handle) } catch { $outcome.Error = $_ }
+            # EndInvoke returns the job's pipeline output as well as throwing on a
+            # failed job, so both are captured: .Results carries the values a caller
+            # emitted (Invoke-AkariOSStage's engine EXIT CODE lives there) and
+            # .Error is set only when the job itself threw. A caller that checked
+            # .Error alone would see every non-zero engine exit as a success.
+            try {
+                $output = $ps.EndInvoke($handle)
+                $outcome.Results = @($output)
+            } catch {
+                $outcome.Error = $_
+            }
             $rs.Close()
             $rs.Dispose()
             if ($outcome.Error -and (Get-Command Write-AkariOSLog -ErrorAction SilentlyContinue)) {
