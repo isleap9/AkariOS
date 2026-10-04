@@ -318,6 +318,11 @@ function Invoke-AkariOSStage {
         state.json location. Defaults to the live path; override for tests.
     .PARAMETER LogPath
         install.log location. Defaults to the live path; override for tests.
+    .PARAMETER OnComplete
+        Optional completion callback, receives the outcome hashtable from the
+        background runner. Added in Plan 02 task 1 so the per-stage button handlers
+        can re-enable themselves when the stage actually ends; additive, and the
+        default behaviour when omitted is unchanged.
     #>
     [CmdletBinding()]
     param(
@@ -327,7 +332,8 @@ function Invoke-AkariOSStage {
         [scriptblock]$RunOnceWriter,
         [scriptblock]$BcdWriter,
         [string]$StatePath,
-        [string]$LogPath
+        [string]$LogPath,
+        [scriptblock]$OnComplete
     )
 
     $map = $script:AkariOSStageAssets[$Stage]
@@ -400,6 +406,7 @@ function Invoke-AkariOSStage {
             } else {
                 Write-AkariOSLog -Level INFO -Message ("Stage {0} engine process completed." -f $Stage)
             }
+            if ($OnComplete) { & $OnComplete $Outcome }
         }.GetNewClosure()
     }
 
@@ -429,4 +436,214 @@ function Start-AkariOSInstall {
 
     Write-AkariOSLog -Level INFO -Message "Install confirmed by the user. Starting Stage 1."
     return (Invoke-AkariOSStage -Stage 1)
+}
+
+# ══ Per-stage run buttons (FLOW-02) ══════════════════════════════════════════
+#
+# Three buttons on the progress panel each run exactly one stage, independently
+# of the full three-stage flow.
+#
+# SAFETY (SAFE-02): these handlers drive the SAME destructive engine as the main
+# Install CTA, so they repeat BOTH gates Invoke-BtnInstall runs —
+# Invoke-PreFlightChecks and the typed-token Show-ConfirmationGate. Neither is
+# optional and neither may be skipped because the button already looks enabled.
+#
+# A missing Invoke-BtnStage<N> is a SILENTLY DEAD button: main.ps1:109 wires
+# buttons with `-ErrorAction SilentlyContinue`, so a name typo costs nothing at
+# launch and the user just finds a button that does nothing. Test-Panels.ps1
+# asserts one definition of each, for exactly this reason.
+
+function Show-StageHandoffHint {
+    <#
+    .SYNOPSIS
+        Reveals the Stage 2 Safe Mode handoff copy on the progress panel.
+    .DESCRIPTION
+        Touches a WPF control, so it must be marshalled onto the UI thread. Uses
+        the Progress.ps1:107-124 CheckAccess-then-BeginInvoke shape: a blocking
+        Invoke from a worker while the UI thread waits on the job deadlocks.
+    #>
+    [CmdletBinding()]
+    param([switch]$Visible)
+
+    $syncRef = $sync
+    if (-not ($syncRef -and $syncRef.StageHandoffHint)) { return }
+
+    $work = [System.Action]{
+        $syncRef.StageHandoffHint.Visibility = if ($Visible) {
+            [System.Windows.Visibility]::Visible
+        } else {
+            [System.Windows.Visibility]::Collapsed
+        }
+    }.GetNewClosure()
+
+    if ($syncRef.window) {
+        $dispatcher = $syncRef.window.Dispatcher
+        if ($dispatcher.CheckAccess()) { $work.Invoke() }
+        else { $dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Background, $work) | Out-Null }
+    } else {
+        # No window (a test harness): set it directly.
+        $work.Invoke()
+    }
+}
+
+function Invoke-AkariOSSingleStage {
+    <#
+    .SYNOPSIS
+        Shared body of Invoke-BtnStage1/2/3: gate, then run one stage alone.
+    .DESCRIPTION
+        Exists so the three button handlers cannot drift apart. Every outside-world
+        step (pre-flight, the gate, the stage launch, RunOnce, panel switching)
+        is an injectable parameter whose default is the real call, so a test can
+        drive the whole handler and assert on what it did without touching
+        machine state.
+
+        Stage 2 and Stage 3 FIRST write their own RunOnce entry. This is NOT the
+        happy path: in the full flow WinSux queues BOTH entries during Stage 1
+        (winsux.ps1:222 / :225) and by the time Stage 2 or 3 runs they are already
+        in the registry. When a user runs Stage 2 or Stage 3 on its own nothing
+        has queued the next hand-off, so without this write the flow simply stops
+        there. The write still goes through the Set-AkariOSRunOnceEntry seam and
+        still happens only after both gates have passed.
+    .PARAMETER Stage
+        Stage number 1-3.
+    .PARAMETER ButtonName
+        Name of the button in $sync, disabled for the run and re-enabled when the
+        stage's background job completes.
+    .PARAMETER WriteOwnRunOnce
+        Queue this stage's RunOnce entry before running. True for stages 2 and 3.
+    .PARAMETER PreflightInvoker
+        Overrides Invoke-PreFlightChecks.
+    .PARAMETER GateInvoker
+        Overrides Show-ConfirmationGate.
+    .PARAMETER StageInvoker
+        Overrides Invoke-AkariOSStage.
+    .PARAMETER PanelSwitcher
+        Overrides Show-Panel.
+    .PARAMETER RunOnceWriter
+        Overrides the RunOnce registry write.
+    .PARAMETER MessageBoxInvoker
+        Overrides the blocking-failure dialog. Injectable so a harness can exercise
+        the blocked path without a modal window appearing on the desktop.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][ValidateSet(1, 2, 3)][int]$Stage,
+        [string]$ButtonName = "",
+        [bool]$WriteOwnRunOnce = $false,
+        [scriptblock]$PreflightInvoker = { Invoke-PreFlightChecks },
+        [scriptblock]$GateInvoker      = { Show-ConfirmationGate },
+        [scriptblock]$StageInvoker     = { param($n, $cb) Invoke-AkariOSStage -Stage $n -OnComplete $cb },
+        [scriptblock]$PanelSwitcher    = { param($p) Show-Panel $p },
+        [scriptblock]$RunOnceWriter,
+        [scriptblock]$MessageBoxInvoker = {
+            param($Text, $Title)
+            [System.Windows.MessageBox]::Show($Text, $Title) | Out-Null
+        }
+    )
+
+    # 1. Same Get-Command guard as Invoke-BtnRunChecks (Check.ps1:413-416): without
+    #    the background runner nothing can be supervised, so say so instead of
+    #    pretending the stage started.
+    if (-not (Get-Command Invoke-RunInBackground -ErrorAction SilentlyContinue)) {
+        & $MessageBoxInvoker "Background runner unavailable." "AkariOS Setup"
+        return
+    }
+
+    # 2. Defense in depth: the per-stage path drives the same destructive engine
+    #    as the main CTA, so it repeats the pre-flight check even when the button
+    #    was enabled by main.ps1 step 6 (Confirm.ps1:217-225).
+    $pre = & $PreflightInvoker
+    if (-not $pre.CanInstall) {
+        $first = @($pre.BlockingFails)[0]
+        if (Get-Command Show-CheckResult -ErrorAction SilentlyContinue) {
+            Show-CheckResult -Results $pre.Results -Summary $pre.Summary
+        }
+        & $MessageBoxInvoker ("Stage {0} cannot start yet.`n`n" + $first.Name + ": " + $first.Message) "AkariOS Setup"
+        return
+    }
+
+    # 3. The typed-token gate, identical to the main CTA (Confirm.ps1:227-231).
+    if (-not (& $GateInvoker)) {
+        Set-Status ("Stage {0} cancelled at the confirmation gate." -f $Stage) "#AAAAAA"
+        & $PanelSwitcher "PanelHome"
+        return
+    }
+
+    # 4. Per-stage-runs-alone path: queue this stage's own cross-reboot hand-off.
+    #    Both gates have passed; nothing below here is reachable without them.
+    if ($WriteOwnRunOnce) {
+        Set-AkariOSRunOnceEntry -Stage $Stage -RunOnceWriter $RunOnceWriter
+    }
+
+    # 5. Stage 2 must be launched from a console, not from WPF (D-12), so the
+    #    handoff copy is on screen before the engine takes over the machine.
+    if ($Stage -eq 2) {
+        Show-StageHandoffHint -Visible
+    }
+
+    # 6. Disable our own button for the duration, and re-enable it from the
+    #    stage's completion callback so a second click cannot race the first.
+    if ($ButtonName -and $sync -and $sync[$ButtonName]) {
+        $sync[$ButtonName].IsEnabled = $false
+    }
+
+    $onDone = {
+        param($Outcome)
+        if ($ButtonName -and $sync -and $sync[$ButtonName]) {
+            $syncRef2 = $sync
+            $reenable = [System.Action]{
+                if ($syncRef2[$ButtonName]) { $syncRef2[$ButtonName].IsEnabled = $true }
+            }.GetNewClosure()
+            if ($syncRef2.window) {
+                $d = $syncRef2.window.Dispatcher
+                if ($d.CheckAccess()) { $reenable.Invoke() }
+                else { $d.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Background, $reenable) | Out-Null }
+            } else {
+                $reenable.Invoke()
+            }
+        }
+    }.GetNewClosure()
+
+    Write-AkariOSLog -Level INFO -Message ("User requested Stage {0} on its own." -f $Stage)
+    return (& $StageInvoker $Stage $onDone)
+}
+
+function Invoke-BtnStage1 {
+    <#
+    .SYNOPSIS
+        BtnStage1 handler: run Stage 1 alone, behind the full install gates.
+    #>
+    [CmdletBinding()]
+    param()
+    return (Invoke-AkariOSSingleStage -Stage 1 -ButtonName "BtnStage1")
+}
+
+function Invoke-BtnStage2 {
+    <#
+    .SYNOPSIS
+        BtnStage2 handler: run Stage 2 alone, behind the full install gates.
+    .DESCRIPTION
+        Stage 2 runs as a raw maximized console, never WPF (D-12), and the machine
+        only leaves Safe Mode because DDU restarts it (stepone.ps1:153) - there is
+        no shutdown call in that script at all. It also writes its own RunOnce
+        entry first, because nothing else will have queued one.
+    #>
+    [CmdletBinding()]
+    param()
+    return (Invoke-AkariOSSingleStage -Stage 2 -ButtonName "BtnStage2" -WriteOwnRunOnce $true)
+}
+
+function Invoke-BtnStage3 {
+    <#
+    .SYNOPSIS
+        BtnStage3 handler: run Stage 3 alone, behind the full install gates.
+    .DESCRIPTION
+        Writes its own RunOnce entry first (RESEARCH §5 Decision 5: in the happy
+        path Stage 1 already queued both entries, so this only fires when the user
+        runs Stage 3 by itself). No entry is written FOR anything after Stage 3 -
+        steptwo.ps1 wipes the RunOnce keys itself (steptwo.ps1:324-333).
+    #>
+    [CmdletBinding()]
+    param()
+    return (Invoke-AkariOSSingleStage -Stage 3 -ButtonName "BtnStage3" -WriteOwnRunOnce $true)
 }
