@@ -461,15 +461,51 @@ function Show-StageHandoffHint {
         Touches a WPF control, so it must be marshalled onto the UI thread. Uses
         the Progress.ps1:107-124 CheckAccess-then-BeginInvoke shape: a blocking
         Invoke from a worker while the UI thread waits on the job deadlocks.
+
+        The static copy lives in 02-Progress.xaml; -PendingNote is the one dynamic
+        part, appended as a separate line so the literal text is never rewritten.
+    .PARAMETER Visible
+        Show (default) or collapse the hint.
+    .PARAMETER PendingNote
+        Optional extra sentence appended to the hint text, e.g. that the next
+        RunOnce entry is still queued.
+    .PARAMETER RunOnceInvoker
+        Overrides Get-AkariOSRunOnceEntries, the only way this function reads
+        machine state. Defaults to the real read-only lookup; nothing writes.
+    .PARAMETER ProbePending
+        When set, a still-queued !steptwo entry appends the recovery sentence.
     #>
     [CmdletBinding()]
-    param([switch]$Visible)
+    param(
+        [switch]$Visible,
+        [string]$PendingNote = "",
+        [scriptblock]$RunOnceInvoker = { Get-AkariOSRunOnceEntries },
+        [switch]$ProbePending
+    )
 
     $syncRef = $sync
     if (-not ($syncRef -and $syncRef.StageHandoffHint)) { return }
 
+    $note = $PendingNote
+    if ($ProbePending -and -not $note) {
+        try {
+            $entries = & $RunOnceInvoker
+            if ($entries -and ($entries | Where-Object { [string]$_ -like "*$($script:AkariOSStage3Entry)*" })) {
+                $note = "STAGE 3 IS STILL QUEUED: !steptwo has not run yet, so it will start the next time this account signs in."
+            }
+        } catch {
+            # A failed probe must not stop the hint from appearing.
+        }
+    }
+
     $work = [System.Action]{
-        $syncRef.StageHandoffHint.Visibility = if ($Visible) {
+        $hint = $syncRef.StageHandoffHint
+        # Idempotent: revealing the hint repeatedly must not grow the text. The
+        # XAML literal is captured once as the base, and the note is re-applied
+        # to that base every time.
+        if (-not $syncRef["StageHandoffBase"]) { $syncRef["StageHandoffBase"] = $hint.Text }
+        $hint.Text = if ($note) { $syncRef["StageHandoffBase"] + "  " + $note } else { $syncRef["StageHandoffBase"] }
+        $hint.Visibility = if ($Visible) {
             [System.Windows.Visibility]::Visible
         } else {
             [System.Windows.Visibility]::Collapsed
@@ -577,8 +613,33 @@ function Invoke-AkariOSSingleStage {
 
     # 5. Stage 2 must be launched from a console, not from WPF (D-12), so the
     #    handoff copy is on screen before the engine takes over the machine.
+    #
+    #    WHY D-12 IS NOT "IMPROVABLE": WPF in Safe Mode depends on the
+    #    undocumented Render Tier 0 path (BasicDisplay.sys + WARP). It may work on
+    #    some builds and fail on others, and STACK.md classifies it as unreliable.
+    #    So AkariOS attempts nothing in Safe Mode: Step 1's RunOnce entry launches
+    #    stepone.ps1 as a raw maximized console, and this hint is how the user is
+    #    told to expect that. Do not "improve" this into a Safe Mode WPF attempt —
+    #    RESEARCH Finding 5 and the D-12 rationale are the reason it is text.
+    #
+    #    The copy also has to answer the three things the user cannot infer
+    #    (02-Progress.xaml, the comment above StageHandoffHint): that the console
+    #    window is the engine and not a hang, that they MUST log on at the Safe
+    #    Mode prompt because RunOnce fires at logon and nothing auto-logs-on, and
+    #    that DDU's -Restart — not a shutdown call — is what leaves Safe Mode.
+    #
+    #    The still-pending half is dynamic and is the only part computed here: if
+    #    the next RunOnce entry is still queued we say so, because a machine that
+    #    came back into normal boot with !steptwo pending is a recoverable state
+    #    the resume banner handles, and silently doing nothing would be the
+    #    confusing outcome.
     if ($Stage -eq 2) {
-        Show-StageHandoffHint -Visible
+        if ($WriteOwnRunOnce) {
+            Set-Status ("Stage 2 will run in a console window after the reboot. Safe Mode needs an ADMINISTRATOR logon at its prompt - see the Stage 2 handoff note.") "#FFA726"
+        } else {
+            Set-Status ("Stage 2 runs as a console window, never as the AkariOS window - see the Stage 2 handoff note.") "#FFA726"
+        }
+        Show-StageHandoffHint -Visible -ProbePending
     }
 
     # 6. Disable our own button for the duration, and re-enable it from the

@@ -64,6 +64,15 @@ if ($doc) {
 
     Assert "StageHandoffHint starts Collapsed" ($named["StageHandoffHint"].Visibility -eq 'Collapsed')
 
+    # Task 2: the three Safe Mode facts must be LITERAL text in this file, not code.
+    # 1. console-only rendering (D-12), 2. the administrator log-on (Finding 5),
+    # 3. DDU's role in leaving Safe Mode. Each is a trap the user hits blind on a VM.
+    $hintText = [string]$named["StageHandoffHint"].Text
+    foreach ($fact in @("console", "log on", "Safe Mode", "Display Driver Uninstaller", "ADMINISTRATOR")) {
+        Assert ("StageHandoffHint mentions '$fact'") ($hintText -like "*$fact*")
+    }
+    Assert "StageHandoffHint warns about the pre-DDU stopped state" ($hintText -like "*normal boot*")
+
     # The x:Name form is invisible to main.ps1:17 SelectNodes("//*[@Name]") AND to
     # the wiring loop at :104. This bug shipped once in Phase 1, so it is asserted
     # on the raw text, not only via the parsed document.
@@ -116,6 +125,60 @@ $badPre = [pscustomobject]@{ CanInstall = $false; Results = @(); Summary = "";
                              BlockingFails = @([pscustomobject]@{ Name = "Admin"; Message = "not elevated" }) }
 
 $script:seen = @{}
+
+# Show-StageHandoffHint assigns [System.Windows.Visibility], so the WPF assembly
+# must be loaded in this console harness. In the real app start.ps1 loads
+# PresentationFramework before anything else; here it is a plain assembly load —
+# no window, no UI thread, no machine state touched.
+try {
+    Add-Type -AssemblyName PresentationFramework -ErrorAction Stop
+} catch {
+    Write-Host "  SKIP  WPF assembly unavailable - hint visibility assertions skipped"
+    $global:akariWpfAvailable = $false
+}
+if (-not (Test-Path variable:global:akariWpfAvailable)) { $global:akariWpfAvailable = $true }
+
+Write-Host "LIVE: the Stage 2 hint reveals, appends its pending note, and stays idempotent"
+# A fake control with a settable Visibility/Text, and a $sync with no window, so
+# Show-StageHandoffHint takes the direct-set path. No WPF, no registry, no window.
+# $sync is a synchronized Hashtable in the real app (start.ps1:88), and the hint
+# code indexes it, so the fake must be too - a pscustomobject would fail on
+# $sync["StageHandoffBase"] for reasons the real app never hits.
+$fake = [pscustomobject]@{ Visibility = "Collapsed"; Text = "BASE HINT TEXT." }
+$global:sync = [Hashtable]::Synchronized(@{ StageHandoffHint = $fake })
+
+if ($global:akariWpfAvailable) {
+    Show-StageHandoffHint -Visible -PendingNote "note one"
+    Assert "hint becomes visible"      ($fake.Visibility -eq "Visible")
+    Assert "hint keeps the base text"  ($fake.Text -like "BASE HINT TEXT.*")
+    Assert "hint carries the note"     ($fake.Text -like "*note one*")
+
+    Show-StageHandoffHint -Visible -PendingNote "note two"
+    Assert "note is replaced, not stacked" ($fake.Text -like "*note two*" -and $fake.Text -notlike "*note one*")
+    Assert "text did not grow unbounded"    (([regex]::Matches($fake.Text, "BASE HINT TEXT\.")).Count -eq 1)
+
+    Show-StageHandoffHint
+    Assert "hint collapses again"     ($fake.Visibility -eq "Collapsed")
+
+    Write-Host "LIVE: the pending probe reads RunOnce only through its seam"
+    Show-StageHandoffHint -Visible -ProbePending -RunOnceInvoker { @("!steptwo") }
+    Assert "a queued !steptwo is reported" ($fake.Text -like "*STILL QUEUED*")
+    Show-StageHandoffHint -Visible -ProbePending -RunOnceInvoker { @() }
+    Assert "no entry means no pending note" ($fake.Text -notlike "*STILL QUEUED*")
+    Show-StageHandoffHint -Visible -ProbePending -RunOnceInvoker { throw "probe failed" }
+    Assert "a failing probe does not block the hint" ($fake.Visibility -eq "Visible")
+}
+
+Write-Host "STATIC: the D-12 rationale is recorded, and no auto-logon was introduced"
+# Strip comments the way the plan's verify command does: `grep -v '^#'` removes
+# only COLUMN-ZERO comment lines. AkariOS indents its in-function rationale, so
+# stripping every '#' line here would throw away exactly the text being asserted.
+$stripped = [regex]::Replace($src, '(?s)<#.*?#>', '')
+$stripped = [regex]::Replace($stripped, '(?m)^#.*$', '')
+Assert "Render Tier 0 rationale recorded in code" ($stripped -match 'Render Tier 0')
+Assert "the rationale mentions BasicDisplay/WARP"  ($stripped -match 'BasicDisplay')
+Assert "no autologon change anywhere in Stage.ps1" (
+    -not ((@($src -split "`r?`n" | Where-Object { $_ -match 'Start-Process|RunAs' })) | Where-Object { $_ -match 'autologon' }))
 
 Write-Host "LIVE: a blocked pre-flight stops the stage before the gate or the launch"
 $script:seen = @{}

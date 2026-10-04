@@ -66,10 +66,39 @@
 
                 <!-- Safe Mode handoff copy (D-12, RESEARCH Finding 5). Collapsed by
                      default; revealed before Stage 2 starts and at launch when the
-                     resume point is stage2. The literal facts below must stay in this
-                     file as plain text - they are asserted by grep in Test-Panels.ps1. -->
+                     resume point is stage2.
+
+                     The three facts below are the whole of Task 2 and they MUST
+                     stay literal text in this file: Test-Panels.ps1 and the plan's
+                     verify grep them here. Do not move them into code, and do not
+                     shorten them - each one is a trap the user would otherwise hit
+                     blind on a VM.
+
+                       1. A maximized console window IS the engine talking. Stage 2
+                          is never WPF: Safe Mode renders only through the
+                          undocumented Render Tier 0 path (BasicDisplay.sys + WARP),
+                          which AkariOS does not rely on (D-12).
+                       2. The machine sits at a Safe Mode logon screen and STAYS
+                          there. HKCU RunOnce fires at LOGON, not at boot, and
+                          nothing in WinSux enables auto-logon. Without an
+                          administrator sign-in at that prompt, Stage 2 never runs
+                          and !steptwo never fires. AkariOS deliberately does not
+                          add auto-logon either - that is a machine-state change
+                          outside this phase (D-11) - so this sentence is the
+                          mitigation.
+                       3. DDU restarts the machine, not a shutdown call.
+                          stepone.ps1 contains no shutdown at all; the transition
+                          out of Safe Mode is
+                          `Display Driver Uninstaller.exe ... -Restart`
+                          (stepone.ps1:153). So a Stage 2 failure BEFORE DDU
+                          launches leaves safeboot already cleared with no reboot
+                          performed - the machine is back in normal boot with
+                          !steptwo still pending. That is recoverable: the resume
+                          banner on the State page picks it up. No special
+                          handling is needed for it. -->
                 <TextBlock Name="StageHandoffHint" Visibility="Collapsed" Margin="0,14,0,0"
-                           Style="{StaticResource CardDesc}" Foreground="#FFA726" TextWrapping="Wrap"/>
+                           Style="{StaticResource CardDesc}" Foreground="#FFA726" TextWrapping="Wrap"
+                           Text="STAGE 2 RUNS AS A CONSOLE, NOT A WINDOW. A maximized black console window appears and it is the stage script working - it is not a hang. After Stage 1 the machine restarts into Safe Mode and stops at the Safe Mode logon screen: you must log on there as an ADMINISTRATOR, because the queued stage script starts at logon and nothing logs on for you. Safe Mode cannot draw the AkariOS window, so AkariOS itself is not running at that point - the console is the interface. Finally, Stage 2 leaves Safe Mode because Display Driver Uninstaller restarts the machine; there is no shutdown command in it. If Stage 2 stops before the driver uninstaller starts, the machine will simply come back up in normal boot with Stage 3 still queued - reopen AkariOS and the State page will show what is pending."/>
             </StackPanel>
         </Border>
 
