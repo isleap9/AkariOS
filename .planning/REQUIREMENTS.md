@@ -82,29 +82,29 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PREF-01 | TBD | Pending |
-| PREF-02 | TBD | Pending |
-| PREF-03 | TBD | Pending |
-| SAFE-01 | TBD | Pending |
-| SAFE-02 | TBD | Pending |
-| SAFE-03 | TBD | Pending |
-| SAFE-04 | TBD | Pending |
-| PROG-01 | TBD | Pending |
-| PROG-02 | TBD | Pending |
-| PROG-03 | TBD | Pending |
-| FLOW-01 | TBD | Pending |
-| FLOW-02 | TBD | Pending |
-| FLOW-03 | TBD | Pending |
-| BRND-01 | TBD | Pending |
-| DIAG-01 | TBD | Pending |
-| DIAG-02 | TBD | Pending |
-| DIAG-03 | TBD | Pending |
-| DIAG-04 | TBD | Pending |
+| PREF-01 | Phase 1: Foundation | Pending |
+| PREF-02 | Phase 1: Foundation | Pending |
+| PREF-03 | Phase 1: Foundation | Pending |
+| SAFE-01 | Phase 3: Hardening | Pending |
+| SAFE-02 | Phase 1: Foundation | Pending |
+| SAFE-03 | Phase 1: Foundation | Pending |
+| SAFE-04 | Phase 1: Foundation | Pending |
+| PROG-01 | Phase 1: Foundation | Pending |
+| PROG-02 | Phase 1: Foundation | Pending |
+| PROG-03 | Phase 1: Foundation | Pending |
+| FLOW-01 | Phase 2: Core Engine | Pending |
+| FLOW-02 | Phase 2: Core Engine | Pending |
+| FLOW-03 | Phase 2: Core Engine | Pending |
+| BRND-01 | Phase 3: Hardening | Pending |
+| DIAG-01 | Phase 1: Foundation | Pending |
+| DIAG-02 | Phase 2: Core Engine | Pending |
+| DIAG-03 | Phase 3: Hardening | Pending |
+| DIAG-04 | Phase 3: Hardening | Pending |
 
 **Coverage:**
 - v1 requirements: 18 total
-- Mapped to phases: 0
-- Unmapped: 18 ⚠️
+- Mapped to phases: 18
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-10-04*
