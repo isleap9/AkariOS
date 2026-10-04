@@ -134,10 +134,32 @@ Assert "no New-ItemProperty"      ($src -notmatch 'New-ItemProperty')
 Assert "no Set-ItemProperty"      ($src -notmatch 'Set-ItemProperty')
 Assert "no reg.exe outside the writer string" ($src -notmatch 'reg\s+add' -or $src -match [regex]::Escape('reg add "HKCU'))
 
-# 3. Start-Process appears only inside the -EngineInvoker default.
-$sp = @($src -split "`r?`n" | Where-Object { $_ -match 'Start-Process' })
-Assert "exactly one Start-Process" ($sp.Count -eq 1)
-Assert "it is the engine launcher"  ($sp.Count -eq 1 -and $src -match 'EngineInvoker[\s\S]{0,600}Start-Process')
+# 3. Every Start-Process in EXECUTABLE code is the engine launcher.
+#
+# This assertion predates 7bb20ec and originally pinned an exact count of one.
+# There are now two, both the same thing: the default on Invoke-AkariOSStage and
+# the fallback inside Invoke-AkariOSEngine. The second exists because a null
+# invoker made "& $null" launch nothing and report exit code -1.
+#
+# So the invariant that actually matters is not the COUNT but that every launcher
+# is the powershell.exe engine child. Comments must be stripped first, otherwise
+# the line 248 comment that explains the engine self-elevates is counted as code.
+$srcCode = [regex]::Replace($src, '(?s)<#.*?#>', '')
+$srcCode = [regex]::Replace($srcCode, '(?m)^\s*#.*$', '')
+$sp = @($srcCode -split "`r?`n" | Where-Object { $_ -match 'Start-Process' })
+Assert "no Start-Process outside the engine launchers" ($sp.Count -ge 1 -and $sp.Count -le 2)
+Assert "every Start-Process launches powershell.exe" `
+    ($sp.Count -ge 1 -and @($sp | Where-Object { $_ -notmatch 'powershell\.exe' }).Count -eq 0) `
+    ("Non-conforming lines: " + (($sp | Where-Object { $_ -notmatch 'powershell\.exe' }) -join ' | '))
+# -Wait sits on a backtick CONTINUATION line, so a per-line check is wrong - it
+# only sees the `Start-Process -FilePath ...` line. Match the whole call instead.
+Assert "each launcher waits for the child" `
+    ($srcCode -match '(?s)Start-Process\s+-FilePath\s+"powershell\.exe"[\s\S]{0,300}?-Wait') `
+    "Without -Wait the supervisor cannot read the exit code."
+Assert "the stage default hands a real launcher to the worker" `
+    ($srcCode -match '(?s)\[scriptblock\]\$EngineInvoker\s*=\s*\{[\s\S]{0,500}?Start-Process')
+Assert "Invoke-AkariOSEngine stands alone with its own fallback" `
+    ($srcCode -match '(?s)if\s*\(\s*-not\s+\$EngineInvoker\s*\)[\s\S]{0,500}?Start-Process')
 
 # 4. D-07: AkariOS never reboots the machine. The engine owns that.
 Assert "no Restart-Computer"       ($src -notmatch 'Restart-Computer')
