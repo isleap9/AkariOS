@@ -125,6 +125,20 @@ function Set-AkariOSState {
                                  -Progress     $base.Progress `
                                  -CurrentAction $base.CurrentAction
         $toWrite.RebootPending = $base.RebootPending
+        # Carry the LastError block across the partial update (T-02-26).
+        #
+        # This branch rebuilds the object field by field, so ANY property the base
+        # carries that is not listed above silently vanishes — and Progress.ps1:101
+        # issues a partial update on every progress tick, which used to erase a
+        # recorded failure the moment the UI refreshed. Guarded on the property
+        # existing, so behaviour is unchanged for every state file written before
+        # this phase, and deliberately NOT a copy-everything loop: that would start
+        # persisting whatever a future caller happens to invent. Clearing the block
+        # is Clear-AkariOSStageFailure's job, via the lossless `Object` set.
+        if ($base.PSObject.Properties["LastError"]) {
+            $toWrite.PSObject.Properties.Add(
+                [System.Management.Automation.PSNoteProperty]::new("LastError", $base.LastError))
+        }
         if ($PSBoundParameters.ContainsKey("CurrentStage"))  { $toWrite.CurrentStage  = $CurrentStage }
         if ($PSBoundParameters.ContainsKey("Status"))        { $toWrite.Status        = $Status }
         if ($PSBoundParameters.ContainsKey("Progress"))      { $toWrite.Progress      = $Progress }
