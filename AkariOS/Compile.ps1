@@ -49,15 +49,22 @@ Get-ChildItem -Path (Join-Path $PSScriptRoot "functions\public") -File -Filter "
     Sort-Object Name | ForEach-Object { $script += Append-File $_.FullName }
 
 # --- Embed engine scripts (base64) so akarios.ps1 stays self-contained ---
-# Each assets/text/<name>.ps1 becomes $sync.assets.<name> as raw UTF-8 text at runtime.
-# WinSux stage scripts are the payload here; they are decoded and written to disk by
-# the stage runner in Phase 2. Payloads themselves (DDU, DirectX, 7-Zip) download at runtime.
+# Each assets/text/<name> becomes $sync.assets.<name> as raw text at runtime. Every
+# file in the directory is embedded, with NO extension filter - that filter silently
+# skipped reg.reg (RESEARCH Finding 6). The assignment key is $_.BaseName, so the
+# directory must contain only files with a non-empty BaseName (no dotfiles).
+# WinSux stage scripts and reg.reg are the payload here; they are decoded and written
+# to disk by the stage runner in Phase 2. Payloads themselves (DDU, DirectX, 7-Zip)
+# download at runtime.
 $script += "`$sync.assets = @{}" + $nl
 Get-ChildItem (Join-Path $PSScriptRoot "assets\text") -File -ErrorAction SilentlyContinue |
-    Where-Object { $_.Extension -eq ".ps1" } | Sort-Object Name | ForEach-Object {
+    Sort-Object Name | ForEach-Object {
         $bytes = [System.IO.File]::ReadAllBytes($_.FullName)
         $script += "`$sync.assets." + $_.BaseName + " = '" + [Convert]::ToBase64String($bytes) + "'" + $nl
-        Write-Host ("  embedded asset: {0}.ps1 ({1:N0} bytes)" -f $_.BaseName, $bytes.Length) -ForegroundColor DarkGray
+        # Plain byte count, not {1:N0}: this host's locale renders N0 as "54.014",
+        # which reads as 54 bytes. The file name is interpolated, not reconstructed
+        # as "{BaseName}.ps1" — that misreported reg.reg as reg.ps1.
+        Write-Host ("  embedded asset: {0} ({1} bytes)" -f $_.Name, $bytes.Length) -ForegroundColor DarkGray
     }
 $script += $nl
 
