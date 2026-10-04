@@ -1,16 +1,16 @@
 ---
 gsd_state_version: "1.0"
 current_phase: 01
-status: unknown
-stopped_at: Phase 1 UI-SPEC approved
-last_updated: "2026-10-04T08:06:21.456Z"
+status: complete
+stopped_at: Phase 1 complete - compiled akarios.ps1 built, awaiting VM verification
+last_updated: "2026-10-04T11:05:00.000Z"
 state_head: 1465c9ce9c4aca412ef5242b37648c446d790f3b
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 1
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 20
 current_phase_name: Foundation — Shell + State Machine
 ---
 
@@ -18,7 +18,7 @@ current_phase_name: Foundation — Shell + State Machine
 
 **Last updated:** 2026-10-04
 **Current phase:** 01
-**Phase status:** Not started
+**Phase status:** Complete (static verification only - runtime pending VM)
 **Mode:** mvp
 
 ## Project Reference
@@ -38,7 +38,7 @@ infrastructure, and progress reporting.
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
-| 1 | Foundation — Shell + State Machine | Not started | PREF-01..03, SAFE-02..04, PROG-01..03, DIAG-01 |
+| 1 | Foundation — Shell + State Machine | Complete (PROG-03 partial) | PREF-01..03, SAFE-02..04, PROG-01..02, DIAG-01 |
 | 2 | Core Engine — Stage Integration | Not started | FLOW-01..03, DIAG-02 |
 | 3 | Hardening — Destructive Stage Hardening + Branding + Diagnostics | Not started | SAFE-01, BRND-01, DIAG-03..04 |
 | 4 | Testing — VM-Based Validation | Not started | (validation only) |
@@ -61,12 +61,18 @@ infrastructure, and progress reporting.
 | Write state to `C:\ProgramData\AkariOS\state.json` | 2026-10-04 | Survives disk cleanup that deletes `%TEMP%` |
 | Embed engine scripts as base64, download payloads at runtime | 2026-10-04 | Engine must match GUI version; payloads are large binaries that change frequently |
 | Modify WinSux scripts where pitfalls identified | 2026-10-04 | Preserve overall structure and intent; document all deviations from upstream |
+| Confirm gate uses a modal Window + ShowDialog, not the XAML overlay | 2026-10-04 | A private DispatcherFrame loop hangs if its "finished" flag is never set; GetNewClosure captures by value and Add_Click returns $null. ShowDialog is WPF's own modal loop with explicit exit paths. Dead ConfirmOverlay grid removed from MainWindow.xaml |
+| Confirmation token match is case-SENSITIVE (Ordinal) | 2026-10-04 | Stricter than the original draft; set per orchestrator instruction. Noted in 01-SUMMARY.md as the one decision taken without a spec ruling |
+| State field names are CurrentStage / Progress | 2026-10-04 | Matched the state.json schema; earlier drafts used Stage / StagePercent and were corrected during task 6.3 |
+| All .ps1 sources carry a UTF-8 BOM | 2026-10-04 | PowerShell 5.1 decodes BOM-less UTF-8 as ANSI and mangles the box-drawing and em-dash characters |
+| PROG-03 left partial | 2026-10-04 | No code path sets ProgressBar1.IsIndeterminate = $true yet; deferred to Phase 2 alongside the real stage runner |
 
 ---
 *State last updated: 2026-10-04*
 
 ## Session
 
-**Last session:** 2026-10-04T07:11:50.611Z
-**Stopped at:** Phase 1 UI-SPEC approved
-**Resume file:** .planning/phases/01-foundation-shell-state-machine/01-UI-SPEC.md
+**Last session:** 2026-10-04T11:05:00.000Z
+**Stopped at:** Phase 1 complete - 13 commits, akarios.ps1 builds and parses clean
+**Resume file:** .planning/phases/01-foundation-shell-state-machine/01-SUMMARY.md
+**Next step:** Phase 02 - embed the WinSux engine scripts in assets/text/ and implement Start-AkariOSInstall
