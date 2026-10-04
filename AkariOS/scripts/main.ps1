@@ -194,8 +194,57 @@ try {
 # 4. Cancel starts disabled: nothing is running (SAFE-04).
 Sync-CancelButton | Out-Null
 
-# 5. Install stays disabled until pre-flight checks pass (PREF-02).
+# 5. Install starts disabled and then RUNS THE CHECKS ITSELF (PREF-02, D-01/M9).
+#
+#    Phase 1 left this at "disabled" with nothing to re-enable it: the only path
+#    to a live Install button was Invoke-BtnRunChecks on the Check tab, so the
+#    primary CTA was dead on open. That breaks the single-click core value and
+#    blocks Phase 2's first success criterion (FLOW-01).
+#
+#    Why this runs INLINE rather than through Invoke-RunInBackground, which the
+#    earlier attempt did and which crashed the app on open:
+#
+#      - Invoke-RunInBackground calls Set-Status at dispatch time
+#        (Invoke-RunInBackground.ps1:43), and Set-Status does a BLOCKING
+#        Dispatcher.Invoke (main.ps1:24). Before ShowDialog() there is no message
+#        loop to service that, so the launch path must not go through it.
+#      - Invoke-PreFlightChecks does not need a dispatcher at all. Check.ps1:245
+#        touches no $sync, no Dispatcher and no Set-Status — it calls six pure
+#        check functions and aggregates their results. There is nothing to
+#        marshal. tools/Test-D01.ps1 asserts that purity, so if a future change
+#        makes this function reach for the UI, the test goes red HERE rather
+#        than the app crashing on the user's machine.
+#      - The only slow check is the TCP probe at Check.ps1:95 (3s per host, two
+#        hosts). That is paid once at launch and is bounded, which is a better
+#        trade than a thread hop whose result the UI must wait for anyway.
+#
+#    The other three steps in this sequence are already try/catch-guarded for the
+#    same reason this one is: a throw between here and ShowDialog() leaves the
+#    user with no window and no explanation.
 Set-InstallButtonEnabled -Enabled $false
+try {
+    $launchDecision = Invoke-PreFlightChecks
+    if ($launchDecision -and $launchDecision.CanInstall) {
+        Set-InstallButtonEnabled -Enabled $true
+        Write-AkariOSLog -Level INFO -Message (
+            "Launch pre-flight: {0} - Install enabled." -f $launchDecision.Summary)
+    } elseif ($launchDecision) {
+        # A falsy CanInstall with an empty BlockingFails would make $first null
+        # and $first.Name would throw, hiding the real reason. Guard it.
+        $first = @($launchDecision.BlockingFails)[0]
+        $blockedBy = if ($first) { $first.Name + " - " + $first.Message } else { "a blocking pre-flight check" }
+        Set-InstallButtonEnabled -Enabled $false -Hint ("Blocked by: " + $blockedBy)
+        Write-AkariOSLog -Level WARN -Message (
+            "Launch pre-flight blocked: {0}" -f $launchDecision.Summary)
+    } else {
+        Write-AkariOSLog -Level WARN -Message (
+            "Launch pre-flight produced no result - Install stays disabled; use the Check tab.")
+    }
+} catch {
+    # Never fatal. A throwing check must not read as a pass, and must not stop
+    # the window opening. The button correctly stays disabled and Check still works.
+    try { Write-AkariOSLog -Level WARN -Message ("Launch pre-flight failed: " + $_) } catch {}
+}
 
 # 6. Stage-status reconciliation (Plan 02-02).
 #    Decides two things from what the ENGINE actually did, not from what the UI
