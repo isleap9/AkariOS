@@ -42,11 +42,30 @@ function Append-File($path) {
 $script = Append-File (Join-Path $PSScriptRoot "scripts\start.ps1")
 
 # --- Functions: private then public (one file at a time, always newline-separated) ---
+# The SAME concatenated text is kept as $functionSourceText: Invoke-RunInBackground
+# dot-sources function files into its worker runspace by reading them from disk,
+# which only works in the source tree. In the compiled single-file artifact those
+# directories do not exist, so the worker came up with NO functions at all - every
+# background job silently produced nothing. The blob below is what the worker
+# loads when the disk path is unavailable. tools/Test-RunspacePrelude.ps1 pins it.
+$functionSourceText = ""
 Get-ChildItem -Path (Join-Path $PSScriptRoot "functions\private") -File -Filter "*.ps1" -ErrorAction SilentlyContinue |
-    Sort-Object Name | ForEach-Object { $script += Append-File $_.FullName }
+    Sort-Object Name | ForEach-Object { $functionSourceText += (Append-File $_.FullName); $script += Append-File $_.FullName }
 
 Get-ChildItem -Path (Join-Path $PSScriptRoot "functions\public") -File -Filter "*.ps1" -ErrorAction SilentlyContinue |
-    Sort-Object Name | ForEach-Object { $script += Append-File $_.FullName }
+    Sort-Object Name | ForEach-Object { $functionSourceText += (Append-File $_.FullName); $script += Append-File $_.FullName }
+
+# Base64, not a here-string: function files contain quotes, dollar signs and
+# here-string delimiters, all of which would need escaping inside '@ ... '@.
+# Base64 has none of those failure modes and keeps the blob one line.
+if ($functionSourceText) {
+    $blob = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($functionSourceText))
+    $script += "# Function library for background runspaces (see Invoke-RunInBackground)." + $nl
+    $script += "`$script:AkariOSFunctionSourceB64 = '" + $blob + "'" + $nl + $nl
+    Write-Host ("  embedded function library for runspaces ({0:N0} chars base64)" -f $blob.Length) -ForegroundColor DarkGray
+} else {
+    throw "No function files found under functions\private or functions\public - nothing to embed."
+}
 
 # --- Embed engine scripts (base64) so akarios.ps1 stays self-contained ---
 # Each assets/text/<name> becomes $sync.assets.<name> as raw text at runtime. Every

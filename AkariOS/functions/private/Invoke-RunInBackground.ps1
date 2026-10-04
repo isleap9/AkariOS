@@ -78,6 +78,42 @@
     }
     $prelude = ($loadLines -join "`n")
 
+    # 3. The compiled single-file artifact has NO functions\public or
+    #    functions\private on disk, so the loop above produces NOTHING and the
+    #    worker comes up with no AkariOS functions at all. Observed on a VM: the
+    #    prelude was empty, Invoke-AkariOSEngine did not exist in the worker, and
+    #    Stage 1 "completed" in 245 ms having launched nothing. Every background
+    #    job was affected, including the Check tab's manual re-run.
+    #
+    #    Compile.ps1 therefore embeds the same concatenated function text as
+    #    base64 ($script:AkariOSFunctionSourceB64). The disk path stays first so
+    #    the source tree - which is what tools/Test-Runspace.ps1 exercises -
+    #    keeps behaving exactly as it always has.
+    if (-not $prelude -and $script:AkariOSFunctionSourceB64) {
+        try {
+            $prelude = [System.Text.Encoding]::UTF8.GetString(
+                [System.Convert]::FromBase64String($script:AkariOSFunctionSourceB64))
+            Write-AkariOSLog -Level INFO -Message (
+                "Runspace prelude: loaded embedded function library ({0} chars)." -f $prelude.Length)
+        } catch {
+            Write-AkariOSLog -Level ERROR -Message (
+                "Embedded function library failed to decode: " + $_)
+            $prelude = ""
+        }
+    }
+
+    # 4. Fail LOUDLY when the worker has no functions. This used to degrade
+    #    silently: the caller's scriptblock threw, produced no output, and the
+    #    empty result set read as exit code 0 - a failed stage reported as a
+    #    successful one. A missing function library is a broken build, and it
+    #    must be visible in install.log rather than looking like a fast stage.
+    if (-not $prelude) {
+        Write-AkariOSLog -Level ERROR -Message (
+            "Background worker has no function library: neither the on-disk directories nor the embedded blob were available. " +
+            "Any job dispatched now will fail. This is a broken build - re-run Compile.ps1.")
+        throw "Cannot start background runspace: no AkariOS function library available."
+    }
+
     $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault2()
 
     $rs = [runspacefactory]::CreateRunspace($iss)
