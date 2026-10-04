@@ -1,0 +1,12 @@
+# Vendored upstream references - read-only, never committed.
+# AkariTool/ is the WPF shell pattern; WinSux-main/ is the 3-stage engine.
+AkariTool/
+WinSux-main/
+
+# Compiled single-file output. Rebuilt with ./AkariOS/Compile.ps1; the sources
+# under AkariOS/ are the source of truth.
+AkariOS/akarios.ps1
+
+# GSD working state
+.planning/state.json
+.planning/milestone.lock
