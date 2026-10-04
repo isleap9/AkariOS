@@ -1,0 +1,49 @@
+<!--
+  ==========================================================================
+  03-State  -  resume state banner (PROG-02).
+
+  On launch, Get-ResumePoint reads the bcdedit safeboot flag and the HKCU/HKLM
+  RunOnce entries. This page reports what was detected and offers the resume CTA.
+  An inconsistent state shows the "try again" message with the log path and no CTA.
+
+  This file is a FRAGMENT injected into xaml/MainWindow.xaml at the @PANELS@ marker.
+  Symbols must be XML entities, never pasted raw (&#183; = middle dot).
+  ==========================================================================
+-->
+<ScrollViewer Name="PanelState" Visibility="Collapsed" Padding="24,20,24,16">
+    <StackPanel>
+        <TextBlock Text="Installation state" Style="{StaticResource H1}"/>
+
+        <!-- Detected resume point. Text is set by Show-ResumeState. -->
+        <Border Name="StateBanner" Style="{StaticResource Card}" Padding="20,18">
+            <StackPanel>
+                <TextBlock Name="StateHeadline" Text="Checking installation state..."
+                           Style="{StaticResource Display}" Margin="0,0,0,8"/>
+                <TextBlock Name="StateDetail" Text="Reading the boot configuration and RunOnce entries."
+                           Style="{StaticResource CardDesc}" Margin="0"/>
+
+                <!-- Resume CTA, shown only when there is something to resume -->
+                <Button Name="BtnResume" Content="Resume Install" Style="{StaticResource BtnAccent}"
+                        HorizontalAlignment="Left" IsEnabled="False" Margin="0,14,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Inconsistent-state card, hidden until detection fails (D-05) -->
+        <Border Name="StateInconsistent" Style="{StaticResource CardDanger}" Visibility="Collapsed">
+            <StackPanel>
+                <TextBlock Text="&#9888;  INCONSISTENT STATE" Style="{StaticResource CardGroupHeader}" Foreground="#FF6B6B"/>
+                <TextBlock Style="{StaticResource CardDesc}" Margin="0"
+                           Text="The installation is in an inconsistent state. Please try again. If the problem persists, check the log at %ProgramData%\AkariOS\install.log."/>
+            </StackPanel>
+        </Border>
+
+        <!-- Raw detection detail, useful when reporting an issue -->
+        <Border Style="{StaticResource Card}">
+            <StackPanel>
+                <TextBlock Text="DETECTION DETAIL" Style="{StaticResource CardGroupHeader}"/>
+                <TextBlock Name="StateEvidence" Text="safeboot: unknown &#183; RunOnce: none &#183; state.json: none"
+                           Style="{StaticResource CardDesc}" Margin="0"/>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</ScrollViewer>

@@ -1,0 +1,49 @@
+<!--
+  ==========================================================================
+  02-Progress  -  install progress display (PROG-01).
+
+  Shows "Step {N} of 3" at all times, the per-stage progress bar, the current
+  action text, and the cancel button whose enabled state is driven by
+  Get-CanCancel (SAFE-04).
+
+  This file is a FRAGMENT injected into xaml/MainWindow.xaml at the @PANELS@ marker.
+  Symbols must be XML entities, never pasted raw (&#183; = middle dot).
+  ==========================================================================
+-->
+<ScrollViewer Name="PanelProgress" Visibility="Collapsed" Padding="24,20,24,16">
+    <StackPanel>
+        <TextBlock Text="Progress" Style="{StaticResource H1}"/>
+
+        <Border Style="{StaticResource Card}" Padding="20,18">
+            <StackPanel>
+                <!-- "Step N of 3" — always visible, even before the install starts -->
+                <TextBlock Name="ProgressStep" Text="Step 0 of 3: Not started"
+                           Style="{StaticResource Display}" Margin="0,0,0,16"/>
+
+                <!-- Per-stage progress bar (0-100) -->
+                <ProgressBar Name="ProgressBar1" Style="{StaticResource AkariProgress}" Margin="0,0,0,6"/>
+
+                <!-- Current action text -->
+                <TextBlock Name="ProgressAction" Text="Waiting to start."
+                           Style="{StaticResource Label}" Margin="0"/>
+
+                <TextBlock Name="ProgressDetail" Text=""
+                           Style="{StaticResource CardDesc}" Margin="0,6,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource CardDanger}">
+            <StackPanel>
+                <TextBlock Text="CANCELLING" Style="{StaticResource CardGroupHeader}" Foreground="#FF6B6B"/>
+                <TextBlock Name="CancelDisabledReason"
+                           Text="Cancel is disabled because the machine is in a transitional state. Wait for the current step to complete."
+                           Style="{StaticResource CardDesc}" Margin="0,0,0,12"/>
+
+                <!-- Cancel button. IsEnabled is driven by Get-CanCancel: available during
+                     Stage 1 only, and disabled once the first reboot is imminent (SAFE-04). -->
+                <Button Name="BtnCancel" Content="Cancel Install" Style="{StaticResource Btn}"
+                        HorizontalAlignment="Left" IsEnabled="False"/>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</ScrollViewer>

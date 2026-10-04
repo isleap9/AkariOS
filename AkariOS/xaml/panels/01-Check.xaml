@@ -1,0 +1,53 @@
+<!--
+  ==========================================================================
+  01-Check  -  pre-flight checklist (PREF-01 / PREF-02).
+
+  Rows are BUILT AT RUNTIME by Invoke-PreFlightChecks / Show-CheckResult, which
+  append one ChecklistItem Border per check into the StackPanel named Checklist.
+  Each row is: icon (&#10003; pass / &#10007; fail / &#9888; warning / &#8987; pending),
+  check name, and the reason text when not passing.
+
+  This file is a FRAGMENT injected into xaml/MainWindow.xaml at the @PANELS@ marker.
+  Symbols must be XML entities, never pasted raw.
+  ==========================================================================
+-->
+<ScrollViewer Name="PanelCheck" Visibility="Collapsed" Padding="24,20,24,16">
+    <StackPanel>
+        <TextBlock Text="Pre-flight checks" Style="{StaticResource H1}"/>
+
+        <Border Style="{StaticResource Card}">
+            <StackPanel>
+                <TextBlock Text="BEFORE YOU INSTALL" Style="{StaticResource CardGroupHeader}"/>
+                <TextBlock Style="{StaticResource CardDesc}" Margin="0,0,0,12"
+                           Text="These checks confirm this machine can run the install. A failing blocking check must be resolved before you can continue."/>
+                <Button Name="BtnRunChecks" Content="Run checks" Style="{StaticResource Btn}"
+                        HorizontalAlignment="Left" IsEnabled="False"/>
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource Card}">
+            <StackPanel>
+                <TextBlock Text="RESULTS" Style="{StaticResource CardGroupHeader}"/>
+
+                <!-- Runtime-populated checklist rows -->
+                <StackPanel Name="Checklist"/>
+
+                <!-- Placeholder shown until the first run -->
+                <TextBlock Name="CheckPlaceholder" Style="{StaticResource CardDesc}"
+                           Text="No checks have run yet." Margin="0"/>
+
+                <!-- Summary line, e.g. "6 checks - 5 passed, 1 warning" -->
+                <TextBlock Name="CheckSummary" Style="{StaticResource Label}" Margin="0,4,0,0"
+                           Visibility="Collapsed"/>
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource CardDanger}">
+            <StackPanel>
+                <TextBlock Text="&#9888;  IF A BLOCKING CHECK FAILS" Style="{StaticResource CardGroupHeader}" Foreground="#FF6B6B"/>
+                <TextBlock Style="{StaticResource CardDesc}" Margin="0"
+                           Text="Resolve the failing check and run the checks again. AkariOS will not start the install while a blocking check is failing."/>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</ScrollViewer>
