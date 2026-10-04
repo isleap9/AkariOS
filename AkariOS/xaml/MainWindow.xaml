@@ -432,6 +432,7 @@
                     <RadioButton Name="NavCheck"    Style="{StaticResource NavBtn}" GroupName="Nav" Tag="&#xE9D9;" Content="Pre-flight"/>
                     <RadioButton Name="NavProgress" Style="{StaticResource NavBtn}" GroupName="Nav" Tag="&#xE895;" Content="Progress"/>
                     <RadioButton Name="NavState"    Style="{StaticResource NavBtn}" GroupName="Nav" Tag="&#xE946;" Content="State"/>
+                    <RadioButton Name="NavSummary"  Style="{StaticResource NavBtn}" GroupName="Nav" Tag="&#xE9D2;" Content="Summary"/>
                 </StackPanel>
 
                 <!-- Version footer -->

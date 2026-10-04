@@ -1,0 +1,81 @@
+<!--
+  ==========================================================================
+  04-Summary  -  the "what changed" completion screen (DIAG-04).
+
+  Shown by main.ps1 step 8 on the first launch that sees a COMPLETED install -
+  the launch the relaunch task brought back by itself (D-13). It lists what was
+  removed, disabled and applied, links to the restore point and to install.log,
+  and the task that brought the window here deletes itself only after this screen
+  is up (D-17).
+
+  HONESTY IS THE POINT. Each line is prefixed by the state it was reported at:
+    [x]  confirmed from install.log
+    [ ]  not confirmed  - the log said nothing about this
+    [!]  that stage logged an ERROR
+  An item is only ever [x] when a log line corroborates it (D-21). This file
+  contains no Click= attributes on purpose: main.ps1 wires buttons by NAME
+  (Get-Command "Invoke-$btnName"), and an event-handler attribute would be
+  silently ignored by XamlReader.Parse - a dead button with no error.
+
+  Every control uses plain Name=, never x:Name. main.ps1 registers controls with
+  SelectNodes("//*[@Name]"), which does not match the x:Name alias, so an
+  x:Name control here would exist in the compiled artefact and be unreachable.
+
+  Symbols are XML entities, never pasted raw (&#183; = middle dot).
+  ==========================================================================
+-->
+<ScrollViewer Name="PanelSummary" Visibility="Collapsed" Padding="24,20,24,16">
+    <StackPanel>
+        <TextBlock Text="What changed" Style="{StaticResource H1}"/>
+        <TextBlock Name="SummaryHeadline" Style="{StaticResource CardDesc}" Margin="0,4,0,0"
+                   Text="Reading install.log..."/>
+
+        <!-- REMOVED -->
+        <Border Style="{StaticResource Card}" Margin="0,14,0,0">
+            <StackPanel>
+                <TextBlock Text="REMOVED" Style="{StaticResource CardGroupHeader}"/>
+                <TextBlock Name="SummaryRemoved" Style="{StaticResource CardDesc}" Margin="0"
+                           FontFamily="Consolas, Cascadia Mono, Courier New" FontSize="12"
+                           Text="(nothing recorded)"/>
+            </StackPanel>
+        </Border>
+
+        <!-- DISABLED -->
+        <Border Style="{StaticResource Card}">
+            <StackPanel>
+                <TextBlock Text="DISABLED" Style="{StaticResource CardGroupHeader}"/>
+                <TextBlock Name="SummaryDisabled" Style="{StaticResource CardDesc}" Margin="0"
+                           FontFamily="Consolas, Cascadia Mono, Courier New" FontSize="12"
+                           Text="(nothing recorded)"/>
+            </StackPanel>
+        </Border>
+
+        <!-- APPLIED -->
+        <Border Style="{StaticResource Card}">
+            <StackPanel>
+                <TextBlock Text="APPLIED" Style="{StaticResource CardGroupHeader}"/>
+                <TextBlock Name="SummaryApplied" Style="{StaticResource CardDesc}" Margin="0"
+                           FontFamily="Consolas, Cascadia Mono, Courier New" FontSize="12"
+                           Text="(nothing recorded)"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Restore point + the two actions. Neither button reads or writes the
+             registry; both go through an injectable -ShellInvoker seam. -->
+        <Border Style="{StaticResource Card}" Margin="0,14,0,0">
+            <StackPanel>
+                <TextBlock Text="UNDO" Style="{StaticResource CardGroupHeader}"/>
+                <TextBlock Name="SummaryRestorePoint" Style="{StaticResource CardDesc}" Margin="0"
+                           Text="No restore point recorded yet - open System Protection to create one."/>
+                <TextBlock Name="SummaryLogLink" Style="{StaticResource CardDesc}" Margin="0,6,0,0"
+                           Text="Install log: (path unknown)"/>
+                <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                    <Button Name="BtnOpenRestorePoint" Content="Open Restore Point"
+                            Style="{StaticResource BtnAccent}" HorizontalAlignment="Left" Margin="0,0,10,0"/>
+                    <Button Name="BtnOpenLog" Content="Open Log"
+                            Style="{StaticResource BtnAccent}" HorizontalAlignment="Left"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</ScrollViewer>

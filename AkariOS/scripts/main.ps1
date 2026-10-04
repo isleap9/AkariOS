@@ -1,4 +1,4 @@
-﻿# ── AkariOS Setup — UI wiring ────────────────────────────────────────────────
+# ── AkariOS Setup — UI wiring ────────────────────────────────────────────────
 # Last block of the compiled akarios.ps1. Consumes everything defined above it:
 # start.ps1 ($sync, DwmApi), the function files, the embedded $inputXML, and the
 # base64 $sync.assets.
@@ -62,7 +62,7 @@ $sync.window.Add_Loaded({
 # To add a page: add a NavXyz to MainWindow.xaml, a xaml/panels/NN-Xyz.xaml
 # fragment, and register the pair in $panels/$navMap/$navNames below.
 $panels = @(
-    "PanelHome", "PanelCheck", "PanelProgress", "PanelState"
+    "PanelHome", "PanelCheck", "PanelProgress", "PanelState", "PanelSummary"
 )
 
 $navMap = @{
@@ -70,9 +70,10 @@ $navMap = @{
     NavCheck    = "PanelCheck"
     NavProgress = "PanelProgress"
     NavState    = "PanelState"
+    NavSummary  = "PanelSummary"
 }
 
-$navNames = @("NavHome","NavCheck","NavProgress","NavState")
+$navNames = @("NavHome","NavCheck","NavProgress","NavState","NavSummary")
 
 # Show a specific panel, optionally selecting the matching sidebar row.
 function Show-Panel {
@@ -346,6 +347,49 @@ try {
     # Never fatal: a failure-detection throw between here and ShowDialog() would
     # leave the user with no window at all.
     Write-AkariOSLog -Level WARN -Message "Stage failure detection failed: $_"
+}
+
+# 8. Completed-install completion screen (DIAG-04, D-17).
+#    The relaunch task created before Stage 3 brought this window back by itself;
+#    this step is what it was FOR. It answers "what did the install actually do?"
+#    and only then deletes the task that brought the window here.
+#
+#    AN INDEPENDENT CHECK, like step 7 and for the same reason (D-22): no new case
+#    is added to the resume switch above and no new ResumePoint value exists.
+#    Get-ResumePoint answers "where is the machine", this answers "is it done".
+#
+#    ORDER IS LOAD-BEARING, twice over:
+#      * the summary is computed and shown BEFORE Remove-AkariOSRelaunchTask, so a
+#        failure while building the summary leaves the user with BOTH a working
+#        screen path and a live task to re-run it, instead of neither.
+#      * the check runs only when the install is actually complete, so an ordinary
+#        mid-install launch never shows this screen and never deletes the task
+#        before its one chance to fire.
+#
+#    Its own try/catch, because a throw between here and ShowDialog() leaves the
+#    user with no window at all - the reason steps 3, 5, 6 and 7 each carry one.
+try {
+    $done = Test-AkariOSInstallCompleted
+    if ($done -and $done.Completed) {
+        Write-AkariOSLog -Level INFO -Message ("Completed install detected at launch: {0}" -f $done.Reason)
+        $changeSummary = Get-AkariOSChangeSummary
+        Show-Panel "PanelSummary"
+        Show-AkariOSChangeSummary -Summary $changeSummary
+        Set-Status ("AkariOS is installed. {0} of {1} changes are confirmed from install.log." -f
+                    $changeSummary.Applied, $changeSummary.Total) "#7BD88F"
+
+        # The screen is up. Only now is the task removed (D-17); the removal is
+        # idempotent, so a second launch with no task present is INFO, not WARN.
+        if (Get-Command Remove-AkariOSRelaunchTask -ErrorAction SilentlyContinue) {
+            Remove-AkariOSRelaunchTask | Out-Null
+        }
+    } else {
+        Write-AkariOSLog -Level INFO -Message ("Completion check at launch: not complete ({0})" -f $done.Reason)
+    }
+} catch {
+    # Never fatal, and deliberately leaves the relaunch task alone: a completion
+    # screen that failed to render must not cost the user the re-run path.
+    Write-AkariOSLog -Level WARN -Message "Completion summary failed: $_"
 }
 
 # ── Show window ───────────────────────────────────────────────────────────────
