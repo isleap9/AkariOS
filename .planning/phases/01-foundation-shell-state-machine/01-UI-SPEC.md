@@ -1,7 +1,8 @@
 ---
 phase: "1"
 slug: "foundation-shell-state-machine"
-status: draft
+status: approved
+reviewed_at: "2026-10-04"
 shadcn_initialized: false
 preset: none
 created: "2026-10-04"
@@ -133,7 +134,7 @@ Exceptions: Title bar height is 40px (not on 4pt grid — matches AkariTool). St
 | Element | Copy |
 |---------|------|
 | Primary CTA | "Install AkariOS" |
-| Secondary CTA | "Cancel" (during install, before reboot) |
+| Secondary CTA | "Cancel Install" (during install, before reboot) |
 | Resume CTA | "Resume Install" (when state detected) |
 | Empty state heading | "Welcome to AkariOS" |
 | Empty state body | "This tool will transform your Windows installation into AkariOS — a clean, debloated, performance-tuned system. The process runs across three stages and two reboots. Click 'Install AkariOS' when you're ready to begin." |
