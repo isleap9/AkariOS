@@ -66,13 +66,23 @@ individual stage run buttons, auto-resume after each reboot, and error surfacing
 - [x] 02-01-PLAN.md
 - [x] 02-02-PLAN.md
 - [x] 02-03-PLAN.md
-- [ ] 02-04-PLAN.md
+- [x] 02-04-PLAN.md
 1. Embed WinSux engine scripts as base64 assets
 2. Implement Stage 1 integration (runspace, progress reporting, reboot handling)
 3. Implement Stage 2 integration (Safe Mode console script, TrustedInstaller handling)
 4. Implement Stage 3 integration (runspace, progress reporting, final reboot)
 5. Implement single-click flow and individual stage run buttons
 6. Implement error surfacing with retry/abort
+
+**Status: complete — static verification only.** All nine V-checks and all nine
+`AkariOS/tools/Test-*.ps1` harnesses pass; the evidence with actual output is in
+`phases/02-core-engine-stage-integration/02-VERIFICATION.md`. **None of it was
+observed running.** Four success criteria above are unproven at runtime and are
+Phase 4's target, along with ten manual-only items listed in that same document.
+Two of those ten will block a tester who does not know about them: Phase 1 defect
+D-01 (the Install button stays disabled until the Check tab is opened, which
+blocks the single-click flow), and the need to **log on as an administrator at
+the Safe Mode prompt** for Stage 2 to fire at all.
 
 ---
 
@@ -155,28 +165,39 @@ user documentation, and distribution packaging.
 
 ## Requirement Coverage
 
-| Requirement | Phase |
-|-------------|-------|
-| PREF-01 | Phase 1: Foundation |
-| PREF-02 | Phase 1: Foundation |
-| PREF-03 | Phase 1: Foundation |
-| SAFE-01 | Phase 3: Hardening |
-| SAFE-02 | Phase 1: Foundation |
-| SAFE-03 | Phase 1: Foundation |
-| SAFE-04 | Phase 1: Foundation |
-| PROG-01 | Phase 1: Foundation |
-| PROG-02 | Phase 1: Foundation |
-| PROG-03 | Phase 1: Foundation |
-| FLOW-01 | Phase 2: Core Engine |
-| FLOW-02 | Phase 2: Core Engine |
-| FLOW-03 | Phase 2: Core Engine |
-| BRND-01 | Phase 3: Hardening |
-| DIAG-01 | Phase 1: Foundation |
-| DIAG-02 | Phase 2: Core Engine |
-| DIAG-03 | Phase 3: Hardening |
-| DIAG-04 | Phase 3: Hardening |
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| PREF-01 | Phase 1: Foundation | Complete |
+| PREF-02 | Phase 1: Foundation | Complete |
+| PREF-03 | Phase 1: Foundation | Complete |
+| SAFE-01 | Phase 3: Hardening | Pending |
+| SAFE-02 | Phase 1: Foundation | Complete |
+| SAFE-03 | Phase 1: Foundation | Complete |
+| SAFE-04 | Phase 1: Foundation | Complete |
+| PROG-01 | Phase 1: Foundation | Complete |
+| PROG-02 | Phase 1: Foundation | Complete |
+| PROG-03 | Phase 1: Foundation | Complete |
+| FLOW-01 | Phase 2: Core Engine | Complete |
+| FLOW-02 | Phase 2: Core Engine | Complete |
+| FLOW-03 | Phase 2: Core Engine | Complete |
+| BRND-01 | Phase 3: Hardening | Pending |
+| DIAG-01 | Phase 1: Foundation | Complete |
+| DIAG-02 | Phase 2: Core Engine | Complete |
+| DIAG-03 | Phase 3: Hardening | Pending |
+| DIAG-04 | Phase 3: Hardening | Pending |
 
 **Total:** 18 requirements mapped to 5 phases. 100% coverage.
+
+**Caveat on every Phase 1 and Phase 2 "Complete":** *static verification only.*
+Those phases were verified with the PowerShell parser, XAML `[xml]` casts,
+grep assertions, file hashes and pure-function harnesses with injected seams.
+**No AkariOS installer was ever executed on the authoring machine** — the user
+compiles and tests personally in a VM. Runtime validation of the full flow is
+**Phase 4**, which also carries the manual-only items listed in
+`phases/02-core-engine-stage-integration/02-VERIFICATION.md` (ten of them, headed
+by the requirement to *log on as an administrator at the Safe Mode prompt*).
+Read that table before starting Phase 4: a tester who skips that log-on step
+will report a false failure.
 
 ## Ordering Rationale
 

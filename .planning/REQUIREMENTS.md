@@ -92,12 +92,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PROG-01 | Phase 1: Foundation | Complete |
 | PROG-02 | Phase 1: Foundation | Complete |
 | PROG-03 | Phase 1: Foundation | Complete |
-| FLOW-01 | Phase 2: Core Engine | Pending |
-| FLOW-02 | Phase 2: Core Engine | Pending |
-| FLOW-03 | Phase 2: Core Engine | Pending |
+| FLOW-01 | Phase 2: Core Engine | Complete |
+| FLOW-02 | Phase 2: Core Engine | Complete |
+| FLOW-03 | Phase 2: Core Engine | Complete |
 | BRND-01 | Phase 3: Hardening | Pending |
 | DIAG-01 | Phase 1: Foundation | Complete |
-| DIAG-02 | Phase 2: Core Engine | Pending |
+| DIAG-02 | Phase 2: Core Engine | Complete |
 | DIAG-03 | Phase 3: Hardening | Pending |
 | DIAG-04 | Phase 3: Hardening | Pending |
 
@@ -105,6 +105,18 @@ Which phases cover which requirements. Updated during roadmap creation.
 - v1 requirements: 18 total
 - Mapped to phases: 18
 - Unmapped: 0 ✓
+
+**Caveat — "Complete" means statically verified, not runtime verified.**
+Phases 1 and 2 were verified with the PowerShell parser, XAML `[xml]` casts,
+grep assertions, file hashes, and pure-function harnesses with injected seams
+(`AkariOS/tools/Test-*.ps1` — nine of them). **No AkariOS installer was ever
+executed on the authoring machine.** The user compiles AkariOS and tests it
+personally in a VM, so every behaviour that needs a real reboot, a Safe Mode
+boot, TrustedInstaller, or a restore point is **unproven by construction** and
+belongs to Phase 4. The ten such items are listed with test instructions in
+`phases/02-core-engine-stage-integration/02-VERIFICATION.md` — headed by the
+requirement to *log on as an administrator at the Safe Mode prompt*, whose
+omission produces a false failure.
 
 ---
 *Requirements defined: 2026-10-04*
