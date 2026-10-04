@@ -261,13 +261,24 @@ function Invoke-AkariOSEngine {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][string]$ScriptPath,
-        [scriptblock]$EngineInvoker = {
+        [scriptblock]$EngineInvoker
+    )
+
+    # Invoke-AkariOSStage declares $EngineInvoker without a default, so when a
+    # caller omits it the bound value is $null. That null then travelled through
+    # the $sync hand-off into the worker, and "& $null $ScriptPath" launched
+    # nothing while returning nothing - indistinguishable from an instant clean
+    # run. Invoke-AkariOSStage now supplies the default (see below), but this
+    # function must also stand alone, so a null invoker falls back to launching a
+    # real child rather than reporting a fictitious exit code.
+    if (-not $EngineInvoker) {
+        $EngineInvoker = {
             param($EngineScriptPath)
             Start-Process -FilePath "powershell.exe" `
                           -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File $EngineScriptPath" `
                           -PassThru -Wait -WindowStyle Normal
         }
-    )
+    }
 
     if (-not (Test-Path -LiteralPath $ScriptPath)) {
         Write-AkariOSLog -Level ERROR -Message ("Engine script is missing: {0}" -f $ScriptPath)
@@ -331,7 +342,15 @@ function Invoke-AkariOSStage {
     param(
         [Parameter(Mandatory = $true)][int]$Stage,
         [scriptblock]$AssetInvoker = { param($AssetName) Expand-AkariOSEngineAsset -Name $AssetName -Overwrite },
-        [scriptblock]$EngineInvoker,
+        # Defaults to a real powershell.exe child. It must have a default here as
+        # well: whatever this binds gets published onto $sync and read by the
+        # worker, so a null invoker would reach "& $null" and launch nothing.
+        [scriptblock]$EngineInvoker = {
+            param($EngineScriptPath)
+            Start-Process -FilePath "powershell.exe" `
+                          -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File $EngineScriptPath" `
+                          -PassThru -Wait -WindowStyle Normal
+        },
         [scriptblock]$RunOnceWriter,
         [scriptblock]$BcdWriter,
         [string]$StatePath,
