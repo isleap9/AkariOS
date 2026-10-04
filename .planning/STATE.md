@@ -1,24 +1,25 @@
 ---
 gsd_state_version: "1.0"
-current_phase: 02
-status: complete
-stopped_at: Phase 2 complete (static verification only; VM validation owed to Phase 4)
-last_updated: "2026-10-04T12:00:00.000Z"
-state_head: b006c1e
+current_phase: 03
+status: in_progress
+stopped_at: "Phase 3 Wave 1 Task 2 complete - relaunch mechanism built and verified. Tasks 3-4 of 03-01 remain: DIAG-04 summary panel, then mutation-test and ship."
+last_updated: "2026-10-04T15:10:00.000Z"
+state_head: 85dde3e
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
-  percent: 40
-current_phase_name: Core Engine — Stage Integration
+  total_plans: 9
+  completed_plans: 6
+  percent: 44
+current_phase_name: Hardening — Destructive Stage Hardening + Branding + Diagnostics
+phase_03_plan_progress: "1 of 4 plans started; 03-01 task 2 of 4 complete"
 ---
 
 # AkariOS State
 
-**Last updated:** 2026-10-04
-**Current phase:** 02
-**Phase status:** Complete (static verification only - runtime pending VM)
+**Last updated:** 2026-10-04 (resumed after Phase 2 VM validation)
+**Current phase:** 03
+**Phase status:** 02 COMPLETE and VM-VALIDATED (all three stages ran for real across two reboots and Safe Mode). 03 in progress.
 **Mode:** mvp
 
 ## Project Reference
@@ -29,10 +30,13 @@ See `.planning/PROJECT.md` for full project context.
 itself through all three WinSux stages across the reboots with visible progress —
 no console menus, no typed numbers, no re-launching anything by hand.
 
-**Current focus:** Phase 02 — Core Engine — Stage Integration
-compiled `akarios.ps1` with a working WPF GUI shell, reboot-surviving state
-machine, pre-flight checks, admin elevation, confirmation gating, logging
-infrastructure, and progress reporting.
+**Current focus:** Phase 03 Wave 1 — GUI relaunch + DIAG-04 summary
+
+Phase 01 and 02 shipped: `akarios.ps1` compiles to a working WPF GUI shell with a
+reboot-surviving state machine, pre-flight checks, admin elevation, confirmation
+gating, logging, progress rendering, and all three WinSux stages executing for
+real. Phase 03 adds the post-install relaunch, the "what changed" summary,
+restore point, log export, and AkariOS branding.
 
 ## Phase Progress
 
@@ -90,3 +94,47 @@ infrastructure, and progress reporting.
 manual-only items in `02-VERIFICATION.md` — in particular **M9 (Phase 1 defect
 D-01 blocks the single-click flow)**, **M1/M2 (log on as administrator at the
 Safe Mode prompt)**, and **M10 (the `installing` status `ValidateSet` defect)**.
+
+## Session Continuity
+
+Last session: 2026-10-04 (resumed via /gsd-resume-work)
+Stopped at: Phase 03 Wave 1, plan 03-01, task 2 of 4 complete.
+Resume file: none — no .continue-here or HANDOFF.json present.
+
+### Where we left off
+03-01 task 2 shipped the post-install relaunch mechanism in commits 495fff8
+(mechanism) and 85dde3e (harness):
+
+- `AkariOS/functions/public/Relaunch.ps1` (new): pure schtasks argument builder,
+  `Set-AkariOSRelaunchTask` / `Remove-AkariOSRelaunchTask` behind a `-TaskWriter`
+  seam, `Copy-AkariOSRelaunchScript` behind a `-FileCopier` seam. Both task
+  functions carry the `Invoke-AkariOSEngine` null-invoker fallback and never throw.
+- `Stage.ps1`: additive `-Stage 3` branch that stages the script, THEN creates the
+  task, THEN launches the engine. Zero deletions in the diff — Stage 1 and
+  Stage 2 branches byte-unchanged.
+- `AkariOS/tools/Test-Relaunch.ps1` (new): behavioural, not grep-only.
+
+Independently verified after the fact: 15/15 harnesses pass, all four engine
+assets MD5-match WinSux-main, and two independent mutations both turned RED
+(removing the null-invoker fallback -> 8 failures; flipping the absent-task log
+from INFO to WARN -> 2 failures).
+
+### Remaining in 03-01
+- Task 3: the DIAG-04 "what changed" summary, driven by log evidence.
+- Task 4: mutation-test both harnesses, then ship the panel and the compiled artefact.
+
+### Owed to Phase 4 (VM only, cannot be checked here)
+- That the GUI actually relaunches after Stage 3.
+- That the relaunched window is VISIBLE, not on session 0's phantom desktop. The
+  task uses ONLOGON + interactive user + /IT + /RL HIGHEST for exactly this
+  reason, with a logged-WARN fallback to /RU SYSTEM.
+- Safe Mode administrator logon at the prompt — RunOnce only fires at logon.
+
+### Carried concerns
+- Phase 03 roadmap originally listed 9 items; 6 were deferred by explicit user
+  decision (Edge hardening, task-deletion blocklist, BitLocker pre-check, WU-pause
+  configurability, DISM error handling, payload hashing) because they would require
+  patching the vendored engine, which D-06 forbids. Consequence: WU pause stays
+  at 365 days and there is no BitLocker pre-check.
+- `.planning/phases/02-core-engine-stage-integration/02-VERIFICATION-PHASE.md` is
+  untracked. The independent verifier returned human_needed, 14/16, zero gaps.
