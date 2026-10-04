@@ -383,13 +383,23 @@ function Invoke-AkariOSStage {
 
     # --- 5. Launch the engine as a child process, supervised -----------------
     # Invoke-RunInBackground keeps the WPF UI responsive while the child runs.
-    # -OnComplete is added by the runspace repair in Task 2; until then the job's
-    # own logging is the only record of how it ended.
+    # -OnComplete receives the outcome hashtable, which is the ONLY way to learn
+    # how the job ended: a local captured by the job's closure would be read by
+    # value and always look like success.
     $supervisorArgs = @{
         StatusStart = ("Stage {0} is running in a separate console window..." -f $Stage)
         StatusDone  = ("Stage {0} finished." -f $Stage)
         ScriptBlock = {
             Invoke-AkariOSEngine -ScriptPath $enginePath -EngineInvoker $EngineInvoker
+        }.GetNewClosure()
+        OnComplete  = {
+            param($Outcome)
+            if ($Outcome.Error) {
+                Write-AkariOSLog -Level ERROR -Message ("Stage {0} FAILED: {1}" -f $Stage, ($Outcome.Error | Out-String))
+                if ($StatePath) { Set-AkariOSState -Path $StatePath -CurrentStage $Stage -Status "error" }
+            } else {
+                Write-AkariOSLog -Level INFO -Message ("Stage {0} engine process completed." -f $Stage)
+            }
         }.GetNewClosure()
     }
 
