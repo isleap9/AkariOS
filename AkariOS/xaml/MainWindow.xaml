@@ -1,0 +1,503 @@
+﻿<Window x:Name="Window"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="AkariOS Setup"
+        Width="1000" Height="720"
+        MinWidth="860" MinHeight="560"
+        WindowStartupLocation="CenterScreen"
+        Background="#1C1C1C"
+        Foreground="White"
+        FontFamily="Segoe UI Variable Text, Segoe UI"
+        FontSize="13">
+
+    <!-- WindowChrome: custom title bar area, keep native caption buttons -->
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="40"
+                      ResizeBorderThickness="5"
+                      UseAeroCaptionButtons="True"
+                      GlassFrameThickness="-1"/>
+    </WindowChrome.WindowChrome>
+
+    <Window.Resources>
+
+        <!-- ── Brushes ─────────────────────────────────────────────────────── -->
+        <SolidColorBrush x:Key="SidebarBg"        Color="#11000000"/>
+        <SolidColorBrush x:Key="TitleBarBg"       Color="#0D000000"/>
+        <SolidColorBrush x:Key="CardBg"           Color="#1AFFFFFF"/>
+        <SolidColorBrush x:Key="CardBorder"       Color="#18FFFFFF"/>
+        <SolidColorBrush x:Key="SeparatorBrush"   Color="#14FFFFFF"/>
+        <SolidColorBrush x:Key="AccentBrush"      Color="#CC2828"/>
+        <SolidColorBrush x:Key="AccentHover"      Color="#E03535"/>
+        <SolidColorBrush x:Key="AccentPress"      Color="#BB2020"/>
+        <SolidColorBrush x:Key="TextPrimary"      Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="TextSecondary"    Color="#999999"/>
+        <SolidColorBrush x:Key="TextMuted"        Color="#666666"/>
+        <SolidColorBrush x:Key="SuccessBrush"     Color="#66BB6A"/>
+        <SolidColorBrush x:Key="WarningBrush"     Color="#FFA726"/>
+        <SolidColorBrush x:Key="DangerText"       Color="#FF3333"/>
+        <SolidColorBrush x:Key="BtnDefaultBg"     Color="#17FFFFFF"/>
+        <SolidColorBrush x:Key="BtnDefaultHover"  Color="#26FFFFFF"/>
+        <SolidColorBrush x:Key="BtnDefaultPress"  Color="#0DFFFFFF"/>
+        <SolidColorBrush x:Key="BtnDefaultBorder" Color="#20FFFFFF"/>
+        <SolidColorBrush x:Key="NavHover"         Color="#12FFFFFF"/>
+        <SolidColorBrush x:Key="NavSelected"      Color="#1AFFFFFF"/>
+        <SolidColorBrush x:Key="DangerBg"         Color="#1AFF3333"/>
+        <SolidColorBrush x:Key="DangerBorder"     Color="#25FF4444"/>
+
+        <!-- ── ScrollBar (thin, Win11-style) ──────────────────────────────── -->
+        <Style TargetType="ScrollBar">
+            <Setter Property="Width"  Value="6"/>
+            <Setter Property="Margin" Value="0,12,4,12"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid Background="Transparent">
+                            <Track Name="PART_Track" IsDirectionReversed="True">
+                                <Track.Thumb>
+                                    <Thumb>
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border Background="#35FFFFFF" CornerRadius="3" Margin="1,4"/>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ScrollViewer">
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
+        </Style>
+
+        <!-- ── Default button ─────────────────────────────────────────────── -->
+        <Style x:Key="Btn" TargetType="Button">
+            <Setter Property="Background"       Value="{StaticResource BtnDefaultBg}"/>
+            <Setter Property="Foreground"       Value="{StaticResource TextPrimary}"/>
+            <Setter Property="BorderBrush"      Value="{StaticResource BtnDefaultBorder}"/>
+            <Setter Property="BorderThickness"  Value="1"/>
+            <Setter Property="Padding"          Value="16,7"/>
+            <Setter Property="MinWidth"         Value="112"/>
+            <Setter Property="FontFamily"       Value="Segoe UI Variable Text, Segoe UI"/>
+            <Setter Property="FontSize"         Value="13"/>
+            <Setter Property="Cursor"           Value="Hand"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource BtnDefaultHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource BtnDefaultPress}"/>
+                                <Setter TargetName="Root" Property="Opacity" Value="0.8"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.35"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Accent (red) button — primary CTA ─────────────────────────── -->
+        <Style x:Key="BtnAccent" TargetType="Button" BasedOn="{StaticResource Btn}">
+            <Setter Property="Background"  Value="{StaticResource AccentBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AccentHover}"/>
+            <Setter Property="MinWidth"    Value="200"/>
+            <Setter Property="Padding"     Value="24,10"/>
+            <Setter Property="FontSize"    Value="14"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1" CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource AccentHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource AccentPress}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.35"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Nav radio button ───────────────────────────────────────────── -->
+        <Style x:Key="NavBtn" TargetType="RadioButton">
+            <Setter Property="Background"       Value="Transparent"/>
+            <Setter Property="Foreground"       Value="#AAAAAA"/>
+            <Setter Property="Margin"           Value="8,1"/>
+            <Setter Property="Height"           Value="40"/>
+            <Setter Property="Cursor"           Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Root" Background="Transparent" CornerRadius="6" Padding="10,0">
+                            <Grid>
+                                <!-- Left accent pill (visible when selected) -->
+                                <Border x:Name="Pill" Width="3" Height="16"
+                                        Background="{StaticResource AccentBrush}"
+                                        CornerRadius="2" HorizontalAlignment="Left"
+                                        VerticalAlignment="Center" Margin="-2,0,0,0"
+                                        Visibility="Collapsed"/>
+                                <StackPanel x:Name="NavContent" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+                                    <TextBlock x:Name="Icon"
+                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                               FontSize="15"
+                                               Text="{TemplateBinding Tag}"
+                                               Foreground="#888888"
+                                               VerticalAlignment="Center"
+                                               TextAlignment="Center"
+                                               Width="22"/>
+                                    <TextBlock x:Name="NavText" Text="{TemplateBinding Content}"
+                                               FontFamily="Segoe UI Variable Text, Segoe UI"
+                                               FontSize="13"
+                                               Foreground="{TemplateBinding Foreground}"
+                                               VerticalAlignment="Center"
+                                               Margin="10,0,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource NavHover}"/>
+                                <Setter Property="Foreground" Value="White"/>
+                                <Setter TargetName="Icon"     Property="Foreground" Value="#CCCCCC"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource NavSelected}"/>
+                                <Setter Property="Foreground" Value="White"/>
+                                <Setter TargetName="Icon" Property="Foreground" Value="White"/>
+                                <Setter TargetName="Pill" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Card (section grouping box) ───────────────────────────────── -->
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background"       Value="{StaticResource CardBg}"/>
+            <Setter Property="BorderBrush"      Value="{StaticResource CardBorder}"/>
+            <Setter Property="BorderThickness"  Value="1"/>
+            <Setter Property="CornerRadius"     Value="8"/>
+            <Setter Property="Padding"          Value="16,14"/>
+            <Setter Property="Margin"           Value="0,0,0,10"/>
+        </Style>
+
+        <!-- ── Danger card (destructive warnings) ────────────────────────── -->
+        <Style x:Key="CardDanger" TargetType="Border" BasedOn="{StaticResource Card}">
+            <Setter Property="Background"  Value="{StaticResource DangerBg}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource DangerBorder}"/>
+        </Style>
+
+        <!-- ── Text styles ────────────────────────────────────────────────── -->
+        <Style x:Key="H1" TargetType="TextBlock">
+            <Setter Property="FontFamily"  Value="Segoe UI Variable Display, Segoe UI"/>
+            <Setter Property="FontSize"    Value="22"/>
+            <Setter Property="FontWeight"  Value="SemiBold"/>
+            <Setter Property="Foreground"  Value="{StaticResource TextPrimary}"/>
+            <Setter Property="Margin"      Value="0,0,0,18"/>
+        </Style>
+        <!-- 28px display — reserved for the confirmation gate warning and "Step N of 3" -->
+        <Style x:Key="Display" TargetType="TextBlock">
+            <Setter Property="FontFamily"  Value="Segoe UI Variable Display, Segoe UI"/>
+            <Setter Property="FontSize"    Value="28"/>
+            <Setter Property="FontWeight"  Value="SemiBold"/>
+            <Setter Property="Foreground"  Value="{StaticResource TextPrimary}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style x:Key="CardTitle" TargetType="TextBlock">
+            <Setter Property="FontFamily"  Value="Segoe UI Variable Text, Segoe UI"/>
+            <Setter Property="FontSize"    Value="13"/>
+            <Setter Property="FontWeight"  Value="SemiBold"/>
+            <Setter Property="Foreground"  Value="{StaticResource TextPrimary}"/>
+        </Style>
+        <Style x:Key="CardDesc" TargetType="TextBlock">
+            <Setter Property="FontFamily"   Value="Segoe UI Variable Text, Segoe UI"/>
+            <Setter Property="FontSize"     Value="12"/>
+            <Setter Property="Foreground"   Value="{StaticResource TextSecondary}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin"       Value="0,2,0,0"/>
+        </Style>
+        <Style x:Key="Label" TargetType="TextBlock">
+            <Setter Property="FontFamily"   Value="Segoe UI Variable Text, Segoe UI"/>
+            <Setter Property="FontSize"     Value="12"/>
+            <Setter Property="Foreground"   Value="{StaticResource TextSecondary}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style x:Key="CardGroupHeader" TargetType="TextBlock">
+            <Setter Property="FontFamily"  Value="Segoe UI Variable Text, Segoe UI"/>
+            <Setter Property="FontSize"    Value="11"/>
+            <Setter Property="FontWeight"  Value="SemiBold"/>
+            <Setter Property="Foreground"  Value="{StaticResource TextSecondary}"/>
+            <Setter Property="Margin"      Value="0,4,0,8"/>
+        </Style>
+
+        <!-- ── Separator ──────────────────────────────────────────────────── -->
+        <Style x:Key="Sep" TargetType="Separator">
+            <Setter Property="Background" Value="{StaticResource SeparatorBrush}"/>
+            <Setter Property="Height"     Value="1"/>
+            <Setter Property="Margin"     Value="0,8"/>
+        </Style>
+
+        <!-- ── TextBox (dark) — confirmation gate input ───────────────────── -->
+        <Style TargetType="TextBox">
+            <Setter Property="Background"      Value="{StaticResource BtnDefaultBg}"/>
+            <Setter Property="Foreground"      Value="{StaticResource TextPrimary}"/>
+            <Setter Property="CaretBrush"      Value="{StaticResource TextPrimary}"/>
+            <Setter Property="BorderBrush"     Value="{StaticResource BtnDefaultBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontFamily"      Value="Segoe UI Variable Text, Segoe UI"/>
+            <Setter Property="FontSize"        Value="13"/>
+            <Setter Property="Padding"         Value="10,7"/>
+            <Setter Property="Height"          Value="34"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="tb"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          VerticalAlignment="Center"
+                                          Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="tb" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter TargetName="tb" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── ProgressBar (per-stage, Win11-style accent fill) ───────────── -->
+        <Style x:Key="AkariProgress" TargetType="ProgressBar">
+            <Setter Property="Height"    Value="8"/>
+            <Setter Property="Minimum"   Value="0"/>
+            <Setter Property="Maximum"   Value="100"/>
+            <Setter Property="Value"     Value="0"/>
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+            <Setter Property="Background" Value="#22FFFFFF"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ProgressBar">
+                        <Grid Height="8">
+                            <Border x:Name="Track" Background="{TemplateBinding Background}" CornerRadius="4"/>
+                            <Border x:Name="PART_Track" CornerRadius="4">
+                                <Grid>
+                                    <Rectangle x:Name="PART_Indicator" Fill="{TemplateBinding Foreground}"
+                                               HorizontalAlignment="Left"/>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── ChecklistItem (pre-flight check row) ──────────────────────── -->
+        <Style x:Key="ChecklistItem" TargetType="Border">
+            <Setter Property="Background"      Value="#0DFFFFFF"/>
+            <Setter Property="BorderBrush"     Value="{StaticResource CardBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius"    Value="6"/>
+            <Setter Property="Padding"         Value="12,10"/>
+            <Setter Property="Margin"          Value="0,0,0,8"/>
+        </Style>
+
+        <!-- ── Caption button (minimize / maximize) ───────────────────────── -->
+        <Style x:Key="CaptionBtn" TargetType="Button">
+            <Setter Property="Width" Value="46"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Foreground" Value="#C6C6CA"/>
+            <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="cb" Background="Transparent">
+                            <TextBlock Text="{TemplateBinding Content}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                       FontSize="10" Foreground="{TemplateBinding Foreground}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="cb" Property="Background" Value="#20FFFFFF"/></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Caption close button (red hover) ───────────────────────────── -->
+        <Style x:Key="CaptionCloseBtn" TargetType="Button" BasedOn="{StaticResource CaptionBtn}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="cb" Background="Transparent">
+                            <TextBlock x:Name="ct" Text="{TemplateBinding Content}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                       FontSize="10" Foreground="{TemplateBinding Foreground}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="cb" Property="Background" Value="#E0142A"/>
+                                <Setter TargetName="ct" Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         ROOT GRID: title bar row + body row + status bar row, with the
+         confirmation-gate overlay spanning the whole window.
+    ═══════════════════════════════════════════════════════════════════════════ -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="40"/>    <!-- title bar -->
+            <RowDefinition Height="*"/>     <!-- body -->
+            <RowDefinition Height="28"/>    <!-- status bar -->
+        </Grid.RowDefinitions>
+
+        <!-- ── Title bar ───────────────────────────────────────────────────── -->
+        <Border Grid.Row="0" Background="{StaticResource TitleBarBg}">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
+                <Ellipse Name="BrandDot" Width="5" Height="5" VerticalAlignment="Center" Margin="0,0,10,0" Fill="{StaticResource AccentBrush}"/>
+                <TextBlock FontSize="11" FontWeight="Bold" VerticalAlignment="Center"
+                           FontFamily="Segoe UI Variable Display, Segoe UI">
+                    <Run Text="AKARI" Foreground="White"/><Run Text="OS" Foreground="#E03535"/>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <!-- ── Body: sidebar + content ─────────────────────────────────────── -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="SidebarCol" Width="210"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Sidebar -->
+            <Grid Grid.Column="0" Background="{StaticResource SidebarBg}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!--
+                    SIDEBAR NAV. Each RadioButton (NavXyz) shows the panel it maps to in
+                    scripts/main.ps1 ($navMap: NavXyz -> PanelXyz). Order here = sidebar order;
+                    the actual pages live in xaml/panels/*.xaml. Tag = Segoe Fluent icon glyph.
+                    To add a page: add a NavXyz here + a xaml/panels/NN-Xyz.xaml fragment +
+                    register NavXyz/PanelXyz in main.ps1 ($panels, $navMap, $navNames).
+                    Use &#183; (middle dot) as an entity, not a pasted character.
+                -->
+                <StackPanel Grid.Row="0" Margin="0,8,0,0">
+                    <RadioButton Name="NavHome"     Style="{StaticResource NavBtn}" GroupName="Nav" Tag="&#xE80F;" Content="Home"          IsChecked="True"/>
+                    <RadioButton Name="NavCheck"    Style="{StaticResource NavBtn}" GroupName="Nav" Tag="&#xE9D9;" Content="Pre-flight"/>
+                    <RadioButton Name="NavProgress" Style="{StaticResource NavBtn}" GroupName="Nav" Tag="&#xE895;" Content="Progress"/>
+                    <RadioButton Name="NavState"    Style="{StaticResource NavBtn}" GroupName="Nav" Tag="&#xE946;" Content="State"/>
+                </StackPanel>
+
+                <!-- Version footer -->
+                <StackPanel Name="SidebarFooter" Grid.Row="1" Margin="16,12">
+                    <TextBlock Text="AkariOS Setup  v0.1" FontSize="11" Foreground="#444444"/>
+                    <TextBlock Text="by isleap &#183; Fr33thy scripts" FontSize="11" Foreground="#444444"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- ══ CONTENT AREA (rounded panel — curved divide from the sidebar) ══ -->
+            <Border Grid.Column="1" Background="#18FFFFFF" CornerRadius="14" Margin="0,0,16,10" ClipToBounds="True">
+            <Grid Background="Transparent">
+                <!--
+                    @PANELS@  -  DO NOT put pages here directly.
+                    Compile.ps1 replaces this marker with every xaml/panels/*.xaml fragment,
+                    concatenated in NN- filename order, before embedding the UI as $inputXML.
+                    Edit a page by editing its file in xaml/panels/, then run Compile.ps1.
+                -->
+                <!-- @PANELS@ : injected from xaml/panels/*.xaml by Compile.ps1 -->
+            </Grid>
+            </Border><!-- end content area -->
+        </Grid><!-- end body -->
+
+        <!-- ── Status bar ───────────────────────────────────────────────────── -->
+        <Border Grid.Row="2" Background="{StaticResource SidebarBg}">
+            <Grid Margin="16,0">
+                <TextBlock Name="StatusText" Text="Ready"
+                           FontSize="11" Foreground="#666666"
+                           VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+
+        <!-- ══ CONFIRMATION GATE — modal overlay, hidden until the user clicks Install ══ -->
+        <Grid Grid.RowSpan="3" Name="ConfirmOverlay" Background="#D9000000" Visibility="Collapsed">
+            <Border Style="{StaticResource Card}" Width="560" Padding="24,20"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel>
+                    <TextBlock Name="ConfirmHeading" Text="Confirm Installation"
+                               Style="{StaticResource Display}" Margin="0,0,0,12"/>
+                    <TextBlock Name="ConfirmBody"
+                               Text="You are about to make significant changes to your Windows installation. Please review what will happen:"
+                               Style="{StaticResource CardDesc}" Margin="0,0,0,12"/>
+
+                    <Border Style="{StaticResource CardDanger}" Padding="16,12" Margin="0,0,0,14">
+                        <TextBlock Name="ConfirmWarning"
+                                   Text="Type AKARIOS to confirm: This will disable Windows Defender, UAC, memory integrity, VBS, and the vulnerable-driver blocklist. It will remove Edge, UWP apps, and GPU/audio drivers. These changes are not easily reversible. A system restore point is recommended."
+                                   Style="{StaticResource CardDesc}" Foreground="{StaticResource DangerText}" Margin="0"/>
+                    </Border>
+
+                    <TextBlock Name="ConfirmPrompt" Text="Type AKARIOS to confirm you understand:"
+                               Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                    <TextBox Name="ConfirmInput" />
+
+                    <TextBlock Name="ConfirmError"
+                               Text="Confirmation text does not match. Please type AKARIOS exactly."
+                               Style="{StaticResource CardDesc}"
+                               Foreground="{StaticResource DangerText}"
+                               Visibility="Collapsed" Margin="0,6,0,0"/>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+                        <Button Name="BtnConfirmCancel" Content="Go Back"  Style="{StaticResource Btn}"  Margin="0,0,8,0" MinWidth="120"/>
+                        <Button Name="BtnConfirmGo"    Content="I Understand" Style="{StaticResource BtnAccent}" MinWidth="160"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+    </Grid>
+</Window>
