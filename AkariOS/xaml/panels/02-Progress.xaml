@@ -102,6 +102,45 @@
             </StackPanel>
         </Border>
 
+        <!-- Failed-stage card (DIAG-02, D-10). Collapsed by default; revealed at
+             launch when Get-AkariOSStageFailure finds a recorded error, and
+             populated by Show-StageError / Reveal-StageError.
+
+             Plain Name=, never x:Name, and no Click= attribute - main.ps1:17 and
+             :104 only see the plain form, and wiring is by the Invoke-BtnStage<N>
+             name convention, so a missing Invoke-BtnStageRetry/Abort leaves the
+             button silently dead. Both default to IsEnabled="False"; main.ps1
+             step 7 enables them once a failure is actually on screen.
+
+             StageErrorLog holds the BOUNDED excerpt from Get-AkariOSLogTail -Count
+             and is rendered as plain TextBlock.Text - never Html or Rtf - so log
+             content from a half-failed system cannot inject markup (T-02-20). -->
+        <Border Name="StageErrorDetail" Style="{StaticResource CardDanger}"
+                Visibility="Collapsed" Padding="20,18" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Name="StageErrorTitle" Text="A STAGE FAILED"
+                           Style="{StaticResource CardGroupHeader}" Foreground="#FF6B6B"/>
+                <TextBlock Name="StageErrorMessage" Text="A stage did not finish. The details are below."
+                           Style="{StaticResource CardDesc}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+
+                <ScrollViewer MaxHeight="160" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled" Margin="0,10,0,0">
+                    <TextBlock Name="StageErrorLog" Text="" Style="{StaticResource CardDesc}"
+                               Foreground="#FF9E9E" FontFamily="Consolas, Cascadia Mono, Courier New"
+                               FontSize="11" TextWrapping="NoWrap"/>
+                </ScrollViewer>
+
+                <!-- Retry re-runs the WHOLE stage through the same runner (the
+                     engine is verbatim and exposes no partial-state introspection,
+                     so there is nothing finer-grained to resume). Abort clears only
+                     the error record and touches neither RunOnce nor bcdedit. -->
+                <Button Name="BtnStageRetry" Content="Retry this stage" Style="{StaticResource Btn}"
+                        HorizontalAlignment="Left" IsEnabled="False" Margin="0,14,0,0"/>
+                <Button Name="BtnStageAbort" Content="Abort and clear the error" Style="{StaticResource Btn}"
+                        HorizontalAlignment="Left" IsEnabled="False" Margin="0,8,0,0"/>
+            </StackPanel>
+        </Border>
+
         <Border Style="{StaticResource CardDanger}">
             <StackPanel>
                 <TextBlock Text="CANCELLING" Style="{StaticResource CardGroupHeader}" Foreground="#FF6B6B"/>

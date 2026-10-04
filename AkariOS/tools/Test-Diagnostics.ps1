@@ -171,7 +171,89 @@ try {
     Assert "and its LastError is untouched by validation" ((Get-AkariOSStageFailure -StatePath $statePath -LogPath $logPath).Stage -eq 1)
     Assert "an invalid state is still rejected"        (-not (Test-AkariOSState ([pscustomobject]@{ CurrentStage = 9 })))
 
-    # ── 9. Seams are injectable and no ProgramData literal is written ─────────
+    # ── 9. The dialog: choice in, choice out, every exit path resolved ─────────
+    # Show-StageError is exercised through -DialogInvoker, which is the only way
+    # it shows anything. The point is that the choice genuinely travels back out
+    # of the call — the by-value closure trap that made Phase 1 report every
+    # failed job as "Done" would silently make this always return "abort".
+    Write-Host "Show-StageError returns the injected choice"
+    function Set-Status { param([string]$Text, [string]$Color = "White") }
+
+    Set-AkariOSStageFailure -Stage 2 -Detail "stepone.ps1 exited with code 1." -ExitCode 1 -StatePath $statePath | Out-Null
+    $probe = Get-AkariOSStageFailure -StatePath $statePath -LogPath $logPath -LogCount 4
+
+    $gotRetry = Show-StageError -Failure $probe -LogPath $logPath -DialogInvoker { param($f) "retry" }
+    Assert "the retry choice comes back out"  ($gotRetry -ceq "retry")
+    $gotAbort = Show-StageError -Failure $probe -LogPath $logPath -DialogInvoker { param($f) "abort" }
+    Assert "the abort choice comes back out"   ($gotAbort -ceq "abort")
+
+    # The dialog is built on the Show-ConfirmationGate shape: a real ShowDialog,
+    # an outcome in a hashtable, and an explicit close. Escape / X / window-close
+    # all leave the hashtable at its default, which is why the default is "abort".
+    $showSrc = [regex]::Match($diagSrc, '(?s)function Show-StageError \{.*?\n\}').Value
+    Assert "the dialog uses a real ShowDialog"       ($showSrc -match '\$dlg\.ShowDialog\(\)')
+    Assert "the outcome is a reference type"         ($showSrc -match '\$choice = @\{')
+    Assert "the window is closed before returning"    ($showSrc -match '\$dlg\.Close\(\)')
+    Assert "the default outcome is abort"            ($showSrc -match '\$choice = @\{ Value = "abort" \}')
+    Assert "the log excerpt is bounded"               ($showSrc -match 'Get-AkariOSLogTail -Count \$LogCount')
+    # Plain text only: markup in a log line must not be interpreted (T-02-20).
+    Assert "the excerpt is never rendered as markup"  ($showSrc -notmatch '\.(Html|Rtf)\b')
+
+    # ── 10. Retry re-runs the WHOLE stage; abort clears ONLY the record ───────
+    Write-Host "Resolve-StageFailure: retry re-runs the stage through the runner"
+    $ran = $null
+    $okRetry = Resolve-StageFailure -Failure $probe -Choice "retry" -StatePath $statePath -StageInvoker {
+        param($n, $cb) $script:ran = $n; $true
+    }
+    Assert "retry reports success"         ($okRetry -eq $true)
+    Assert "retry invoked the runner"      ($null -ne $ran)
+    Assert "retry used the failed stage"   ($ran -eq 2)
+    Assert "retry did NOT clear the record" ($null -ne (Get-AkariOSStageFailure -StatePath $statePath -LogPath $logPath))
+
+    Write-Host "Resolve-StageFailure: abort clears the record and touches nothing else"
+    # Capture CurrentStage before the abort: abort must PRESERVE whatever the
+    # state already said, not rewrite it. The failed stage lives in the LastError
+    # block, which the abort is about to remove.
+    $stageBeforeAbort = [int](Get-AkariOSState -Path $statePath).CurrentStage
+    $okAbort = Resolve-StageFailure -Failure $probe -Choice "abort" -StatePath $statePath
+    Assert "abort reports success"                 ($okAbort -eq $true)
+    Assert "abort cleared the failure"              ($null -eq (Get-AkariOSStageFailure -StatePath $statePath -LogPath $logPath))
+    Assert "abort left the stage number alone"      ([int](Get-AkariOSState -Path $statePath).CurrentStage -eq $stageBeforeAbort)
+    Assert "abort left status pending"              ([string](Get-AkariOSState -Path $statePath).Status -eq "pending")
+
+    # Abort must reach the state file through the lossless Object set. Asserted on
+    # the COMMENT-STRIPPED source because the mechanism is the whole point: -Fields
+    # re-carries the block, so it can never clear it. The docstrings legitimately
+    # NAME bcdedit and safeboot while explaining that they are never called, so
+    # they are stripped first — the same shape the plan's own verify step uses.
+    $resolveSrc = [regex]::Match($diagSrc, '(?s)function Resolve-StageFailure \{.*?\n\}').Value
+    $resolveSrc = [regex]::Replace([regex]::Replace($resolveSrc, '(?s)<#.*?#>', ''), '(?m)^\s*#.*$', '')
+    Assert "abort goes through Clear-AkariOSStageFailure" ($resolveSrc -match 'Clear-AkariOSStageFailure')
+    Assert "abort does not use the -Fields set"           ($resolveSrc -notmatch 'Set-AkariOSState -Fields')
+    Assert "abort does not write a RunOnce entry"         ($resolveSrc -notmatch 'Set-AkariOSRunOnceEntry')
+    Assert "abort does not touch the boot flag"           ($resolveSrc -notmatch 'bcdedit|safeboot')
+    Assert "only the Object set is used to clear"         ($diagSrc -match 'Set-AkariOSState -Path \$StatePath -State \$obj')
+    Assert "retry defaults to Invoke-AkariOSStage"        ($resolveSrc -match 'Invoke-AkariOSStage -Stage \$n -OnComplete \$cb')
+
+    # ── 11. The button handlers exist and delegate to the same contract ───────
+    Write-Host "The two button handlers exist and delegate"
+    foreach ($h in @("Invoke-BtnStageRetry", "Invoke-BtnStageAbort")) {
+        Assert "$h is defined exactly once" ((@([regex]::Matches($diagSrc, "(?m)^function $([regex]::Escape($h)) \{$"))).Count -eq 1)
+        Assert "$h takes no mandatory parameters" ((@((Get-Command $h).Parameters.Values | Where-Object { $_.Attributes | Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.Mandatory } })).Count -eq 0)
+    }
+    Assert "Retry delegates to Resolve-StageFailure" ($diagSrc -match 'Invoke-BtnStageRetry[\s\S]*?Resolve-StageFailure')
+    Assert "Abort delegates to Resolve-StageFailure" ($diagSrc -match 'Invoke-BtnStageAbort[\s\S]*?Resolve-StageFailure')
+    Assert "the handlers no-op with no failure"      ($diagSrc -match 'with no recorded stage failure')
+
+    # Invoke-BtnStageAbort end to end, against a real scratch state file.
+    Set-AkariOSStageFailure -Stage 3 -Detail "steptwo.ps1 could not import reg.reg." -StatePath $statePath | Out-Null
+    Assert "Abort button clears a real record"  ((Invoke-BtnStageAbort -StatePath $statePath) -eq $true)
+    Assert "and detection is clean afterwards"  ($null -eq (Get-AkariOSStageFailure -StatePath $statePath -LogPath $logPath))
+
+    # Retry button: no failure present must NOT launch an arbitrary stage.
+    Assert "Retry button no-ops with nothing recorded" ((Invoke-BtnStageRetry -StatePath $statePath -LogPath $logPath) -eq $false)
+
+    # ── 12. Seams are injectable and no ProgramData literal is written ─────────
     Write-Host "Every path is injectable and no ProgramData literal is hardcoded"
     foreach ($fn in @("Get-AkariOSStageFailure", "Set-AkariOSStageFailure", "Clear-AkariOSStageFailure")) {
         $keys = @((Get-Command $fn).Parameters.Keys)
