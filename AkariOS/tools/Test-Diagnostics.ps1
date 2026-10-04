@@ -145,11 +145,28 @@ try {
     Assert "the stage number survived the clear"           ([int]$cleared.CurrentStage -eq 1)
 
     # ── 8. No new status constant, and validation is unchanged ────────────────
-    Write-Host "No new status value was introduced"
+    # The intent of this section is to catch an UNINTENDED status value creeping
+    # in. "installing" is now an intended one: Progress.ps1:101 has always
+    # written it, Cancel.ps1:55 gates on it, and it was missing from both lists
+    # in State.ps1 (fix(01) commit 7e0d1a7). So the two assertions below pin the
+    # vocabulary that is actually intended, not the Phase 1 vocabulary.
+    #
+    # A byte-identical pin would be wrong now: it would fail on the very change
+    # that makes progress persist at all. What must stay pinned is that no status
+    # OUTSIDE the intended set appears - that is the property worth guarding.
+    Write-Host "No unintended status value was introduced"
     $stateSrc = Get-Content -LiteralPath (Join-Path $Root "functions\private\State.ps1") -Raw
     $diagSrc  = Get-Content -LiteralPath (Join-Path $Root "functions\public\Diagnostics.ps1") -Raw
-    $validate = [regex]::Match($stateSrc, '\[ValidateSet\("pending", "running", "completed", "error"\)\]')
-    Assert "the ValidateSet is byte-identical to Phase 1's" ($validate.Success)
+    $intended = @("pending", "running", "installing", "completed", "error")
+    $validate = [regex]::Match($stateSrc, '\[ValidateSet\(([^)]*)\)\]\[string\]\$Status')
+    Assert "found the -Status ValidateSet" ($validate.Success)
+    $vsValues = @()
+    if ($validate.Success) {
+        $vsValues = @([regex]::Matches($validate.Groups[1].Value, '"([^"]+)"') | ForEach-Object { $_.Groups[1].Value })
+    }
+    Assert "ValidateSet holds exactly the intended statuses" (
+        (@($vsValues | Where-Object { $intended -notcontains $_ }).Count -eq 0) -and ($vsValues.Count -eq $intended.Count)
+    ) ("ValidateSet: " + ($vsValues -join ", "))
     $literals = @([regex]::Matches($diagSrc, '(?m)Status\s*=\s*"([a-z]+)"') |
                   ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
     Assert "Diagnostics.ps1 only ever writes 'pending' or 'error'" (
@@ -166,7 +183,23 @@ try {
     $testSrc = [regex]::Match($stateSrc, '(?s)function Test-AkariOSState \{.*?\n\}').Value
     Assert "still requires the five known properties" ($testSrc -match 'SchemaVersion", "CurrentStage", "Status", "Progress", "CurrentAction')
     Assert "still rejects an out-of-range stage"       ($testSrc -match '\$State\.CurrentStage -lt 0 -or \$State\.CurrentStage -gt 3')
-    Assert "still rejects an unknown status"           ($testSrc -match '-notin @\("pending", "running", "completed", "error"\)')
+    # Still rejects an unknown status, and still accepts every intended one.
+    # Pinning the literal Phase 1 list here would contradict the fix: it would
+    # demand that the validator reject "installing", which is precisely what made
+    # Get-AkariOSState treat a freshly written state file as corrupt and overwrite
+    # it. The property to protect is "nothing outside the intended set is
+    # accepted", asserted below against the same list the ValidateSet uses.
+    $validatorList = [regex]::Match($testSrc, '\$State\.Status\s+-notin\s+@\(([^)]*)\)')
+    Assert "still rejects an unknown status" ($validatorList.Success)
+    $readValues = @()
+    if ($validatorList.Success) {
+        $readValues = @([regex]::Matches($validatorList.Groups[1].Value, '"([^"]+)"') | ForEach-Object { $_.Groups[1].Value })
+    }
+    Assert "validator accepts exactly the intended statuses" (
+        (@($readValues | Where-Object { $intended -notcontains $_ }).Count -eq 0) -and ($readValues.Count -eq $intended.Count)
+    ) ("Validator: " + ($readValues -join ", "))
+    Assert "an unknown status is genuinely rejected" (-not (Test-AkariOSState (New-AkariOSState -CurrentStage 1 -Status "bogus")))
+    Assert "'installing' is genuinely accepted"        (Test-AkariOSState (New-AkariOSState -CurrentStage 1 -Status "installing"))
     Assert "a state carrying LastError still validates"  (Test-AkariOSState $f2State)
     Assert "and its LastError is untouched by validation" ((Get-AkariOSStageFailure -StatePath $statePath -LogPath $logPath).Stage -eq 1)
     Assert "an invalid state is still rejected"        (-not (Test-AkariOSState ([pscustomobject]@{ CurrentStage = 9 })))

@@ -58,7 +58,17 @@ function Test-AkariOSState {
         if ($State.CurrentStage -lt 0 -or $State.CurrentStage -gt 3)  { return $false }
         if (-not ($State.Progress -is [int] -or $State.Progress -is [long])) { return $false }
         if ($State.Progress -lt 0 -or $State.Progress -gt 100)       { return $false }
-        if ([string]$State.Status -notin @("pending", "running", "completed", "error")) { return $false }
+        # "installing" belongs here for the same reason it belongs in
+        # Set-AkariOSState's ValidateSet. This list is the OTHER half of the bug:
+        # while it omitted "installing", Test-AkariOSState rejected every state
+        # file the progress layer had just written, so Get-AkariOSState treated
+        # the file as CORRUPT and silently overwrote it with defaults on the next
+        # read. The write was not merely rejected - it was undone.
+        #
+        # Any status accepted by Set-AkariOSState MUST be accepted here, or the
+        # write succeeds and the read discards it. The three lists are pinned
+        # together by tools/Test-InstallingStatus.ps1.
+        if ([string]$State.Status -notin @("pending", "running", "installing", "completed", "error")) { return $false }
         return $true
     }
 }
@@ -108,7 +118,20 @@ function Set-AkariOSState {
         [string]$Path = $script:AkariOSStateDefaultPath,
         [Parameter(ParameterSetName = "Object")][psobject]$State,
         [Parameter(ParameterSetName = "Fields")][int]$CurrentStage,
-        [Parameter(ParameterSetName = "Fields")][ValidateSet("pending", "running", "completed", "error")][string]$Status,
+                # "installing" was missing from this ValidateSet while Progress.ps1:101
+                # wrote it, so EVERY progress update threw into its own catch and
+                # within-stage position was never persisted - install.log carried a
+                # "Could not persist progress" WARN on every single update.
+                #
+                # It is added here rather than removed from the caller because it is
+                # load-bearing: Cancel.ps1:55 gates the cancel button on
+                # `$State.Status -ne "installing"`, so "installing" is the intended
+                # status of an in-flight Stage 1 and cancel never armed without it.
+                # Changing Progress.ps1 to write "running" would have fixed the log
+                # noise and silently disabled cancel for the whole install.
+                # tools/Test-InstallingStatus.ps1 pins the write/read agreement and
+                # fails if a future caller writes a status this set does not accept.
+                [Parameter(ParameterSetName = "Fields")][ValidateSet("pending", "running", "installing", "completed", "error")][string]$Status,
         [Parameter(ParameterSetName = "Fields")][ValidateRange(0, 100)][int]$Progress,
         [Parameter(ParameterSetName = "Fields")][string]$CurrentAction,
         [Parameter(ParameterSetName = "Fields")][bool]$RebootPending
