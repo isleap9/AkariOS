@@ -353,6 +353,13 @@ function Invoke-AkariOSStage {
         },
         [scriptblock]$RunOnceWriter,
         [scriptblock]$BcdWriter,
+        # Added by the relaunch work (D-13). Declared WITHOUT a default, exactly
+        # like -RunOnceWriter/-BcdWriter: Relaunch.ps1's own functions carry the
+        # null-invoker fallback, so a $null here is safe there and a real
+        # default here would put Start-Process on schtasks.exe in a file whose
+        # harness asserts "every Start-Process launches powershell.exe".
+        [scriptblock]$TaskWriter,
+        [scriptblock]$FileCopier,
         [string]$StatePath,
         [string]$LogPath,
         [scriptblock]$OnComplete
@@ -400,6 +407,36 @@ function Invoke-AkariOSStage {
     elseif ($Stage -eq 2) {
         # Clear safeboot FIRST or the machine boots into Safe Mode again (loop).
         Clear-BcdSafebootValue -BcdWriter $BcdWriter
+    }
+    elseif ($Stage -eq 3) {
+        # Post-install relaunch hand-off (D-13/D-14/D-15).
+        #
+        # WHY HERE AND NOT IN THE INSTALL BUTTON: creating the task in
+        # Invoke-BtnInstall would leave a live relaunch task on every machine
+        # where the user cancelled after the gate. Here it exists only on a
+        # machine that genuinely reached Stage 3.
+        #
+        # ORDER IS LOAD-BEARING: the script is staged FIRST and the task created
+        # SECOND, so the task never exists pointing at a file that is not there.
+        # Both steps happen BEFORE the engine child is launched below.
+        #
+        # schtasks is unreachable from this file - it lives only inside
+        # Relaunch.ps1's -TaskWriter default, and both calls go through the
+        # injectable seams below so a test can drive this branch with nothing
+        # executing. The Get-Command guard keeps Stage 3 runnable against a build
+        # where Relaunch.ps1 failed to dot-source.
+        if (Get-Command Copy-AkariOSRelaunchScript -ErrorAction SilentlyContinue) {
+            $stagedScript = Copy-AkariOSRelaunchScript -FileCopier $FileCopier
+            if (-not $stagedScript) {
+                Write-AkariOSLog -Level WARN -Message "Relaunch script could not be staged, so no relaunch task was created. Stage 3 continues."
+            } elseif (Get-Command Set-AkariOSRelaunchTask -ErrorAction SilentlyContinue) {
+                Set-AkariOSRelaunchTask -ScriptPath $stagedScript -TaskWriter $TaskWriter | Out-Null
+            } else {
+                Write-AkariOSLog -Level WARN -Message "Set-AkariOSRelaunchTask is unavailable, so no relaunch task was created. Stage 3 continues."
+            }
+        } else {
+            Write-AkariOSLog -Level WARN -Message "Relaunch functions are unavailable, so no relaunch task was created. Stage 3 continues."
+        }
     }
 
     if ($StatePath) { Set-AkariOSState -Path $StatePath -CurrentStage $Stage -Status "running" }
@@ -452,6 +489,12 @@ function Invoke-AkariOSStage {
         StatePath     = $StatePath
         AssetInvoker  = $AssetInvoker
         AssetMap      = $map
+        # Relaunch seams ride the same hand-off. They are published even though
+        # the worker does not read them today: the value of $sync is that it is
+        # the ONE channel that provably works across the runspace boundary, and
+        # a seam reachable only through a closure is the Phase 2 bug.
+        TaskWriter    = $TaskWriter
+        FileCopier    = $FileCopier
     }
 
     $supervisorArgs = @{
