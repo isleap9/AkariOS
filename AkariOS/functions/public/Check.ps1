@@ -157,8 +157,13 @@ function Test-DiskSpace {
     $name = "Free disk space"
     try {
         $root = if ($Drive) { $Drive } else { $env:SystemDrive + "\" }
-        $psd = Get-PSDrive -Name $root.TrimEnd('\', ':') -ErrorAction Stop
-        $freeGB = [math]::Round($ps.Free / 1GB, 1)
+        $psd = Get-PSDrive -Name $root.TrimEnd('\', ':') -PSProvider FileSystem -ErrorAction Stop
+        # NOTE: this must read $psd.Free, NOT $ps.Free. A typo here shipped as
+        # "Only 0 GB free on C:" on a machine with 240 GB free: $ps was undefined,
+        # $ps.Free was null, and null/1GB rounds to 0.0, which tripped the
+        # blocking Fail branch and left the Install button permanently disabled.
+        # tools/Test-Check.ps1 pins the $psd/$ps pairing so it cannot come back.
+        $freeGB = [math]::Round($psd.Free / 1GB, 1)
 
         if ($freeGB -lt $MinimumGB) {
             return New-CheckResult -Name $name -Status "Fail" -Message `

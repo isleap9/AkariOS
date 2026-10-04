@@ -26,6 +26,63 @@ foreach ($fn in @("Test-WindowsVersion","Test-AdminElevation","Test-InternetConn
     Assert "$fn defined" ([bool](Get-Command $fn -ErrorAction SilentlyContinue))
 }
 
+# --- Test-DiskSpace: the REAL function, against the REAL filesystem ---
+# This is a behavioural test, not a stub. It shipped a bug where line 161 read
+# `$ps.Free` while line 160 assigned `$psd`: $ps was undefined, $ps.Free was
+# null, null/1GB rounded to 0.0, and the blocking Fail branch fired with
+# "Only 0 GB free on C:" on a machine with 240 GB free — which left the Install
+# button permanently disabled. Nothing caught it because every assertion above
+# only exercised STUBS and the check's own display string, never the number the
+# function actually computes. Reading Get-PSDrive is read-only and touches no
+# network, registry or WPF, so it is safe to run here.
+Write-Host "Test-DiskSpace reports the real drive (regression: \$psd/\$ps typo)"
+$ds = Test-DiskSpace
+Assert "disk check returns a result"     ($null -ne $ds)
+Assert "status is a valid value"         ($ds.Status -in @("Pass","Fail","Warning"))
+Assert "message is not empty"            ($ds.Message.Length -gt 0)
+
+# Whatever the machine's real free space is, the reported number must be
+# consistent with it. Deriving the truth independently from .NET is the point:
+# it catches a silently-nulled value that no stub could ever surface.
+#
+# The parse must accept BOTH decimal separators. [math]::Round renders under the
+# current culture, and on a comma-decimal locale the message reads "240,3 GB
+# free", so a [0-9.]-only pattern silently captures "3" instead of 240.3 and
+# reports a false failure. That is not hypothetical - it is what this file did
+# on first run.
+$systemDriveName = $env:SystemDrive.TrimEnd('\',':')
+$actualFreeGB    = [math]::Round((Get-PSDrive -Name $systemDriveName -PSProvider FileSystem).Free / 1GB, 1)
+$dsMessage       = [string]$ds.Message
+
+# The separator must be inferred from the MESSAGE, not from the expected value.
+# The message is produced by the check under the machine's own culture, so a
+# comma-decimal box renders "240,3 GB free" while an invariant-formatted expected
+# value renders "240.3". Deriving the separator from the expected side therefore
+# picks the wrong one and captures "3" instead of 240.3 - which is exactly the
+# false failure this comment replaces.
+$sep = if ($dsMessage -match '\d+,\d+\s*GB free') { ',' }
+      elseif ($dsMessage -match '\d+\.\d+\s*GB free') { '\.' }
+      else { '\.' }
+
+$reportedGB = if ($dsMessage -match "([0-9]+$sep[0-9]+|[0-9]+)\s*GB free") {
+    # Parse using the SAME culture the message was formatted with, so the value
+    # round-trips. Comparing magnitudes makes the assertion culture-agnostic.
+    [double]::Parse($Matches[1], [System.Globalization.CultureInfo]::CurrentCulture)
+} else { $null }
+
+Assert "message contains a parseable GB figure" ($null -ne $reportedGB) `
+    "Unparseable message: '$($ds.Message)' - a null Free renders as 0 and this test must see it"
+Assert "reported GB matches the real filesystem" ($null -ne $reportedGB -and [math]::Abs($reportedGB - $actualFreeGB) -lt 0.2) `
+    "Reported '$reportedGB' GB vs actual '$actualFreeGB' GB on $systemDriveName"
+Assert "does not report 0 GB on a non-empty volume" ($reportedGB -gt 0) `
+    "0 GB on a real volume is the exact signature of the nulled-\$ps bug"
+
+# The typo shape itself, so a rename to $ps can never silently return.
+$checkSrc = Get-Content -LiteralPath (Join-Path $Root "functions\public\Check.ps1") -Raw
+Assert "assigns to \$psd"                 ($checkSrc -match '\$psd\s*=\s*Get-PSDrive')
+Assert "reads \$psd.Free (not \$ps.Free)" ($checkSrc -match '\$psd\.Free\s*/\s*1GB')
+Assert "Get-PSDrive is provider-filtered" ($checkSrc -match 'Get-PSDrive[^\r\n]*-PSProvider FileSystem')
+
 # --- Aggregation with stubs ---
 function Stub-Pass    { New-CheckResult -Name "Stub pass"    -Status "Pass"    -Message "ok" }
 function Stub-Fail    { New-CheckResult -Name "Stub fail"    -Status "Fail"    -Message "broken" }
