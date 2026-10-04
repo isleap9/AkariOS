@@ -1,4 +1,4 @@
-# ── AkariOS Setup — UI wiring ────────────────────────────────────────────────
+﻿# ── AkariOS Setup — UI wiring ────────────────────────────────────────────────
 # Last block of the compiled akarios.ps1. Consumes everything defined above it:
 # start.ps1 ($sync, DwmApi), the function files, the embedded $inputXML, and the
 # base64 $sync.assets.

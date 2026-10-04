@@ -1,4 +1,4 @@
-# ── AkariOS Setup — startup / initialization ────────────────────────────────
+﻿# ── AkariOS Setup — startup / initialization ────────────────────────────────
 # Ported from AkariTool/scripts/start.ps1. This file is the FIRST block of the
 # compiled akarios.ps1: it must establish elevation, process identity, the WPF
 # assemblies and the shared $sync state before anything else runs.

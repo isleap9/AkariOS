@@ -1,4 +1,4 @@
-# Static XAML validation. Parses the assembled UI with XamlReader in-process and
+﻿# Static XAML validation. Parses the assembled UI with XamlReader in-process and
 # never creates or shows a window (Parse only builds the logical tree).
 param([string]$Root = "C:/Users/isleap/Documents/GitHub/AkariOS/AkariOS")
 

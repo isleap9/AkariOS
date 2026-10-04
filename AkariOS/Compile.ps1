@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Builds AkariOS/akarios.ps1 - the single self-contained AkariOS installer script.
 

@@ -1,4 +1,4 @@
-# Static harness for the state functions. Dot-sources State.ps1 and exercises it
+﻿# Static harness for the state functions. Dot-sources State.ps1 and exercises it
 # against a SCRATCH directory — never %ProgramData%\AkariOS, never the registry.
 # Safe to run on a live machine: no UI, no elevation, no boot config touched.
 param([string]$Root = "C:/Users/isleap/Documents/GitHub/AkariOS/AkariOS")

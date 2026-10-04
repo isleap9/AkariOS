@@ -1,4 +1,4 @@
-# ── AkariOS state persistence ───────────────────────────────────────────────
+﻿# ── AkariOS state persistence ───────────────────────────────────────────────
 # state.json holds FINE-GRAINED within-stage progress (PROG-01: "Step N of 3" plus
 # the current action text). Cross-reboot stage tracking does NOT live here — that
 # is the RunOnce registry entries + the bcdedit safeboot flag (see Resume.ps1).
