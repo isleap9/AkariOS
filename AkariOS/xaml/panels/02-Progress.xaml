@@ -32,6 +32,20 @@
             </StackPanel>
         </Border>
 
+        <!-- Stage roadmap (SAFE-03). Headline text is set from Get-StageExplanation
+             so the copy matches the home panel and the UI-SPEC wording exactly. -->
+        <Border Style="{StaticResource Card}" Padding="20,18">
+            <StackPanel>
+                <TextBlock Text="WHAT EACH STAGE DOES" Style="{StaticResource CardGroupHeader}"/>
+                <TextBlock Name="Stage1Headline" Style="{StaticResource CardDesc}" Margin="0,8,0,0"
+                           TextWrapping="Wrap" Text="Stage 1: Downloads required payloads, configures boot settings, and reboots into Safe Mode."/>
+                <TextBlock Name="Stage2Headline" Style="{StaticResource CardDesc}" Margin="0,8,0,0"
+                           TextWrapping="Wrap" Text="Stage 2: Runs in Safe Mode as TrustedInstaller. Disables Defender, modifies system protections, and reboots."/>
+                <TextBlock Name="Stage3Headline" Style="{StaticResource CardDesc}" Margin="0,10,0,0"
+                           TextWrapping="Wrap" Text="Stage 3: Removes bloatware, applies performance tweaks, sets AkariOS branding, and reboots to complete."/>
+            </StackPanel>
+        </Border>
+
         <Border Style="{StaticResource CardDanger}">
             <StackPanel>
                 <TextBlock Text="CANCELLING" Style="{StaticResource CardGroupHeader}" Foreground="#FF6B6B"/>
