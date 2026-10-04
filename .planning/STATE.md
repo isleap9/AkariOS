@@ -42,9 +42,9 @@ restore point, log export, and AkariOS branding.
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
-| 1 | Foundation — Shell + State Machine | Complete (PROG-03 partial) | PREF-01..03, SAFE-02..04, PROG-01..02, DIAG-01 |
-| 2 | Core Engine — Stage Integration | Complete (static verification only; VM validation owed to Phase 4) | FLOW-01..03, DIAG-02 |
-| 3 | Hardening — Destructive Stage Hardening + Branding + Diagnostics | Not started | SAFE-01, BRND-01, DIAG-03..04 |
+| 1 | Foundation — Shell + State Machine | Complete | PREF-01..03, SAFE-02..04, PROG-01..02, DIAG-01 |
+| 2 | Core Engine — Stage Integration | **Complete — VM-validated** | FLOW-01..03, DIAG-02 |
+| 3 | Hardening — Hardening + Branding + Diagnostics | **In progress** (Wave 1 task 2 of 4) | SAFE-01, BRND-01, DIAG-03..04 |
 | 4 | Testing — VM-Based Validation | Not started | (validation only) |
 | 5 | Distribution — Security + Packaging | Not started | (packaging only) |
 
