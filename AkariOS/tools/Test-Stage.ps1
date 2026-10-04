@@ -156,6 +156,16 @@ if (Test-Path -LiteralPath $compiled) {
     }
     $installDefs = @([regex]::Matches($c, '(?m)^function Start-AkariOSInstall\b'))
     Assert "Start-AkariOSInstall defined once" ($installDefs.Count -eq 1)
+
+    # Concatenation must produce a VALID single file every time it runs, so the
+    # parse check lives here and re-runs on every future compile rather than
+    # being a one-time manual check.
+    $tokens = $null; $parseErrors = $null
+    $null = [System.Management.Automation.Language.Parser]::ParseFile($compiled, [ref]$tokens, [ref]$parseErrors)
+    Assert "compiled akarios.ps1 parses with zero errors" ($parseErrors.Count -eq 0)
+    if ($parseErrors.Count -gt 0) {
+        $parseErrors | Select-Object -First 5 | ForEach-Object { Write-Host ("        " + $_.Message) }
+    }
 } else {
     Assert "compiled akarios.ps1 exists (run Compile.ps1 first)" $false
 }
