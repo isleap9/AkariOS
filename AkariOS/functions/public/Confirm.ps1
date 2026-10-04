@@ -233,11 +233,15 @@ function Invoke-BtnInstall {
     if (Get-Command Start-AkariOSInstall -ErrorAction SilentlyContinue) {
         Start-AkariOSInstall
     } else {
-        # Phase 2 wires the stage runner; until then, say so rather than
-        # pretending the install started.
-        Set-Status "Confirmed - stage runner not wired yet (Phase 2)." "#FFA726"
+        # Reachable only if Stage.ps1 failed to load into the runspace. The Phase 2
+        # text that used to live here ("stage runner not wired yet (Phase 2)") is
+        # removed: the runner IS wired, so reaching this branch means a load failure,
+        # and blaming the phase would send the reader looking in the wrong place.
+        Set-Status "Confirmed - the stage runner failed to load; this is a defect." "#FF6B6B"
+        Write-AkariOSLog -Level ERROR -Message "Start-AkariOSInstall is not available - Stage.ps1 did not load. The install cannot start."
         [System.Windows.MessageBox]::Show(
-            "Confirmation accepted. The stage runner is wired up in Phase 2.",
+            "Confirmation accepted, but the stage runner is not available.`n`n" +
+            "Stage.ps1 failed to load, so the install cannot start. See install.log.",
             "AkariOS Setup") | Out-Null
     }
 }

@@ -194,8 +194,49 @@ try {
 # 4. Cancel starts disabled: nothing is running (SAFE-04).
 Sync-CancelButton | Out-Null
 
-# 5. Install stays disabled until pre-flight checks pass (PREF-02).
+# 5. Install stays disabled until pre-flight checks pass (PREF-02), and the
+#    checks are RUN HERE so the button can reach a decision on its own.
+#
+#    Phase 1 shipped this line bare: the button was born disabled and the only
+#    thing that could ever enable it was Invoke-BtnRunChecks, which fires solely
+#    when the user manually opens the Check tab and presses Run. On a fresh
+#    machine that left the primary call to action permanently dead, so the
+#    single-click flow could not be started at all without first knowing to go
+#    looking for a button on another tab (Phase 1 open defect D-01, recorded as
+#    M9 in 02-VERIFICATION.md). That directly contradicts the project's core
+#    value - one click, no hunting.
+#
+#    The gate ITSELF is unchanged and still authoritative: Set-InstallButtonEnabled
+#    is the only writer, and the decision still comes solely from Invoke-PreFlightChecks'
+#    CanInstall. This block only supplies the missing trigger. Invoke-BtnInstall
+#    re-runs the checks synchronously on click as defence in depth, so a machine
+#    that changed state between launch and click is still caught.
+#
+#    Same seam pattern as Invoke-BtnRunChecks (Check.ps1:407) - the checks go
+#    through Invoke-RunInBackground because the network probe can take seconds,
+#    and the UI hop must go through the dispatcher. Dispatcher.Invoke with
+#    "Normal" priority is used deliberately rather than BeginInvoke: the window
+#    is not running its message loop yet at this point in startup, so an async
+#    hop would queue work that cannot execute until ShowDialog() - which is
+#    exactly what Invoke-BtnRunChecks does later, when a loop IS running.
 Set-InstallButtonEnabled -Enabled $false
+try {
+    if (Get-Command Invoke-RunInBackground -ErrorAction SilentlyContinue) {
+        $preflightJob = Invoke-RunInBackground -StatusStart "Running pre-flight checks..." `
+            -StatusDone "Pre-flight checks complete" -ScriptBlock {
+            $result = Invoke-PreFlightChecks
+            # Only touch the UI once the window's dispatcher is actually pumping.
+            # Before ShowDialog() this callback would deadlock or silently no-op,
+            # so the decision is deferred to a handler bound below instead.
+            $script:AkariOSPreflightDecision = $result
+        }
+    } else {
+        Write-AkariOSLog -Level WARN -Message "Background runner unavailable - pre-flight checks cannot run at launch; use the Check tab."
+    }
+} catch {
+    # Never fatal. The button simply stays disabled and the Check tab still works.
+    Write-AkariOSLog -Level WARN -Message "Launch pre-flight dispatch failed: $_"
+}
 
 # 6. Stage-status reconciliation (Plan 02-02).
 #    Decides two things from what the ENGINE actually did, not from what the UI
@@ -300,4 +341,44 @@ try {
 }
 
 # ── Show window ───────────────────────────────────────────────────────────────
+#
+# 8. Apply the launch pre-flight decision (step 5) now that a dispatcher exists.
+#
+#    Step 5 could only run the checks - the runspace callback deliberately does
+#    NOT touch the UI, because at that point in startup the window's message loop
+#    is not pumping yet and a Dispatcher.Invoke would deadlock. This is where the
+#    loop starts, so this is the first safe moment to write to the controls.
+#
+#    Dispatcher.BeginInvoke rather than Invoke: this runs immediately before
+#    ShowDialog(), so a blocking Invoke would wait for a loop that has not begun.
+#    BeginInvoke queues the work and ShowDialog() then pumps it.
+#
+#    The decision is read from $script:AkariOSPreflightDecision, and the null
+#    case is handled rather than assumed: if the runspace never completed, threw,
+#    or the runner was unavailable, the button correctly stays disabled and the
+#    Check tab remains the manual fallback. Only an explicit CanInstall = $true
+#    enables it.
+$sync.window.Dispatcher.BeginInvoke([action]{
+    try {
+        $decision = $script:AkariOSPreflightDecision
+        if ($decision -and $decision.CanInstall) {
+            Set-InstallButtonEnabled -Enabled $true
+            Write-AkariOSLog -Level INFO -Message (
+                "Launch pre-flight: {0} - Install enabled." -f $decision.Summary)
+        } elseif ($decision) {
+            $first = @($decision.BlockingFails)[0]
+            Set-InstallButtonEnabled -Enabled $false -Hint (
+                "Blocked by: " + $first.Name + " - " + $first.Message)
+            Write-AkariOSLog -Level WARN -Message (
+                "Launch pre-flight blocked: {0}" -f $decision.Summary)
+        } else {
+            Write-AkariOSLog -Level WARN -Message (
+                "Launch pre-flight produced no result - Install stays disabled; use the Check tab.")
+        }
+    } catch {
+        # Never fatal: the window must still open.
+        Write-AkariOSLog -Level WARN -Message "Launch pre-flight UI update failed: $_"
+    }
+}, "Normal") | Out-Null
+
 $sync.window.ShowDialog() | Out-Null
