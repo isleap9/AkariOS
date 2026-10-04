@@ -1,2 +1,12 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# D-06 engine fidelity: these four files must stay byte-identical to the upstream
+# WinSux sources on every checkout, including on the VM where the install runs.
+# Under `* text=auto` plus core.autocrlf=true a fresh clone would rewrite LF to
+# CRLF, changing the MD5 the fidelity gate compares and changing the base64 that
+# Compile.ps1 embeds. `-text` disables all EOL conversion for them.
+AkariOS/assets/text/winsux.ps1  -text
+AkariOS/assets/text/stepone.ps1 -text
+AkariOS/assets/text/steptwo.ps1 -text
+AkariOS/assets/text/reg.reg     -text
