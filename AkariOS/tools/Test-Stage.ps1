@@ -157,6 +157,23 @@ if (Test-Path -LiteralPath $compiled) {
     $installDefs = @([regex]::Matches($c, '(?m)^function Start-AkariOSInstall\b'))
     Assert "Start-AkariOSInstall defined once" ($installDefs.Count -eq 1)
 
+    # Plan 02-02 task 3: the stage buttons must survive compilation INTO the XAML
+    # here-string. A button that is only in the source panel would parse and pass
+    # every source-level assertion while being absent from the shipped app, so
+    # this is asserted on the compiled artefact rather than on the panel file.
+    # Compile.ps1:86 emits `$inputXML = @'` ... `'@`, a SINGLE-quoted here-string.
+    $hereStrings = @([regex]::Matches($c, "(?s)@'\r?\n(.*?)\r?\n'@"))
+    $xamlBody = ""
+    foreach ($m in $hereStrings) {
+        $body = $m.Groups[1].Value
+        if ($body -like '*PanelProgress*') { $xamlBody = $body }
+    }
+    Assert 'the compiled $inputXML here-string carries PanelProgress' ($xamlBody -ne "")
+    foreach ($b in @("BtnStage1","BtnStage2","BtnStage3","StageHandoffHint")) {
+        Assert ("compiled XAML declares $b") ($xamlBody -like ('*Name="' + $b + '"*'))
+        Assert ("compiled XAML has no x:Name for $b") ($xamlBody -notlike ('*x:Name="' + $b + '"*'))
+    }
+
     # Concatenation must produce a VALID single file every time it runs, so the
     # parse check lives here and re-runs on every future compile rather than
     # being a one-time manual check.
@@ -169,6 +186,37 @@ if (Test-Path -LiteralPath $compiled) {
 } else {
     Assert "compiled akarios.ps1 exists (run Compile.ps1 first)" $false
 }
+
+Write-Host "Plan 02-02 task 3: Phase 1's resume switch is untouched"
+$mainRaw = Get-Content -LiteralPath (Join-Path $Root "scripts\main.ps1") -Raw
+Assert "StateInconsistent still handled"      ($mainRaw -like '*StateInconsistent*')
+Assert 'the "inconsistent" case still exists' ($mainRaw -like '*"inconsistent"*')
+Assert 'the "fresh" case still exists'        ($mainRaw -like '*"fresh"*')
+Assert 'the -in form still covers stage1/2/3' ($mainRaw -match '\$_\s+-in\s+@\("stage1","stage2","stage3"\)')
+
+# No "error" case may be added: a new ResumePoint value would change Phase 1's
+# verified D-03/D-05 behaviour (RESEARCH §7 Decision 3).
+$errorCases = @([regex]::Matches($mainRaw, '(?m)^\s*"error"\s*'))
+Assert "no error case in the resume switch" ($errorCases.Count -eq 0)
+Assert "no new ResumePoint value introduced" ($mainRaw -notmatch 'ResumePoint\s*=\s*"error"')
+
+Write-Host "Plan 02-02 task 3: the launch-time reconciliation exists and is guarded"
+Assert "a missing engine asset is named in the banner" ($mainRaw -like '*Missing engine assets*')
+Assert "all four engine assets are checked" (($mainRaw -like '*winsux*') -and ($mainRaw -like '*steptwo*') -and ($mainRaw -like '*reg*'))
+Assert "the banner is still wrapped in try/catch"     ($mainRaw -match 'Initialize-AkariOSLog -Banner')
+Assert "the reconciliation is numbered step 6"        ($mainRaw -match '# 6\. Stage-status reconciliation')
+Assert "reconciliation cannot block ShowDialog"       ($mainRaw -match 'Stage-status reconciliation failed')
+
+# The reconciliation must NOT decide display state from state.json: T-02-15.
+$reconBlock = ''
+$rs = $mainRaw.IndexOf('# 6. Stage-status reconciliation')
+if ($rs -ge 0) { $reconBlock = $mainRaw.Substring($rs) }
+Assert "reconciliation reads Get-ResumePoint's value, not state.json" (
+    ($reconBlock -like '*$resume.ResumePoint*') -and
+    (-not ($reconBlock -match 'Get-AkariOSState')))
+Assert "state.json is used only as corroboration in the log line" (
+    ($reconBlock -like '*$resume.StateStage*') -and
+    (-not ($reconBlock -match '\$sync\["ProgressStep"\]\s*\.')))
 
 if ($fail -eq 0) { Write-Host "`nALL STAGE TESTS PASSED"; exit 0 }
 else { Write-Host "`n$fail STAGE TEST(S) FAILED"; exit 1 }

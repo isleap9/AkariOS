@@ -116,13 +116,23 @@ $sync.Keys | Where-Object { $_ -like "Btn*" } | ForEach-Object {
 # ── Launch-time integration ───────────────────────────────────────────────────
 
 # 1. Log first, so anything that fails afterwards is recorded.
+#    The missing-asset line is the cheapest guard against RESEARCH Finding 6 (a
+#    .reg or .ps1 that Compile.ps1 silently skipped): it lands in install.log,
+#    which is the only thing readable off a VM when a stage fails for no visible
+#    reason.
 try {
     $assetNames = @()
     if ($sync.assets) { $assetNames = @($sync.assets.Keys) }
+    $requiredAssets = @("winsux", "stepone", "steptwo", "reg")
+    $missingAssets = @($requiredAssets | Where-Object { $assetNames -notcontains $_ })
     Initialize-AkariOSLog -Banner @(
         ("State file: " + $script:AkariOSStateDefaultPath),
-        ("Assets embedded: " + ($assetNames -join ", "))
+        ("Assets embedded: " + ($assetNames -join ", ")),
+        ("Missing engine assets: " + $(if ($missingAssets.Count) { $missingAssets -join ", " } else { "none" }))
     )
+    if ($missingAssets.Count) {
+        Write-AkariOSLog -Level ERROR -Message ("Missing engine assets: " + ($missingAssets -join ", "))
+    }
 } catch {
     # Logging must never block startup.
 }
@@ -186,6 +196,68 @@ Sync-CancelButton | Out-Null
 
 # 5. Install stays disabled until pre-flight checks pass (PREF-02).
 Set-InstallButtonEnabled -Enabled $false
+
+# 6. Stage-status reconciliation (Plan 02-02).
+#    Decides two things from what the ENGINE actually did, not from what the UI
+#    last drew:
+#      - whether the Safe Mode handoff copy has to be visible, and
+#      - whether the per-stage run buttons are live.
+#
+#    It runs its own try/catch for the same reason step 3 does: a throw between
+#    here and ShowDialog() would leave the user with no window at all and no
+#    explanation.
+#
+#    Source of truth is Get-ResumePoint (bcdedit + RunOnce), per D-01. It is
+#    deliberately NOT state.json: Progress.ps1:101 writes -Status "installing",
+#    which is not in the ValidateSet at State.ps1:111, so that call throws into
+#    its own catch and within-stage progress is never persisted. Fixing that is
+#    out of Phase 2's scope, and reading state.json here would show a stage the
+#    machine is not actually in. $resume.StateStage is logged as corroboration
+#    only, and never decides what the UI claims (T-02-15).
+#
+#    The resume switch at step 3 is NOT modified and no "error" case is added to
+#    it (RESEARCH §7 Decision 3): Phase 1's verified D-03/D-05 behaviour must stay
+#    byte-identical. Everything below works off the value step 3 already computed,
+#    which is why a failed resume detection simply leaves the buttons disabled.
+try {
+    if ($resume -and $resume.ResumePoint -and $resume.ResumePoint -in @("stage1", "stage2", "stage3")) {
+        $pendingStage = switch ($resume.ResumePoint) { "stage1" {1} "stage2" {2} "stage3" {3} }
+
+        # A machine that came back into NORMAL boot with stage2 pending is the
+        # recoverable case the hint text describes (safeboot cleared by
+        # stepone.ps1:148, no reboot performed because DDU never launched). The
+        # user needs the Stage 2 explanation on screen, so show it here too and
+        # not only when Stage 2 is launched by hand.
+        if ($resume.ResumePoint -eq "stage2") {
+            if (Get-Command Show-StageHandoffHint -ErrorAction SilentlyContinue) {
+                Show-StageHandoffHint -Visible -ProbePending
+            } elseif ($sync.StageHandoffHint) {
+                $sync.StageHandoffHint.Visibility = [System.Windows.Visibility]::Visible
+            }
+        }
+
+        # Per-stage buttons are a testing affordance (T-02-18): they are live only
+        # when there is a real pending stage to act on. On "fresh" they stay
+        # disabled exactly as 02-Progress.xaml declares them.
+        foreach ($n in 1..3) {
+            $btn = $sync["BtnStage{0}" -f $n]
+            if ($btn) { $btn.IsEnabled = $true }
+        }
+
+        Write-AkariOSLog -Level INFO -Message (
+            "Stage buttons enabled; pending {0} (state.json corroborates stage {1}, status '{2}')" -f
+            $pendingStage, $resume.StateStage, $resume.StateStatus)
+    } else {
+        foreach ($n in 1..3) {
+            $btn = $sync["BtnStage{0}" -f $n]
+            if ($btn) { $btn.IsEnabled = $false }
+        }
+        Write-AkariOSLog -Level INFO -Message "No pending stage detected - per-stage buttons stay disabled."
+    }
+} catch {
+    # Never fatal: a reconciliation failure must not stop the app opening.
+    Write-AkariOSLog -Level WARN -Message "Stage-status reconciliation failed: $_"
+}
 
 # ── Show window ───────────────────────────────────────────────────────────────
 $sync.window.ShowDialog() | Out-Null
