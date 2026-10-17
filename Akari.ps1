@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 param([switch]$ShowConsole, [switch]$List, [string[]]$Apply, [string[]]$Revert)
 # Akari. GUI:  powershell -ExecutionPolicy Bypass -File Akari.ps1
 # CLI:  Akari.ps1 -List  |  Akari.ps1 -Apply id,id  |  Akari.ps1 -Revert id,id   (Apply/Revert need an elevated shell)
@@ -55,10 +55,8 @@ if (-not $Root) { $Root = Split-Path -Parent $PSCommandPath }
 foreach ($c in @($Root, (Split-Path -Parent $Root), "$Root\Tweaks")) {
     if ($c -and (Test-Path "$c\UI\MainWindow.xaml") -and (Test-Path "$c\Tweaks")) { $Root = $c; break }
 }
-$LogFile = "$env:LOCALAPPDATA\Akari\akari.log"
-function Write-ErrLog([string]$m) {
-    try { New-Item (Split-Path $LogFile) -ItemType Directory -Force | Out-Null; Add-Content $LogFile ("[{0}] {1}" -f (Get-Date -Format s), $m) } catch { }
-}
+# ---- Core: helpers, loader, state and runner (the background job loads the same files)
+foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy') { . "$Root\Core\$f.ps1" }
 trap { Write-ErrLog "$($_.Exception.Message) $($_.InvocationInfo.PositionMessage)"; [void][Windows.MessageBox]::Show("Akari hit an error:`n`n$($_.Exception.Message)`n`n$($_.InvocationInfo.PositionMessage)", 'Akari'); exit }
 # remove 'downloaded from the internet' marks so Windows never nags about these files
 Get-ChildItem $Root -Filter *.ps1 -File -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
@@ -78,92 +76,15 @@ $script:SpecTimeoutSec = 30
 $script:SpecStale = [System.Collections.Generic.List[object]]::new()
 $PrioKey = 'HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl'
 
-function Add-Tweak {
-    param([string]$Id, [string]$Category, [string]$Name, [string]$Description,
-          [ValidateSet('Safe', 'Caution', 'Advanced')][string]$Risk = 'Safe',
-          [ValidateSet('Toggle', 'Action', 'Group', 'Console')][string]$Kind = 'Toggle',
-          [string]$Button = 'Run', [object[]]$Actions, [string]$Confirm, [string]$Script,
-          [scriptblock]$Apply, [scriptblock]$Revert, [scriptblock]$Detect, [scriptblock]$Check)
-    $script:Tweaks.Add([pscustomobject]@{ Id = $Id; Category = $Category; Name = $Name; Description = $Description
-            Risk = $Risk; Kind = $Kind; Button = $Button; Actions = $Actions; Confirm = $Confirm; Script = $Script
-            Apply = $Apply; Revert = $Revert; Detect = $Detect; Check = $Check })
-}
 foreach ($need in 'UI\MainWindow.xaml', 'Tweaks') {
     if (-not (Test-Path "$Root\$need")) {
         [void][Windows.MessageBox]::Show("Missing: $Root\$need`n`nAkari.ps1 needs UI, Tweaks and Assets folders next to it.", 'Akari')
         exit
     }
 }
-foreach ($f in Get-ChildItem "$Root\Tweaks" -Filter *.ps1 | Sort-Object Name) { . $f.FullName }
-
-# ---- remembers what Akari last applied (used for the state dot when a tweak has no Detect)
-$StateDir = "$env:LOCALAPPDATA\Akari"; $StatePath = "$StateDir\state.json"
-$script:State = @{}
-if (Test-Path $StatePath) {
-    try { (Get-Content $StatePath -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $script:State[$_.Name] = [bool]$_.Value } } catch { }
-}
-function Save-State {
-    New-Item $StateDir -ItemType Directory -Force | Out-Null
-    ($script:State | ConvertTo-Json) | Set-Content $StatePath
-}
-
-# ---- helpers that tweak scripts can use inside the background runspace
-$Helpers = @'
-$ProgressPreference = 'SilentlyContinue'
-function Write-Log([string]$m) { if ($m -and $m.Trim()) { [void]$LogQueue.Enqueue($m.TrimEnd()) } }
-function Write-Host {
-    param([Parameter(Position = 0, ValueFromRemainingArguments = $true)]$Object, $ForegroundColor, $BackgroundColor, [switch]$NoNewline, $Separator = ' ')
-    Write-Log (($Object | ForEach-Object { "$_" }) -join $Separator)
-}
-function Clear-Host { }
-function show-menu { }
-function Pause { }
-function Read-Host {
-    param([string]$Prompt = '')
-    if ($Prompt) { Write-Log $Prompt }
-    Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
-    $result = [Microsoft.VisualBasic.Interaction]::InputBox($Prompt, 'AkariOS-Ultimate')
-    Write-Log "> $result"
-    if ($result -eq '') { return $null }
-    return $result
-}
-function Get-FilePath {
-    param([string]$Filter = 'All Files (*.*)|*.*')
-    Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
-    $dlg = New-Object System.Windows.Forms.OpenFileDialog
-    $dlg.Filter = $Filter
-    $result = $dlg.ShowDialog()
-    if ($result -eq [System.Windows.Forms.DialogResult]::OK) { return $dlg.FileName }
-    return $null
-}
-function Get-FolderPath {
-    param([string]$Description = 'Select a folder')
-    $shell = New-Object -ComObject Shell.Application
-    $folder = $shell.BrowseForFolder(0, $Description, 0x00000040)
-    if ($folder) { return $folder.Self.Path }
-    return $null
-}
-function Set-Reg($Path, $Name, $Value, $Type = 'DWord') {
-    if (-not (Test-Path $Path)) { New-Item -Path $Path -Force | Out-Null }
-    New-ItemProperty -Path $Path -Name $Name -Value $Value -PropertyType $Type -Force | Out-Null
-}
-function Remove-Reg($Path, $Name) { Remove-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue }
-function Run-Trusted([String]$command) {
-    try { Stop-Service -Name TrustedInstaller -Force -ErrorAction Stop -WarningAction Stop }
-    catch { taskkill /im trustedinstaller.exe /f >$null }
-    $service = Get-CimInstance -ClassName Win32_Service -Filter "Name='TrustedInstaller'"
-    $DefaultBinPath = $service.PathName
-    $trustedInstallerPath = "$env:SystemRoot\servicing\TrustedInstaller.exe"
-    if ($DefaultBinPath -ne $trustedInstallerPath) { $DefaultBinPath = $trustedInstallerPath }
-    $bytes = [System.Text.Encoding]::Unicode.GetBytes($command)
-    $base64Command = [Convert]::ToBase64String($bytes)
-    sc.exe config TrustedInstaller binPath= "cmd.exe /c powershell.exe -encodedcommand $base64Command" | Out-Null
-    sc.exe start TrustedInstaller | Out-Null
-    sc.exe config TrustedInstaller binpath= "`"$DefaultBinPath`"" | Out-Null
-    try { Stop-Service -Name TrustedInstaller -Force -ErrorAction Stop -WarningAction Stop }
-    catch { taskkill /im trustedinstaller.exe /f >$null }
-}
-'@
+$loaded = Get-AkariTweaks "$Root\Tweaks"
+# legacy Add-Tweak files first (adapter), then the one-file tweaks
+foreach ($t in @(Import-AkariLegacyTweaks "$Root\Tweaks") + @($loaded.Tweaks)) { $script:Tweaks.Add($t) }
 
 $GetSpecsFunc = @'
 function Test-SmbiosValue {
@@ -462,6 +383,8 @@ $Pages = [ordered]@{
     Check      = @{ Glyph = [char]0xE9D9; Sub = 'Check your BIOS, storage, RAM and GPU, and stress test them' }
     Refresh    = @{ Glyph = [char]0xE72C; Sub = 'Reinstall or reset Windows, and get a fresh install ready' }
     Setup      = @{ Glyph = [char]0xE90F; Sub = 'First steps on a new install: activation, startup apps, updates' }
+    # temporary until the M3 sidebar: shows the one-file tweaks of the Optimize section
+    Optimize   = @{ Glyph = [char]0xEC4A; Sub = 'Performance, privacy, power and gaming' }
     Installers = @{ Glyph = [char]0xE896; Sub = 'Download and install the apps and launchers you need' }
     Graphics   = @{ Glyph = [char]0xE7F4; Sub = 'Clean and install GPU drivers, and tune NVIDIA, AMD and Intel' }
     Windows    = @{ Glyph = [char]0xE771; Sub = 'Start menu, taskbar, theme and the rest of Windows' }
@@ -528,7 +451,7 @@ function New-Row($t) {
         $main = if ($t.Apply) { "<Button Tag=`"$id|Apply`" Content=`"$(& $e $t.Button)`" Style=`"{DynamicResource Btn}`"/>" } else { '' }
         $btns = "$main<Button x:Name=`"Exp`" Tag=`"$id|Expand`" Content=`"Options`" Style=`"{DynamicResource Btn}`"/>"
     } else {
-        $defOff = if ($t.Revert) { '' } else { ' IsEnabled="False" ToolTip="No safe revert for this script"' }
+        $defOff = if ($t.Revert -or $t.Registry) { '' } else { ' IsEnabled="False" ToolTip="No safe revert for this script"' }
         $btns = "<Button x:Name=`"Opt`" Tag=`"$id|Apply`" Content=`"Optimize`" Style=`"{DynamicResource Btn}`"/><Button x:Name=`"Def`" Tag=`"$id|Revert`" Content=`"Default`" Style=`"{DynamicResource Btn}`"$defOff/>"
         if ($t.Check) { $btns += "<Button Tag=`"$id|Check`" Content=`"Check`" Style=`"{DynamicResource Btn}`"/>" }
     }
@@ -545,7 +468,7 @@ function New-Row($t) {
         }
         $sub = "<StackPanel x:Name=`"Sub`" Visibility=`"Collapsed`" Margin=`"22,12,0,0`"><Border BorderBrush=`"{DynamicResource Bd}`" BorderThickness=`"0,1,0,0`" Margin=`"0,0,0,10`"/>$sub</StackPanel>"
     }
-    $dotVis = if ($t.Kind -eq 'Toggle') { 'Visible' } else { 'Hidden' }
+    $dotVis = if ($t.Kind -in 'Toggle', 'Choice') { 'Visible' } else { 'Hidden' }
     $xaml = @"
 <Border xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Background="{DynamicResource S1}" BorderBrush="{DynamicResource Bd}" BorderThickness="1" CornerRadius="8" Padding="16,12" Margin="0,0,0,6">
@@ -568,22 +491,15 @@ function New-Row($t) {
     [Windows.Markup.XamlReader]::Parse($xaml)
 }
 
-function Get-State($t) {
-    if ($t.Detect) {
-        try { $r = & $t.Detect; if ($r -is [bool]) { return $r } } catch { }
-    }
-    if ($script:State.ContainsKey($t.Id)) { return [bool]$script:State[$t.Id] }
-    return $null
-}
-
 function Update-Row($t) {
-    if ($t.Kind -ne 'Toggle') { return }
+    if ($t.Kind -notin 'Toggle', 'Choice') { return }
     $row = $script:RowCache[$t.Id]
-    $s = Get-State $t
+    $s = Get-AkariState $t
     $dot = $row.FindName('Dot')
-    $dot.Fill = if ($s -eq $true) { $window.FindResource('Inv') } else { [Windows.Media.Brushes]::Transparent }
-    $dot.Opacity = if ($null -eq $s) { 0.35 } else { 1 }
-    $row.FindName('Opt').Style = $window.FindResource($(if ($s -eq $true) { 'BtnP' } else { 'Btn' }))
+    # filled = Optimized, empty = Default, dimmed = Custom or Unknown
+    $dot.Fill = if ($s -eq 'Optimized') { $window.FindResource('Inv') } else { [Windows.Media.Brushes]::Transparent }
+    $dot.Opacity = if ($s -in 'Optimized', 'Default') { 1 } else { 0.35 }
+    $row.FindName('Opt').Style = $window.FindResource($(if ($s -eq 'Optimized') { 'BtnP' } else { 'Btn' }))
     $row.FindName('Def').Style = $window.FindResource('Btn')
 }
 
@@ -600,7 +516,7 @@ function Show-Page {
         $Heading.Text = $script:Cat
         $HeaderSub.Text = $Pages[$script:Cat].Sub
         $HeaderIcon.Text = [string]$Pages[$script:Cat].Glyph
-        $list = @($script:Tweaks | Where-Object { $_.Category -eq $script:Cat })
+        $list = @($script:Tweaks | Where-Object { $_.Section -eq $script:Cat })
     }
     $adv = (-not $q -and $script:Cat -eq 'Advanced')
     $Tuner.Visibility = if ($adv) { 'Visible' } else { 'Collapsed' }
@@ -635,14 +551,9 @@ function Invoke-Code([string]$code, [string]$label, $meta = $null) {
     if ($script:Busy) { return }
     Set-Busy $true $label
     Add-Log $label
-    $rs = [runspacefactory]::CreateRunspace()
-    $rs.Open()
-    $rs.SessionStateProxy.SetVariable('LogQueue', $script:Queue)
-    $ps = [powershell]::Create()
-    $ps.Runspace = $rs
-    $wrapped = $Helpers + "`ntry {`n& {`n" + $code + "`n} *>&1 | Out-String -Stream | ForEach-Object { if (`$_.Trim()) { Write-Log `$_ } }`n} catch { Write-Log ('Error: ' + `$_.Exception.Message) }"
-    [void]$ps.AddScript($wrapped)
-    $script:Job = @{ Ps = $ps; Rs = $rs; Handle = $ps.BeginInvoke(); Label = $label; Meta = $meta }
+    $script:Job = Start-AkariJob $code $script:Queue "$Root\Core"
+    $script:Job.Label = $label
+    $script:Job.Meta = $meta
 }
 
 # ---- home page (spec cards)
@@ -1058,7 +969,7 @@ $timer.Add_Tick({
         foreach ($err in $j.Ps.Streams.Error) { Add-Log "Error: $($err.ToString())" }
         while ($script:Queue.TryDequeue([ref]$m)) { Add-Log $m }
         $j.Ps.Dispose(); $j.Rs.Dispose()
-        if ($j.Meta) { $script:State[$j.Meta.Id] = ($j.Meta.Kind -eq 'Apply'); Save-State }
+        if ($j.Meta) { Set-AkariRememberedState $j.Meta.Id ($j.Meta.Kind -eq 'Apply') }
         Add-Log "Done: $($j.Label)"
         $script:Job = $null
         Set-Busy $false
@@ -1083,6 +994,16 @@ $Rows.AddHandler([Windows.Controls.Primitives.ButtonBase]::ClickEvent, [Windows.
     $id, $kind, $arg = ([string]$b.Tag).Split('|')
     $t = $script:Tweaks | Where-Object { $_.Id -eq $id } | Select-Object -First 1
     if (-not $t) { return }
+    # one-file tweaks go through the Runner: the job re-imports the file (a script block must not cross runspaces)
+    if (-not $t.Legacy -and $kind -in 'Apply', 'Revert', 'Run') {
+        $mode = if ($kind -eq 'Revert') { 'Revert' } else { 'Apply' }
+        if ($mode -eq 'Apply' -and -not (Confirm-Run $t.Confirm)) { return }
+        $q = { param($s) "'" + ([string]$s -replace "'", "''") + "'" }
+        $code = "`$t = Import-AkariTweakFile -Path $(& $q $t.Source) -TweaksRoot $(& $q "$Root\Tweaks"); [void](Invoke-AkariTweak `$t $mode)"
+        $verb = if ($t.Kind -eq 'Action') { $t.Button.ToLower() } elseif ($mode -eq 'Apply') { 'optimize' } else { 'default' }
+        Invoke-Code $code "$($t.Name): $verb"
+        return
+    }
     $meta = if ($t.Kind -eq 'Toggle') { @{ Id = $id; Kind = $kind } } else { $null }
     switch ($kind) {
         'Apply'  { if ($t.Apply -and (Confirm-Run $t.Confirm)) { Invoke-Code $t.Apply.ToString() "$($t.Name): $(if ($t.Kind -eq 'Toggle') { 'optimize' } else { $t.Button.ToLower() })" $meta } }
@@ -1217,6 +1138,7 @@ Read-Svc
 # ---- go
 $window.Add_Loaded({
     ($Nav.Children | Where-Object { $_.Tag -eq $script:Cat } | Select-Object -First 1).IsChecked = $true
+    foreach ($p in $loaded.Problems) { Add-Log "$($p.Level): $($p.File): $($p.Message)" }
     Add-Log 'Ready.'
     $script:Busy = $false
 })
