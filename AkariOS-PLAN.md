@@ -384,7 +384,7 @@ Shallow clones (`git clone --depth 1`) kept next to the code so agents always ha
 
 ## 11. Migration
 
-1. **Repo:** ✅ fresh repo `isleap9/AkariOS` created, `.gitignore` with `_ref/`, reference projects cloned. Next: copy the AkariOS-Ultimate GUI and `Tweaks/` in as the starting point (the commit message credits the source repo; Ultimate's history stays in the archived repo).
+1. **Repo:** ✅ fresh repo `isleap9/AkariOS` created, `.gitignore` with `_ref/`, reference projects cloned. ✅ AkariOS-Ultimate GUI and `Tweaks/` imported as the starting point (commit `d791728` credits the source repo; Ultimate's history stays in the archived repo). ✅ Baseline checked by hand (Oct 2026): `Akari.ps1` launches and the tweaks apply.
 2. **Core:** move the engine out of `Akari.ps1` per §5.1 — `Loader`, `Registry`, `Trusted`, `Runner`, `State`, `Log`, `Presets`. Keep `Add-Tweak` working as a thin adapter during the port, so the GUI stays usable while categories move one at a time.
 3. **Port Ultimate:** the source is the 8 GENERATED files in `Tweaks/` (the numbered folders are already gone). Split each `Add-Tweak` call into its own hashtable file, one category at a time: `Windows`, then `Advanced`, `Hardware`, `Graphics`, `Setup`, `Installers`, `Check`, `Refresh`. Per tweak, clean it up as you go:
    - remove `Pause` / `Read-Host` / `Clear-Host` leftovers;
