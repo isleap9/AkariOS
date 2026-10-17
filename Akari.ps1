@@ -1,6 +1,36 @@
 #requires -Version 5.1
-param([switch]$ShowConsole)
-# Akari (Ink UI, vertical slice). Run:  powershell -ExecutionPolicy Bypass -File Akari.ps1
+param([switch]$ShowConsole, [switch]$List, [string[]]$Apply, [string[]]$Revert)
+# Akari. GUI:  powershell -ExecutionPolicy Bypass -File Akari.ps1
+# CLI:  Akari.ps1 -List  |  Akari.ps1 -Apply id,id  |  Akari.ps1 -Revert id,id   (Apply/Revert need an elevated shell)
+
+# ---- CLI: no relaunch, no WPF
+if ($List -or $Apply -or $Revert) {
+    $CoreDir = Join-Path $PSScriptRoot 'Core'
+    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner') { . "$CoreDir\$f.ps1" }
+    $loaded = Get-AkariTweaks (Join-Path $PSScriptRoot 'Tweaks')
+    foreach ($p in $loaded.Problems) { [Console]::Error.WriteLine("$($p.Level): $($p.File): $($p.Message)") }
+    if ($List) {
+        $loaded.Tweaks | Sort-Object Section, Category, Id | ForEach-Object {
+            [pscustomobject]@{ Id = $_.Id; Kind = $_.Kind; Section = $_.Section; Category = $_.Category; Risk = $_.Risk; State = Get-AkariState $_ }
+        } | Format-Table -AutoSize | Out-String -Width 200 | Write-Output
+        exit 0
+    }
+    $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]'Administrator')
+    if (-not $admin) { [Console]::Error.WriteLine('Run Akari from an elevated PowerShell to Apply or Revert.'); exit 2 }
+    $mode = if ($Apply) { 'Apply' } else { 'Revert' }
+    $ids = if ($Apply) { $Apply } else { $Revert }
+    # Outcome lines are the CLI's output; per-tweak log lines are not repeated
+    $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
+    $outcomes = @(Invoke-AkariRun $ids $mode $loaded.Tweaks)
+    foreach ($o in $outcomes) {
+        $line = '{0,-9} {1}  {2}' -f $o.Outcome, $o.Id, $o.Message
+        Write-Output $line
+        Write-ErrLog $line
+    }
+    if ($outcomes | Where-Object { $_.Reboot }) { Write-Output 'Reboot pending' }
+    if ($outcomes | Where-Object { $_.Outcome -eq 'Failed' }) { exit 1 }
+    exit 0
+}
 
 # ---- elevate once, and make sure we are STA (WPF needs it)
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]'Administrator')
