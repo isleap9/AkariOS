@@ -37,8 +37,9 @@ MIT code may be reused with attribution. Keep a `CREDITS.md` listing every upstr
 
 - **Name:** AkariOS. Repo `isleap9/AkariOS`, entry script `Akari.ps1`.
 - **Tech:** pure PowerShell 5.1 (STA, elevated) + WPF/XAML GUI. No downloaded exes for the UI.
-- **GUI: reuse the existing AkariOS-Ultimate GUI.** No rebuild from scratch. What already exists (see §5.1): Akari-Dash shell with Mica on Win11, dark title bar, custom caption buttons, collapsible sidebar, search, "Ink" dark monochrome tokens (`Bg S1 S2 Bd Tx Mu Inv InvT Warn Bad`), black-and-white Akari logo, row list with **Optimize / Default** buttons, risk badges, state dot, log drawer, status bar, a **Home page** with live spec cards, and two built-in **tuners** (Win32PrioritySeparation, SvcHostSplitThreshold).
-- **Vocabulary lives in [`GLOSSARY.md`](GLOSSARY.md).** Kinds `Toggle / Choice / Action / Group`, risks `Safe / Caution / Advanced`, verbs **Apply / Revert** (the GUI buttons **Optimize / Default** are labels for them), states **Optimized / Default / Custom / Unknown**.
+- **GUI: keep the AkariOS-Ultimate shell and theme, rebuild the inside** (decided Oct 2026, [ADR 0003](docs/adr/0003-one-click-or-manual.md)). Kept: Akari-Dash shell with Mica on Win11, dark title bar, custom caption buttons, collapsible sidebar, the page header, the header search, the status bar, and the "Ink" dark monochrome tokens (`Bg S1 S2 Bd Tx Mu Inv InvT Warn Bad`). Replaced: the Optimize / Default row buttons, state dot, risk badges, log drawer, both **tuners** (they become Choices), the old 8 pages, and the current Home. The controls inside pages look like native WinUI 3 (Windows 11 Settings): setting cards, ToggleSwitch, ComboBox, expanders. Dark only.
+- **The experience combines Win11Debloat and Zoicware** (§4): on opening, the user chooses **AkariOS one-click** or **Manual**.
+- **Vocabulary lives in [`GLOSSARY.md`](GLOSSARY.md).** Kinds `Toggle / Choice / Action / Group`, risks `Safe / Caution / Advanced`, verbs **Apply / Revert**, states **Optimized / Default / Custom / Unknown**.
 - **Default = stock Windows value**, never "what the user had before" ([ADR 0001](docs/adr/0001-revert-to-windows-default.md)).
 - **Every Toggle and Choice must have a revert.** A Tweak is an Action only when no stock-Windows Default exists to go back to (installers, checks, cleanup, DDU); each Action file says why in one line.
 - **One tweak per file.** No monolithic scripts. Exception: Groups whose Entries all have the same shape may be one data file ([ADR 0002](docs/adr/0002-data-list-groups.md)).
@@ -51,33 +52,39 @@ MIT code may be reused with attribution. Keep a `CREDITS.md` listing every upstr
 
 ## 4. What the app does
 
-### Sections
-0. **Home**: default landing page, live specs (CPU, RAM, GPU, disk, board/BIOS, Windows build), Copy specs. Already built.
-1. **Apps**: remove preinstalled apps from a checklist (Win11Debloat-style); install apps via WinGet.
-2. **Optimize**: performance, power plan, privacy/telemetry, Windows Update, gaming tweaks, and a **Services** list (services.msc-style: a start-type combobox per service; ~60 curated services with Default + Recommended value + Risk, plus a "Show all services" switch for manual changes).
-3. **Customize**: taskbar, Start, Explorer, context menu, theme, wallpaper.
-4. **Graphics & Hardware**: driver install / debloat / settings import, DDU flow, device power saving, timer resolution service.
-5. **Advanced**: risky items (Defender, VBS/memory integrity, UAC, LSA, vulnerable driver blocklist) behind clear risk badges, plus the Win32PrioritySeparation / SvcHostSplitThreshold Choices.
-6. **Presets**: built-in presets plus Load / Save preset.
+### The experience (decided Oct 2026)
+Win11Debloat's guided "choose, review, apply once" flow plus Zoicware's toolbox and remembered config.
 
-Today's Ultimate pages are Home, Check, Refresh, Setup, Installers, Graphics, Windows, Hardware, Advanced. The sidebar is built from a `$Pages` table (`Akari.ps1`), so renaming pages is cheap; Check / Refresh / Setup / Installers content moves into the sections above during the port.
+- **Home** (first screen, Win11Debloat-style): welcome, "Applying to: <user>", and two big buttons:
+  - **AkariOS one-click**: the old Akari-OS run (prep → Safe Mode → tweaks, reboots handled). Shows a short Review of what will happen, then **Start**.
+  - **Manual**: goes into the guided steps below.
+  - A small **Undo everything** link: selects Revert for every Tweak Akari changed.
+- **Manual = guided steps**, with Back / Next and step dots: **Apps → Tweaks → Review & Apply**.
+  - Nothing changes while choosing. Each Toggle shows a switch set to its current State; flipping it marks a change. Choices show a combobox. Apps are a checklist.
+  - The Tweaks step groups Tweaks by Section (Optimize, Customize, Graphics & Hardware, Advanced) and Category.
+  - **Review & Apply** lists only the changes ("Disable Game DVR: Default → Optimized"), then one Run with a restore point first.
+  - **Quick select** on Apps and Tweaks: AkariOS, Gaming, Privacy, Light, Last used, and the user's own presets.
+- **Toolbox pages** (Zoicware-style), in the sidebar and open at any time: **Install** (apps, browsers, GPU and network drivers, VC++, DirectX) and **Utilities** (checks, cleanup, repair, restore). They run one-shot Actions directly.
+- **Config** (Zoicware-style): choices are saved automatically as "Last used". Import / Export / Save as preset live in a ☰ menu in the title bar; an imported config can run silently.
+- **Status bar** shows what is running, "Restart required" (with a Restart button) and failures. The log panel is gone; the full log is in `akari.log` and on the console with `-ShowConsole`.
+
+The old Ultimate pages (Home, Check, Refresh, Setup, Installers, Graphics, Windows, Hardware, Advanced) go away. Their Tweaks move into the Tweaks step or the Install / Utilities pages as they are ported.
 
 ### Tweak kinds
-| Kind | Buttons | Example | Revert |
+| Kind | Control | Example | Revert |
 |---|---|---|---|
-| **Toggle** | Optimize / Default (+ optional Check) + state dot | memory compression, telemetry | required |
-| **Choice** | combobox (editable for numbers) + Optimize / Default + state dot | service start type, Win32PrioritySeparation | required (sets Default) |
-| **Action** | one button with custom label | storage check, install 7-Zip | none (one-shot) |
-| **Group** | optional main button + **Options** expander with Entries | bloatware (Remove all + per-app), services | per Entry, by its kind |
+| **Toggle** | ToggleSwitch (On = Optimized) | memory compression, telemetry | required |
+| **Choice** | ComboBox, "(Recommended)" and "(Windows default)" marked; editable for numbers | service start type, Win32PrioritySeparation | required (sets Default) |
+| **Action** | one button with custom label (in the Tweaks step: a checkbox "run this") | storage check, install 7-Zip | none (one-shot) |
+| **Group** | expander card with Entries inside | bloatware, services | per Entry, by its kind |
+ Entries are addressed `<group-id>/<name>`, can be any kind except Group, and Groups don't nest. Ultimate also has a `Console` kind (opens a separate PowerShell window). Nothing uses it any more: drop it.
 
-Toggle, Action and Group already exist in the GUI; Choice is new. Entries are addressed `<group-id>/<name>`, can be any kind except Group, and Groups don't nest. Ultimate also has a `Console` kind (opens a separate PowerShell window). Nothing uses it any more: drop it.
-
-### Each Toggle / Choice row shows
-- Name, short description, risk badge, reboot-needed flag
+### Each Toggle / Choice card shows
+- Name, short description, reboot-needed flag. Caution / Advanced show a warning glyph and the Risk word at the start of the description; Safe shows nothing.
 - **Current state**, detected live: Optimized / Default / Custom / Unknown
-  - Custom = readable but neither the Optimized nor the Default value (e.g. a Choice set to another value, or a hand-edited setting).
-  - Unknown = no `Detect`, or `Detect` failed.
-- **Optimize** and **Default** buttons (Choice: plus the combobox). Picking a Choice value marked riskier than the row's Risk shows a confirmation first.
+  - Custom = readable but neither the Optimized nor the Default value (e.g. a Choice set to another value, or a hand-edited setting). Shown as "Custom value" on the description line.
+  - Unknown = no `Detect`, or `Detect` failed. Shown as "State unknown".
+- The switch or combobox. Selecting an Advanced Tweak, or a Choice value riskier than the card's Risk, shows a confirmation first.
 
 ### Modes
 - **GUI**: `Akari.ps1` with no arguments.
@@ -378,6 +385,7 @@ Shallow clones (`git clone --depth 1`) kept next to the code so agents always ha
 - `_ref/Ultimate` — FR33THYFR33THY/Ultimate
 - `_ref/WinSux` — FR33THYFR33THY/WinSux (base of the old Akari-OS)
 - `_ref/Akari-OS` — isleap9/Akari-OS (old one-click, source for the port)
+- `_ref/AkariOS-Ultimate old no UI` — the original AkariOS-Ultimate scripts, one per file in `1 Check` … `8 Advanced` (source for the Ultimate port)
 - `_ref/winhance-notes/` — screenshots and layout notes only. **No Winhance code** (PolyForm Shield).
 
 ---
@@ -386,7 +394,7 @@ Shallow clones (`git clone --depth 1`) kept next to the code so agents always ha
 
 1. **Repo:** ✅ fresh repo `isleap9/AkariOS` created, `.gitignore` with `_ref/`, reference projects cloned. ✅ AkariOS-Ultimate GUI and `Tweaks/` imported as the starting point (commit `d791728` credits the source repo; Ultimate's history stays in the archived repo). ✅ Baseline checked by hand (Oct 2026): `Akari.ps1` launches and the tweaks apply.
 2. ✅ (Oct 2026, M1, `docs/plans/2026-10-17-m1-engine.md`; `Presets` still to do, with M4) **Core:** move the engine out of `Akari.ps1` per §5.1 — `Loader`, `Registry`, `Trusted`, `Runner`, `State`, `Log`, `Presets`. Keep `Add-Tweak` working as a thin adapter during the port, so the GUI stays usable while categories move one at a time.
-3. **Port Ultimate:** the source is the 8 GENERATED files in `Tweaks/` (the numbered folders are already gone). Split each `Add-Tweak` call into its own hashtable file, one category at a time: `Windows`, then `Advanced`, `Hardware`, `Graphics`, `Setup`, `Installers`, `Check`, `Refresh`. Per tweak, clean it up as you go:
+3. **Port Ultimate:** the source is `_ref/AkariOS-Ultimate old no UI/` (the original one-script-per-file folders `1 Check` … `8 Advanced`, 104 scripts), not the 8 GENERATED files in `Tweaks/`. Each old script becomes one tweak file (or several, when it bundles unrelated settings); its `Add-Tweak` entry in `Tweaks/*.ps1` is deleted once everything it does is ported. Order: `6 Windows`, then `8 Advanced`, `7 Hardware`, `5 Graphics`, `3 Setup`, `4 Installers`, `1 Check`, `2 Refresh`. Per tweak, clean it up as you go:
    - remove `Pause` / `Read-Host` / `Clear-Host` leftovers;
    - add `Detect` (only 1 of ~47 Toggles has one today);
    - add the missing Reverts, or turn the tweak into an Action if it really is one-shot;
@@ -394,7 +402,7 @@ Shallow clones (`git clone --depth 1`) kept next to the code so agents always ha
    - convert pure registry bodies (`cmd /c reg add …`) into `Registry` data.
    Delete the `Add-Tweak` adapter when the last category is ported.
 4. **Port Akari-OS:** split `akarios.ps1`, `stepone.ps1`, `steptwo.ps1` and `reg.reg` into tweak files; build `Presets/AkariOS.json` and `Core/Phases.ps1`.
-5. **GUI:** split `Akari.ps1` into `UI/Shell.ps1`, `UI/Rows.ps1`, `UI/Home.ps1`. Rows read Toggle / Choice state through `Core/State` (`Detect` first), show the reboot flag, and the sidebar follows the new sections. Rewrite `AGENTS.md` (Ultimate's is GSD-generated and stale).
+5. **GUI:** build the §4 experience inside the kept shell: split `Akari.ps1` into `UI/Shell.ps1`, `UI/Home.ps1`, `UI/Steps.ps1`, `UI/Cards.ps1`, `UI/Toolbox.ps1`; WinUI-style control templates in XAML. Comes **before** the port (step 3), so ported Tweaks land straight in the new UI.
 6. **Build + Release:** `Bundle.ps1` + GitHub Action; move binaries from AkariOS-Files into Releases; `Core/Download.ps1`; retire `IWR.ps1` and `AllowScripts.cmd`.
 7. **Archive:** `Akari-OS`, `AkariOS-Files`, Akari Tool (C#), AkariOS-Companion, WinUI toolbox. Add a README line pointing to `isleap9/AkariOS`.
 
@@ -405,12 +413,12 @@ Shallow clones (`git clone --depth 1`) kept next to the code so agents always ha
 | Milestone | Done when |
 |---|---|
 | **M1: Engine** | Core extracted from `Akari.ps1`; Loader + Registry + Runner work from CLI: `-List`, `-Apply`, `-Revert` on 3 sample tweaks; GUI still runs through the `Add-Tweak` adapter. |
-| **M2: Windows category** | Ultimate's `Windows` category fully ported to one-file tweaks, all Toggles revertible with `Detect`. |
-| **M3: GUI** | `Akari.ps1` split into `UI/*.ps1`; rows built from Core/Loader by section, Optimize/Default + Choice combobox + live state (4 states) + reboot flag; tuners replaced by Choices; Home unchanged. |
-| **M4: One-click** | `-Preset AkariOS` reproduces the old Akari-OS 3-phase run, including reboots and Safe Mode. |
-| **M5: Apps** | App removal checklist + WinGet installs. |
+| **M2: Experience** | §4 experience inside the kept shell: Home (One-click / Manual / Undo everything), guided steps (Tweaks → Review & Apply; Apps step stubbed), Install / Utilities pages, WinUI-style cards / switch / combobox, status bar with Restart required; tuners and log panel gone; old tweaks reachable until ported. Built from Core/Loader only. |
+| **M3: Windows category** | `6 Windows` from the old no-UI Ultimate ported to one-file tweaks, all Toggles revertible with `Detect`. |
+| **M4: One-click** | AkariOS one-click (Home button and `-Preset AkariOS`) reproduces the old Akari-OS 3-phase run, including reboots and Safe Mode. |
+| **M5: Apps + Config** | App removal checklist + WinGet installs; Quick select, Last used, Import / Export, Save as preset. |
 | **M6: Release** | Bundled single-file release via GitHub Action, old repos archived. |
-| **M7: Polish** | Preset save/load, Services list, `Requires` filtering, own tweaks added. |
+| **M7: Polish** | Rest of the port, Services list, `Requires` filtering, own tweaks, new Home extras. |
 
 ---
 

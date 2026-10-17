@@ -39,4 +39,4 @@ Target layout (`UI/*.ps1`, `Presets/`, `Build/`, `Core/Phases`, `Core/Presets`, 
 9. Never copy code from Winhance (PolyForm Shield). Ideas and layout only.
 10. Update this file in the same change whenever the layout or a Core API changes.
 11. `_ref/` is reference only: read a file there only when the task names it; never scan it whole, never commit or bundle it.
-12. Never Apply or Revert a real tweak on the developer's machine, in tests or by hand. Tests use fixture tweaks, `HKCU:\Software\AkariTest\<guid>` and `TestDrive:`; CLI tests use `-List` or fake ids. Real tweaks are checked by the user (e.g. in a VM).
+12. Never launch the GUI or run the CLI on the developer's real machine, in tests or by hand. Tests use fixture tweaks, `HKCU:\Software\AkariTest\<guid>` and `TestDrive:`; CLI tests use `-List` or fake ids. The user does all real testing on a VM — never on the developer's machine.
