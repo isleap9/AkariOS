@@ -38,11 +38,14 @@ MIT code may be reused with attribution. Keep a `CREDITS.md` listing every upstr
 - **Name:** AkariOS. Repo `isleap9/AkariOS`, entry script `Akari.ps1`.
 - **Tech:** pure PowerShell 5.1 (STA, elevated) + WPF/XAML GUI. No downloaded exes for the UI.
 - **GUI: reuse the existing AkariOS-Ultimate GUI.** No rebuild from scratch. What already exists (see §5.1): Akari-Dash shell with Mica on Win11, dark title bar, custom caption buttons, collapsible sidebar, search, "Ink" dark monochrome tokens (`Bg S1 S2 Bd Tx Mu Inv InvT Warn Bad`), black-and-white Akari logo, row list with **Optimize / Default** buttons, risk badges, state dot, log drawer, status bar, a **Home page** with live spec cards, and two built-in **tuners** (Win32PrioritySeparation, SvcHostSplitThreshold).
-- **Keep the GUI's vocabulary:** risk names `Safe / Caution / Advanced`, state script block named `Detect`, row kinds `Toggle / Action / Group`.
-- **Every Toggle must have a revert.** No apply-only toggles. One-shot Actions (installers, checks) are exempt.
-- **One tweak per file.** No monolithic scripts.
-- **Own tweaks** on top of the FR33THY base, e.g. `Win32PrioritySeparation`, `SvcHostSplitThreshold`.
-- **Restore point:** created **before** the run (the old Akari-OS made it at the end).
+- **Vocabulary lives in [`GLOSSARY.md`](GLOSSARY.md).** Kinds `Toggle / Choice / Action / Group`, risks `Safe / Caution / Advanced`, verbs **Apply / Revert** (the GUI buttons **Optimize / Default** are labels for them), states **Optimized / Default / Custom / Unknown**.
+- **Default = stock Windows value**, never "what the user had before" ([ADR 0001](docs/adr/0001-revert-to-windows-default.md)).
+- **Every Toggle and Choice must have a revert.** A Tweak is an Action only when no stock-Windows Default exists to go back to (installers, checks, cleanup, DDU); each Action file says why in one line.
+- **One tweak per file.** No monolithic scripts. Exception: Groups whose Entries all have the same shape may be one data file ([ADR 0002](docs/adr/0002-data-list-groups.md)).
+- **Own tweaks** on top of the FR33THY base, e.g. `Win32PrioritySeparation`, `SvcHostSplitThreshold` (both become Choices; the tuner panels go away).
+- **Restore point:** created **before** the first change of a Run (once per GUI session). The old Akari-OS made it at the end. If creation fails, Akari enables System Protection on C: and bypasses the 24h throttle; if it still fails, the GUI asks and the CLI warns and continues (`-RequireRestorePoint` stops instead).
+- **Supported OS:** Windows 10 22H2 and Windows 11. Win11-only tweaks use `Requires = 'Win11'`.
+- **Laptops:** when a battery is detected, `Requires = 'Desktop'` tweaks stay visible with a warning, are Skipped by Presets, and can be applied by hand after a confirmation.
 
 ---
 
@@ -51,32 +54,38 @@ MIT code may be reused with attribution. Keep a `CREDITS.md` listing every upstr
 ### Sections
 0. **Home**: default landing page, live specs (CPU, RAM, GPU, disk, board/BIOS, Windows build), Copy specs. Already built.
 1. **Apps**: remove preinstalled apps from a checklist (Win11Debloat-style); install apps via WinGet.
-2. **Optimize**: performance, power plan, privacy/telemetry, Windows Update, services, gaming tweaks.
+2. **Optimize**: performance, power plan, privacy/telemetry, Windows Update, gaming tweaks, and a **Services** list (services.msc-style: a start-type combobox per service; ~60 curated services with Default + Recommended value + Risk, plus a "Show all services" switch for manual changes).
 3. **Customize**: taskbar, Start, Explorer, context menu, theme, wallpaper.
 4. **Graphics & Hardware**: driver install / debloat / settings import, DDU flow, device power saving, timer resolution service.
-5. **Advanced**: risky items (Defender, VBS/memory integrity, UAC, LSA, vulnerable driver blocklist) behind clear risk badges, plus the tuners.
-6. **Presets**: built-in presets plus Load / Save my config.
+5. **Advanced**: risky items (Defender, VBS/memory integrity, UAC, LSA, vulnerable driver blocklist) behind clear risk badges, plus the Win32PrioritySeparation / SvcHostSplitThreshold Choices.
+6. **Presets**: built-in presets plus Load / Save preset.
 
 Today's Ultimate pages are Home, Check, Refresh, Setup, Installers, Graphics, Windows, Hardware, Advanced. The sidebar is built from a `$Pages` table (`Akari.ps1`), so renaming pages is cheap; Check / Refresh / Setup / Installers content moves into the sections above during the port.
 
-### Row kinds (already supported by the GUI)
+### Tweak kinds
 | Kind | Buttons | Example | Revert |
 |---|---|---|---|
 | **Toggle** | Optimize / Default (+ optional Check) + state dot | memory compression, telemetry | required |
+| **Choice** | combobox (editable for numbers) + Optimize / Default + state dot | service start type, Win32PrioritySeparation | required (sets Default) |
 | **Action** | one button with custom label | storage check, install 7-Zip | none (one-shot) |
-| **Group** | optional main button + **Options** expander with sub-actions | bloatware (Remove all + per-app), reinstall | per sub-action, if any |
+| **Group** | optional main button + **Options** expander with Entries | bloatware (Remove all + per-app), services | per Entry, by its kind |
 
-Ultimate also has a `Console` kind (opens a separate PowerShell window). Nothing uses it any more: drop it.
+Toggle, Action and Group already exist in the GUI; Choice is new. Entries are addressed `<group-id>/<name>`, can be any kind except Group, and Groups don't nest. Ultimate also has a `Console` kind (opens a separate PowerShell window). Nothing uses it any more: drop it.
 
-### Each Toggle row shows
+### Each Toggle / Choice row shows
 - Name, short description, risk badge, reboot-needed flag
-- **Current state**, detected live: Optimized / Default / Unknown
-- **Optimize** and **Default** buttons
+- **Current state**, detected live: Optimized / Default / Custom / Unknown
+  - Custom = readable but neither the Optimized nor the Default value (e.g. a Choice set to another value, or a hand-edited setting).
+  - Unknown = no `Detect`, or `Detect` failed.
+- **Optimize** and **Default** buttons (Choice: plus the combobox). Picking a Choice value marked riskier than the row's Risk shows a confirmation first.
 
 ### Modes
 - **GUI**: `Akari.ps1` with no arguments.
 - **One-click**: `Akari.ps1 -Preset AkariOS`, the old Akari-OS experience (prep → Safe Mode → tweaks, with reboots handled automatically).
-- **CLI**: `-Preset <name>`, `-Config <file>`, `-Apply <id,id>`, `-Revert <id,id>`, `-List`.
+- **CLI**: `-Preset <name|file>`, `-Apply <id,id>`, `-Revert <id,id>`, `-Revert -Preset <name>` (reverts the Preset's Toggles/Choices in reverse order, skips Actions and reports them), `-List`, `-RequireRestorePoint`.
+
+### Run summary
+Every Run ends with one Outcome per Tweak: **Applied** / **Reverted**, **Already** (State already matched), **Skipped** (a Requirement wasn't met, or the service/app doesn't exist on this machine), **Failed**. Plus one **Reboot pending** flag. A Failed Tweak doesn't stop the Run, except in a Safe Mode Phase: there the Run stops and stays in Safe Mode for the user to inspect.
 
 ---
 
@@ -106,7 +115,7 @@ Akari.ps1  ──►  Core/Loader  ──►  Tweaks/**/*.ps1  (data + optional 
 | Window chrome, Mica, caption buttons, sidebar, search, `Show-Page` | `UI/Shell.ps1` |
 | `New-Row`, `Update-Row`, row click handler | `UI/Rows.ps1` |
 | Home page (`Get-Specs`, spec cards, Copy specs, spec watchdog) | `UI/Home.ps1` |
-| Win32PrioritySeparation + SvcHost tuners | `UI/Tuners.ps1` |
+| Win32PrioritySeparation + SvcHost tuners | removed: become Choice tweak files; `UI/Rows.ps1` renders the Choice combobox |
 | `UI/MainWindow.xaml` (565 lines) | stays; split into page XAML files only if it grows |
 
 Things to keep: one-job-at-a-time runner, log queue drained on the UI thread, `Dispatcher.UnhandledException` → log drawer, `%LOCALAPPDATA%\Akari\akari.log`.
@@ -127,7 +136,7 @@ AkariOS/
 │  ├─ Runner.ps1              # apply/revert list of ids, background runspace, reboot tracking
 │  ├─ State.ps1               # Detect / remembered state
 │  ├─ Phases.ps1              # RunOnce / scheduled-task resume, Safe Mode on/off
-│  ├─ Config.ps1              # save/load user choices (JSON)
+│  ├─ Presets.ps1             # load/save Preset JSON (built-in + user)
 │  └─ Log.ps1
 ├─ Tweaks/
 │  ├─ Apps/
@@ -143,9 +152,11 @@ AkariOS/
 │  │  ├─ Start/
 │  │  ├─ Explorer/
 │  │  └─ Theme/
-│  ├─ Graphics/
-│  ├─ Hardware/
+│  ├─ Hardware/              # Section shown as "Graphics & Hardware"
+│  │  ├─ Graphics/
+│  │  └─ Devices/
 │  └─ Advanced/
+│     └─ Tuning/              # Win32PrioritySeparation, SvcHostSplitThreshold Choices
 ├─ Presets/
 │  ├─ AkariOS.json            # full one-click (replaces Akari-OS repo)
 │  ├─ Gaming.json
@@ -154,8 +165,7 @@ AkariOS/
 │  ├─ MainWindow.xaml         # carried over from AkariOS-Ultimate
 │  ├─ Shell.ps1
 │  ├─ Rows.ps1
-│  ├─ Home.ps1
-│  └─ Tuners.ps1
+│  └─ Home.ps1
 ├─ Assets/                    # logo, wallpaper, start2 layout
 ├─ Build/
 │  └─ Bundle.ps1              # merges everything into one Akari.ps1 for release (skips _ref/)
@@ -178,24 +188,49 @@ Each file is a `.ps1` that returns a hashtable. The loader runs it with `& $file
 The engine derives Apply / Revert / Detect from the `Registry` entries automatically.
 
 ```powershell
-# Tweaks/Optimize/Gaming/Win32PrioritySeparation.ps1
+# Tweaks/Optimize/Gaming/GameDvr.ps1
 @{
-    Id          = 'win32-priority-separation'
-    Name        = 'Win32 Priority Separation'
+    Id          = 'disable-game-dvr'
+    Name        = 'Disable Game DVR'
     Section     = 'Optimize'
     Category    = 'Gaming'
     Risk        = 'Safe'
-    Reboot      = $true
-    Description = 'Short, variable quanta with a 3:1 foreground boost (0x26).'
+    Description = 'Turns off background game recording.'
     Registry    = @(
         @{
-            Path    = 'HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl'
-            Name    = 'Win32PrioritySeparation'
+            Path    = 'HKCU:\System\GameConfigStore'
+            Name    = 'GameDVR_Enabled'
             Type    = 'DWord'
-            Value   = 0x26
-            Default = 2          # use $null to mean "delete value on revert"
-        }
+            Value   = 0
+            Default = 1          # $null = "Windows doesn't set this value, delete it on revert"
+        }                        # per-OS when they differ: Default = @{ Win10 = 1; Win11 = 0 }
     )
+}
+```
+
+### Choice
+`Choices` lists the valid values; `Recommended` is what Optimize and Presets set. An `Editable` Choice also accepts any number typed in.
+
+```powershell
+# Tweaks/Advanced/Tuning/Win32PrioritySeparation.ps1
+@{
+    Id          = 'win32-priority-separation'
+    Name        = 'Win32 Priority Separation'
+    Section     = 'Advanced'
+    Category    = 'Tuning'
+    Kind        = 'Choice'
+    Risk        = 'Safe'
+    Reboot      = $true
+    Description = 'Short, variable quanta with a 3:1 foreground boost (0x26).'
+    Registry    = @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl'; Name = 'Win32PrioritySeparation'; Type = 'DWord' }
+    Choices     = @(
+        @{ Value = 0x26; Label = '0x26 short, variable, 3:1' }
+        @{ Value = 0x28; Label = '0x28 short, fixed' }
+        @{ Value = 0x18; Label = '0x18 long, fixed, 3:1'; Risk = 'Caution' }
+    )
+    Editable    = $true
+    Recommended = 0x26
+    Default     = 2
 }
 ```
 
@@ -231,14 +266,29 @@ The engine derives Apply / Revert / Detect from the `Registry` entries automatic
 ```
 
 ### Group
+Entries are full Tweaks without `Section`/`Category`; their id is `<group-id>/<Name>`.
+
 ```powershell
 @{
     Id = 'bloatware'; Kind = 'Group'; Button = 'Remove all'; ...
     Apply   = { ... }                       # optional main button
-    Actions = @(
-        @{ Name = 'Xbox apps'; Description = '...'; Button = 'Remove'; Confirm = '...'; Block = { ... } }
+    Entries = @(
+        @{ Name = 'xbox'; Description = '...'; Kind = 'Action'; Button = 'Remove'; Confirm = '...'; Apply = { ... } }
     )
 }
+```
+
+### Data-list Group ([ADR 0002](docs/adr/0002-data-list-groups.md))
+When every Entry has the same shape, the Group reads them from one data file. Services: one row per service, each becoming a Choice Entry `services/<ServiceName>` over `Automatic / AutomaticDelayed / Manual / Disabled`.
+
+```powershell
+# Tweaks/Optimize/Services/Services.ps1
+@{
+    Id = 'services'; Kind = 'Group'; Name = 'Services'; Section = 'Optimize'; Category = 'Services'; Risk = 'Caution'
+    EntryKind = 'ServiceStart'                   # engine knows how to Detect/Apply/Revert a service start type
+    Entries   = Import-PowerShellDataFile "$PSScriptRoot\Services.psd1"
+}
+# Services.psd1 rows: @{ Name = 'SysMain'; Display = 'SysMain'; Default = 'Automatic'; Recommended = 'Disabled'; Risk = 'Caution'; Requires = 'SSD' }
 ```
 
 ### Fields
@@ -248,25 +298,30 @@ The engine derives Apply / Revert / Detect from the `Registry` entries automatic
 | `Name`, `Description` | yes | shown in the GUI |
 | `Section`, `Category` | yes | drives sidebar and grouping |
 | `Risk` | yes | `Safe` / `Caution` / `Advanced` (badge colours `Mu` / `Warn` / `Bad`) |
-| `Kind` | no | `Toggle` (default) / `Action` / `Group` |
+| `Kind` | no | `Toggle` (default) / `Choice` / `Action` / `Group` |
 | `Button` | no | label for Action / Group main button (default `Run`) |
 | `Confirm` | no | text of a Yes/No prompt shown before running |
 | `Reboot` | no | default `$false` |
 | `SafeMode` | no | `$true` if it must run in Safe Mode |
-| `Registry` | one of | data-driven registry changes (Toggle only) |
+| `Registry` | one of | data-driven registry changes (Toggle / Choice). `Default` is a value, a per-OS map, or `$null` (delete) |
 | `Apply` / `Revert` / `Detect` | one of | script blocks for custom logic |
 | `Check` | no | extra "Check" button that only reports status |
-| `Actions` | Group only | sub-actions: `Name`, `Description`, `Button`, `Block`, optional `Confirm` |
+| `Choices`, `Recommended`, `Default` | Choice only | valid values (each may carry its own `Risk`), the Optimized value, the stock Windows value |
+| `Editable` | no | Choice only: also accept any typed number |
+| `Entries` | Group only | Tweaks inside the Group (any kind except Group), id `<group-id>/<Name>` |
+| `EntryKind` | no | Group only: engine-provided handler for data-list Entries (e.g. `ServiceStart`) |
 | `Requires` | no | e.g. `Win11`, `NVIDIA`, `Desktop` to hide irrelevant tweaks |
 
 Loader rules:
-- A Toggle without a revert path (`Registry` or `Revert`) is rejected.
+- A Toggle or Choice without a revert path (`Registry` or `Revert`) is rejected.
+- An Action file must have a one-line comment saying why it can't be a Toggle.
+- A file's folder must match its `Section` / `Category`.
 - A Toggle without `Detect` (and no `Registry`) loads with a warning: the state falls back to "what Akari last applied", which is wrong after a Windows update or a manual change.
 - Script blocks must not be interactive: no `Pause`, `Read-Host`, `Clear-Host`. The runner keeps no-op shims only as a safety net.
 
 ---
 
-## 8. Presets & configs
+## 8. Presets
 
 ```json
 {
@@ -281,7 +336,10 @@ Loader rules:
 ```
 
 - Simple presets can skip `Phases` and just list `Tweaks`.
-- **Save my config** writes the same JSON format from the user's current GUI selection.
+- A bare id means Apply (Choices get their `Recommended` value). A Choice can be given an explicit value with an object entry: `{ "services/SysMain": "Manual" }`. Only Choices take a value.
+- **Save preset** writes the same JSON format (flat `Tweaks`, no Phases) from the user's current GUI selection, including services changed through "Show all". On a machine without that service the Outcome is Skipped.
+- User presets may contain Phases if written by hand.
+- `-Revert -Preset <name>` reverts the Toggles and Choices in reverse order and skips Actions.
 - `Core/Phases` stores the real user's SID at the start of the run, so HKCU tweaks in later phases (after Safe Mode / RunOnce) still target that user.
 
 ---
@@ -327,7 +385,7 @@ Shallow clones (`git clone --depth 1`) kept next to the code so agents always ha
 ## 11. Migration
 
 1. **Repo:** ✅ fresh repo `isleap9/AkariOS` created, `.gitignore` with `_ref/`, reference projects cloned. Next: copy the AkariOS-Ultimate GUI and `Tweaks/` in as the starting point (the commit message credits the source repo; Ultimate's history stays in the archived repo).
-2. **Core:** move the engine out of `Akari.ps1` per §5.1 — `Loader`, `Registry`, `Trusted`, `Runner`, `State`, `Log`, `Config`. Keep `Add-Tweak` working as a thin adapter during the port, so the GUI stays usable while categories move one at a time.
+2. **Core:** move the engine out of `Akari.ps1` per §5.1 — `Loader`, `Registry`, `Trusted`, `Runner`, `State`, `Log`, `Presets`. Keep `Add-Tweak` working as a thin adapter during the port, so the GUI stays usable while categories move one at a time.
 3. **Port Ultimate:** the source is the 8 GENERATED files in `Tweaks/` (the numbered folders are already gone). Split each `Add-Tweak` call into its own hashtable file, one category at a time: `Windows`, then `Advanced`, `Hardware`, `Graphics`, `Setup`, `Installers`, `Check`, `Refresh`. Per tweak, clean it up as you go:
    - remove `Pause` / `Read-Host` / `Clear-Host` leftovers;
    - add `Detect` (only 1 of ~47 Toggles has one today);
@@ -336,7 +394,7 @@ Shallow clones (`git clone --depth 1`) kept next to the code so agents always ha
    - convert pure registry bodies (`cmd /c reg add …`) into `Registry` data.
    Delete the `Add-Tweak` adapter when the last category is ported.
 4. **Port Akari-OS:** split `akarios.ps1`, `stepone.ps1`, `steptwo.ps1` and `reg.reg` into tweak files; build `Presets/AkariOS.json` and `Core/Phases.ps1`.
-5. **GUI:** split `Akari.ps1` into `UI/Shell.ps1`, `UI/Rows.ps1`, `UI/Home.ps1`, `UI/Tuners.ps1`. Rows read Toggle state through `Core/State` (`Detect` first), show the reboot flag, and the sidebar follows the new sections. Rewrite `AGENTS.md` (Ultimate's is GSD-generated and stale).
+5. **GUI:** split `Akari.ps1` into `UI/Shell.ps1`, `UI/Rows.ps1`, `UI/Home.ps1`. Rows read Toggle / Choice state through `Core/State` (`Detect` first), show the reboot flag, and the sidebar follows the new sections. Rewrite `AGENTS.md` (Ultimate's is GSD-generated and stale).
 6. **Build + Release:** `Bundle.ps1` + GitHub Action; move binaries from AkariOS-Files into Releases; `Core/Download.ps1`; retire `IWR.ps1` and `AllowScripts.cmd`.
 7. **Archive:** `Akari-OS`, `AkariOS-Files`, Akari Tool (C#), AkariOS-Companion, WinUI toolbox. Add a README line pointing to `isleap9/AkariOS`.
 
@@ -348,16 +406,16 @@ Shallow clones (`git clone --depth 1`) kept next to the code so agents always ha
 |---|---|
 | **M1: Engine** | Core extracted from `Akari.ps1`; Loader + Registry + Runner work from CLI: `-List`, `-Apply`, `-Revert` on 3 sample tweaks; GUI still runs through the `Add-Tweak` adapter. |
 | **M2: Windows category** | Ultimate's `Windows` category fully ported to one-file tweaks, all Toggles revertible with `Detect`. |
-| **M3: GUI** | `Akari.ps1` split into `UI/*.ps1`; rows built from Core/Loader by section, Optimize/Default + live state + reboot flag; Home and tuners unchanged. |
+| **M3: GUI** | `Akari.ps1` split into `UI/*.ps1`; rows built from Core/Loader by section, Optimize/Default + Choice combobox + live state (4 states) + reboot flag; tuners replaced by Choices; Home unchanged. |
 | **M4: One-click** | `-Preset AkariOS` reproduces the old Akari-OS 3-phase run, including reboots and Safe Mode. |
 | **M5: Apps** | App removal checklist + WinGet installs. |
 | **M6: Release** | Bundled single-file release via GitHub Action, old repos archived. |
-| **M7: Polish** | Config save/load, `Requires` filtering, own tweaks added. |
+| **M7: Polish** | Preset save/load, Services list, `Requires` filtering, own tweaks added. |
 
 ---
 
 ## 13. Open questions
 
-- Minimum supported OS: Windows 10 22H2 + Windows 11, or Windows 11 only? (Mica already falls back to solid black on Win10.)
-- Laptop handling: hide or warn on desktop-only tweaks (power saving, core parking) when a battery is detected?
-- Tuners: keep them as special panels on Advanced (as today), or make them Toggles with a value picker so presets can set them? Recommendation: keep the panels and also add plain Toggles with the recommended value, so presets can use them.
+- **Apps checklist (M5):** one Entry per removable app (Toggle: installed / removed, Revert reinstalls) or just a "Remove all" Action? Parked until M5.
+
+Resolved (Oct 2026): minimum OS, laptop handling and tuners, see §3.

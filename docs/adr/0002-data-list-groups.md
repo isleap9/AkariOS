@@ -1,0 +1,3 @@
+# Data-list Groups are an exception to "one tweak per file"
+
+Groups whose Entries all share the same shape (the curated Services list, later possibly the Apps list) live in one data file instead of one file per Entry. For example, the Services Group has one row per service: name, display name, Default, Recommended value, Risk, Requirement. Each Entry is still addressed on its own as `<group-id>/<name>`, so Presets and the CLI treat it like any other Tweak. About 60 near-identical tiny files would be harder to read and review than one table. Any Entry that needs custom logic must not go in a data list; it gets its own tweak file.
