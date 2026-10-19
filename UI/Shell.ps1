@@ -79,7 +79,8 @@ function Show-Page {
     $q = $Search.Text.Trim()
     # Install AkariOS: the header search filters the Guided Tweaks step instead of searching the Manual pages
     $onSteps = ($script:Cat -eq 'Install AkariOS')
-    if ($onSteps) { $PaneCol.Width = [Windows.GridLength]::new($(if ($script:PaneOpen) { 232 } else { 48 })) }
+    # Install AkariOS is a full-window flow like Home: no sidebar (Back leads home)
+    if ($onSteps) { $PaneCol.Width = [Windows.GridLength]::new(0) }
     $StepsPanel.Visibility = if ($onSteps) { 'Visible' } else { 'Collapsed' }
     $StepFooter.Visibility = $StepsPanel.Visibility
     if ($onSteps) {

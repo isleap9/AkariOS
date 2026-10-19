@@ -56,8 +56,8 @@ MIT code may be reused with attribution. Keep a `CREDITS.md` listing every upstr
 Win11Debloat's structure (Raphire): a start screen, then a guided "choose, review, apply once" flow; plus a manual mode for power users.
 
 - **Home** (first screen, full window, **no sidebar**): three tiles.
-  - **Install AkariOS**: guided optimization, recommended for a fresh install. Opens a page with two choices:
-    - **One-click**: the old Akari-OS run (prep → Safe Mode → tweaks, reboots handled). Shows a short Review of what will happen, then **Start**. (M4)
+  - **Install AkariOS**: guided optimization, recommended for a fresh install. Full window, no sidebar (Back returns to Home). Two choices:
+    - **One-click**: the old Akari-OS run (prep → Safe Mode → tweaks, reboots handled), after a confirmation. ✅ Oct 2026: runs the Akari-OS scripts imported as-is into `OneClick/` (they work as they are); porting them into tweak files is step 4 below.
     - **Guided**: steps with Back / Next and step dots: **Apps → Tweaks → Review & Apply**. Nothing changes while choosing; each Toggle shows a switch set to its current State, Choices a combobox, Apps a checklist. Review lists only the changes ("Disable Game DVR: Default → Optimized"), then one Run with a restore point first. **Quick select** on Apps and Tweaks: AkariOS, Gaming, Privacy, Light, Last used, the user's own presets. The look of the Tweaks step is still open (current: WinUI setting cards; alternative: Win11Debloat's category-card grid).
   - **Optimize**: **Manual mode**, in-depth, for power users. Every Tweak with its own buttons that act right away (the legacy Optimize / Default rows). For now it opens the old Ultimate pages; its new look (moving away from the FR33THY page structure) is still to be designed.
   - **Import / Export settings**: save choices to a file or load them on another PC (M5).
@@ -401,7 +401,7 @@ Shallow clones (`git clone --depth 1`) kept next to the code so agents always ha
    - replace inline copies of `Run-Trusted` with the `Core/Trusted.ps1` one;
    - convert pure registry bodies (`cmd /c reg add …`) into `Registry` data.
    Delete the `Add-Tweak` adapter when the last category is ported.
-4. **Port Akari-OS:** split `akarios.ps1`, `stepone.ps1`, `steptwo.ps1` and `reg.reg` into tweak files; build `Presets/AkariOS.json` and `Core/Phases.ps1`.
+4. **Port Akari-OS:** (One-click already runs the imported `OneClick/` scripts as-is; this step replaces them) split `akarios.ps1`, `stepone.ps1`, `steptwo.ps1` and `reg.reg` into tweak files; build `Presets/AkariOS.json` and `Core/Phases.ps1`.
 5. ✅ M2a (Oct 2026, `docs/plans/2026-10-19-m2a-manual-steps.md`: UI split, controls, Manual steps, Apply with restore point; M2b still to do) **GUI:** build the §4 experience inside the kept shell: split `Akari.ps1` into `UI/Shell.ps1`, `UI/Home.ps1`, `UI/Steps.ps1`, `UI/Cards.ps1`, `UI/Toolbox.ps1`; WinUI-style control templates in XAML. Comes **before** the port (step 3), so ported Tweaks land straight in the new UI.
 6. **Build + Release:** `Bundle.ps1` + GitHub Action; move binaries from AkariOS-Files into Releases; `Core/Download.ps1`; retire `IWR.ps1` and `AllowScripts.cmd`.
 7. **Archive:** `Akari-OS`, `AkariOS-Files`, Akari Tool (C#), AkariOS-Companion, WinUI toolbox. Add a README line pointing to `isleap9/AkariOS`.

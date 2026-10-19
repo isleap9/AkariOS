@@ -20,6 +20,7 @@ The port is in progress (M1 Engine and M2a Manual steps done; plans in `docs/pla
   - `Runner.ps1`: `Invoke-AkariTweak <tweak> <Mode> [<Value>]` (Value: a Choice value other than Recommended), `Invoke-AkariPlan <@{Id;Mode;Value}[]>` and `Invoke-AkariRun <ids> <Mode>` → one Outcome per item; `Start-AkariJob <code> <queue> <CoreDir> [<Shared>]` (GUI background runspace with Core loaded; `$AkariShared` hands objects back).
   - `Restore.ps1`: `New-AkariRestorePoint` → `@{ Ok; Message }`, never throws (enables System Protection and lifts the 24 h throttle for one retry).
   - `Legacy.ps1`: `Add-Tweak` adapter + `Import-AkariLegacyTweaks`. Delete when the port is finished.
+- `OneClick/`: the old Akari-OS one-click run, imported as-is from `isleap9/Akari-OS` (`akarios.ps1` → `stepone.ps1` in Safe Mode → `steptwo.ps1`, plus `reg.reg`, `start2.txt`, `settimerresolutionservice.cs`, `img.jpg`). Started by Install AkariOS → One-click in its own PowerShell window. Only change from upstream: `akarios.ps1` copies these files from its own folder instead of downloading them. Keep it working as-is until the M4 port replaces it.
 - `Tweaks/<Section>/<Category>/*.ps1`: one-file tweaks (format in plan §7).
 - `Tweaks/*.ps1`: 8 GENERATED legacy category files of `Add-Tweak` calls, loaded through `Core/Legacy.ps1`. Large: open only the tweak you're changing (search for its `-Id`), never the whole file.
 - `Tests/`: Pester 3.4. Run `powershell -NoProfile -ExecutionPolicy Bypass -File Tests\Run.ps1`. Fixtures in `Tests/Fixtures/`.

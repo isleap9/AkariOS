@@ -66,7 +66,24 @@ $StepBack = [Windows.Controls.Button]::new(); $StepNext = [Windows.Controls.Butt
 $Search = [Windows.Controls.TextBox]::new()
 $StepFooter = [Windows.Controls.Border]::new()
 Show-AkariSteps
-"chooser=$($StepBody.Children[0].Children.Count)"; "oneClick=$($StepBody.Children[0].Children[0].IsEnabled)"; "chooserFooter=$($StepFooter.Visibility)"
+"chooser=$($StepBody.Children[0].Children.Count)"; "oneClick=$($StepBody.Children[0].Children[0].IsEnabled)"; "chooserFooter=$($StepFooter.Visibility)"; "chooserNext=$($StepNext.Visibility)"
+# One-click: declined, then accepted (Start-Process and the window are stubs: nothing is launched)
+$Root = 'X:\Akari'
+function Test-Path($p) { $true }
+function Write-ErrLog($m) { }
+function Start-Process { $script:launched = "$args" }
+$window = [pscustomobject]@{}; $window | Add-Member ScriptMethod Close { $script:closed = $true }
+function Confirm-AkariOneClick { $false }
+$StepBody.Children[0].Children[0].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
+"declinedLaunch=$([bool]$script:launched)"
+function Confirm-AkariOneClick { $true }
+$StepBody.Children[0].Children[0].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
+"launched=$script:launched"; "closed=$script:closed"
+Remove-Item Function:\Test-Path
+function Select-AkariPage($n) { $script:went = $n }
+Initialize-AkariSteps
+$StepBack.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
+"backTo=$script:went"
 $StepBody.Children[0].Children[1].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
 "mode=$script:Mode"; "s0next=$($StepNext.Content)"; "s0back=$($StepBack.Visibility)"; "guidedFooter=$($StepFooter.Visibility)"
 $script:Step = 1; Show-AkariSteps
@@ -93,11 +110,18 @@ $script:Step = 1; Show-AkariSteps
     } finally { Remove-Item $k -Recurse -Force -ErrorAction SilentlyContinue }
 
     It 'runs without errors' { $out['error'] | Should BeNullOrEmpty }
-    It 'opens on the One-click / Guided chooser, One-click not ready yet' {
+    It 'opens on the One-click / Guided chooser with only Back' {
         $out.chooser | Should Be '2'
-        $out.oneClick | Should Be 'False'
-        $out.chooserFooter | Should Be 'Collapsed'
+        $out.oneClick | Should Be 'True'
+        $out.chooserFooter | Should Be 'Visible'
+        $out.chooserNext | Should Be 'Collapsed'
     }
+    It 'One-click asks first; No launches nothing' { $out.declinedLaunch | Should Be 'False' }
+    It 'One-click Yes starts OneClick\akarios.ps1 and closes Akari' {
+        $out.launched | Should Match 'OneClick\\akarios\.ps1'
+        $out.closed | Should Be 'True'
+    }
+    It 'Back on the chooser goes Home' { $out.backTo | Should Be 'Home' }
     It 'Guided starts on Apps, with Back to the chooser' {
         $out.mode | Should Be 'Guided'
         $out.s0next | Should Be 'Next'

@@ -40,6 +40,8 @@ function Get-AkariStepGroups($Tweaks) {
 
 function Initialize-AkariSteps {
     $StepBack.Add_Click({
+        # the chooser's Back goes to Home (this page has no sidebar)
+        if ($script:Mode -eq 'Choose') { Select-AkariPage 'Home'; return }
         if ($script:Step -gt 0) { $script:Step-- } else { $script:Mode = 'Choose' }
         Show-AkariSteps
     })
@@ -164,6 +166,7 @@ function Set-AkariTweaksFilter([string]$q) {
 function Update-AkariStepFooter {
     $n = $script:Sel.Count
     $StepBack.Visibility = 'Visible'
+    $StepNext.Visibility = 'Visible'
     switch ($script:Step) {
         0 { $StepNext.Content = 'Next'; $StepNext.IsEnabled = $true }
         1 { $StepNext.Content = "Review ($n)"; $StepNext.IsEnabled = ($n -gt 0) }
@@ -190,13 +193,39 @@ function New-AkariModeCard([string]$Glyph, [string]$Title, [string]$Text, [bool]
     $b
 }
 
+# One-click: the Akari-OS run (OneClick\akarios.ps1, then stepone.ps1 in Safe Mode, then steptwo.ps1), started in
+# its own PowerShell window. It restarts the PC by itself, so Akari closes once it has started.
+function Confirm-AkariOneClick {
+    $q = "AkariOS One-click changes a lot of Windows, including security features.`n`n" +
+         "- Run it on a fresh install or a PC you can reinstall. There is no uninstaller.`n" +
+         "- Security is reduced on purpose (Defender settings, UAC, memory integrity).`n" +
+         "- Your PC restarts several times, once into Safe Mode. Save your work and don't interrupt it.`n" +
+         "- Graphics and audio drivers are removed. Install a fresh graphics driver afterwards.`n" +
+         "- It is tuned for desktops: power saving is turned off.`n" +
+         "- It needs an internet connection.`n`nStart AkariOS One-click now?"
+    [Windows.MessageBox]::Show($q, 'Akari', 'YesNo', 'Warning') -eq 'Yes'
+}
+
+function Start-AkariOneClick {
+    $path = "$Root\OneClick\akarios.ps1"
+    if (-not (Test-Path $path)) { [void][Windows.MessageBox]::Show("Missing: $path", 'Akari'); return }
+    if ($script:Busy -or -not (Confirm-AkariOneClick)) { return }
+    Write-ErrLog "One-click started: $path"
+    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$path`"" -WindowStyle Maximized
+    $window.Close()
+}
+
 function Show-AkariChooser {
     $StepDots.Children.Clear()
-    if ($StepFooter) { $StepFooter.Visibility = 'Collapsed' }
+    # footer: only Back (to Home)
+    if ($StepFooter) { $StepFooter.Visibility = 'Visible' }
+    $StepBack.Visibility = 'Visible'
+    $StepNext.Visibility = 'Collapsed'
     $g = [Windows.Controls.Primitives.UniformGrid]::new()
     $g.Columns = 2
-    $one = New-AkariModeCard ([string][char]0xE945) 'One-click' 'Applies everything AkariOS recommends, with restarts and Safe Mode handled for you. Coming in a later version.' $false
+    $one = New-AkariModeCard ([string][char]0xE945) 'One-click' 'The full AkariOS setup in one go: apps, drivers, Safe Mode and tweaks, with restarts handled for you. For a fresh install.' $true
     $one.Margin = [Windows.Thickness]::new(0, 0, 8, 0)
+    $one.Add_Click({ Start-AkariOneClick })
     $guided = New-AkariModeCard ([string][char]0xE8FD) 'Guided' 'Pick the apps to remove and the Tweaks to apply, review the changes, then apply them in one go.' $true
     $guided.Margin = [Windows.Thickness]::new(8, 0, 0, 0)
     $guided.Add_Click({ $script:Mode = 'Guided'; $script:Step = 0; Show-AkariSteps })
