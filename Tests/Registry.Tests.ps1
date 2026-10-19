@@ -81,3 +81,36 @@ Describe 'Registry entries: State, Apply, Revert' {
         }
     } finally { Remove-Item $k -Recurse -Force -ErrorAction SilentlyContinue }
 }
+
+Describe 'DWord 0xFFFFFFFF' {
+    $AkariStatePath = "$TestDrive\state.json"
+    foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner') { . "$Core\$f.ps1" }
+    $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
+    $k = "HKCU:\Software\AkariTest\$([guid]::NewGuid())"
+
+    try {
+        It 'writes DWord 0xFFFFFFFF' {
+            { Set-Reg $k 'V' 4294967295 'DWord' } | Should Not Throw
+            $raw = (Get-Item $k).GetValue('V')
+            [BitConverter]::ToUInt32([BitConverter]::GetBytes([int]$raw), 0) | Should Be 4294967295
+        }
+
+        It 'reads a 0xFFFFFFFF Choice as Optimized' {
+            $c = ConvertTo-AkariTweak @{ Id = 'max'; Name = 'Max'; Kind = 'Choice'; Recommended = 4294967295; Default = 3670016
+                Registry = @{ Path = $k; Name = 'M'; Type = 'DWord' }; Choices = @(@{ Value = 3670016 }, @{ Value = 4294967295 }) } 'x' $false
+            (Invoke-AkariTweak $c Apply).Outcome | Should Be 'Applied'
+            Get-AkariState $c | Should Be 'Optimized'
+        }
+    } finally { Remove-Item $k -Recurse -Force -ErrorAction SilentlyContinue }
+}
+
+Describe 'Real tweak files' {
+    foreach ($f in 'Registry', 'Loader') { . "$Core\$f.ps1" }
+    $root = Join-Path (Split-Path $PSScriptRoot) 'Tweaks'
+
+    It 'loads SvcHostSplitThreshold as a Choice' {
+        $t = Import-AkariTweakFile "$root\Advanced\Tuning\SvcHostSplitThreshold.ps1" $root
+        $t.Kind | Should Be 'Choice'
+        $t.Recommended | Should Be 4294967295
+    }
+}
