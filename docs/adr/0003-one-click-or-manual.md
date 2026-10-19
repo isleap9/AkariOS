@@ -1,11 +1,13 @@
-# Home offers AkariOS one-click or Manual; the GUI inside the shell is rebuilt
+# Install AkariOS (One-click or Guided) and Optimize (Manual) from a Win11Debloat-style Home
 
-On opening, the user chooses **AkariOS one-click** (the old Akari-OS run: prep → Safe Mode → tweaks, reboots handled, after a short Review) or **Manual** (guided steps Apps → Tweaks → Review & Apply, Win11Debloat-style: nothing changes while choosing, then one Run with a restore point first). Install and Utilities are Zoicware-style toolbox pages that run one-shot Actions at any time. To fit this flow, we keep the AkariOS-Ultimate shell and Ink theme (window chrome, Mica, sidebar, header, search, status bar) but replace everything inside it: per-row Optimize / Default buttons, state dot, risk badges, log drawer, tuners, the old 8 pages and the old Home. Controls inside pages look like native WinUI 3 (setting cards, ToggleSwitch, ComboBox, expanders), dark only.
+Revised 2026-10-19. Akari opens on a full-window Home with no sidebar and three tiles, after Raphire's Win11Debloat start screen. **Install AkariOS** is for a fresh install and offers **One-click** (the old Akari-OS run: prep → Safe Mode → tweaks, reboots handled, after a short Review) or **Guided** (Apps → Tweaks → Review & Apply: nothing changes while choosing, then one Run with a restore point first). **Optimize** is **Manual mode** for power users: every Tweak with its own buttons that act right away, like the legacy Ultimate rows. **Import / Export settings** saves or loads choices. Every page after Home keeps the AkariOS-Ultimate shell (sidebar, header, search, status bar, Ink theme).
 
-Per-row buttons that act immediately made every click a Run, gave no overview of what would change, and mixed one-shot Actions with revertible Toggles on the same pages. Choosing first and applying once gives one restore point, one Outcome list and one reboot prompt per session, and lets the one-click path and the Manual path share the same Runner.
+Two audiences come from the two old repos: Akari-OS users want one press or a short guided pass; Ultimate users want direct control over each Tweak. Guided gives one restore point, one Outcome list and one reboot prompt per session; Manual keeps the immediate per-Tweak control. Both use the same Core Runner.
+
+Still open: the look of the Guided Tweaks step (WinUI setting cards today, or Win11Debloat's category-card grid), and a new look for Manual mode that moves away from the FR33THY page structure (it shows the old pages until then).
 
 ## Considered Options
 
-- **Keep the Ultimate pages and row buttons, restyle only**: rejected; keeps the click-to-run model and the 8 legacy pages that don't match the new Sections.
-- **Rebuild the whole GUI, shell included**: rejected; the shell (Mica, chrome, sidebar, search, theme) already works and isn't the problem.
-- **One-click only (old Akari-OS)** or **Manual only (old Ultimate)**: rejected; the product merges both repos, so both audiences need a path.
+- **Guided only, legacy pages removed** (the first version of this ADR): rejected; power users lose immediate per-Tweak control.
+- **Keep the Ultimate pages as the only UI**: rejected; no guided path for a fresh install, no single Review.
+- **A sidebar on Home too**: rejected; the start screen should present the three ways in and nothing else.

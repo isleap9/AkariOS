@@ -37,7 +37,7 @@ MIT code may be reused with attribution. Keep a `CREDITS.md` listing every upstr
 
 - **Name:** AkariOS. Repo `isleap9/AkariOS`, entry script `Akari.ps1`.
 - **Tech:** pure PowerShell 5.1 (STA, elevated) + WPF/XAML GUI. No downloaded exes for the UI.
-- **GUI: keep the AkariOS-Ultimate shell and theme, rebuild the inside** (decided Oct 2026, [ADR 0003](docs/adr/0003-one-click-or-manual.md)). Kept: Akari-Dash shell with Mica on Win11, dark title bar, custom caption buttons, collapsible sidebar, the page header, the header search, the status bar, and the "Ink" dark monochrome tokens (`Bg S1 S2 Bd Tx Mu Inv InvT Warn Bad`). Replaced: the Optimize / Default row buttons, state dot, risk badges, log drawer, both **tuners** (they become Choices), the old 8 pages, and the current Home. The controls inside pages look like native WinUI 3 (Windows 11 Settings): setting cards, ToggleSwitch, ComboBox, expanders. Dark only.
+- **GUI: keep the AkariOS-Ultimate shell and theme; Home is Win11Debloat-style** (decided Oct 2026, revised 2026-10-19, [ADR 0003](docs/adr/0003-one-click-or-manual.md)). Kept: Akari-Dash shell with Mica on Win11, dark title bar, custom caption buttons, collapsible sidebar, the page header, the header search, the status bar, and the "Ink" dark monochrome tokens (`Bg S1 S2 Bd Tx Mu Inv InvT Warn Bad`). Replaced: the Optimize / Default row buttons, state dot, risk badges, log drawer, both **tuners** (they become Choices), the old 8 pages, and the current Home. The controls inside pages look like native WinUI 3 (Windows 11 Settings): setting cards, ToggleSwitch, ComboBox, expanders. Dark only.
 - **The experience combines Win11Debloat and Zoicware** (§4): on opening, the user chooses **AkariOS one-click** or **Manual**.
 - **Vocabulary lives in [`GLOSSARY.md`](GLOSSARY.md).** Kinds `Toggle / Choice / Action / Group`, risks `Safe / Caution / Advanced`, verbs **Apply / Revert**, states **Optimized / Default / Custom / Unknown**.
 - **Default = stock Windows value**, never "what the user had before" ([ADR 0001](docs/adr/0001-revert-to-windows-default.md)).
@@ -52,23 +52,19 @@ MIT code may be reused with attribution. Keep a `CREDITS.md` listing every upstr
 
 ## 4. What the app does
 
-### The experience (decided Oct 2026)
-Win11Debloat's guided "choose, review, apply once" flow plus Zoicware's toolbox and remembered config.
+### The experience (decided Oct 2026, revised 2026-10-19)
+Win11Debloat's structure (Raphire): a start screen, then a guided "choose, review, apply once" flow; plus a manual mode for power users.
 
-- **Home** (first screen, Win11Debloat-style): welcome, "Applying to: <user>", and two big buttons:
-  - **AkariOS one-click**: the old Akari-OS run (prep → Safe Mode → tweaks, reboots handled). Shows a short Review of what will happen, then **Start**.
-  - **Manual**: goes into the guided steps below.
+- **Home** (first screen, full window, **no sidebar**): three tiles.
+  - **Install AkariOS**: guided optimization, recommended for a fresh install. Opens a page with two choices:
+    - **One-click**: the old Akari-OS run (prep → Safe Mode → tweaks, reboots handled). Shows a short Review of what will happen, then **Start**. (M4)
+    - **Guided**: steps with Back / Next and step dots: **Apps → Tweaks → Review & Apply**. Nothing changes while choosing; each Toggle shows a switch set to its current State, Choices a combobox, Apps a checklist. Review lists only the changes ("Disable Game DVR: Default → Optimized"), then one Run with a restore point first. **Quick select** on Apps and Tweaks: AkariOS, Gaming, Privacy, Light, Last used, the user's own presets. The look of the Tweaks step is still open (current: WinUI setting cards; alternative: Win11Debloat's category-card grid).
+  - **Optimize**: **Manual mode**, in-depth, for power users. Every Tweak with its own buttons that act right away (the legacy Optimize / Default rows). For now it opens the old Ultimate pages; its new look (moving away from the FR33THY page structure) is still to be designed.
+  - **Import / Export settings**: save choices to a file or load them on another PC (M5).
   - A small **Undo everything** link: selects Revert for every Tweak Akari changed.
-- **Manual = guided steps**, with Back / Next and step dots: **Apps → Tweaks → Review & Apply**.
-  - Nothing changes while choosing. Each Toggle shows a switch set to its current State; flipping it marks a change. Choices show a combobox. Apps are a checklist.
-  - The Tweaks step groups Tweaks by Section (Optimize, Customize, Graphics & Hardware, Advanced) and Category.
-  - **Review & Apply** lists only the changes ("Disable Game DVR: Default → Optimized"), then one Run with a restore point first.
-  - **Quick select** on Apps and Tweaks: AkariOS, Gaming, Privacy, Light, Last used, and the user's own presets.
-- **Toolbox pages** (Zoicware-style), in the sidebar and open at any time: **Install** (apps, browsers, GPU and network drivers, VC++, DirectX) and **Utilities** (checks, cleanup, repair, restore). They run one-shot Actions directly.
-- **Config** (Zoicware-style): choices are saved automatically as "Last used". Import / Export / Save as preset live in a ☰ menu in the title bar; an imported config can run silently.
-- **Status bar** shows what is running, "Restart required" (with a Restart button) and failures. The log panel is gone; the full log is in `akari.log` and on the console with `-ShowConsole`.
-
-The old Ultimate pages (Home, Check, Refresh, Setup, Installers, Graphics, Windows, Hardware, Advanced) go away. Their Tweaks move into the Tweaks step or the Install / Utilities pages as they are ported.
+- Every page after Home has the sidebar (Home, Install AkariOS, then the Manual pages).
+- **Config** (Zoicware-style): choices are saved automatically as "Last used"; an imported config can run silently.
+- **Status bar** shows what is running, "Restart required" (with a Restart button) and failures.
 
 ### Tweak kinds
 | Kind | Control | Example | Revert |

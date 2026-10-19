@@ -6,13 +6,13 @@ $window = [Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\MainWindow.x
 # WinUI-style controls for Install AkariOS (switch, combobox, setting card, ...)
 $window.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Controls.xaml" -Raw)))
 foreach ($n in 'Nav', 'Search', 'Heading', 'Rows', 'Page', 'Log', 'Logo', 'HomePanel', 'HostName', 'HostSub', 'Cards', 'CopySpecs',
-               'Shell', 'Body', 'PaneCol', 'PaneToggle', 'HeaderIcon', 'HeaderSub', 'StatusDot', 'StatusRing', 'StatusText', 'StatusBar',
+               'Shell', 'Body', 'PaneCol', 'PaneToggle', 'HomeTiles', 'HeaderIcon', 'HeaderSub', 'StatusDot', 'StatusRing', 'StatusText', 'StatusBar',
                'CapMin', 'CapMax', 'CapMaxGlyph', 'CapClose', 'StepsPanel', 'StepDots', 'StepBody', 'StepFooter', 'StepBack', 'StepNext') { Set-Variable $n $window.FindName($n) }
 Initialize-AkariSteps
 
 # sidebar pages: icon glyph (Segoe Fluent Icons) and the subtitle under the page title
 $Pages = [ordered]@{
-    Home       = @{ Glyph = [char]0xE80F; Sub = 'Your PC at a glance' }
+    Home       = @{ Glyph = [char]0xE80F; Sub = 'Choose how you want to optimize Windows' }
     # Install AkariOS: One-click, or Guided (pick the Tweaks, review, apply once). The pages after it are Manual mode.
     'Install AkariOS' = @{ Glyph = [char]0xE896; Sub = 'Optimize Windows in one click, or pick each change yourself' }
     Check      = @{ Glyph = [char]0xE9D9; Sub = 'Check your BIOS, storage, RAM and GPU, and stress test them' }
@@ -79,6 +79,7 @@ function Show-Page {
     $q = $Search.Text.Trim()
     # Install AkariOS: the header search filters the Guided Tweaks step instead of searching the Manual pages
     $onSteps = ($script:Cat -eq 'Install AkariOS')
+    if ($onSteps) { $PaneCol.Width = [Windows.GridLength]::new($(if ($script:PaneOpen) { 232 } else { 48 })) }
     $StepsPanel.Visibility = if ($onSteps) { 'Visible' } else { 'Collapsed' }
     $StepFooter.Visibility = $StepsPanel.Visibility
     if ($onSteps) {
@@ -105,6 +106,8 @@ function Show-Page {
         $list = @($script:Tweaks | Where-Object { $_.Section -eq $script:Cat })
     }
     $HomePanel.Visibility = if ($onHome) { 'Visible' } else { 'Collapsed' }
+    # Home is a full-window landing page: no sidebar there (Win11Debloat-style); every other page has it
+    $PaneCol.Width = [Windows.GridLength]::new($(if ($onHome) { 0 } elseif ($script:PaneOpen) { 232 } else { 48 }))
     foreach ($t in $list) {
         if (-not $script:RowCache.ContainsKey($t.Id)) { $script:RowCache[$t.Id] = New-Row $t }
         [void]$Rows.Children.Add($script:RowCache[$t.Id])
@@ -117,7 +120,6 @@ function Show-Page {
         [void]$Rows.Children.Add($msg)
     }
     # render the last values (or loading) first, then read fresh specs in the background
-    if ($onHome) { Update-Home; Start-SpecRead }
 }
 
 # ---- running actions in a background runspace
@@ -249,10 +251,11 @@ foreach ($c in $Pages.Keys) {
     }
 }
 # pane toggle: full 232 px sidebar or the 48 px icon strip
+$script:PaneOpen = $true
 $PaneToggle.Add_Click({
-    $open = ($PaneCol.Width.Value -gt 48)
-    $PaneCol.Width = [Windows.GridLength]::new($(if ($open) { 48 } else { 232 }))
-    $script:NavHeader.Visibility = if ($open) { 'Hidden' } else { 'Visible' }
+    $script:PaneOpen = -not $script:PaneOpen
+    $PaneCol.Width = [Windows.GridLength]::new($(if ($script:PaneOpen) { 232 } else { 48 }))
+    $script:NavHeader.Visibility = if ($script:PaneOpen) { 'Visible' } else { 'Hidden' }
 })
 $Nav.AddHandler([Windows.Controls.Primitives.ToggleButton]::CheckedEvent, [Windows.RoutedEventHandler] {
     param($s, $ev)
@@ -261,6 +264,21 @@ $Nav.AddHandler([Windows.Controls.Primitives.ToggleButton]::CheckedEvent, [Windo
     Show-Page
 })
 $Search.Add_TextChanged({ Show-Page })
+
+# ---- home tiles: Install AkariOS (One-click or Guided), Optimize (Manual mode), Import / Export
+function Select-AkariPage([string]$Name) {
+    ($Nav.Children | Where-Object { $_.Tag -eq $Name } | Select-Object -First 1).IsChecked = $true
+}
+$tile = New-AkariModeCard ([string][char]0xE756) 'Install AkariOS' 'Guided optimization for Windows. Recommended for a fresh install.' $true
+$tile.Add_Click({ Select-AkariPage 'Install AkariOS' })
+[void]$HomeTiles.Children.Add($tile)
+$tile = New-AkariModeCard ([string][char]0xE713) 'Optimize' 'Manual, in-depth optimization for Windows. Recommended for power users.' $true
+# Manual mode: the old pages for now, until its new look is designed
+$tile.Add_Click({ Select-AkariPage 'Check' })
+[void]$HomeTiles.Children.Add($tile)
+$tile = New-AkariModeCard ([string][char]0xE72D) 'Import / Export settings' 'Save your choices to a file, or load them on another PC. Coming in a later version.' $false
+[void]$HomeTiles.Children.Add($tile)
+foreach ($i in 0..2) { $HomeTiles.Children[$i].Margin = [Windows.Thickness]::new($(if ($i) { 8 } else { 0 }), 0, $(if ($i -lt 2) { 8 } else { 0 }), 0) }
 # copy specs button on the home header
 $CopySpecs.Add_Click({ Copy-Specs })
 

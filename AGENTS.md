@@ -26,8 +26,8 @@ The port is in progress (M1 Engine and M2a Manual steps done; plans in `docs/pla
 - `UI/` (GUI only, dot-sourced in this order by `Akari.ps1`):
   - `Selection.ps1`: pending changes of the Manual steps (`Set-AkariPending`, `Get-AkariReviewItems`, `Get-AkariPlanItems`, `Get-AkariConfirmText`, `Get-AkariNextToggle`). No WPF.
   - `Cards.ps1`: `New-AkariCard` (switch / combobox / checkbox setting card), `Set-AkariCardControl`, `Get-AkariComboValue`.
-  - `Steps.ps1`: Manual flow Apps → Tweaks → Review & Apply → result; `Get-AkariStepGroups` and `Get-AkariRunSummary` are pure.
-  - `Home.ps1`: spec cards. `Shell.ps1`: window, sidebar, search, `Show-Page`, status bar, job timer. `Rows.ps1`: old pages' rows for legacy Actions / Groups (temporary, deleted in M2b).
+  - `Steps.ps1`: the Install AkariOS page: One-click / Guided chooser, then Guided Apps → Tweaks → Review & Apply → result; `New-AkariModeCard` (big tile); `Get-AkariStepGroups` and `Get-AkariRunSummary` are pure.
+  - `Shell.ps1`: window, Home tiles (no sidebar on Home), sidebar, search, `Show-Page`, status bar, job timer. `Rows.ps1`: Manual mode (Optimize tile), the legacy rows that act right away. `Home.ps1`: spec cards (hidden for now).
   - `MainWindow.xaml` (shell), `Controls.xaml` (WinUI-style styles: `Switch`, `Combo`, `Check`, `SettingCard`, `Section`, `Accent`, `StepDot`).
 - `Assets/`, `CREDITS.md`.
 
