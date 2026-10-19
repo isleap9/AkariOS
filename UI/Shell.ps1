@@ -6,7 +6,7 @@ $window = [Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\MainWindow.x
 # WinUI-style controls for Install AkariOS (switch, combobox, setting card, ...)
 $window.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Controls.xaml" -Raw)))
 foreach ($n in 'Nav', 'Search', 'Heading', 'Rows', 'Page', 'Logo', 'HomePanel', 'HostName', 'HostSub', 'Cards', 'CopySpecs',
-               'Shell', 'Body', 'PaneCol', 'PaneToggle', 'HomeTiles', 'HeaderIcon', 'HeaderSub', 'StatusDot', 'StatusRing', 'StatusText', 'StatusBar',
+               'Shell', 'Body', 'Main', 'PaneCol', 'PaneToggle', 'HomeTiles', 'HeaderIcon', 'HeaderSub', 'StatusDot', 'StatusRing', 'StatusText', 'StatusBar',
                'CapMin', 'CapMax', 'CapMaxGlyph', 'CapClose', 'StepsPanel', 'StepDots', 'StepBody', 'StepFooter', 'StepBack', 'StepNext') { Set-Variable $n $window.FindName($n) }
 Initialize-AkariSteps
 
@@ -84,12 +84,18 @@ function Add-Log([string]$m) {
     Write-ErrLog $m
 }
 
+# sidebar shown (full or icon strip) or hidden; hidden, the page gets the same 16 px gutter on the left as on the right
+function Set-AkariPane([bool]$Show) {
+    $PaneCol.Width = [Windows.GridLength]::new($(if (-not $Show) { 0 } elseif ($script:PaneOpen) { 232 } else { 48 }))
+    $Main.Margin = [Windows.Thickness]::new($(if ($Show) { 0 } else { 16 }), 0, 0, 0)
+}
+
 function Show-Page {
     $q = $Search.Text.Trim()
     # Install AkariOS: the header search filters the Guided Tweaks step instead of searching the Manual pages
     $onSteps = ($script:Cat -eq 'Install AkariOS')
     # Install AkariOS is a full-window flow like Home: no sidebar (Back leads home)
-    if ($onSteps) { $PaneCol.Width = [Windows.GridLength]::new(0) }
+    if ($onSteps) { Set-AkariPane $false }
     $StepsPanel.Visibility = if ($onSteps) { 'Visible' } else { 'Collapsed' }
     $StepFooter.Visibility = $StepsPanel.Visibility
     if ($onSteps) {
@@ -117,7 +123,7 @@ function Show-Page {
     }
     $HomePanel.Visibility = if ($onHome) { 'Visible' } else { 'Collapsed' }
     # Home is a full-window landing page: no sidebar there (Win11Debloat-style); every other page has it
-    $PaneCol.Width = [Windows.GridLength]::new($(if ($onHome) { 0 } elseif ($script:PaneOpen) { 232 } else { 48 }))
+    Set-AkariPane (-not $onHome)
     foreach ($t in $list) {
         if (-not $script:RowCache.ContainsKey($t.Id)) { $script:RowCache[$t.Id] = New-Row $t }
         [void]$Rows.Children.Add($script:RowCache[$t.Id])
@@ -264,7 +270,7 @@ foreach ($c in $Pages.Keys) {
 $script:PaneOpen = $true
 $PaneToggle.Add_Click({
     $script:PaneOpen = -not $script:PaneOpen
-    $PaneCol.Width = [Windows.GridLength]::new($(if ($script:PaneOpen) { 232 } else { 48 }))
+    Set-AkariPane $true
     $script:NavHeader.Visibility = if ($script:PaneOpen) { 'Visible' } else { 'Hidden' }
 })
 $Nav.AddHandler([Windows.Controls.Primitives.ToggleButton]::CheckedEvent, [Windows.RoutedEventHandler] {
