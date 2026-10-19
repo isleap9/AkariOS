@@ -169,10 +169,14 @@ AkariOS/
 │  ├─ Gaming.json
 │  └─ Light.json
 ├─ UI/
-│  ├─ MainWindow.xaml         # carried over from AkariOS-Ultimate
-│  ├─ Shell.ps1
-│  ├─ Rows.ps1
-│  └─ Home.ps1
+│  ├─ MainWindow.xaml         # shell, carried over from AkariOS-Ultimate
+│  ├─ Controls.xaml           # WinUI-style switch, combobox, setting card, expander
+│  ├─ Shell.ps1               # window, sidebar, search, status bar, job timer
+│  ├─ Home.ps1
+│  ├─ Selection.ps1           # pending changes of the Manual steps (no WPF)
+│  ├─ Cards.ps1               # one setting card per Tweak
+│  ├─ Steps.ps1               # Apps → Tweaks → Review & Apply
+│  └─ Toolbox.ps1             # Install / Utilities (M2b)
 ├─ Assets/                    # logo, wallpaper, start2 layout
 ├─ Build/
 │  └─ Bundle.ps1              # merges everything into one Akari.ps1 for release (skips _ref/)
@@ -402,7 +406,7 @@ Shallow clones (`git clone --depth 1`) kept next to the code so agents always ha
    - convert pure registry bodies (`cmd /c reg add …`) into `Registry` data.
    Delete the `Add-Tweak` adapter when the last category is ported.
 4. **Port Akari-OS:** split `akarios.ps1`, `stepone.ps1`, `steptwo.ps1` and `reg.reg` into tweak files; build `Presets/AkariOS.json` and `Core/Phases.ps1`.
-5. **GUI:** build the §4 experience inside the kept shell: split `Akari.ps1` into `UI/Shell.ps1`, `UI/Home.ps1`, `UI/Steps.ps1`, `UI/Cards.ps1`, `UI/Toolbox.ps1`; WinUI-style control templates in XAML. Comes **before** the port (step 3), so ported Tweaks land straight in the new UI.
+5. ✅ M2a (Oct 2026, `docs/plans/2026-10-19-m2a-manual-steps.md`: UI split, controls, Manual steps, Apply with restore point; M2b still to do) **GUI:** build the §4 experience inside the kept shell: split `Akari.ps1` into `UI/Shell.ps1`, `UI/Home.ps1`, `UI/Steps.ps1`, `UI/Cards.ps1`, `UI/Toolbox.ps1`; WinUI-style control templates in XAML. Comes **before** the port (step 3), so ported Tweaks land straight in the new UI.
 6. **Build + Release:** `Bundle.ps1` + GitHub Action; move binaries from AkariOS-Files into Releases; `Core/Download.ps1`; retire `IWR.ps1` and `AllowScripts.cmd`.
 7. **Archive:** `Akari-OS`, `AkariOS-Files`, Akari Tool (C#), AkariOS-Companion, WinUI toolbox. Add a README line pointing to `isleap9/AkariOS`.
 
@@ -413,7 +417,7 @@ Shallow clones (`git clone --depth 1`) kept next to the code so agents always ha
 | Milestone | Done when |
 |---|---|
 | **M1: Engine** | Core extracted from `Akari.ps1`; Loader + Registry + Runner work from CLI: `-List`, `-Apply`, `-Revert` on 3 sample tweaks; GUI still runs through the `Add-Tweak` adapter. |
-| **M2: Experience** | §4 experience inside the kept shell: Home (One-click / Manual / Undo everything), guided steps (Tweaks → Review & Apply; Apps step stubbed), Install / Utilities pages, WinUI-style cards / switch / combobox, status bar with Restart required; tuners and log panel gone; old tweaks reachable until ported. Built from Core/Loader only. |
+| **M2: Experience** (M2a ✅ Manual steps; M2b: Home, Install / Utilities, status bar, log panel gone) | §4 experience inside the kept shell: Home (One-click / Manual / Undo everything), guided steps (Tweaks → Review & Apply; Apps step stubbed), Install / Utilities pages, WinUI-style cards / switch / combobox, status bar with Restart required; tuners and log panel gone; old tweaks reachable until ported. Built from Core/Loader only. |
 | **M3: Windows category** | `6 Windows` from the old no-UI Ultimate ported to one-file tweaks, all Toggles revertible with `Detect`. |
 | **M4: One-click** | AkariOS one-click (Home button and `-Preset AkariOS`) reproduces the old Akari-OS 3-phase run, including reboots and Safe Mode. |
 | **M5: Apps + Config** | App removal checklist + WinGet installs; Quick select, Last used, Import / Export, Save as preset. |

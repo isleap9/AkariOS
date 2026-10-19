@@ -7,9 +7,9 @@ PowerShell 5.1 + WPF app that debloats and optimizes Windows 10 22H2 / 11 for ga
 
 ## Current layout (transitional)
 
-The port is in progress (M1 Engine done; plan in `docs/plans/`).
+The port is in progress (M1 Engine and M2a Manual steps done; plans in `docs/plans/`).
 
-- `Akari.ps1`: CLI branch (`-List`, `-Apply id,id`, `-Revert id,id`; Apply/Revert need an elevated shell), then elevation and the whole GUI host.
+- `Akari.ps1`: CLI branch (`-List`, `-Apply id,id`, `-Revert id,id`; Apply/Revert need an elevated shell), then elevation, Core and tweak loading, and dot-sourcing `UI/*.ps1`.
 - `Core/` (dot-sourced function files, no tweak logic):
   - `Log.ps1`: `Write-Log` (GUI queue or console), `Write-ErrLog` (`%LOCALAPPDATA%\Akari\akari.log`).
   - `Compat.ps1`: no-op / dialog shims for legacy tweak bodies (`Write-Host`, `Pause`, `Read-Host`, file pickers). Loaded only in the GUI job.
@@ -17,12 +17,19 @@ The port is in progress (M1 Engine done; plan in `docs/plans/`).
   - `Registry.ps1`: `Set-Reg`, `Remove-Reg`, `Get-AkariRegValue`, `Resolve-AkariRegPath` (HKCU → real user's `HKEY_USERS\<sid>`), `Invoke-AkariRegistry`, `Get-AkariRegistryState`.
   - `Loader.ps1`: `Get-AkariTweaks <TweaksRoot>` → `@{ Tweaks; Problems }`, `Import-AkariTweakFile`, `ConvertTo-AkariTweak`. Rules in plan §7.
   - `State.ps1`: `Get-AkariState` → Optimized / Default / Custom / Unknown; `Get/Set-AkariRememberedState` (`state.json`).
-  - `Runner.ps1`: `Invoke-AkariTweak`, `Invoke-AkariRun` → one Outcome per id; `Start-AkariJob` (GUI background runspace with Core loaded).
+  - `Runner.ps1`: `Invoke-AkariTweak <tweak> <Mode> [<Value>]` (Value: a Choice value other than Recommended), `Invoke-AkariPlan <@{Id;Mode;Value}[]>` and `Invoke-AkariRun <ids> <Mode>` → one Outcome per item; `Start-AkariJob <code> <queue> <CoreDir> [<Shared>]` (GUI background runspace with Core loaded; `$AkariShared` hands objects back).
+  - `Restore.ps1`: `New-AkariRestorePoint` → `@{ Ok; Message }`, never throws (enables System Protection and lifts the 24 h throttle for one retry).
   - `Legacy.ps1`: `Add-Tweak` adapter + `Import-AkariLegacyTweaks`. Delete when the port is finished.
 - `Tweaks/<Section>/<Category>/*.ps1`: one-file tweaks (format in plan §7).
 - `Tweaks/*.ps1`: 8 GENERATED legacy category files of `Add-Tweak` calls, loaded through `Core/Legacy.ps1`. Large: open only the tweak you're changing (search for its `-Id`), never the whole file.
 - `Tests/`: Pester 3.4. Run `powershell -NoProfile -ExecutionPolicy Bypass -File Tests\Run.ps1`. Fixtures in `Tests/Fixtures/`.
-- `UI/MainWindow.xaml`, `Assets/`, `CREDITS.md`.
+- `UI/` (GUI only, dot-sourced in this order by `Akari.ps1`):
+  - `Selection.ps1`: pending changes of the Manual steps (`Set-AkariPending`, `Get-AkariReviewItems`, `Get-AkariPlanItems`, `Get-AkariConfirmText`, `Get-AkariNextToggle`). No WPF.
+  - `Cards.ps1`: `New-AkariCard` (switch / combobox / checkbox setting card), `Set-AkariCardControl`, `Get-AkariComboValue`.
+  - `Steps.ps1`: Manual flow Apps → Tweaks → Review & Apply → result; `Get-AkariStepGroups` and `Get-AkariRunSummary` are pure.
+  - `Home.ps1`: spec cards. `Shell.ps1`: window, sidebar, search, `Show-Page`, status bar, job timer. `Rows.ps1`: old pages' rows for legacy Actions / Groups (temporary, deleted in M2b).
+  - `MainWindow.xaml` (shell), `Controls.xaml` (WinUI-style styles: `Switch`, `Combo`, `Check`, `SettingCard`, `Section`, `Accent`, `StepDot`).
+- `Assets/`, `CREDITS.md`.
 
 Target layout (`UI/*.ps1`, `Presets/`, `Build/`, `Core/Phases`, `Core/Presets`, …) is in plan §6. Update this section whenever the layout changes.
 

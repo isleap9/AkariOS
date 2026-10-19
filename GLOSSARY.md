@@ -16,10 +16,10 @@ _Avoid_: command, task
 **Entry**: a Tweak that lives inside a Group, addressed as `<group-id>/<name>` so a Preset can target it on its own. It can be any kind except Group.
 _Avoid_: sub-action, item, child
 
-**Apply**: perform a Tweak's change. The **Optimize** button is the GUI label for Apply.
+**Apply**: perform a Tweak's change. In the GUI, turning a Toggle's switch On (or picking a Choice value) selects Apply; nothing happens until Review & Apply.
 _Avoid_: optimize (as a verb in code or docs), enable, run
 
-**Revert**: put a Toggle back to its Default. The **Default** button is the GUI label for Revert.
+**Revert**: put a Toggle back to its Default. In the GUI, turning the switch Off (or picking the Windows default value) selects Revert.
 _Avoid_: undo, restore, reset
 
 **Default**: the stock Windows value of a setting. It is never "the value the user had before Akari".
@@ -36,7 +36,7 @@ _Avoid_: tuner, dropdown, picker
 
 ## Organisation
 
-**Section**: a top-level area of the app. Each Section is one sidebar page: Home, Apps, Optimize, Customize, Hardware (shown as "Graphics & Hardware"), Advanced, Presets.
+**Section**: a top-level grouping of Tweaks: Optimize, Customize, Hardware (shown as "Graphics & Hardware") and Advanced. The Tweaks step shows one heading per Section, with its Categories under it.
 _Avoid_: page, tab, category
 
 **Category**: a group heading within a Section, such as Gaming under Optimize.
@@ -45,7 +45,10 @@ _Avoid_: page, tab, category
 
 ## Running
 
-**Run**: a single call to the engine with a list of Tweak ids, coming from the CLI, a Preset, or one GUI click.
+**Run**: a single call to the engine with a list of Tweak ids, coming from the CLI, a Preset, or one Review & Apply in the GUI.
+
+**Selection**: the changes picked in the Manual steps (Apply, Revert, a Choice value, or an Action to run). Nothing is applied while choosing; Review & Apply turns the Selection into one Run.
+_Avoid_: pending list, cart
 
 **Preset**: a named list of Tweak ids (a Choice may be given an explicit value; otherwise its Recommended value is used), optionally split into Phases. It is either **built-in** (shipped with Akari) or **user** (saved from the GUI).
 _Avoid_: config, profile
