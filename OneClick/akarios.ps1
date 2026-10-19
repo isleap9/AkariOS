@@ -1,18 +1,9 @@
-        # SCRIPT RUN AS ADMIN
-        If (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]"Administrator"))
-        {Start-Process PowerShell.exe -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath) -Verb RunAs
-        Exit}
-        $Host.UI.RawUI.WindowTitle = $myInvocation.MyCommand.Definition + " (Administrator)"
-        $Host.UI.RawUI.BackgroundColor = "Black"
-        $Host.PrivateData.ProgressBackgroundColor = "Black"
-        $Host.PrivateData.ProgressForegroundColor = "White"
-        Clear-Host
+# AkariOS: phase body of the One-click run (OneClick\OneClick.ps1 runs it in Akari's console;
+# elevation, window title and console colours are Akari's job).
 
         # SCRIPT CHECK INTERNET
         if (!(Test-Connection -ComputerName "8.8.8.8" -Count 1 -Quiet -ErrorAction SilentlyContinue)) {
-        Write-Host "Internet Connection Required`n" -ForegroundColor Red
-        Pause
-        exit
+        throw "Internet connection required. Nothing was changed."
         }
 
         # SCRIPT SILENT
@@ -21,34 +12,21 @@
         Write-Host "DL`n"
 		## explorer "https://github.com/isleap9/Akari-OS"
 
-# download akarios temp files
-# remove stale copies so a failed download cannot reuse an old file
-foreach ($f in "reg.reg","settimerresolutionservice.cs","start2.txt","stepone.ps1","steptwo.ps1") { Remove-Item "$env:SystemRoot\Temp\$f" -Force -ErrorAction SilentlyContinue }
+# copy the files phase 3 reads from Temp (they ship next to this script in AkariOS\OneClick)
+# remove stale copies first so a failed copy cannot reuse an old file
+foreach ($f in "reg.reg","settimerresolutionservice.cs","start2.txt") { Remove-Item "$env:SystemRoot\Temp\$f" -Force -ErrorAction SilentlyContinue }
+foreach ($f in "reg.reg","settimerresolutionservice.cs","start2.txt") { Copy-Item "$PSScriptRoot\$f" "$env:SystemRoot\Temp\$f" -Force -ErrorAction SilentlyContinue }
 
-# AkariOS: when started from the AkariOS app, the files ship next to this script (OneClick\), so copy them instead
-if ($PSScriptRoot -and (Test-Path "$PSScriptRoot\steptwo.ps1")) {
-foreach ($f in "reg.reg","settimerresolutionservice.cs","start2.txt","stepone.ps1","steptwo.ps1") { Copy-Item "$PSScriptRoot\$f" "$env:SystemRoot\Temp\$f" -Force -ErrorAction SilentlyContinue }
-} else {
-IWR "https://github.com/isleap9/Akari-OS/raw/refs/heads/main/reg.reg" -OutFile "$env:SystemRoot\Temp\reg.reg"
-IWR "https://github.com/isleap9/Akari-OS/raw/refs/heads/main/settimerresolutionservice.cs" -OutFile "$env:SystemRoot\Temp\settimerresolutionservice.cs"
-IWR "https://github.com/isleap9/Akari-OS/raw/refs/heads/main/start2.txt" -OutFile "$env:SystemRoot\Temp\start2.txt"
-IWR "https://github.com/isleap9/Akari-OS/raw/refs/heads/main/stepone.ps1" -OutFile "$env:SystemRoot\Temp\stepone.ps1"
-IWR "https://github.com/isleap9/Akari-OS/raw/refs/heads/main/steptwo.ps1" -OutFile "$env:SystemRoot\Temp\steptwo.ps1"
-}
-
-# stop before changing anything if a required file failed to download
-$missing = "reg.reg","settimerresolutionservice.cs","start2.txt","stepone.ps1","steptwo.ps1" | Where-Object { -not (Test-Path "$env:SystemRoot\Temp\$_") -or (Get-Item "$env:SystemRoot\Temp\$_").Length -eq 0 }
+# stop before changing anything if a required file is missing
+$missing = "reg.reg","settimerresolutionservice.cs","start2.txt" | Where-Object { -not (Test-Path "$env:SystemRoot\Temp\$_") -or (Get-Item "$env:SystemRoot\Temp\$_").Length -eq 0 }
 if ($missing) {
-Write-Host "Download failed: $($missing -join ', ')`nNothing was changed. Check your connection and try again.`n" -ForegroundColor Red
-Pause
-exit
+throw "Missing One-click files: $($missing -join ', '). Nothing was changed."
 }
 
-# download wallpaper, skipped if it fails
+# copy wallpaper, skipped if it fails
 try {
 New-Item -Path "$env:SystemRoot\Web\AkariOS" -ItemType Directory -Force | Out-Null
-if ($PSScriptRoot -and (Test-Path "$PSScriptRoot\img.jpg")) { Copy-Item "$PSScriptRoot\img.jpg" "$env:SystemRoot\Web\AkariOS\img.jpg" -Force -ErrorAction Stop }
-else { IWR "https://github.com/isleap9/Akari-OS/raw/refs/heads/main/img.jpg" -OutFile "$env:SystemRoot\Web\AkariOS\img.jpg" -ErrorAction Stop }
+Copy-Item "$PSScriptRoot\img.jpg" "$env:SystemRoot\Web\AkariOS\img.jpg" -Force -ErrorAction Stop
 } catch { }
 
         Write-Host "7Z`n"
@@ -264,17 +242,4 @@ cmd /c "reg add `"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\PasswordLess
 cmd /c "reg add `"HKCU\Console\%%Startup`" /v `"DelegationConsole`" /t REG_SZ /d `"{B23D10C0-E52E-411E-9D5B-C09FDF709C7D}`" /f >nul 2>&1"
 cmd /c "reg add `"HKCU\Console\%%Startup`" /v `"DelegationTerminal`" /t REG_SZ /d `"{B23D10C0-E52E-411E-9D5B-C09FDF709C7D}`" /f >nul 2>&1"
 
-# install runonce stepone ps1 file to run in safe boot
-cmd /c "reg add `"HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce`" /v `"*!stepone`" /t REG_SZ /d `"powershell.exe -nop -ep bypass -WindowStyle Maximized -f $env:SystemRoot\Temp\stepone.ps1`" /f >nul 2>&1"
-
-# install runonce steptwo ps1 file to run in normal boot
-cmd /c "reg add `"HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce`" /v `"!steptwo`" /t REG_SZ /d `"powershell.exe -nop -ep bypass -WindowStyle Maximized -f $env:SystemRoot\Temp\steptwo.ps1`" /f >nul 2>&1"
-
-# turn on safe boot
-cmd /c "bcdedit /set {current} safeboot minimal >nul 2>&1"
-
-        Write-Host "RESTARTING`n" -ForegroundColor Red
-
-# restart
-Start-Sleep -Seconds 5
-shutdown -r -t 00
+# AkariOS: RunOnce (Akari.ps1 -OneClick 2 and 3), Safe Mode on and the restart are done by OneClick\OneClick.ps1

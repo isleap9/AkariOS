@@ -1,6 +1,7 @@
 ﻿#requires -Version 5.1
-param([switch]$List, [string[]]$Apply, [string[]]$Revert)
+param([ValidateRange(1, 3)][int]$OneClick, [switch]$List, [string[]]$Apply, [string[]]$Revert)
 # Akari. GUI:  powershell -ExecutionPolicy Bypass -File Akari.ps1
+# One-click phases (RunOnce after a restart):  Akari.ps1 -OneClick 2|3
 # CLI:  Akari.ps1 -List  |  Akari.ps1 -Apply id,id  |  Akari.ps1 -Revert id,id   (Apply/Revert need an elevated shell)
 
 # ---- CLI: no relaunch, no WPF
@@ -32,6 +33,20 @@ if ($List -or $Apply -or $Revert) {
     exit 0
 }
 
+# ---- One-click phases 2 and 3: started by RunOnce after a restart (OneClick\OneClick.ps1); console only, no GUI
+if ($OneClick) {
+    $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]'Administrator')
+    if (-not $admin) {
+        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Maximized -File `"$PSCommandPath`" -OneClick $OneClick" -Verb RunAs
+        exit
+    }
+    foreach ($f in 'Log', 'Registry', 'Phases') { . "$PSScriptRoot\Core\$f.ps1" }
+    . "$PSScriptRoot\OneClick\OneClick.ps1"
+    Write-AkariBanner 'AkariOS One-click is running...'
+    [void](Invoke-AkariOneClick $OneClick $PSScriptRoot)
+    exit
+}
+
 # ---- elevate once, and make sure we are STA (WPF needs it)
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]'Administrator')
 $isSta = [Threading.Thread]::CurrentThread.GetApartmentState() -eq 'STA'
@@ -42,18 +57,8 @@ if (-not $isAdmin -or -not $isSta) {
 }
 
 # ---- console: launch banner; every log line is printed here while Akari runs
-$Host.UI.RawUI.WindowTitle = 'AkariOS (Administrator) - keep this window open'
-try { $Host.UI.RawUI.BackgroundColor = 'Black'; $Host.UI.RawUI.ForegroundColor = 'Gray'; Clear-Host } catch { }
-Write-Host ''
-Write-Host '     _    _              _  ___  ____  ' -ForegroundColor White
-Write-Host '    / \  | | ____ _ _ __(_)/ _ \/ ___| ' -ForegroundColor White
-Write-Host '   / _ \ | |/ / _` | ''__| | | | \___ \ ' -ForegroundColor White
-Write-Host '  / ___ \|   < (_| | |  | | |_| |___) |' -ForegroundColor White
-Write-Host ' /_/   \_\_|\_\__,_|_|  |_|\___/|____/ ' -ForegroundColor White
-Write-Host ''
-Write-Host '  AkariOS is launching...' -ForegroundColor White
-Write-Host '  Keep this window open: it shows what Akari is doing.' -ForegroundColor DarkGray
-Write-Host ''
+. "$PSScriptRoot\Core\Log.ps1"
+Write-AkariBanner 'AkariOS is launching...'
 
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Xaml
 Add-Type -MemberDefinition @'
@@ -104,8 +109,8 @@ foreach ($f in 'Selection', 'Cards', 'Steps', 'Home', 'Shell', 'Rows') { . "$Roo
 
 # ---- One-click: the window closed to hand this console to the Akari-OS run (it restarts the PC itself)
 if ($script:OneClickPath) {
-    Write-Host ''
-    Write-Host '  Starting AkariOS One-click. Keep this window open.' -ForegroundColor White
-    Write-Host ''
-    & $script:OneClickPath
+    . "$Root\Core\Phases.ps1"
+    . "$Root\OneClick\OneClick.ps1"
+    Write-AkariBanner 'AkariOS One-click is running...'
+    [void](Invoke-AkariOneClick 1 $Root)
 }

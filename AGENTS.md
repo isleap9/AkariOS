@@ -9,7 +9,7 @@ PowerShell 5.1 + WPF app that debloats and optimizes Windows 10 22H2 / 11 for ga
 
 The port is in progress (M1 Engine and M2a Manual steps done; plans in `docs/plans/`).
 
-- `Akari.ps1`: CLI branch (`-List`, `-Apply id,id`, `-Revert id,id`; Apply/Revert need an elevated shell), then elevation (the elevated console stays visible: launch banner, live log), Core and tweak loading, and dot-sourcing `UI/*.ps1`.
+- `Akari.ps1`: `-OneClick 2|3` branch (One-click phases resumed by RunOnce, console only), CLI branch (`-List`, `-Apply id,id`, `-Revert id,id`; Apply/Revert need an elevated shell), then elevation (the elevated console stays visible: launch banner, live log), Core and tweak loading, and dot-sourcing `UI/*.ps1`.
 - `Core/` (dot-sourced function files, no tweak logic):
   - `Log.ps1`: `Write-Log` (GUI queue, printed to Akari's console window, or straight to the console), `Write-ErrLog` (`%LOCALAPPDATA%\Akari\akari.log`).
   - `Compat.ps1`: no-op / dialog shims for legacy tweak bodies (`Write-Host`, `Pause`, `Read-Host`, file pickers). Loaded only in the GUI job.
@@ -18,9 +18,10 @@ The port is in progress (M1 Engine and M2a Manual steps done; plans in `docs/pla
   - `Loader.ps1`: `Get-AkariTweaks <TweaksRoot>` → `@{ Tweaks; Problems }`, `Import-AkariTweakFile`, `ConvertTo-AkariTweak`. Rules in plan §7.
   - `State.ps1`: `Get-AkariState` → Optimized / Default / Custom / Unknown; `Get/Set-AkariRememberedState` (`state.json`).
   - `Runner.ps1`: `Invoke-AkariTweak <tweak> <Mode> [<Value>]` (Value: a Choice value other than Recommended), `Invoke-AkariPlan <@{Id;Mode;Value}[]>` and `Invoke-AkariRun <ids> <Mode>` → one Outcome per item; `Start-AkariJob <code> <queue> <CoreDir> [<Shared>]` (GUI background runspace with Core loaded; `$AkariShared` hands objects back).
+  - `Phases.ps1`: `Register-AkariResume` (HKCU RunOnce, real user), `Get-AkariResumeCommand`, `Set-AkariSafeBoot` (through `Invoke-AkariBcdEdit`), `Restart-AkariPC`.
   - `Restore.ps1`: `New-AkariRestorePoint` → `@{ Ok; Message }`, never throws (enables System Protection and lifts the 24 h throttle for one retry).
   - `Legacy.ps1`: `Add-Tweak` adapter + `Import-AkariLegacyTweaks`. Delete when the port is finished.
-- `OneClick/`: the old Akari-OS one-click run, imported as-is from `isleap9/Akari-OS` (`akarios.ps1` → `stepone.ps1` in Safe Mode → `steptwo.ps1`, plus `reg.reg`, `start2.txt`, `settimerresolutionservice.cs`, `img.jpg`). Started by Install AkariOS → One-click: the window closes and the run continues in Akari's console (no new window). Only change from upstream: `akarios.ps1` copies these files from its own folder instead of downloading them. Keep it working as-is until the M4 port replaces it.
+- `OneClick/`: the old Akari-OS one-click run, run natively by Akari. `OneClick.ps1` (`Invoke-AkariOneClick <phase> <Root>`) runs each phase in Akari's console: phase 1 `akarios.ps1` (from the GUI: the window closes, the console carries on), then Akari turns Safe Mode on, registers `Akari.ps1 -OneClick 2` (`*!`) and `-OneClick 3` (`!`) in RunOnce and restarts; phase 2 `stepone.ps1` (Safe Mode, ends with DDU's restart); phase 3 `steptwo.ps1` (restarts itself). The three phase scripts are the imported `isleap9/Akari-OS` bodies; changes from upstream: no admin/console header, no self-chaining (RunOnce, Safe Mode, restart), `throw` instead of `Pause`/`exit` on failure, files copied from `OneClick/` instead of downloaded. Plus `reg.reg`, `start2.txt`, `settimerresolutionservice.cs`, `img.jpg`. Keep the bodies as they are until the M4 port replaces them.
 - `Tweaks/<Section>/<Category>/*.ps1`: one-file tweaks (format in plan §7).
 - `Tweaks/*.ps1`: 8 GENERATED legacy category files of `Add-Tweak` calls, loaded through `Core/Legacy.ps1`. Large: open only the tweak you're changing (search for its `-Id`), never the whole file.
 - `Tests/`: Pester 3.4. Run `powershell -NoProfile -ExecutionPolicy Bypass -File Tests\Run.ps1`. Fixtures in `Tests/Fixtures/`.
@@ -47,4 +48,4 @@ Target layout (`UI/*.ps1`, `Presets/`, `Build/`, `Core/Phases`, `Core/Presets`, 
 9. Never copy code from Winhance (PolyForm Shield). Ideas and layout only.
 10. Update this file in the same change whenever the layout or a Core API changes.
 11. `_ref/` is reference only: read a file there only when the task names it; never scan it whole, never commit or bundle it.
-12. Never launch the GUI or run the CLI on the developer's real machine, in tests or by hand. Tests use fixture tweaks, `HKCU:\Software\AkariTest\<guid>` and `TestDrive:`; CLI tests use `-List` or fake ids. The user does all real testing on a VM — never on the developer's machine.
+12. Never launch the GUI or run the CLI on the developer's real machine, in tests or by hand. Tests use fixture tweaks, `HKCU:\Software\AkariTest\<guid>` and `TestDrive:`; CLI tests use `-List` or fake ids. The user does all real testing on a VM — never on the developer's machine. System-changing native commands (`bcdedit`, `shutdown`, …) are called only through a PowerShell function (e.g. `Invoke-AkariBcdEdit`) and tests mock that function, asserting the mock was hit: Pester 3 does not reliably mock a native command (a `Mock cmd` let the real `bcdedit` run once).
