@@ -199,32 +199,6 @@
       </Setter>
     </Style>
 
-    <!-- Choice chip, after a WinUI ToggleButton: white when picked. -->
-    <Style x:Key="Chip" TargetType="RadioButton">
-      <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
-      <Setter Property="Margin" Value="0,0,6,6"/>
-      <Setter Property="Template">
-        <Setter.Value>
-          <ControlTemplate TargetType="RadioButton">
-            <Border x:Name="B" BorderThickness="1" BorderBrush="{DynamicResource CtlBd}" CornerRadius="4"
-                    Background="{DynamicResource Ctl}" Padding="11,4,11,5">
-              <ContentPresenter HorizontalAlignment="Center"/>
-            </Border>
-            <ControlTemplate.Triggers>
-              <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource CtlH}"/>
-              </Trigger>
-              <Trigger Property="IsChecked" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource Inv}"/>
-                <Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource Inv}"/>
-                <Setter Property="Foreground" Value="{DynamicResource InvT}"/>
-              </Trigger>
-            </ControlTemplate.Triggers>
-          </ControlTemplate>
-        </Setter.Value>
-      </Setter>
-    </Style>
-
     <!-- Text box, after WinUI's: faint fill, a grey underline that turns white and thicker on focus. -->
     <Style x:Key="Flat" TargetType="TextBox">
       <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
@@ -430,79 +404,6 @@
               </DockPanel>
               <WrapPanel x:Name="Cards" Orientation="Horizontal"/>
             </StackPanel>
-
-            <!-- Win32PrioritySeparation tuner (Advanced page) -->
-            <Border x:Name="Tuner" Visibility="Collapsed" Background="{DynamicResource S1}" BorderBrush="{DynamicResource Bd}"
-                    BorderThickness="1" CornerRadius="8" Padding="16,14" Margin="0,0,0,8">
-              <StackPanel>
-                <TextBlock Text="Win32PrioritySeparation" FontSize="14" FontWeight="SemiBold"/>
-                <TextBlock Text="How long each app gets the CPU, and how much the window in front is favored."
-                           Foreground="{DynamicResource Mu}" FontSize="12.5" Margin="0,2,0,12"/>
-                <Grid>
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
-                  </Grid.ColumnDefinitions>
-                  <StackPanel>
-                    <TextBlock Text="Quantum length" Foreground="{DynamicResource Mu}" FontSize="12" Margin="0,0,0,6"/>
-                    <WrapPanel>
-                      <RadioButton x:Name="QL_0" GroupName="QL" Content="Default" Style="{StaticResource Chip}"/>
-                      <RadioButton x:Name="QL_1" GroupName="QL" Content="Long" Style="{StaticResource Chip}"/>
-                      <RadioButton x:Name="QL_2" GroupName="QL" Content="Short" Style="{StaticResource Chip}"/>
-                    </WrapPanel>
-                  </StackPanel>
-                  <StackPanel Grid.Column="1">
-                    <TextBlock Text="Quantum type" Foreground="{DynamicResource Mu}" FontSize="12" Margin="0,0,0,6"/>
-                    <WrapPanel>
-                      <RadioButton x:Name="QT_0" GroupName="QT" Content="Default" Style="{StaticResource Chip}"/>
-                      <RadioButton x:Name="QT_1" GroupName="QT" Content="Variable" Style="{StaticResource Chip}"/>
-                      <RadioButton x:Name="QT_2" GroupName="QT" Content="Fixed" Style="{StaticResource Chip}"/>
-                    </WrapPanel>
-                  </StackPanel>
-                  <StackPanel Grid.Column="2">
-                    <TextBlock Text="Foreground boost" Foreground="{DynamicResource Mu}" FontSize="12" Margin="0,0,0,6"/>
-                    <WrapPanel>
-                      <RadioButton x:Name="FB_0" GroupName="FB" Content="None" Style="{StaticResource Chip}"/>
-                      <RadioButton x:Name="FB_1" GroupName="FB" Content="Medium" Style="{StaticResource Chip}"/>
-                      <RadioButton x:Name="FB_2" GroupName="FB" Content="High" Style="{StaticResource Chip}"/>
-                    </WrapPanel>
-                  </StackPanel>
-                </Grid>
-                <DockPanel Margin="0,10,0,0">
-                  <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                    <Button Tag="read" Content="Read current" Style="{StaticResource Btn}"/>
-                    <Button Tag="def" Content="Default (0x02)" Style="{StaticResource Btn}"/>
-                    <Button Tag="apply" Content="Apply" Style="{StaticResource BtnP}"/>
-                  </StackPanel>
-                  <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock x:Name="Hex" FontSize="20" FontWeight="SemiBold"/>
-                    <TextBlock x:Name="Dec" Foreground="{DynamicResource Mu}" Margin="12,0,0,2" VerticalAlignment="Bottom"/>
-                  </StackPanel>
-                </DockPanel>
-              </StackPanel>
-            </Border>
-
-            <!-- SvcHost split threshold tuner (Advanced page) -->
-            <Border x:Name="SvcTuner" Visibility="Collapsed" Background="{DynamicResource S1}" BorderBrush="{DynamicResource Bd}"
-                    BorderThickness="1" CornerRadius="8" Padding="16,14" Margin="0,0,0,8">
-              <StackPanel>
-                <TextBlock Text="SvcHost split threshold" FontSize="14" FontWeight="SemiBold"/>
-                <TextBlock Text="Controls how many svchost.exe processes Windows creates. Merging them saves memory, but one crash takes more services down. Restart to apply."
-                           Foreground="{DynamicResource Mu}" FontSize="12.5" TextWrapping="Wrap" Margin="0,2,0,12"/>
-                <WrapPanel>
-                  <RadioButton x:Name="SV_0" GroupName="SV" Content="Windows default" Style="{StaticResource Chip}"/>
-                  <RadioButton x:Name="SV_1" GroupName="SV" Content="Match RAM" Style="{StaticResource Chip}"/>
-                  <RadioButton x:Name="SV_2" GroupName="SV" Content="Never split" Style="{StaticResource Chip}"/>
-                </WrapPanel>
-                <DockPanel Margin="0,10,0,0">
-                  <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                    <Button Tag="read" Content="Read current" Style="{StaticResource Btn}"/>
-                    <Button Tag="def" Content="Default" Style="{StaticResource Btn}"/>
-                    <Button Tag="apply" Content="Apply" Style="{StaticResource BtnP}"/>
-                  </StackPanel>
-                  <TextBlock x:Name="SvcCur" Foreground="{DynamicResource Mu}" VerticalAlignment="Center"/>
-                </DockPanel>
-              </StackPanel>
-            </Border>
 
             <StackPanel x:Name="Rows"/>
           </StackPanel>
