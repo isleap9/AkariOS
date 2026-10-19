@@ -24,6 +24,21 @@ function Resolve-AkariRegPath([string]$Path) {
     $Path
 }
 
+# a folder of the real logged-in user (rule 6: not the elevated account's), e.g. 'AppData', 'Local AppData', 'Desktop',
+# 'Programs' (their Start menu programs): read from their Shell Folders, else built from their profile path
+function Get-AkariUserFolder([string]$Name) {
+    $p = Get-AkariRegValue 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' $Name
+    if ($p) { return $p }
+    $profile = Get-AkariRegValue "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$(Get-AkariUserSid)" 'ProfileImagePath'
+    if (-not $profile) { $profile = $env:USERPROFILE }
+    switch ($Name) {
+        'AppData' { "$profile\AppData\Roaming" }
+        'Local AppData' { "$profile\AppData\Local" }
+        'Programs' { "$profile\AppData\Roaming\Microsoft\Windows\Start Menu\Programs" }
+        default { "$profile\$Name" }
+    }
+}
+
 # $null when the key or value is absent; DWords come back unsigned
 function Get-AkariRegValue([string]$Path, [string]$Name) {
     $p = Resolve-AkariRegPath $Path

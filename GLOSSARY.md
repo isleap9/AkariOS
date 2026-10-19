@@ -59,4 +59,4 @@ _Avoid_: config, profile
 
 **Reboot pending**: set on a Run when at least one Tweak that needs a reboot was Applied or Reverted.
 
-**Restore point**: a Windows System Restore point that Akari creates before the first change of a Run, or once per GUI session.
+**Restore point**: a Windows System Restore point (described "AkariOS") that Akari creates before the first change of a GUI session in Install AkariOS (Guided, One-click) or Optimize, never for Downloads. When one from an earlier session exists, the user is asked whether to make another.

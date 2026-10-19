@@ -11,8 +11,18 @@ function Invoke-AkariCheckpoint([string]$Description) {
     if ($w) { throw [string]$w[0] }
 }
 
+# the newest restore point Akari made (described AkariOS, or Akari before Oct 2026), or $null:
+# @{ Description; Date }. System Restore is only read through this function (tests mock it).
+function Get-AkariRestorePoint {
+    $p = @(Get-ComputerRestorePoint -ErrorAction SilentlyContinue | Where-Object { $_.Description -like 'Akari*' }) |
+        Sort-Object SequenceNumber -Descending | Select-Object -First 1
+    if (-not $p) { return $null }
+    $date = try { [Management.ManagementDateTimeConverter]::ToDateTime($p.CreationTime) } catch { $null }
+    [pscustomobject]@{ Description = $p.Description; Date = $date }
+}
+
 # never throws: returns @{ Ok; Message }
-function New-AkariRestorePoint([string]$Description = 'Akari') {
+function New-AkariRestorePoint([string]$Description = 'AkariOS') {
     try {
         Invoke-AkariCheckpoint $Description
         Write-Log 'Restore point created'

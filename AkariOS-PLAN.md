@@ -58,8 +58,9 @@ Win11Debloat's structure (Raphire): a start screen, then a guided "choose, revie
 - **Home** (first screen, full window, **no sidebar**): three tiles.
   - **Install AkariOS**: guided optimization, recommended for a fresh install. Full window, no sidebar (Back returns to Home). Two choices:
     - **One-click**: the old Akari-OS run (prep → Safe Mode → tweaks, reboots handled), after a confirmation. ✅ Oct 2026: Akari runs it natively in its own console: the imported Akari-OS phase bodies in `OneClick/`, chained by Akari (`Core/Phases.ps1`: Safe Mode, RunOnce `Akari.ps1 -OneClick 2|3`, restart). Porting the bodies into tweak files is step 4 below.
-    - **Guided**: steps with Back / Next and step dots: **Apps → Tweaks → Review & Apply**. Nothing changes while choosing; each Toggle shows a switch set to its current State, Choices a combobox, Apps a checklist. Review lists only the changes ("Disable Game DVR: Default → Optimized"), then one Run with a restore point first. **Quick select** on Apps and Tweaks: AkariOS, Gaming, Privacy, Light, Last used, the user's own presets. The look of the Tweaks step is still open (current: WinUI setting cards; alternative: Win11Debloat's category-card grid).
+    - **Guided**: steps with Back / Next and step dots: **Apps → Tweaks → Review & Apply**. Nothing changes while choosing; each Toggle shows a checkbox, checked when its State is Optimized, Choices a combobox, Apps a checklist. Review lists only the changes ("Disable Game DVR: Default → Optimized"), then one Run with a restore point first. **Quick select** on Apps and Tweaks: AkariOS, Gaming, Privacy, Light, Last used, the user's own presets. Tweaks step (decided 2026-10-19, ADR 0003): Win11Debloat's category-card grid with checkboxes (Win11Debloat's checked = Apply model), Choices on "No change", glyphs for Risk / restart / State. Apps step: Remove and Install tabs over one table.
   - **Optimize**: **Manual mode**, in-depth, for power users. Every Tweak with its own buttons that act right away (the legacy Optimize / Default rows). For now it opens the old Ultimate pages; its new look (moving away from the FR33THY page structure) is still to be designed.
+  - **Downloads** (Oct 2026): the Guided Apps step's Install cards on their own (apps, game launchers, runtimes, tools, and Store apps the debloat removed), then Review & Apply. Back and Done lead Home.
   - **Import / Export settings**: save choices to a file or load them on another PC (M5).
   - A small **Undo everything** link: selects Revert for every Tweak Akari changed.
 - Every page after Home has the sidebar (Home, Install AkariOS, then the Manual pages).
@@ -260,18 +261,21 @@ The engine derives Apply / Revert / Detect from the `Registry` entries automatic
 
 ### Action
 ```powershell
-# Tweaks/Apps/Install7Zip.ps1
+# Tweaks/Apps/Install/7Zip.ps1 (Oct 2026: app installs use winget wherever the app is on it)
+# Action: an installed app is removed with its own uninstaller; Akari has no Revert for it.
 @{
-    Id       = 'install-7zip'
+    Id       = 'install-7-zip'
     Name     = '7-Zip'
     Section  = 'Apps'
-    Category = 'Installers'
+    Category = 'Install'
     Kind     = 'Action'
     Button   = 'Install'
     Risk     = 'Safe'
-    Apply    = { Get-AkariBinary '7zip' | Start-Process -Wait -ArgumentList '/S' }
+    Winget   = '7zip.7zip'           # the engine installs it (Core/Winget.ps1); Detect = winget lists it as installed
+    After    = { Set-Reg 'HKCU:\Software\7-Zip\Options' 'CascadedMenu' 0 }    # optional extras after the install
 }
 ```
+An app that isn't on winget keeps an `Apply` (download from AkariOS-Files with `Save-AkariFile`) and a `# Not winget: <why>` line.
 
 ### Group
 Entries are full Tweaks without `Section`/`Category`; their id is `<group-id>/<Name>`.
@@ -319,11 +323,15 @@ When every Entry has the same shape, the Group reads them from one data file. Se
 | `Entries` | Group only | Tweaks inside the Group (any kind except Group), id `<group-id>/<Name>` |
 | `EntryKind` | no | Group only: engine-provided handler for data-list Entries (e.g. `ServiceStart`) |
 | `Requires` | no | e.g. `Win11`, `NVIDIA`, `Desktop` to hide irrelevant tweaks |
+| `Winget`, `After` | no | Action only: winget package id(s) the engine installs, then the `After` block; no `Apply` with them |
+| `WingetSource` | no | `msstore`: the `Winget` id is a Microsoft Store product id |
+| `AppType` | no | Apps > Install only: the card the app shows in (Browsers, Communication, Game launchers, Gaming & hardware, Media, Utilities, Runtimes, Dev tools, Restore removed apps) |
 
 Loader rules:
 - A Toggle or Choice without a revert path (`Registry` or `Revert`) is rejected.
 - An Action file must have a one-line comment saying why it can't be a Toggle.
 - A file's folder must match its `Section` / `Category`.
+- An Action's `Detect` (optional) means "already done": the Runner reports Already and skips it.
 - A Toggle without `Detect` (and no `Registry`) loads with a warning: the state falls back to "what Akari last applied", which is wrong after a Windows update or a manual change.
 - Script blocks must not be interactive: no `Pause`, `Read-Host`, `Clear-Host`. The runner keeps no-op shims only as a safety net.
 
@@ -395,7 +403,7 @@ Shallow clones (`git clone --depth 1`) kept next to the code so agents always ha
 
 1. **Repo:** ✅ fresh repo `isleap9/AkariOS` created, `.gitignore` with `_ref/`, reference projects cloned. ✅ AkariOS-Ultimate GUI and `Tweaks/` imported as the starting point (commit `d791728` credits the source repo; Ultimate's history stays in the archived repo). ✅ Baseline checked by hand (Oct 2026): `Akari.ps1` launches and the tweaks apply.
 2. ✅ (Oct 2026, M1, `docs/plans/2026-10-17-m1-engine.md`; `Presets` still to do, with M4) **Core:** move the engine out of `Akari.ps1` per §5.1 — `Loader`, `Registry`, `Trusted`, `Runner`, `State`, `Log`, `Presets`. Keep `Add-Tweak` working as a thin adapter during the port, so the GUI stays usable while categories move one at a time.
-3. **Port Ultimate:** the source is `_ref/AkariOS-Ultimate old no UI/` (the original one-script-per-file folders `1 Check` … `8 Advanced`, 104 scripts), not the 8 GENERATED files in `Tweaks/`. Each old script becomes one tweak file (or several, when it bundles unrelated settings); its `Add-Tweak` entry in `Tweaks/*.ps1` is deleted once everything it does is ported. Order: `6 Windows`, then `8 Advanced`, `7 Hardware`, `5 Graphics`, `3 Setup`, `4 Installers`, `1 Check`, `2 Refresh`. Per tweak, clean it up as you go:
+3. **Port Ultimate:** the source is `_ref/AkariOS-Ultimate old no UI/` (the original one-script-per-file folders `1 Check` … `8 Advanced`, 104 scripts), not the 8 GENERATED files in `Tweaks/`. Each old script becomes one tweak file (or several, when it bundles unrelated settings); its `Add-Tweak` entry in `Tweaks/*.ps1` is deleted once everything it does is ported. Order: `6 Windows`, then `8 Advanced`, `7 Hardware`, `5 Graphics`, `3 Setup`, `4 Installers`, `1 Check`, `2 Refresh`. ✅ `4 Installers` ported first (Oct 2026, for the Guided Apps step): `Tweaks/Apps/Install/`, winget for 18 of 28 apps. Per tweak, clean it up as you go:
    - remove `Pause` / `Read-Host` / `Clear-Host` leftovers;
    - add `Detect` (only 1 of ~47 Toggles has one today);
    - add the missing Reverts, or turn the tweak into an Action if it really is one-shot;

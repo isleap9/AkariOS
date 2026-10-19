@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# app config files shipped as-is (CRLF, ANSI), copied byte for byte by Tweaks/Apps/Install
+Tweaks/Apps/Install/Files/** -text

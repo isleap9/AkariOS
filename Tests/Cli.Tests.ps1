@@ -16,6 +16,8 @@ Describe 'Akari.ps1 -List' {
         foreach ($id in 'disable-game-dvr', 'disable-memory-compression', 'win32-priority-separation') { $text | Should Match $id }
     }
 
+    It 'lists the app Entries of the appx Group' { ($r.Out -join "`n") | Should Match 'appx/Clipchamp\.Clipchamp' }
+
     It 'shows a State even when Detect needs admin' {
         ($r.Out | Where-Object { $_ -match 'disable-memory-compression' }) | Should Match '(Optimized|Default|Custom|Unknown)'
     }

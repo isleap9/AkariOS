@@ -1,6 +1,15 @@
 ﻿# Rows: Manual mode, the legacy Ultimate row list. Optimize / Default / Run buttons act right away, one Tweak at a time.
 # Dot-sourced by Akari.ps1 after UI\Shell.ps1.
 
+# Optimize (Manual mode) acts right away: the first change of the session gets an AkariOS restore point first
+# (Get-AkariRestoreChoice, UI\Steps.ps1). Check and Open buttons change nothing and get none. If the restore point
+# fails, the change still runs and the log says so.
+function Add-AkariRestoreFirst([string]$Code, [string]$Button) {
+    if ($Button -in 'Check', 'Open' -or -not (Get-AkariRestoreChoice 'Optimize')) { return $Code }
+    $script:RestoreDone = $true
+    "`$rp = New-AkariRestorePoint 'AkariOS'; if (-not `$rp.Ok) { Write-Log 'Warning: going on without a restore point' }`n" + $Code
+}
+
 # ---- rows
 function New-Row($t) {
     $e = { param($s) [Security.SecurityElement]::Escape([string]$s) }
@@ -79,18 +88,19 @@ $Rows.AddHandler([Windows.Controls.Primitives.ButtonBase]::ClickEvent, [Windows.
         $q = { param($s) "'" + ([string]$s -replace "'", "''") + "'" }
         $code = "`$t = Import-AkariTweakFile -Path $(& $q $t.Source) -TweaksRoot $(& $q "$Root\Tweaks"); [void](Invoke-AkariTweak `$t $mode)"
         $verb = if ($t.Kind -eq 'Action') { $t.Button.ToLower() } elseif ($mode -eq 'Apply') { 'optimize' } else { 'default' }
-        Invoke-Code $code "$($t.Name): $verb"
+        Invoke-Code (Add-AkariRestoreFirst $code $(if ($t.Kind -eq 'Action') { $t.Button } else { '' })) "$($t.Name): $verb"
         return
     }
     $meta = if ($t.Kind -eq 'Toggle') { @{ Id = $id; Kind = $kind } } else { $null }
+    $btn = if ($t.Kind -eq 'Toggle') { '' } else { $t.Button }
     switch ($kind) {
-        'Apply'  { if ($t.Apply -and (Confirm-Run $t.Confirm)) { Invoke-Code $t.Apply.ToString() "$($t.Name): $(if ($t.Kind -eq 'Toggle') { 'optimize' } else { $t.Button.ToLower() })" $meta } }
-        'Revert' { if ($t.Revert) { Invoke-Code $t.Revert.ToString() "$($t.Name): default" $meta } }
+        'Apply'  { if ($t.Apply -and (Confirm-Run $t.Confirm)) { Invoke-Code (Add-AkariRestoreFirst $t.Apply.ToString() $btn) "$($t.Name): $(if ($t.Kind -eq 'Toggle') { 'optimize' } else { $t.Button.ToLower() })" $meta } }
+        'Revert' { if ($t.Revert) { Invoke-Code (Add-AkariRestoreFirst $t.Revert.ToString() '') "$($t.Name): default" $meta } }
         'Check'  { if ($t.Check)  { Invoke-Code $t.Check.ToString() "$($t.Name): check" } }
         'Run'    {
-            if ($t.Apply -and (Confirm-Run $t.Confirm)) { Invoke-Code $t.Apply.ToString() "$($t.Name): $($t.Button.ToLower())" }
+            if ($t.Apply -and (Confirm-Run $t.Confirm)) { Invoke-Code (Add-AkariRestoreFirst $t.Apply.ToString() $t.Button) "$($t.Name): $($t.Button.ToLower())" }
         }
-        'Sub'    { $a = $t.Actions[[int]$arg]; if (Confirm-Run $a.Confirm) { Invoke-Code $a.Block.ToString() "$($t.Name): $($a.Name)" } }
+        'Sub'    { $a = $t.Actions[[int]$arg]; if (Confirm-Run $a.Confirm) { Invoke-Code (Add-AkariRestoreFirst $a.Block.ToString() $a.Button) "$($t.Name): $($a.Name)" } }
         'Expand' {
             $row = $script:RowCache[$id]; $sub = $row.FindName('Sub'); $exp = $row.FindName('Exp')
             if ($sub.Visibility -eq 'Visible') { $sub.Visibility = 'Collapsed'; $exp.Content = 'Options' }

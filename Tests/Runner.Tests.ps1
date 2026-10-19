@@ -51,6 +51,16 @@ Describe 'Invoke-AkariTweak' {
             (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Failed'
         }
 
+        It 'logs a native tool''s stderr and keeps going: Applied, not Failed' {
+            $env:AKARI_TEST_FILE = "$TestDrive\native.txt"
+            $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
+            # harmless: cmd echoes to stderr, like reg.exe or powercfg do
+            $t = ConvertTo-AkariTweak @{ Id = 'native'; Name = 'Native'; Kind = 'Action'; Apply = { cmd /c "echo akari-stderr 1>&2"; Set-Content $env:AKARI_TEST_FILE 'after' } } 'x' $false
+            (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+            Get-Content $env:AKARI_TEST_FILE | Should Be 'after'
+            @($LogQueue.ToArray()) -join "`n" | Should Match 'akari-stderr'
+        }
+
         It 'Skips Revert on an Action' {
             $t = ConvertTo-AkariTweak @{ Id = 'act'; Name = 'Act'; Kind = 'Action'; Apply = { } } 'x' $false
             $o = Invoke-AkariTweak $t Revert

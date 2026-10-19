@@ -52,3 +52,71 @@ Describe 'New-AkariRestorePoint' {
         $r.Message | Should Match 'service is disabled'
     }
 }
+
+Describe 'Get-AkariRestorePoint' {
+    foreach ($f in 'Log', 'Registry', 'Restore') { . "$Core\$f.ps1" }
+    It 'finds the newest restore point Akari made, by its description' {
+        Mock Get-ComputerRestorePoint {
+            [pscustomobject]@{ Description = 'Windows Update'; SequenceNumber = 9; CreationTime = '20261019120000.000000-000' }
+            [pscustomobject]@{ Description = 'Akari'; SequenceNumber = 3; CreationTime = '20261010120000.000000-000' }
+            [pscustomobject]@{ Description = 'AkariOS'; SequenceNumber = 7; CreationTime = '20261018120000.000000-000' }
+        }
+        $p = Get-AkariRestorePoint
+        $p.Description | Should Be 'AkariOS'
+        $p.Date.Day | Should Be 18
+    }
+    It 'is $null when Akari made none' {
+        Mock Get-ComputerRestorePoint { [pscustomobject]@{ Description = 'Windows Update'; SequenceNumber = 9; CreationTime = '20261019120000.000000-000' } }
+        Get-AkariRestorePoint | Should BeNullOrEmpty
+    }
+}
+
+Describe 'Restore point choice' {
+    $Root = Split-Path $PSScriptRoot
+    foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
+    foreach ($f in 'Selection', 'Steps') { . "$Root\UI\$f.ps1" }
+    # no System Restore read and no dialog: both stubbed
+    $state = @{ Point = $null; Answer = $false; Asked = 0 }
+    function Get-AkariRestorePoint { $state.Point }
+    function Confirm-AkariAnotherRestore($p) { $state.Asked++; $state.Answer }
+    function Reset([object]$point, [bool]$answer) { $script:RestoreDone = $false; $state.Point = $point; $state.Answer = $answer; $state.Asked = 0 }
+
+    It 'never makes one for Downloads' {
+        Reset $null $true
+        Get-AkariRestoreChoice 'Downloads' | Should Be $false
+    }
+    It 'makes one for Install AkariOS and Optimize when Akari has none yet' {
+        Reset $null $true
+        Get-AkariRestoreChoice 'Guided' | Should Be $true
+        Get-AkariRestoreChoice 'Optimize' | Should Be $true
+        $state.Asked | Should Be 0
+    }
+    It 'asks when an AkariOS restore point exists: No skips it, and is not asked again this session' {
+        Reset ([pscustomobject]@{ Description = 'AkariOS'; Date = (Get-Date) }) $false
+        Get-AkariRestoreChoice 'Guided' | Should Be $false
+        Get-AkariRestoreChoice 'Optimize' | Should Be $false
+        $state.Asked | Should Be 1
+    }
+    It 'asks when an AkariOS restore point exists: Yes makes another one' {
+        Reset ([pscustomobject]@{ Description = 'AkariOS'; Date = (Get-Date) }) $true
+        Get-AkariRestoreChoice 'OneClick' | Should Be $true
+    }
+    It 'makes none once this session has one' {
+        Reset $null $true
+        $script:RestoreDone = $true
+        Get-AkariRestoreChoice 'Guided' | Should Be $false
+    }
+
+    # Manual mode's prefix (UI\Rows.ps1 wires its buttons at load, so only the function is taken out of the file)
+    $ast = [Management.Automation.Language.Parser]::ParseFile("$Root\UI\Rows.ps1", [ref]$null, [ref]$null)
+    $fn = $ast.FindAll({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Add-AkariRestoreFirst' }, $true) | Select-Object -First 1
+    . ([scriptblock]::Create($fn.Extent.Text))
+
+    It 'Optimize: the first change of the session runs after a restore point; Check and Open buttons never get one' {
+        Reset $null $true
+        Add-AkariRestoreFirst 'x' 'Open' | Should Be 'x'
+        Add-AkariRestoreFirst 'x' 'Check' | Should Be 'x'
+        Add-AkariRestoreFirst 'x' '' | Should Match "^\`$rp = New-AkariRestorePoint 'AkariOS'.*\nx$"
+        Add-AkariRestoreFirst 'y' '' | Should Be 'y'
+    }
+}

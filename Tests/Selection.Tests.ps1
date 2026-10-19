@@ -91,16 +91,12 @@ Describe 'Selection' {
         Get-AkariConfirmText $c 'Optimized' | Should Be 'Sure?'
     }
 
-    It 'a known State switches between two targets' {
-        Get-AkariNextToggle 'Default' 'Default' | Should Be 'Optimized'
-        Get-AkariNextToggle 'Default' 'Optimized' | Should Be 'Default'
+    It 'a checked box is Optimized' {
+        Get-AkariCheckTarget $true 'None' | Should Be 'Optimized'
+        Get-AkariCheckTarget $true 'Optimized' | Should Be 'Optimized'
     }
 
-    It 'Unknown and Custom cycle through three targets' {
-        foreach ($st in 'Unknown', 'Custom') {
-            Get-AkariNextToggle $st 'None' | Should Be 'Optimized'
-            Get-AkariNextToggle $st 'Optimized' | Should Be 'Default'
-            Get-AkariNextToggle $st 'Default' | Should Be 'None'
-        }
-    }
+    It 'unchecking a box that started checked is Default (Revert)' { Get-AkariCheckTarget $false 'Optimized' | Should Be 'Default' }
+
+    It 'a box that started unchecked and is unchecked is no change' { Get-AkariCheckTarget $false 'None' | Should Be 'None' }
 }

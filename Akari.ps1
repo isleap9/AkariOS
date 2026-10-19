@@ -7,7 +7,7 @@ param([ValidateRange(1, 3)][int]$OneClick, [switch]$List, [string[]]$Apply, [str
 # ---- CLI: no relaunch, no WPF
 if ($List -or $Apply -or $Revert) {
     $CoreDir = Join-Path $PSScriptRoot 'Core'
-    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner') { . "$CoreDir\$f.ps1" }
+    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Appx', 'Winget', 'AppSetup') { . "$CoreDir\$f.ps1" }
     $loaded = Get-AkariTweaks (Join-Path $PSScriptRoot 'Tweaks')
     foreach ($p in $loaded.Problems) { [Console]::Error.WriteLine("$($p.Level): $($p.File): $($p.Message)") }
     if ($List) {
@@ -74,7 +74,7 @@ foreach ($c in @($Root, (Split-Path -Parent $Root), "$Root\Tweaks")) {
     if ($c -and (Test-Path "$c\UI\MainWindow.xaml") -and (Test-Path "$c\Tweaks")) { $Root = $c; break }
 }
 # ---- Core: helpers, loader, state and runner (the background job loads the same files)
-foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy') { . "$Root\Core\$f.ps1" }
+foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Appx', 'Winget', 'AppSetup', 'Restore') { . "$Root\Core\$f.ps1" }
 trap { Write-ErrLog "$($_.Exception.Message) $($_.InvocationInfo.PositionMessage)"; [void][Windows.MessageBox]::Show("Akari hit an error:`n`n$($_.Exception.Message)`n`n$($_.InvocationInfo.PositionMessage)", 'Akari'); exit }
 # remove 'downloaded from the internet' marks so Windows never nags about these files
 Get-ChildItem $Root -Filter *.ps1 -File -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
@@ -102,9 +102,11 @@ foreach ($need in 'UI\MainWindow.xaml', 'Tweaks') {
 $loaded = Get-AkariTweaks "$Root\Tweaks"
 # legacy Add-Tweak files first (adapter), then the one-file tweaks
 foreach ($t in @(Import-AkariLegacyTweaks "$Root\Tweaks") + @($loaded.Tweaks)) { $script:Tweaks.Add($t) }
+# data-list Groups (the apps list): the Apps step builds Entries for installed apps the data file doesn't list
+$script:Groups = @($loaded.Groups)
 
-# ---- GUI: Manual steps, home page, shell, old rows (UI\*.ps1), then show the window
-foreach ($f in 'Selection', 'Cards', 'Steps', 'Home', 'Shell', 'Rows') { . "$Root\UI\$f.ps1" }
+# ---- GUI: Guided steps, home page, shell, old rows (UI\*.ps1), then show the window
+foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps', 'Home', 'Shell', 'Rows') { . "$Root\UI\$f.ps1" }
 [void]$window.ShowDialog()
 
 # ---- One-click: the window closed to hand this console to the Akari-OS run (it restarts the PC itself)
@@ -112,5 +114,13 @@ if ($script:OneClickPath) {
     . "$Root\Core\Phases.ps1"
     . "$Root\OneClick\OneClick.ps1"
     Write-AkariBanner 'AkariOS One-click is running...'
+    # an AkariOS restore point before the first change (unless the window said no); if it fails, the user decides
+    if ($script:OneClickRestore) {
+        $rp = New-AkariRestorePoint 'AkariOS'
+        if (-not $rp.Ok) {
+            $go = [Windows.MessageBox]::Show("Akari could not create a restore point:`n`n$($rp.Message)`n`nRun AkariOS One-click without a restore point?", 'Akari', 'YesNo', 'Warning')
+            if ($go -ne 'Yes') { Write-Log 'One-click cancelled: no restore point.'; exit }
+        }
+    }
     [void](Invoke-AkariOneClick 1 $Root)
 }

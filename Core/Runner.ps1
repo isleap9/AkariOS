@@ -26,6 +26,10 @@ function Invoke-AkariTweak($Tweak, [ValidateSet('Apply', 'Revert')][string]$Mode
     } elseif ($Tweak.Kind -ne 'Action' -and (Get-AkariState $Tweak) -eq $want) {
         Write-Log "Already: $($Tweak.Name)"
         return New-AkariOutcome $Tweak.Id $Mode 'Already'
+    } elseif ($Tweak.Kind -eq 'Action' -and $Tweak.Detect -and (& { try { [bool](& ([scriptblock]::Create($Tweak.Detect.ToString()))) } catch { $false } })) {
+        # an Action's Detect says it is already done (e.g. the app is already removed)
+        Write-Log "Already: $($Tweak.Name)"
+        return New-AkariOutcome $Tweak.Id $Mode 'Already'
     }
     try {
         if ($Tweak.Kind -eq 'Choice') {
@@ -37,7 +41,13 @@ function Invoke-AkariTweak($Tweak, [ValidateSet('Apply', 'Revert')][string]$Mode
         } else {
             # rebuilt from text so a block loaded in another runspace never runs in that runspace's session state
             $sb = [scriptblock]::Create($Tweak.$Mode.ToString())
-            & { $ErrorActionPreference = 'Stop'; & $sb } *>&1 | Out-String -Stream | ForEach-Object { Write-Log $_ }
+            # $AkariTweakDir: the tweak file's folder, for files shipped next to it (e.g. Tweaks\Apps\Install\Files)
+            $dir = if ($Tweak.Source -and (Test-Path -LiteralPath $Tweak.Source)) { Split-Path $Tweak.Source } else { '' }
+            # cmdlet errors stop the tweak (-ErrorAction Stop by default); a native tool's stderr (reg.exe, powercfg...)
+            # is only logged: 5.1 turns it into an error record, and $ErrorActionPreference = 'Stop' would abort on it
+            & { $ErrorActionPreference = 'Continue'; $PSDefaultParameterValues = @{ '*:ErrorAction' = 'Stop' }; $AkariTweakDir = $dir; & $sb } *>&1 |
+                ForEach-Object { if ($_ -is [Management.Automation.ErrorRecord] -and "$($_.FullyQualifiedErrorId)" -like 'NativeCommandError*') { "$($_.Exception.Message)" } else { $_ } } |
+                Out-String -Stream | ForEach-Object { Write-Log $_ }
         }
     } catch {
         Write-Log "Failed: $($Tweak.Name): $($_.Exception.Message)"
@@ -74,7 +84,7 @@ function Start-AkariJob([string]$Code, $Queue, [string]$CoreDir, [hashtable]$Sha
     $rs.SessionStateProxy.SetVariable('AkariShared', $Shared)
     $ps = [powershell]::Create()
     $ps.Runspace = $rs
-    $pre = (@('Log', 'Compat', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Restore') | ForEach-Object { ". '$CoreDir\$_.ps1'" }) -join "`n"
+    $pre = (@('Log', 'Compat', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Restore', 'Appx', 'Winget', 'AppSetup') | ForEach-Object { ". '$CoreDir\$_.ps1'" }) -join "`n"
     $wrapped = $pre + "`ntry {`n& {`n" + $Code + "`n} *>&1 | Out-String -Stream | ForEach-Object { if (`$_.Trim()) { Write-Log `$_ } }`n} catch { Write-Log ('Error: ' + `$_.Exception.Message) }"
     [void]$ps.AddScript($wrapped)
     @{ Ps = $ps; Rs = $rs; Handle = $ps.BeginInvoke(); Shared = $Shared }

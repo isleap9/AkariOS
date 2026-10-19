@@ -32,7 +32,8 @@ function Set-AkariPending($Sel, $Tweak, [string]$State, $Target, $Current = $nul
             }
         }
         'Action' {
-            $item.Mode = 'Apply'; $item.From = ''; $item.To = 'Run'
+            # the Action's button word: Run, Remove, Install
+            $item.Mode = 'Apply'; $item.From = ''; $item.To = $(if ($Tweak.Button) { $Tweak.Button } else { 'Run' })
         }
         default {
             if ($Target -eq $State) { return }
@@ -71,9 +72,10 @@ function Get-AkariConfirmText($Tweak, $Target) {
     $null
 }
 
-# next switch target after a click. A known State flips between Optimized and Default;
-# Unknown or Custom also offers no change: None -> Optimized -> Default -> None.
-function Get-AkariNextToggle([string]$State, [string]$Shown) {
-    if ($State -in 'Optimized', 'Default') { if ($Shown -eq 'Optimized') { return 'Default' } else { return 'Optimized' } }
-    switch ($Shown) { 'None' { 'Optimized' } 'Optimized' { 'Default' } default { 'None' } }
+# a checkbox's target, Win11Debloat's model: checked = Optimized; unchecking a box that started checked
+# (its State was Optimized) = Default; a box that started unchecked and is unchecked = no change.
+function Get-AkariCheckTarget([bool]$Checked, [string]$Initial) {
+    if ($Checked) { return 'Optimized' }
+    if ($Initial -eq 'Optimized') { return 'Default' }
+    'None'
 }

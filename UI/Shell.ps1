@@ -15,6 +15,8 @@ $Pages = [ordered]@{
     Home       = @{ Glyph = [char]0xE80F; Sub = 'Choose how you want to optimize Windows' }
     # Install AkariOS: One-click, or Guided (pick the Tweaks, review, apply once). The pages after it are Manual mode.
     'Install AkariOS' = @{ Glyph = [char]0xE896; Sub = 'Optimize Windows in one click, or pick each change yourself' }
+    # Downloads: the Guided Install cards on their own (apps, runtimes, tools; Store apps the debloat removed)
+    Downloads  = @{ Glyph = [char]0xE896; Sub = 'Install apps, runtimes and tools, from winget where possible' }
     Check      = @{ Glyph = [char]0xE9D9; Sub = 'Check your BIOS, storage, RAM and GPU, and stress test them' }
     Refresh    = @{ Glyph = [char]0xE72C; Sub = 'Reinstall or reset Windows, and get a fresh install ready' }
     Setup      = @{ Glyph = [char]0xE90F; Sub = 'First steps on a new install: activation, startup apps, updates' }
@@ -92,18 +94,19 @@ function Set-AkariPane([bool]$Show) {
 
 function Show-Page {
     $q = $Search.Text.Trim()
-    # Install AkariOS: the header search filters the Guided Tweaks step instead of searching the Manual pages
-    $onSteps = ($script:Cat -eq 'Install AkariOS')
-    # Install AkariOS is a full-window flow like Home: no sidebar (Back leads home)
+    # Install AkariOS and Downloads: the header search filters the current step instead of searching the Manual pages
+    $onSteps = ($script:Cat -in 'Install AkariOS', 'Downloads')
+    # full-window flows like Home: no sidebar (Back leads home)
     if ($onSteps) { Set-AkariPane $false }
     $StepsPanel.Visibility = if ($onSteps) { 'Visible' } else { 'Collapsed' }
     $StepFooter.Visibility = $StepsPanel.Visibility
     if ($onSteps) {
         $Rows.Children.Clear()
         $HomePanel.Visibility = 'Collapsed'
-        $Heading.Text = 'Install AkariOS'
-        $HeaderSub.Text = $Pages['Install AkariOS'].Sub
-        $HeaderIcon.Text = [string]$Pages['Install AkariOS'].Glyph
+        $Heading.Text = $script:Cat
+        $HeaderSub.Text = $Pages[$script:Cat].Sub
+        $HeaderIcon.Text = [string]$Pages[$script:Cat].Glyph
+        Enter-AkariFlow $script:Cat
         Show-AkariSteps
         return
     }
@@ -113,13 +116,15 @@ function Show-Page {
         $Heading.Text = 'Search'
         $HeaderSub.Text = "Results for `"$q`""
         $HeaderIcon.Text = [string][char]0xE721
-        $list = @($script:Tweaks | Where-Object { "$($_.Name) $($_.Description)" -like "*$q*" })
+        # app Entries (data-list Groups) live in the Guided Apps step, not in Manual mode
+        $list = @($script:Tweaks | Where-Object { -not $_.Group -and "$($_.Name) $($_.Description)" -like "*$q*" })
     } else {
         $Heading.Text = $script:Cat
         $HeaderSub.Text = $Pages[$script:Cat].Sub
         $HeaderIcon.Text = [string]$Pages[$script:Cat].Glyph
         # Manual mode: every Tweak of this page, each row acting right away
-        $list = @($script:Tweaks | Where-Object { $_.Section -eq $script:Cat })
+        # the Installers page shows the ported app installs (Tweaks\Apps\Install)
+        $list = @($script:Tweaks | Where-Object { $_.Section -eq $script:Cat -or ($script:Cat -eq 'Installers' -and $_.Section -eq 'Apps' -and $_.Category -eq 'Install') })
     }
     $HomePanel.Visibility = if ($onHome) { 'Visible' } else { 'Collapsed' }
     # Home is a full-window landing page: no sidebar there (Win11Debloat-style); every other page has it
@@ -255,8 +260,8 @@ foreach ($c in $Pages.Keys) {
     $rb.Content = $g; $rb.Tag = $c; $rb.GroupName = 'nav'; $rb.ToolTip = $c
     $rb.Style = $window.FindResource('Nav')
     [void]$Nav.Children.Add($rb)
-    if ($c -eq 'Install AkariOS') {
-        # Manual heading under Install AkariOS (not a nav item), as NavigationViewItemHeader: the old pages are Manual mode
+    if ($c -eq 'Downloads') {
+        # Manual heading under Install AkariOS and Downloads (not a nav item), as NavigationViewItemHeader: the old pages are Manual mode
         $hd = [Windows.Controls.TextBlock]::new()
         $hd.Text = 'Manual'
         $hd.FontSize = 14; $hd.FontWeight = [Windows.FontWeights]::SemiBold
@@ -281,7 +286,7 @@ $Nav.AddHandler([Windows.Controls.Primitives.ToggleButton]::CheckedEvent, [Windo
 })
 $Search.Add_TextChanged({ Show-Page })
 
-# ---- home tiles: Install AkariOS (One-click or Guided), Optimize (Manual mode), Import / Export
+# ---- home tiles: Install AkariOS (One-click or Guided), Optimize (Manual mode), Downloads, Import / Export
 function Select-AkariPage([string]$Name) {
     ($Nav.Children | Where-Object { $_.Tag -eq $Name } | Select-Object -First 1).IsChecked = $true
 }
@@ -292,9 +297,14 @@ $tile = New-AkariModeCard ([string][char]0xE713) 'Optimize' 'Manual, in-depth op
 # Manual mode: the old pages for now, until its new look is designed
 $tile.Add_Click({ Select-AkariPage 'Check' })
 [void]$HomeTiles.Children.Add($tile)
+# Downloads: the Guided Install cards on their own
+$tile = New-AkariModeCard ([string][char]0xE896) 'Downloads' 'Install apps, game launchers, runtimes and tools, or bring back Store apps the debloat removed.' $true
+$tile.Add_Click({ Select-AkariPage 'Downloads' })
+[void]$HomeTiles.Children.Add($tile)
 $tile = New-AkariModeCard ([string][char]0xE72D) 'Import / Export settings' 'Save your choices to a file, or load them on another PC. Coming in a later version.' $false
 [void]$HomeTiles.Children.Add($tile)
-foreach ($i in 0..2) { $HomeTiles.Children[$i].Margin = [Windows.Thickness]::new($(if ($i) { 8 } else { 0 }), 0, $(if ($i -lt 2) { 8 } else { 0 }), 0) }
+$last = $HomeTiles.Children.Count - 1
+foreach ($i in 0..$last) { $HomeTiles.Children[$i].Margin = [Windows.Thickness]::new($(if ($i) { 8 } else { 0 }), 0, $(if ($i -lt $last) { 8 } else { 0 }), 0) }
 # copy specs button on the home header
 $CopySpecs.Add_Click({ Copy-Specs })
 
