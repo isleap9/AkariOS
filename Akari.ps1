@@ -1,5 +1,5 @@
 ﻿#requires -Version 5.1
-param([switch]$ShowConsole, [switch]$List, [string[]]$Apply, [string[]]$Revert)
+param([switch]$List, [string[]]$Apply, [string[]]$Revert)
 # Akari. GUI:  powershell -ExecutionPolicy Bypass -File Akari.ps1
 # CLI:  Akari.ps1 -List  |  Akari.ps1 -Apply id,id  |  Akari.ps1 -Revert id,id   (Apply/Revert need an elevated shell)
 
@@ -36,11 +36,24 @@ if ($List -or $Apply -or $Revert) {
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]'Administrator')
 $isSta = [Threading.Thread]::CurrentThread.GetApartmentState() -eq 'STA'
 if (-not $isAdmin -or -not $isSta) {
-    $style = if ($ShowConsole) { 'Normal' } else { 'Hidden' }
-    $extra = if ($ShowConsole) { ' -ShowConsole' } else { '' }
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -STA -File `"$PSCommandPath`"$extra" -Verb RunAs -WindowStyle $style
+    # the console stays visible next to the window: it is Akari's live log (Win11Debloat / Zoicware style)
+    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -STA -File `"$PSCommandPath`"" -Verb RunAs
     exit
 }
+
+# ---- console: launch banner; every log line is printed here while Akari runs
+$Host.UI.RawUI.WindowTitle = 'AkariOS (Administrator) - keep this window open'
+try { $Host.UI.RawUI.BackgroundColor = 'Black'; $Host.UI.RawUI.ForegroundColor = 'Gray'; Clear-Host } catch { }
+Write-Host ''
+Write-Host '     _    _              _  ___  ____  ' -ForegroundColor White
+Write-Host '    / \  | | ____ _ _ __(_)/ _ \/ ___| ' -ForegroundColor White
+Write-Host '   / _ \ | |/ / _` | ''__| | | | \___ \ ' -ForegroundColor White
+Write-Host '  / ___ \|   < (_| | |  | | |_| |___) |' -ForegroundColor White
+Write-Host ' /_/   \_\_|\_\__,_|_|  |_|\___/|____/ ' -ForegroundColor White
+Write-Host ''
+Write-Host '  AkariOS is launching...' -ForegroundColor White
+Write-Host '  Keep this window open: it shows what Akari is doing.' -ForegroundColor DarkGray
+Write-Host ''
 
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Xaml
 Add-Type -MemberDefinition @'

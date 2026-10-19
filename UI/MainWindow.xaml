@@ -233,22 +233,6 @@
       </Setter>
     </Style>
 
-    <!-- Read-only log text. -->
-    <Style x:Key="LogBox" TargetType="TextBox">
-      <Setter Property="Foreground" Value="{DynamicResource Mu}"/>
-      <Setter Property="Background" Value="Transparent"/>
-      <Setter Property="SelectionBrush" Value="#FFFFFF"/>
-      <Setter Property="Template">
-        <Setter.Value>
-          <ControlTemplate TargetType="TextBox">
-            <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
-              <ScrollViewer x:Name="PART_ContentHost"/>
-            </Border>
-          </ControlTemplate>
-        </Setter.Value>
-      </Setter>
-    </Style>
-
     <!-- Thin rounded scrollbar thumb, as WinUI's at rest. -->
     <Style TargetType="ScrollBar">
       <Setter Property="Width" Value="12"/>
@@ -347,7 +331,6 @@
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto"/>
         <RowDefinition Height="*"/>
-        <RowDefinition Height="120"/>
       </Grid.RowDefinitions>
 
       <!-- Page header: large icon, title, subtitle; the search on the right. -->
@@ -429,13 +412,6 @@
         </DockPanel>
       </Border>
 
-      <!-- Log: what the scripts print, on its own rounded panel under the page. -->
-      <Border Grid.Row="2" Margin="0,8,16,0" CornerRadius="8" BorderThickness="1"
-              BorderBrush="{DynamicResource Bd}" Background="{DynamicResource Surf}">
-        <TextBox x:Name="Log" Style="{StaticResource LogBox}" IsReadOnly="True"
-                 FontFamily="Cascadia Mono, Consolas" FontSize="12"
-                 VerticalScrollBarVisibility="Auto" TextWrapping="Wrap" Padding="14,8"/>
-      </Border>
     </Grid>
 
     <!-- Status bar: Ready, or what is running now with a progress bar; the app name on the right. -->

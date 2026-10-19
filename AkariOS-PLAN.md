@@ -37,7 +37,7 @@ MIT code may be reused with attribution. Keep a `CREDITS.md` listing every upstr
 
 - **Name:** AkariOS. Repo `isleap9/AkariOS`, entry script `Akari.ps1`.
 - **Tech:** pure PowerShell 5.1 (STA, elevated) + WPF/XAML GUI. No downloaded exes for the UI.
-- **GUI: keep the AkariOS-Ultimate shell and theme; Home is Win11Debloat-style** (decided Oct 2026, revised 2026-10-19, [ADR 0003](docs/adr/0003-one-click-or-manual.md)). Kept: Akari-Dash shell with Mica on Win11, dark title bar, custom caption buttons, collapsible sidebar, the page header, the header search, the status bar, and the "Ink" dark monochrome tokens (`Bg S1 S2 Bd Tx Mu Inv InvT Warn Bad`). Replaced: the Optimize / Default row buttons, state dot, risk badges, log drawer, both **tuners** (they become Choices), the old 8 pages, and the current Home. The controls inside pages look like native WinUI 3 (Windows 11 Settings): setting cards, ToggleSwitch, ComboBox, expanders. Dark only.
+- **GUI: keep the AkariOS-Ultimate shell and theme; Home is Win11Debloat-style** (decided Oct 2026, revised 2026-10-19, [ADR 0003](docs/adr/0003-one-click-or-manual.md)). Kept: Akari-Dash shell with Mica on Win11, dark title bar, custom caption buttons, collapsible sidebar, the page header, the header search, the status bar, and the "Ink" dark monochrome tokens (`Bg S1 S2 Bd Tx Mu Inv InvT Warn Bad`). Replaced: the Optimize / Default row buttons, state dot, risk badges, log drawer (replaced by the visible console), both **tuners** (they become Choices), the old 8 pages, and the current Home. The controls inside pages look like native WinUI 3 (Windows 11 Settings): setting cards, ToggleSwitch, ComboBox, expanders. Dark only.
 - **The experience combines Win11Debloat and Zoicware** (§4): on opening, the user chooses **AkariOS one-click** or **Manual**.
 - **Vocabulary lives in [`GLOSSARY.md`](GLOSSARY.md).** Kinds `Toggle / Choice / Action / Group`, risks `Safe / Caution / Advanced`, verbs **Apply / Revert**, states **Optimized / Default / Custom / Unknown**.
 - **Default = stock Windows value**, never "what the user had before" ([ADR 0001](docs/adr/0001-revert-to-windows-default.md)).
@@ -65,6 +65,7 @@ Win11Debloat's structure (Raphire): a start screen, then a guided "choose, revie
 - Every page after Home has the sidebar (Home, Install AkariOS, then the Manual pages).
 - **Config** (Zoicware-style): choices are saved automatically as "Last used"; an imported config can run silently.
 - **Status bar** shows what is running, "Restart required" (with a Restart button) and failures.
+- **Console** (Win11Debloat / Zoicware style, decided 2026-10-19): the elevated PowerShell window stays open next to Akari, shows a launch banner and every log line live (colour by Outcome). No log panel in the window; `akari.log` keeps a copy.
 
 ### Tweak kinds
 | Kind | Control | Example | Revert |
@@ -121,7 +122,7 @@ Akari.ps1  ──►  Core/Loader  ──►  Tweaks/**/*.ps1  (data + optional 
 | Win32PrioritySeparation + SvcHost tuners | removed: become Choice tweak files; `UI/Rows.ps1` renders the Choice combobox |
 | `UI/MainWindow.xaml` (565 lines) | stays; split into page XAML files only if it grows |
 
-Things to keep: one-job-at-a-time runner, log queue drained on the UI thread, `Dispatcher.UnhandledException` → log drawer, `%LOCALAPPDATA%\Akari\akari.log`.
+Things to keep: one-job-at-a-time runner, log queue drained on the UI thread, `Dispatcher.UnhandledException` → console, `%LOCALAPPDATA%\Akari\akari.log`.
 
 ---
 

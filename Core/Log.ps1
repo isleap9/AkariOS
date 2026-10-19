@@ -1,4 +1,4 @@
-# Logging. Write-Log goes to the GUI log drawer (through $LogQueue, set by Start-AkariJob) or to the console.
+# Logging. Write-Log goes to $LogQueue when it exists (GUI job: the GUI prints it to its console window) or straight to the console.
 if (-not $AkariLogFile) { $AkariLogFile = "$env:LOCALAPPDATA\Akari\akari.log" }
 
 function Write-Log([string]$m) {

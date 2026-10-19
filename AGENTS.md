@@ -9,9 +9,9 @@ PowerShell 5.1 + WPF app that debloats and optimizes Windows 10 22H2 / 11 for ga
 
 The port is in progress (M1 Engine and M2a Manual steps done; plans in `docs/plans/`).
 
-- `Akari.ps1`: CLI branch (`-List`, `-Apply id,id`, `-Revert id,id`; Apply/Revert need an elevated shell), then elevation, Core and tweak loading, and dot-sourcing `UI/*.ps1`.
+- `Akari.ps1`: CLI branch (`-List`, `-Apply id,id`, `-Revert id,id`; Apply/Revert need an elevated shell), then elevation (the elevated console stays visible: launch banner, live log), Core and tweak loading, and dot-sourcing `UI/*.ps1`.
 - `Core/` (dot-sourced function files, no tweak logic):
-  - `Log.ps1`: `Write-Log` (GUI queue or console), `Write-ErrLog` (`%LOCALAPPDATA%\Akari\akari.log`).
+  - `Log.ps1`: `Write-Log` (GUI queue, printed to Akari's console window, or straight to the console), `Write-ErrLog` (`%LOCALAPPDATA%\Akari\akari.log`).
   - `Compat.ps1`: no-op / dialog shims for legacy tweak bodies (`Write-Host`, `Pause`, `Read-Host`, file pickers). Loaded only in the GUI job.
   - `Trusted.ps1`: `Run-Trusted`.
   - `Registry.ps1`: `Set-Reg`, `Remove-Reg`, `Get-AkariRegValue`, `Resolve-AkariRegPath` (HKCU → real user's `HKEY_USERS\<sid>`), `Invoke-AkariRegistry`, `Get-AkariRegistryState`.

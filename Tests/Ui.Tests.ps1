@@ -113,3 +113,23 @@ Set-AkariCardControl $e 'Optimized'; "setOn=$($e.Control.IsChecked)"
     It 'sets a switch to a target' { $out.setOn | Should Be 'True' }
 }
 
+
+Describe 'Console instead of a log panel' {
+    It 'has no log panel in the window' {
+        @(Select-String -Path "$Root\UI\MainWindow.xaml" -Pattern 'x:Name="Log"|LogBox').Count | Should Be 0
+    }
+
+    It 'keeps the elevated console visible (no hidden relaunch, no -ShowConsole)' {
+        @(Select-String -Path "$Root\Akari.ps1" -Pattern 'WindowStyle \$style|ShowConsole|Hidden').Count | Should Be 0
+    }
+
+    It 'prints log lines to the console with a timestamp' {
+        $s = "Add-Type -AssemblyName PresentationFramework; `$AkariLogFile = '$TestDrive\a.log'; . '$Root\Core\Log.ps1'; " +
+             "`$t = [Management.Automation.Language.Parser]::ParseFile('$Root\UI\Shell.ps1', [ref]`$null, [ref]`$null); " +
+             "`$f = `$t.FindAll({ param(`$n) `$n -is [Management.Automation.Language.FunctionDefinitionAst] -and `$n.Name -eq 'Add-Log' }, `$true) | Select-Object -First 1; " +
+             ". ([scriptblock]::Create(`$f.Extent.Text)); Add-Log 'Applied: Test'"
+        $out = & powershell -NoProfile -Command $s 2>&1 | ForEach-Object { "$_" }
+        ($out -join "`n") | Should Match '^\[\d\d:\d\d:\d\d\] Applied: Test$'
+        Get-Content "$TestDrive\a.log" | Should Match 'Applied: Test'
+    }
+}

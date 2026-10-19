@@ -5,7 +5,7 @@
 $window = [Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\MainWindow.xaml" -Raw))
 # WinUI-style controls for Install AkariOS (switch, combobox, setting card, ...)
 $window.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Controls.xaml" -Raw)))
-foreach ($n in 'Nav', 'Search', 'Heading', 'Rows', 'Page', 'Log', 'Logo', 'HomePanel', 'HostName', 'HostSub', 'Cards', 'CopySpecs',
+foreach ($n in 'Nav', 'Search', 'Heading', 'Rows', 'Page', 'Logo', 'HomePanel', 'HostName', 'HostSub', 'Cards', 'CopySpecs',
                'Shell', 'Body', 'PaneCol', 'PaneToggle', 'HomeTiles', 'HeaderIcon', 'HeaderSub', 'StatusDot', 'StatusRing', 'StatusText', 'StatusBar',
                'CapMin', 'CapMax', 'CapMaxGlyph', 'CapClose', 'StepsPanel', 'StepDots', 'StepBody', 'StepFooter', 'StepBack', 'StepNext') { Set-Variable $n $window.FindName($n) }
 Initialize-AkariSteps
@@ -70,9 +70,18 @@ $CapMin.Add_Click({ [Windows.SystemCommands]::MinimizeWindow($window) })
 $CapMax.Add_Click({ if ($window.WindowState -eq 'Maximized') { [Windows.SystemCommands]::RestoreWindow($window) } else { [Windows.SystemCommands]::MaximizeWindow($window) } })
 $CapClose.Add_Click({ $window.Close() })
 
+# the live log is the console window next to Akari (no log panel in the window); akari.log keeps a copy
 function Add-Log([string]$m) {
-    $Log.AppendText(("[{0}] {1}`r`n" -f (Get-Date -Format 'HH:mm:ss'), $m))
-    $Log.ScrollToEnd()
+    $line = "[{0}] {1}" -f (Get-Date -Format 'HH:mm:ss'), $m
+    $color = switch -Regex ($m) {
+        '^(Failed|Error)' { 'Red'; break }
+        '^(Applied|Reverted|Done|Restore point created)' { 'Green'; break }
+        '^(Already|Skipped)' { 'DarkGray'; break }
+        '^(Warning|Restore point)' { 'Yellow'; break }
+        default { 'Gray' }
+    }
+    try { [Console]::ForegroundColor = $color; [Console]::Out.WriteLine($line); [Console]::ResetColor() } catch { }
+    Write-ErrLog $m
 }
 
 function Show-Page {
@@ -290,12 +299,11 @@ $window.Add_Loaded({
     Add-Log 'Ready.'
     $script:Busy = $false
 })
-# errors inside button handlers: show them in the log drawer (and akari.log) instead of losing them
+# errors inside button handlers: show them in the console (and akari.log) instead of losing them
 $window.Dispatcher.Add_UnhandledException({
     param($s, $ev)
     $ev.Handled = $true
-    Write-ErrLog "UI error: $($ev.Exception.Message)"
-    Add-Log "Error: $($ev.Exception.Message)"
+    Add-Log "Error: UI: $($ev.Exception.Message)"
     Set-Busy $false
 })
 $window.Add_Closing({ $timer.Stop() })
