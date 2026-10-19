@@ -387,8 +387,22 @@
       <!-- The page's surface: one rounded, bordered panel. -->
       <Border Grid.Row="1" Margin="0,0,16,0" CornerRadius="8" BorderThickness="1"
               BorderBrush="{DynamicResource Bd}" Background="{DynamicResource Surf}">
+        <DockPanel>
+        <!-- Manual steps footer, pinned under the page: Back on the left, Next / Review / Apply on the right. -->
+        <Border x:Name="StepFooter" DockPanel.Dock="Bottom" Visibility="Collapsed" BorderBrush="{DynamicResource Bd}" BorderThickness="0,1,0,0">
+          <DockPanel Margin="24,12">
+            <Button x:Name="StepNext" DockPanel.Dock="Right" Style="{DynamicResource Accent}" Content="Next"/>
+            <Button x:Name="StepBack" Style="{StaticResource Btn}" Content="Back" HorizontalAlignment="Left" MinWidth="96"/>
+          </DockPanel>
+        </Border>
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel x:Name="Page" Margin="24,20,24,20">
+
+            <!-- Manual steps: step dots and title, then the current step (UI\Steps.ps1) -->
+            <StackPanel x:Name="StepsPanel" Visibility="Collapsed">
+              <StackPanel x:Name="StepDots" Orientation="Horizontal" Margin="0,0,0,16"/>
+              <StackPanel x:Name="StepBody"/>
+            </StackPanel>
 
             <!-- Home page: host header + spec card grid -->
             <StackPanel x:Name="HomePanel" Visibility="Collapsed">
@@ -408,6 +422,7 @@
             <StackPanel x:Name="Rows"/>
           </StackPanel>
         </ScrollViewer>
+        </DockPanel>
       </Border>
 
       <!-- Log: what the scripts print, on its own rounded panel under the page. -->

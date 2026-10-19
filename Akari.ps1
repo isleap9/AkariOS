@@ -85,6 +85,6 @@ $loaded = Get-AkariTweaks "$Root\Tweaks"
 # legacy Add-Tweak files first (adapter), then the one-file tweaks
 foreach ($t in @(Import-AkariLegacyTweaks "$Root\Tweaks") + @($loaded.Tweaks)) { $script:Tweaks.Add($t) }
 
-# ---- GUI: home page, shell, old rows (UI\*.ps1), then show the window
-foreach ($f in 'Home', 'Shell', 'Rows') { . "$Root\UI\$f.ps1" }
+# ---- GUI: Manual steps, home page, shell, old rows (UI\*.ps1), then show the window
+foreach ($f in 'Selection', 'Cards', 'Steps', 'Home', 'Shell', 'Rows') { . "$Root\UI\$f.ps1" }
 [void]$window.ShowDialog()

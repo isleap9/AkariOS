@@ -5,18 +5,19 @@
 $window = [Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\MainWindow.xaml" -Raw))
 # WinUI-style controls for the Manual steps (switch, combobox, setting card, ...)
 $window.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Controls.xaml" -Raw)))
-foreach ($n in 'Nav', 'Search', 'Heading', 'Rows', 'Page', 'Log','Logo', 'HomePanel', 'HostName', 'HostSub', 'Cards', 'CopySpecs',
+foreach ($n in 'Nav', 'Search', 'Heading', 'Rows', 'Page', 'Log', 'Logo', 'HomePanel', 'HostName', 'HostSub', 'Cards', 'CopySpecs',
                'Shell', 'Body', 'PaneCol', 'PaneToggle', 'HeaderIcon', 'HeaderSub', 'StatusDot', 'StatusRing', 'StatusText', 'StatusBar',
-               'CapMin', 'CapMax', 'CapMaxGlyph', 'CapClose') { Set-Variable $n $window.FindName($n) }
+               'CapMin', 'CapMax', 'CapMaxGlyph', 'CapClose', 'StepsPanel', 'StepDots', 'StepBody', 'StepFooter', 'StepBack', 'StepNext') { Set-Variable $n $window.FindName($n) }
+Initialize-AkariSteps
 
 # sidebar pages: icon glyph (Segoe Fluent Icons) and the subtitle under the page title
 $Pages = [ordered]@{
     Home       = @{ Glyph = [char]0xE80F; Sub = 'Your PC at a glance' }
+    # temporary entry point until M2b puts Manual on the Home page
+    Manual     = @{ Glyph = [char]0xE8FD; Sub = 'Choose your changes, review them, then apply them in one go' }
     Check      = @{ Glyph = [char]0xE9D9; Sub = 'Check your BIOS, storage, RAM and GPU, and stress test them' }
     Refresh    = @{ Glyph = [char]0xE72C; Sub = 'Reinstall or reset Windows, and get a fresh install ready' }
     Setup      = @{ Glyph = [char]0xE90F; Sub = 'First steps on a new install: activation, startup apps, updates' }
-    # temporary until the M3 sidebar: shows the one-file tweaks of the Optimize section
-    Optimize   = @{ Glyph = [char]0xEC4A; Sub = 'Performance, privacy, power and gaming' }
     Installers = @{ Glyph = [char]0xE896; Sub = 'Download and install the apps and launchers you need' }
     Graphics   = @{ Glyph = [char]0xE7F4; Sub = 'Clean and install GPU drivers, and tune NVIDIA, AMD and Intel' }
     Windows    = @{ Glyph = [char]0xE771; Sub = 'Start menu, taskbar, theme and the rest of Windows' }
@@ -74,18 +75,32 @@ function Add-Log([string]$m) {
 
 function Show-Page {
     $q = $Search.Text.Trim()
+    # Manual steps: the header search filters the Tweaks step instead of searching the old pages
+    $onSteps = ($script:Cat -eq 'Manual')
+    $StepsPanel.Visibility = if ($onSteps) { 'Visible' } else { 'Collapsed' }
+    $StepFooter.Visibility = $StepsPanel.Visibility
+    if ($onSteps) {
+        $Rows.Children.Clear()
+        $HomePanel.Visibility = 'Collapsed'
+        $Heading.Text = 'Manual'
+        $HeaderSub.Text = $Pages['Manual'].Sub
+        $HeaderIcon.Text = [string]$Pages['Manual'].Glyph
+        Show-AkariSteps
+        return
+    }
     $onHome = (-not $q -and $script:Cat -eq 'Home')
     $Rows.Children.Clear()
     if ($q) {
         $Heading.Text = 'Search'
         $HeaderSub.Text = "Results for `"$q`""
         $HeaderIcon.Text = [string][char]0xE721
-        $list = @($script:Tweaks | Where-Object { "$($_.Name) $($_.Description)" -like "*$q*" })
+        $list = @($script:Tweaks | Where-Object { $_.Legacy -and $_.Kind -ne 'Toggle' -and "$($_.Name) $($_.Description)" -like "*$q*" })
     } else {
         $Heading.Text = $script:Cat
         $HeaderSub.Text = $Pages[$script:Cat].Sub
         $HeaderIcon.Text = [string]$Pages[$script:Cat].Glyph
-        $list = @($script:Tweaks | Where-Object { $_.Section -eq $script:Cat })
+        # old pages: legacy Actions and Groups only; Toggles and one-file tweaks are in the Manual steps
+        $list = @($script:Tweaks | Where-Object { $_.Legacy -and $_.Kind -ne 'Toggle' -and $_.Section -eq $script:Cat })
     }
     $HomePanel.Visibility = if ($onHome) { 'Visible' } else { 'Collapsed' }
     foreach ($t in $list) {
@@ -105,7 +120,7 @@ function Show-Page {
 
 # ---- running actions in a background runspace
 function Set-Busy([bool]$b, [string]$label = '') {
-    $script:Busy = $b; $Page.IsEnabled = -not $b
+    $script:Busy = $b; $Page.IsEnabled = -not $b; $StepFooter.IsEnabled = -not $b
     # status bar: green dot and Ready at rest, spinner + label + progress bar while running
     $StatusDot.Visibility = if ($b) { 'Collapsed' } else { 'Visible' }
     $StatusRing.Visibility = if ($b) { 'Visible' } else { 'Collapsed' }
@@ -219,7 +234,7 @@ foreach ($c in $Pages.Keys) {
     $rb.Content = $g; $rb.Tag = $c; $rb.GroupName = 'nav'; $rb.ToolTip = $c
     $rb.Style = $window.FindResource('Nav')
     [void]$Nav.Children.Add($rb)
-    if ($c -eq 'Home') {
+    if ($c -eq 'Manual') {
         # section heading under home (not a nav item), as NavigationViewItemHeader
         $hd = [Windows.Controls.TextBlock]::new()
         $hd.Text = 'Scripts'
