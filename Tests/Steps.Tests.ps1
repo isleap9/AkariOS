@@ -71,14 +71,14 @@ Show-AkariSteps
 $Root = 'X:\Akari'
 function Test-Path($p) { $true }
 function Write-ErrLog($m) { }
-function Start-Process { $script:launched = "$args" }
+function Start-Process { $script:newWindow = $true }
 $window = [pscustomobject]@{}; $window | Add-Member ScriptMethod Close { $script:closed = $true }
 function Confirm-AkariOneClick { $false }
 $StepBody.Children[0].Children[0].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
-"declinedLaunch=$([bool]$script:launched)"
+"declinedLaunch=$([bool]$script:OneClickPath)"
 function Confirm-AkariOneClick { $true }
 $StepBody.Children[0].Children[0].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
-"launched=$script:launched"; "closed=$script:closed"
+"launched=$script:OneClickPath"; "closed=$script:closed"; "newWindow=$([bool]$script:newWindow)"
 Remove-Item Function:\Test-Path
 function Select-AkariPage($n) { $script:went = $n }
 Initialize-AkariSteps
@@ -117,7 +117,8 @@ $script:Step = 1; Show-AkariSteps
         $out.chooserNext | Should Be 'Collapsed'
     }
     It 'One-click asks first; No launches nothing' { $out.declinedLaunch | Should Be 'False' }
-    It 'One-click Yes starts OneClick\akarios.ps1 and closes Akari' {
+    It 'One-click runs in Akari''s own console, no new window' { $out.newWindow | Should Be 'False' }
+    It 'One-click Yes hands OneClick\akarios.ps1 to the console and closes the window' {
         $out.launched | Should Match 'OneClick\\akarios\.ps1'
         $out.closed | Should Be 'True'
     }

@@ -194,7 +194,7 @@ function New-AkariModeCard([string]$Glyph, [string]$Title, [string]$Text, [bool]
 }
 
 # One-click: the Akari-OS run (OneClick\akarios.ps1, then stepone.ps1 in Safe Mode, then steptwo.ps1), started in
-# its own PowerShell window. It restarts the PC by itself, so Akari closes once it has started.
+# Akari's own console: the window closes and Akari.ps1 runs the script there after ShowDialog returns (no new window).
 function Confirm-AkariOneClick {
     $q = "AkariOS One-click changes a lot of Windows, including security features.`n`n" +
          "- Run it on a fresh install or a PC you can reinstall. There is no uninstaller.`n" +
@@ -211,7 +211,7 @@ function Start-AkariOneClick {
     if (-not (Test-Path $path)) { [void][Windows.MessageBox]::Show("Missing: $path", 'Akari'); return }
     if ($script:Busy -or -not (Confirm-AkariOneClick)) { return }
     Write-ErrLog "One-click started: $path"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$path`"" -WindowStyle Maximized
+    $script:OneClickPath = $path
     $window.Close()
 }
 

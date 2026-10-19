@@ -101,3 +101,11 @@ foreach ($t in @(Import-AkariLegacyTweaks "$Root\Tweaks") + @($loaded.Tweaks)) {
 # ---- GUI: Manual steps, home page, shell, old rows (UI\*.ps1), then show the window
 foreach ($f in 'Selection', 'Cards', 'Steps', 'Home', 'Shell', 'Rows') { . "$Root\UI\$f.ps1" }
 [void]$window.ShowDialog()
+
+# ---- One-click: the window closed to hand this console to the Akari-OS run (it restarts the PC itself)
+if ($script:OneClickPath) {
+    Write-Host ''
+    Write-Host '  Starting AkariOS One-click. Keep this window open.' -ForegroundColor White
+    Write-Host ''
+    & $script:OneClickPath
+}
