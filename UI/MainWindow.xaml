@@ -388,23 +388,9 @@
               <StackPanel x:Name="StepBody"/>
             </StackPanel>
 
-            <!-- Home page: four tiles (built in UI\Shell.ps1); no sidebar on this page.
-                 The spec cards below are hidden until they get a new place. -->
+            <!-- Home page: four tiles (built in UI\Shell.ps1); no sidebar on this page. -->
             <StackPanel x:Name="HomePanel" Visibility="Collapsed">
               <UniformGrid x:Name="HomeTiles" Columns="4" Margin="0,8,0,0"/>
-              <StackPanel x:Name="SpecsPanel" Visibility="Collapsed">
-              <DockPanel x:Name="HomeHeader" Margin="0,0,0,16">
-                <!-- copy specs button (right side) -->
-                <Button x:Name="CopySpecs" DockPanel.Dock="Right" VerticalAlignment="Center" Content="Copy specs"
-                        ToolTip="Copy all specs as text" IsEnabled="False" Style="{StaticResource Btn}" MinWidth="104"/>
-                <StackPanel>
-                  <TextBlock x:Name="HostName" FontFamily="Segoe UI Variable Display, Segoe UI" FontSize="20" FontWeight="SemiBold"
-                             Foreground="{DynamicResource Tx}" TextTrimming="CharacterEllipsis"/>
-                  <TextBlock x:Name="HostSub" FontSize="13" Foreground="{DynamicResource Mu}" Margin="0,4,0,0" Visibility="Collapsed" TextTrimming="CharacterEllipsis"/>
-                </StackPanel>
-              </DockPanel>
-              <WrapPanel x:Name="Cards" Orientation="Horizontal"/>
-              </StackPanel>
             </StackPanel>
 
             <StackPanel x:Name="Rows"/>

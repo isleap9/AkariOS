@@ -119,7 +119,7 @@ Akari.ps1  ──►  Core/Loader  ──►  Tweaks/**/*.ps1  (data + optional 
 | `Get-State` (`Detect`, else remembered `state.json`), `Save-State` | `Core/State.ps1` |
 | Window chrome, Mica, caption buttons, sidebar, search, `Show-Page` | `UI/Shell.ps1` |
 | `New-Row`, `Update-Row`, row click handler | `UI/Rows.ps1` |
-| Home page (`Get-Specs`, spec cards, Copy specs, spec watchdog) | `UI/Home.ps1` |
+| Home page (`Get-Specs`, spec cards, Copy specs, spec watchdog) | `UI/Home.ps1`, then dropped (M3: Home is the four tiles) |
 | Win32PrioritySeparation + SvcHost tuners | removed: become Choice tweak files; `UI/Rows.ps1` renders the Choice combobox |
 | `UI/MainWindow.xaml` (565 lines) | stays; split into page XAML files only if it grows |
 
@@ -171,8 +171,8 @@ AkariOS/
 ├─ UI/
 │  ├─ MainWindow.xaml         # shell, carried over from AkariOS-Ultimate
 │  ├─ Controls.xaml           # WinUI-style switch, combobox, setting card, expander
-│  ├─ Shell.ps1               # window, sidebar, search, status bar, job timer
-│  ├─ Home.ps1
+│  ├─ Shell.ps1               # window, Home tiles, Legacy sidebar, search, status bar, job timer
+│  ├─ Rows.ps1                # Optimize › Legacy rows (act right away)
 │  ├─ Selection.ps1           # pending changes of the Manual steps (no WPF)
 │  ├─ Cards.ps1               # one setting card per Tweak
 │  ├─ Steps.ps1               # Apps → Tweaks → Review & Apply

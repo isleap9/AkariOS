@@ -25,6 +25,12 @@ Describe 'UI files' {
         @($hits).Count | Should Be 0
     }
 
+    It 'has no Home spec cards left' {
+        Test-Path "$Root\UI\Home.ps1" | Should Be $false
+        $hits = Select-String -Path @("$Root\Akari.ps1", "$Root\UI\*.ps1", "$Root\UI\*.xaml") -Pattern 'SpecData|SpecJob|CopySpecs|Get-Specs|Update-Home'
+        @($hits).Count | Should Be 0
+    }
+
     It 'Controls.xaml parses and defines every style' {
         $s = "Add-Type -AssemblyName PresentationFramework; `$d = [Windows.Markup.XamlReader]::Parse((Get-Content '$Root\UI\Controls.xaml' -Raw)); " +
              "`$miss = @('Switch', 'Combo', 'ComboItem', 'Check', 'SettingCard', 'CategoryCard', 'Accent', 'StepDot', 'ModeCard' | Where-Object { -not `$d.Contains(`$_) }); " +
@@ -130,6 +136,68 @@ $c = New-AkariCategoryCard 'Windows' 0xE771 'Not yet ported'
     }
 
     It 'builds a category card head: icon, title, note' { $out.cardHead | Should Be '3' }
+}
+
+Describe 'Shell navigation' {
+    # builds the shell in a child STA PowerShell with fixture tweaks; the window is never shown (no ShowDialog)
+    $probe = "$TestDrive\shell.ps1"
+    Set-Content $probe -Value @'
+param($Root, $LogFile)
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName PresentationFramework
+$AkariLogFile = $LogFile
+foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'Restore') { . "$Root\Core\$f.ps1" }
+function L($id, $page, $name) { ConvertTo-AkariTweak @{ Id = $id; Name = $name; Description = 'D'; Section = $page; Category = ''; Risk = 'Safe'; Kind = 'Action'; Button = 'Run'; Apply = { } } 'x' $true }
+$script:Tweaks = [System.Collections.Generic.List[object]]::new()
+foreach ($t in @((L 'dark' 'Windows' 'Dark theme'), (L 'bios' 'Check' 'BIOS check'), (L 'leg-adv' 'Advanced' 'Old advanced'),
+    (ConvertTo-AkariTweak @{ Id = 'tuning'; Name = 'Theme tuning'; Description = 'D'; Section = 'Advanced'; Category = 'Tuning'; Risk = 'Safe'; Kind = 'Action'; Button = 'Run'; Apply = { } } 'x' $false))) { $script:Tweaks.Add($t) }
+$script:Groups = @(); $script:RowCache = @{}; $script:Cat = 'Home'; $script:Busy = $false; $script:Job = $null
+$script:Queue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
+$loaded = @{ Problems = @() }
+function Get-AkariAppxInstalled { @() }; function Start-AkariFeatureRead { }
+foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows') { . "$Root\UI\$f.ps1" }
+$timer.Stop()
+function Click($b) { $b.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent)) }
+function Rows { ($Rows.Children | ForEach-Object { if ($_ -is [Windows.Controls.TextBlock]) { 'msg' } else { $_.Child.Children[0].Children[1].Children[0].Text } }) -join ',' }
+"nav=$(($Nav.Children | ForEach-Object { $_.Tag }) -join ',')"
+Select-AkariPage 'Home'; "home=$($HomePanel.Visibility),$($PaneCol.Width.Value)"
+Click $HomeTiles.Children[1]; "optimize=$script:Cat,$($StepsPanel.Visibility),$($PaneCol.Width.Value),$($StepBody.Children[0].Children.Count)"
+Click $StepBody.Children[0].Children[0]; "legacy=$script:Cat,$($PaneCol.Width.Value),$(Rows)"
+Select-AkariPage 'Advanced'; "advanced=$(Rows)"
+Select-AkariPage 'Windows'; "windows=$(Rows),$(($Nav.Children | Where-Object { $_.IsChecked }).Tag)"
+($Nav.Children | Where-Object { $_.Tag -eq 'Downloads' }).IsChecked = $true; "downloads=$script:Cat,$script:FlowExit,$($PaneCol.Width.Value)"
+Click $StepBack; "dlBack=$script:Cat,$(($Nav.Children | Where-Object { $_.IsChecked }).Tag)"
+$Search.Text = 'theme'; "search=$(Rows)"; $Search.Text = ''
+$Nav.Children[0].IsChecked = $true; "backToChooser=$script:Cat,$($PaneCol.Width.Value)"
+Click $StepBack; "chooserBack=$script:Cat"
+Click $HomeTiles.Children[2]; "dlHome=$script:FlowExit"
+'@
+    $out = @{}
+    & powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -LogFile "$TestDrive\a.log" 2>&1 | ForEach-Object {
+        $l = "$_"; $i = $l.IndexOf('='); if ($i -gt 0 -and $l -notmatch '^\[') { $out[$l.Substring(0, $i)] = $l.Substring($i + 1) } elseif ($l -notmatch '^\[') { $out['error'] += $l }
+    }
+
+    It 'builds without errors' { $out['error'] | Should BeNullOrEmpty }
+    It 'the sidebar holds only the way back and the Legacy pages' {
+        $out.nav | Should Be 'Optimize,Check,Refresh,Setup,Downloads,Graphics,Windows,Hardware,Advanced'
+    }
+    It 'Home has no sidebar' { $out.home | Should Be 'Visible,0' }
+    It 'the Optimize tile opens the chooser, full window' { $out.optimize | Should Be 'Optimize,Visible,0,2' }
+    It 'Legacy opens Check with the sidebar, legacy rows only' {
+        $out.legacy | Should Be 'Check,232,BIOS check'
+        $out.advanced | Should Be 'Old advanced'
+        $out.windows | Should Be 'Dark theme,Windows'
+    }
+    It 'Downloads from Legacy is full window and Back returns to that page' {
+        $out.downloads | Should Be 'Downloads,Windows,0'
+        $out.dlBack | Should Be 'Windows,Windows'
+    }
+    It 'search lists legacy matches only' { $out.search | Should Be 'Dark theme' }
+    It '<- Optimize goes to the chooser, whose Back goes Home' {
+        $out.backToChooser | Should Be 'Optimize,0'
+        $out.chooserBack | Should Be 'Home'
+    }
+    It 'Downloads from Home exits to Home' { $out.dlHome | Should Be 'Home' }
 }
 
 Describe 'Console instead of a log panel' {

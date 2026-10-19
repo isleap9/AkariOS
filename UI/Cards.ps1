@@ -6,7 +6,7 @@
 # Category card icons (Segoe Fluent Icons); a Category not listed here gets the settings gear
 $AkariCategoryGlyphs = @{
     Gaming = 0xE7FC; Performance = 0xEC4A; Tuning = 0xE9E9; Privacy = 0xE72E
-    Check = 0xE9D9; Refresh = 0xE72C; Setup = 0xE90F; Installers = 0xE896; Graphics = 0xE7F4
+    Check = 0xE9D9; Refresh = 0xE72C; Setup = 0xE90F; Graphics = 0xE7F4
     Windows = 0xE771; Hardware = 0xE950; Advanced = 0xE945
 }
 

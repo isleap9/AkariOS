@@ -91,6 +91,15 @@ function Select-AkariPage($n) { $script:went = $n }
 Initialize-AkariSteps
 $StepBack.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
 "backTo=$script:went"
+# Optimize: the Legacy / Advanced chooser; Legacy opens Check, Back goes Home
+$script:Cat = 'Optimize'; Show-AkariOptimizeChooser
+"optCards=$($StepBody.Children[0].Children.Count)"; "optEnabled=$($StepBody.Children[0].Children[0].IsEnabled),$($StepBody.Children[0].Children[1].IsEnabled)"
+"optHeading=$($Heading.Text)"; "optFooter=$($StepBack.Visibility),$($StepNext.Visibility)"
+$StepBody.Children[0].Children[0].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
+"legacyTo=$script:went"
+$StepBack.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
+"optBack=$script:went"
+$script:Cat = 'Install AkariOS'; Show-AkariSteps
 $StepBody.Children[0].Children[1].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
 "mode=$script:Mode"; "s0next=$($StepNext.Content)"; "s0back=$($StepBack.Visibility)"; "guidedFooter=$($StepFooter.Visibility)"
 $script:Step = 1; Show-AkariSteps
@@ -141,6 +150,16 @@ $script:Step = 1; Show-AkariSteps
         $out.closed | Should Be 'True'
     }
     It 'Back on the chooser goes Home' { $out.backTo | Should Be 'Home' }
+    It 'Optimize opens on Legacy and a greyed Advanced, with only Back' {
+        $out.optCards | Should Be '2'
+        $out.optEnabled | Should Be 'True,False'
+        $out.optHeading | Should Be 'Optimize'
+        $out.optFooter | Should Be 'Visible,Collapsed'
+    }
+    It 'Legacy opens the first Legacy page, Back on the Optimize chooser goes Home' {
+        $out.legacyTo | Should Be 'Check'
+        $out.optBack | Should Be 'Home'
+    }
     It 'Guided starts on Apps, with Back to the chooser' {
         $out.mode | Should Be 'Guided'
         $out.s0next | Should Be 'Next'
@@ -291,6 +310,32 @@ Describe 'Get-AkariFlowStep' {
     }
 }
 
+Describe 'Optimize Legacy pages' {
+    foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
+    . "$Root\UI\Selection.ps1"
+    . "$Root\UI\Steps.ps1"
+    function L($id, $page, $name) { ConvertTo-AkariTweak @{ Id = $id; Name = $name; Description = 'D'; Section = $page; Category = ''; Risk = 'Safe'; Apply = { }; Revert = { } } 'x' $true }
+    $list = @(
+        L 'dark' 'Windows' 'Dark theme'; L 'bios' 'Check' 'BIOS check'; L 'leg-adv' 'Advanced' 'Old advanced'
+        ConvertTo-AkariTweak @{ Id = 'tuning'; Name = 'Theme tuning'; Description = 'D'; Section = 'Advanced'; Category = 'Tuning'; Risk = 'Safe'
+            Registry = @(@{ Path = 'HKCU:\Software\AkariTest'; Name = 'X'; Type = 'DWord'; Value = 1; Default = 0 }) } 'x' $false
+    )
+    It 'lists Downloads in the old Installers slot, after Setup' {
+        $AkariLegacyPages -join ',' | Should Be 'Check,Refresh,Setup,Downloads,Graphics,Windows,Hardware,Advanced'
+    }
+    It 'shows only the legacy tweaks of a page (no one-file tweaks)' {
+        (Get-AkariLegacyList $list 'Advanced' '' | ForEach-Object { $_.Id }) -join ',' | Should Be 'leg-adv'
+    }
+    It 'searches legacy tweaks only' {
+        (Get-AkariLegacyList $list 'Check' 'theme' | ForEach-Object { $_.Id }) -join ',' | Should Be 'dark'
+    }
+    It 'Downloads exits to the Legacy page it was opened from, else Home' {
+        Set-AkariFlowExit 'Graphics'; $script:FlowExit | Should Be 'Graphics'
+        Set-AkariFlowExit 'Home'; $script:FlowExit | Should Be 'Home'
+        Set-AkariFlowExit 'Optimize'; $script:FlowExit | Should Be 'Home'
+    }
+}
+
 Describe 'Get-AkariInstallCards' {
     foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
     . "$Root\UI\Apps.ps1"
@@ -415,6 +460,11 @@ Step-AkariForward; "dlReview=$script:Step"
 Step-AkariBack; "dlBack=$script:Step"
 Step-AkariBack; "dlHome=$script:went"
 Enter-AkariFlow 'Install AkariOS'; "guidedAgain=$script:Mode,$($script:Sel.Count)"
+# Downloads opened from a Legacy page: Back at the start and Done lead back to that page
+Set-AkariFlowExit 'Windows'; Enter-AkariFlow 'Downloads'; Show-AkariSteps
+Step-AkariBack; "dlLegacyBack=$script:went"
+$script:Step = 3; Reset-AkariSteps; "dlLegacyDone=$script:went,$script:Mode"
+Set-AkariFlowExit 'Home'; Enter-AkariFlow 'Downloads'; $script:Step = 3; Reset-AkariSteps; "dlHomeDone=$script:went"
 '@
     $out = @{}
     & powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root 2>&1 | ForEach-Object {
@@ -467,6 +517,11 @@ Enter-AkariFlow 'Install AkariOS'; "guidedAgain=$script:Mode,$($script:Sel.Count
         $out.dlHome | Should Be 'Home'
     }
     It 'Install AkariOS after Downloads starts afresh on its chooser' { $out.guidedAgain | Should Be 'Choose,0' }
+    It 'Downloads opened from Legacy goes back there on Back and Done; from Home, Home' {
+        $out.dlLegacyBack | Should Be 'Windows'
+        $out.dlLegacyDone | Should Be 'Windows,Choose'
+        $out.dlHomeDone | Should Be 'Home'
+    }
     It 'gives the features that arrive late the last quick select (FR33THY: all but the keep-list)' {
         $out.lateSel | Should Be 'capability/App.StepsRecorder~~~~0.0.1.0,feature/WorkFolders-Client'
     }

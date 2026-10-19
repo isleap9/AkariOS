@@ -1,6 +1,7 @@
 # Steps: the Install AkariOS page. It opens on a chooser: One-click (the old Akari-OS run, M4) or Guided.
 # Guided = Apps -> Tweaks -> Review & Apply (AkariOS-PLAN.md §4). Nothing changes while choosing:
 # cards write into the Selection, Review lists it, Apply runs it once and shows the Outcomes (step 3, after Review).
+# Also the Optimize chooser (Legacy / Advanced) and the Legacy page list, which share the full-window footer.
 # Needs UI\Selection.ps1 and UI\Cards.ps1. Initialize-AkariSteps wires the window elements (called by UI\Shell.ps1).
 
 $AkariSectionOrder = 'Optimize', 'Customize', 'Hardware', 'Advanced'
@@ -63,12 +64,30 @@ function Get-AkariFlowStep([string]$Mode, [int]$Step, [int]$Dir) {
     $f[$i]
 }
 
+# Optimize › Legacy: the sidebar pages, in order (Downloads takes the old Installers slot). The Shell puts
+# '← Optimize' (back to the chooser) above them.
+$AkariLegacyPages = 'Check', 'Refresh', 'Setup', 'Downloads', 'Graphics', 'Windows', 'Hardware', 'Advanced'
+# where Downloads' Back (first step) and Done lead: the Legacy page it was opened from, else Home
+$script:FlowExit = 'Home'
+
+# the Shell is opening Downloads from page $From
+function Set-AkariFlowExit([string]$From) {
+    $script:FlowExit = if ($From -in $AkariLegacyPages -and $From -ne 'Downloads') { $From } else { 'Home' }
+}
+
+# the rows of a Legacy page: legacy tweaks only (ADR 0004), those of page $Page, or every match of $Query. Pure.
+function Get-AkariLegacyList($Tweaks, [string]$Page, [string]$Query) {
+    $legacy = @($Tweaks | Where-Object { $_.Legacy })
+    if ($Query) { return @($legacy | Where-Object { "$($_.Name) $($_.Description)" -like "*$Query*" }) }
+    @($legacy | Where-Object { $_.Section -eq $Page })
+}
+
 function Step-AkariBack {
-    # the chooser's Back, and Back on the first Downloads step, go Home (these pages have no sidebar)
-    if ($script:Mode -eq 'Choose') { Select-AkariPage 'Home'; return }
+    # the choosers' Back goes Home, Back on the first Downloads step to where Downloads was opened (no sidebar here)
+    if ($script:Cat -eq 'Optimize' -or $script:Mode -eq 'Choose') { Select-AkariPage 'Home'; return }
     $prev = Get-AkariFlowStep $script:Mode $script:Step -1
     if ($null -ne $prev) { $script:Step = $prev }
-    elseif ($script:Mode -eq 'Downloads') { Select-AkariPage 'Home'; return }
+    elseif ($script:Mode -eq 'Downloads') { Select-AkariPage $script:FlowExit; return }
     else { $script:Mode = 'Choose' }
     Show-AkariSteps
 }
@@ -345,6 +364,26 @@ function Show-AkariChooser {
     [void]$StepBody.Children.Add($g)
 }
 
+# Optimize (Manual mode): Legacy, the frozen AkariOS-Ultimate pages (ADR 0004), or Advanced (designed later).
+# Laid out like the Install AkariOS chooser; Back goes Home (Step-AkariBack).
+function Show-AkariOptimizeChooser {
+    $StepDots.Children.Clear()
+    Set-AkariStepHeader 'Optimize' 'Manual, in-depth optimization for Windows'
+    if ($StepFooter) { $StepFooter.Visibility = 'Visible' }
+    $StepBack.Visibility = 'Visible'
+    $StepNext.Visibility = 'Collapsed'
+    $g = [Windows.Controls.Primitives.UniformGrid]::new()
+    $g.Columns = 2
+    $legacy = New-AkariModeCard ([string][char]0xE713) 'Legacy' 'The AkariOS-Ultimate pages. Every button acts right away.' $true
+    $legacy.Margin = [Windows.Thickness]::new(0, 0, 8, 0)
+    $legacy.Add_Click({ Select-AkariPage $AkariLegacyPages[0] })
+    $adv = New-AkariModeCard ([string][char]0xE9E9) 'Advanced' 'Coming later.' $false
+    $adv.Margin = [Windows.Thickness]::new(8, 0, 0, 0)
+    [void]$g.Children.Add($legacy); [void]$g.Children.Add($adv)
+    $StepBody.Children.Clear()
+    [void]$StepBody.Children.Add($g)
+}
+
 function Show-AkariSteps {
     # the Tweaks view is cached: detach it before the body is cleared, so it can be added again
     if ($script:TweaksView -and $script:TweaksView.Parent) { $script:TweaksView.Parent.Children.Remove($script:TweaksView) }
@@ -495,13 +534,15 @@ function Show-AkariResult {
     }
 }
 
-# Done: forget the Selection and the cached steps, back to Home
+# Done: forget the Selection and the cached steps, back to Home (Downloads: back to where it was opened)
 function Reset-AkariSteps {
+    # Downloads goes back to where it was opened (a Legacy page or Home), Install AkariOS Home
+    $exit = if ($script:Mode -eq 'Downloads') { $script:FlowExit } else { 'Home' }
     Clear-AkariSteps
     # Install AkariOS opens on its chooser again next time; every State and app is read again then
     $script:Mode = 'Choose'
     $script:Step = 0
-    Select-AkariPage 'Home'
+    Select-AkariPage $exit
 }
 
 # forgets the Selection and the cached views (they are built again, reading every State and app afresh)

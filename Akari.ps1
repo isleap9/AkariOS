@@ -85,13 +85,6 @@ $script:Cat    = 'Home'
 $script:Busy   = $false
 $script:Job    = $null
 $script:Queue  = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
-$script:SpecData = $null
-$script:SpecJob = $null
-$script:SpecPending = $false
-$script:CopiedUntil = $null
-# a spec read still running after this many seconds is abandoned
-$script:SpecTimeoutSec = 30
-$script:SpecStale = [System.Collections.Generic.List[object]]::new()
 
 foreach ($need in 'UI\MainWindow.xaml', 'Tweaks') {
     if (-not (Test-Path "$Root\$need")) {
@@ -105,8 +98,8 @@ foreach ($t in @(Import-AkariLegacyTweaks "$Root\Tweaks") + @($loaded.Tweaks)) {
 # data-list Groups (the apps list): the Apps step builds Entries for installed apps the data file doesn't list
 $script:Groups = @($loaded.Groups)
 
-# ---- GUI: Guided steps, home page, shell, old rows (UI\*.ps1), then show the window
-foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps', 'Home', 'Shell', 'Rows') { . "$Root\UI\$f.ps1" }
+# ---- GUI: Guided steps, shell, Legacy rows (UI\*.ps1), then show the window
+foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows') { . "$Root\UI\$f.ps1" }
 [void]$window.ShowDialog()
 
 # ---- One-click: the window closed to hand this console to the Akari-OS run (it restarts the PC itself)

@@ -21,6 +21,17 @@ Describe 'Import-AkariLegacyTweaks' {
     }
 }
 
+Describe 'Legacy is frozen (ADR 0004)' {
+    . "$Core\Loader.ps1"; . "$Core\Legacy.ps1"
+    $real = @(Import-AkariLegacyTweaks (Join-Path $Root 'Tweaks') | ForEach-Object { $_.Id })
+    $want = @(Get-Content (Join-Path $PSScriptRoot 'Fixtures\legacy-ids.txt') | Where-Object { $_ -and $_ -notlike '#*' })
+
+    It 'still loads every legacy entry of the import (none deleted by a port)' {
+        @($want | Where-Object { $real -notcontains $_ }) -join ',' | Should Be ''
+        $want.Count | Should Be 97
+    }
+}
+
 Describe 'Akari.ps1' {
     It 'parses' {
         $errs = $null
