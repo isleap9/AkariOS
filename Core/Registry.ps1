@@ -55,7 +55,8 @@ function Resolve-AkariDefault($Default) {
 function Test-AkariRegMatch($Current, $Expected) {
     if ($null -eq $Expected) { return $null -eq $Current }
     if ($null -eq $Current) { return $false }
-    (@($Current) -join ',') -eq (@($Expected) -join ',')
+    # "$_" per item: -join would use the source text of a number passed as an argument ('0x28', not '40')
+    (@($Current | ForEach-Object { "$_" }) -join ',') -eq (@($Expected | ForEach-Object { "$_" }) -join ',')
 }
 
 # Registry entries are @{ Path; Name; Type; Value; Default } (Default $null = delete on Revert)

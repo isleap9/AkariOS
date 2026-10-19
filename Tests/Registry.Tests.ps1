@@ -114,3 +114,17 @@ Describe 'Real tweak files' {
         $t.Recommended | Should Be 4294967295
     }
 }
+
+Describe 'Test-AkariRegMatch' {
+    . "$Core\Registry.ps1"
+    function Test-Arg($a, $b) { Test-AkariRegMatch $a $b }
+
+    It 'matches a hex literal passed as an argument' {
+        Test-Arg 0x28 40 | Should Be $true
+    }
+
+    It 'matches multi-string values item by item' {
+        Test-AkariRegMatch @('a', 'b') @('a', 'b') | Should Be $true
+        Test-AkariRegMatch @('a', 'b') @('a') | Should Be $false
+    }
+}
