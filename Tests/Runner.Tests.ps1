@@ -66,6 +66,25 @@ Describe 'Invoke-AkariTweak' {
             (Invoke-AkariTweak $c Revert).Outcome | Should Be 'Reverted'
             Get-AkariRegValue $k 'P' | Should Be 2
         }
+
+        $c3 = ConvertTo-AkariTweak @{ Id = 'ch3'; Name = 'Ch3'; Kind = 'Choice'; Recommended = 0x26; Default = 2
+            Registry = @{ Path = $k; Name = 'V'; Type = 'DWord' }; Choices = @(@{ Value = 0x26 }, @{ Value = 3 }) } 'x' $false
+
+        It 'applies a Choice to an explicit Value' {
+            $o = Invoke-AkariTweak $c3 Apply 3
+            $o.Outcome | Should Be 'Applied'
+            Get-AkariRegValue $k 'V' | Should Be 3
+        }
+
+        It 'is Already when the Choice holds that Value' {
+            (Invoke-AkariTweak $c3 Apply 3).Outcome | Should Be 'Already'
+        }
+
+        It 'fails a Value on a Toggle' {
+            $o = Invoke-AkariTweak $reg Apply 5
+            $o.Outcome | Should Be 'Failed'
+            $o.Message | Should Match 'only for Choices'
+        }
     } finally { Remove-Item $k -Recurse -Force -ErrorAction SilentlyContinue }
 }
 
@@ -86,6 +105,11 @@ Describe 'Invoke-AkariRun' {
             $o[0].Message | Should Be 'Unknown tweak id'
             $o[2].Id | Should Be 'good'
         }
+
+        It 'runs a plan in order with mixed modes' {
+            $o = @(Invoke-AkariPlan @(@{ Id = 'good'; Mode = 'Revert' }, @{ Id = 'good'; Mode = 'Apply' }) $list)
+            ($o | ForEach-Object { "$($_.Mode):$($_.Outcome)" }) -join ',' | Should Be 'Revert:Reverted,Apply:Applied'
+        }
     } finally { Remove-Item $k -Recurse -Force -ErrorAction SilentlyContinue }
 }
 
@@ -101,6 +125,15 @@ Describe 'Start-AkariJob' {
             $j.Ps.EndInvoke($j.Handle); $j.Ps.Dispose(); $j.Rs.Dispose()
             @($q.ToArray()) -contains 'from job' | Should Be $true
             Get-AkariRegValue $k 'J' | Should Be 3
+        }
+
+        It 'hands results back through Shared' {
+            $q = [Collections.Concurrent.ConcurrentQueue[string]]::new()
+            $s = [hashtable]::Synchronized(@{})
+            $j = Start-AkariJob '$AkariShared.X = 42' $q $Core $s
+            $j.Handle.AsyncWaitHandle.WaitOne(20000) | Should Be $true
+            $j.Ps.EndInvoke($j.Handle); $j.Ps.Dispose(); $j.Rs.Dispose()
+            $s.X | Should Be 42
         }
     } finally { Remove-Item $k -Recurse -Force -ErrorAction SilentlyContinue }
 }
