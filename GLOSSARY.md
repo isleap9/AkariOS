@@ -41,6 +41,9 @@ _Avoid_: page, tab, category
 
 **Category**: a group heading within a Section, such as Gaming under Optimize.
 
+**Legacy**: the frozen AkariOS-Ultimate tweaks (the generated `Tweaks/*.ps1` files), shown on Optimize › Legacy with buttons that act right away. The port never edits or deletes them; `Tweaks/Ported.psd1` names the one-file Tweaks that replace each one (ADR 0004).
+_Avoid_: old tweaks, Ultimate tweaks
+
 **Requirement**: a condition a Tweak needs to make sense on a machine, such as Win11, NVIDIA or Desktop.
 
 ## Running

@@ -58,11 +58,14 @@
  │  away.                       │  │          (disabled)          │
  └──────────────────────────────┘  └──────────────────────────────┘
 ```
-- Optimize tile → chooser (`New-AkariModeCard`, same layout as Install AkariOS). Legacy → today's Manual pages with the sidebar, showing **legacy tweaks only**; Back → chooser → Home.
+Layout decided 2026-10-20:
+- **Chooser** = the Install AkariOS one: full window, no sidebar, two `New-AkariModeCard`s side by side, header "Optimize", footer Back → Home. **Legacy** card: "The AkariOS-Ultimate pages. Every button acts right away." **Advanced** card: greyed, "Coming later." (like the Import / Export tile).
+- **Legacy view**: the sidebar holds only `← Optimize` (back to the chooser) and the legacy pages: Check, Refresh, Setup, Downloads, Graphics, Windows, Hardware, Advanced. Home, Install AkariOS and the `Manual` heading leave the sidebar (Home tiles reach them). Pages show **legacy tweaks only**: the sidebar `Optimize` page (one-file Optimize tweaks) goes, and the Advanced page loses the one-file Tuning Choices. Search covers legacy tweaks only.
+- **Downloads** takes the old Installers slot: it opens the existing Downloads flow (full window). Opened from Legacy, its Back on the first step and Done lead back to Legacy; opened from Home, to Home. The legacy `Tweaks/Installers.ps1` (deleted in e94039d) stays deleted.
 - Restore point rule unchanged (Optimize, first change of the session).
-- Remove the spec read code and hidden cards from `UI/Home.ps1` (drop the file if nothing else is left).
+- Remove the spec read code and hidden cards from `UI/Home.ps1` (drop the file if nothing else is left), and the spec parts of `UI/Shell.ps1` (timer watchdog, `CopySpecs`, `Start-SpecRead`).
 
-**VM check:** Optimize tile shows the two cards; Advanced is greyed; Legacy opens the old pages with every old category and no new one-file tweaks; Back goes chooser → Home; a Legacy Optimize button still asks about / makes the restore point once.
+**VM check:** Optimize tile shows the two cards, Advanced greyed; Back → Home. Legacy opens Check with the sidebar `← Optimize`, Check … Advanced, Downloads in the fourth slot; no Home / Install AkariOS / Optimize items, no one-file tweaks on any page (Advanced has no Tuning Choices). `← Optimize` → chooser. Downloads from Legacy → Install cards; Back and Done return to Legacy. Downloads from Home → Back / Done return to Home. Search inside Legacy finds only legacy rows. A Legacy Optimize button still asks about / makes the restore point once.
 
 ### Task 3: Engine prep
 
