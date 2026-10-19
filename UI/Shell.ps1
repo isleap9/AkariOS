@@ -203,6 +203,7 @@ $timer.Add_Tick({
         Add-Log "Done: $($j.Label)"
         $script:Job = $null
         Set-Busy $false
+        if ($j.Kind -eq 'Apply') { Complete-AkariApply $j.Shared }
         Show-Page
         # a home read was requested while the tweak ran: start it now (only on the Home page)
         if ($script:SpecPending -and $script:Cat -eq 'Home') { Start-SpecRead }

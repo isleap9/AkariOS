@@ -112,3 +112,92 @@ $script:Step = 1; Show-AkariSteps
     It 'shows the cached Tweaks view again after Review' { $out.reattached | Should Be '1' }
     It 'changes nothing while choosing' { $out.untouched | Should Be 'True' }
 }
+
+Describe 'Get-AkariRunSummary' {
+    foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
+    . "$Root\UI\Selection.ps1"
+    . "$Root\UI\Steps.ps1"
+    function O($o, $r = $false) { [pscustomobject]@{ Id = 'x'; Outcome = $o; Reboot = $r; Message = '' } }
+
+    It 'counts an all-Applied Run' {
+        $s = Get-AkariRunSummary @((O 'Applied'), (O 'Applied'))
+        $s.Text | Should Be '2 applied'
+        $s.Reboot | Should Be $false
+    }
+
+    It 'counts a Run with one Failed, in Glossary order' {
+        (Get-AkariRunSummary @((O 'Failed'), (O 'Reverted'), (O 'Applied'))).Text | Should Be '1 applied, 1 reverted, 1 failed'
+    }
+
+    It 'flags a reboot' { (Get-AkariRunSummary @((O 'Applied' $true), (O 'Already'))).Reboot | Should Be $true }
+}
+
+Describe 'Apply from Review (fake id, no restore point, no window)' {
+    $probe = "$TestDrive\apply.ps1"
+    Set-Content $probe -Value @'
+param($Root)
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName PresentationFramework
+$AkariStatePath = "$env:TEMP\akari-apply-test-state.json"
+foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner') { . "$Root\Core\$f.ps1" }
+$LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
+$fake = ConvertTo-AkariTweak @{ Id = 'zz-fake-id'; Name = 'Fake'; Description = 'D'; Section = 'Optimize'; Category = 'Gaming'; Risk = 'Safe'; Apply = { }; Revert = { } } 'x' $false
+$script:Tweaks = @($fake)
+foreach ($f in 'Selection', 'Cards', 'Steps') { . "$Root\UI\$f.ps1" }
+$script:Busy = $false; $script:Queue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
+function Set-Busy($b, $l) { $script:Busy = $b }
+function Add-Log($m) { }
+$res = [Windows.Controls.StackPanel]::new()
+$res.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Controls.xaml" -Raw)))
+$StepDots = [Windows.Controls.StackPanel]::new(); $StepBody = [Windows.Controls.StackPanel]::new()
+[void]$res.Children.Add($StepDots); [void]$res.Children.Add($StepBody)
+$StepBack = [Windows.Controls.Button]::new(); $StepNext = [Windows.Controls.Button]::new(); $Search = [Windows.Controls.TextBox]::new()
+
+# restore point failed and the user says No: nothing runs, Review stays
+function Confirm-AkariNoRestore($m) { $script:asked = $m; $false }
+Set-AkariPending $script:Sel $fake 'Default' 'Optimized'
+$script:Step = 2
+Complete-AkariApply ([hashtable]::Synchronized(@{ Restore = [pscustomobject]@{ Ok = $false; Message = 'protection off' } }))
+"asked=$script:asked"; "stayed=$script:Step"; "restoreDone=$script:RestoreDone"
+
+# the real job, restore point skipped, plan = one fake id
+$script:RestoreDone = $true
+Start-AkariApply
+"busy=$script:Busy"; "kind=$($script:Job.Kind)"
+"ended=$($script:Job.Handle.AsyncWaitHandle.WaitOne(60000))"
+$script:Job.Ps.EndInvoke($script:Job.Handle); $script:Job.Ps.Dispose(); $script:Job.Rs.Dispose()
+Complete-AkariApply $script:Job.Shared
+"step=$script:Step"; "outcome=$($script:Outcomes[0].Outcome)"; "msg=$($script:Outcomes[0].Message)"
+Show-AkariSteps
+"resultCards=$($StepBody.Children.Count)"; "next=$($StepNext.Content)"
+Reset-AkariSteps
+"afterDone=$script:Step"; "selCount=$($script:Sel.Count)"
+'@
+    $out = @{}
+    & powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root 2>&1 | ForEach-Object {
+        $l = "$_"; $i = $l.IndexOf('='); if ($i -gt 0) { $out[$l.Substring(0, $i)] = $l.Substring($i + 1) } else { $out['error'] += $l }
+    }
+
+    It 'runs without errors' { $out['error'] | Should BeNullOrEmpty }
+    It 'asks when the restore point fails, and No changes nothing' {
+        $out.asked | Should Be 'protection off'
+        $out.stayed | Should Be '2'
+        $out.restoreDone | Should Be 'False'
+    }
+    It 'starts one Apply job' {
+        $out.busy | Should Be 'True'
+        $out.kind | Should Be 'Apply'
+        $out.ended | Should Be 'True'
+    }
+    It 'shows the Outcomes from the job' {
+        $out.step | Should Be '3'
+        $out.outcome | Should Be 'Failed'
+        $out.msg | Should Be 'Unknown tweak id'
+        $out.resultCards | Should Be '2'
+        $out.next | Should Be 'Done'
+    }
+    It 'Done clears the Selection and goes back to Tweaks' {
+        $out.afterDone | Should Be '1'
+        $out.selCount | Should Be '0'
+    }
+}

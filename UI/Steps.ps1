@@ -1,5 +1,5 @@
 # Steps: the Manual flow, Apps -> Tweaks -> Review & Apply (AkariOS-PLAN.md §4). Nothing changes while choosing:
-# cards write into the Selection, Review lists it, Apply runs it once (Task 9 of the M2a plan).
+# cards write into the Selection, Review lists it, Apply runs it once and shows the Outcomes (step 3, after Review).
 # Needs UI\Selection.ps1 and UI\Cards.ps1. Initialize-AkariSteps wires the window elements (called by UI\Shell.ps1).
 
 $AkariSectionOrder = 'Optimize', 'Customize', 'Hardware', 'Advanced'
@@ -9,6 +9,9 @@ $script:Step = 0
 $script:Sel = New-AkariSelection
 $script:CardEntries = [ordered]@{}
 $script:TweaksView = $null
+$script:Outcomes = @()
+# a restore point is made once per GUI session; the user may also choose to go on without one
+$script:RestoreDone = $false
 
 # Sections and Categories shown in the Tweaks step: one-file Toggles, Choices and Actions, plus legacy Toggles
 # (legacy Actions and Groups stay on the old pages until M2b). Pure, no WPF.
@@ -35,8 +38,11 @@ function Get-AkariStepGroups($Tweaks) {
 function Initialize-AkariSteps {
     $StepBack.Add_Click({ if ($script:Step -gt 0) { $script:Step--; Show-AkariSteps } })
     $StepNext.Add_Click({
-        if ($script:Step -lt 2) { $script:Step++; Show-AkariSteps }
-        elseif (Get-Command Start-AkariApply -ErrorAction SilentlyContinue) { Start-AkariApply }
+        switch ($script:Step) {
+            2 { Start-AkariApply }
+            3 { Reset-AkariSteps }
+            default { $script:Step++; Show-AkariSteps }
+        }
     })
 }
 
@@ -155,7 +161,8 @@ function Update-AkariStepFooter {
     switch ($script:Step) {
         0 { $StepNext.Content = 'Next'; $StepNext.IsEnabled = $true }
         1 { $StepNext.Content = "Review ($n)"; $StepNext.IsEnabled = ($n -gt 0) }
-        2 { $StepNext.Content = 'Apply'; $StepNext.IsEnabled = ($n -gt 0) -and [bool](Get-Command Start-AkariApply -ErrorAction SilentlyContinue) }
+        2 { $StepNext.Content = 'Apply'; $StepNext.IsEnabled = ($n -gt 0) }
+        3 { $StepNext.Content = 'Done'; $StepNext.IsEnabled = $true; $StepBack.Visibility = 'Hidden' }
     }
 }
 
@@ -164,10 +171,11 @@ function Show-AkariSteps {
     for ($i = 0; $i -lt 3; $i++) {
         $d = [Windows.Shapes.Ellipse]::new()
         $d.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'StepDot')
-        if ($i -eq $script:Step) { $d.Tag = 'Current' }
+        if ($i -eq [math]::Min($script:Step, 2)) { $d.Tag = 'Current' }
         [void]$StepDots.Children.Add($d)
     }
-    $title = New-AkariText "Step $($script:Step + 1) of 3: $($AkariStepNames[$script:Step])" 13 'Mu'
+    $label = if ($script:Step -eq 3) { 'Done' } else { "Step $($script:Step + 1) of 3: $($AkariStepNames[$script:Step])" }
+    $title = New-AkariText $label 13 'Mu'
     $title.Margin = [Windows.Thickness]::new(8, 0, 0, 0)
     $title.VerticalAlignment = 'Center'
     [void]$StepDots.Children.Add($title)
@@ -194,6 +202,96 @@ function Show-AkariSteps {
                 [void]$StepBody.Children.Add($b)
             }
         }
+        3 { Show-AkariResult }
     }
     Update-AkariStepFooter
+}
+
+# ---- Apply: one Run in the background job, restore point first
+
+# counts per Outcome, in Glossary order, and whether a restart is needed. Pure, no WPF.
+function Get-AkariRunSummary($Outcomes) {
+    $counts = [ordered]@{}
+    foreach ($k in 'Applied', 'Reverted', 'Already', 'Skipped', 'Failed') {
+        $n = @($Outcomes | Where-Object { $_.Outcome -eq $k }).Count
+        if ($n) { $counts[$k] = $n }
+    }
+    $text = ($counts.Keys | ForEach-Object { "$($counts[$_]) $($_.ToLower())" }) -join ', '
+    [pscustomobject]@{ Counts = $counts; Text = $text; Reboot = [bool]($Outcomes | Where-Object { $_.Reboot }) }
+}
+
+function Confirm-AkariNoRestore([string]$Message) {
+    $q = "Akari could not create a restore point:`n`n$Message`n`nApply the changes without a restore point?"
+    [Windows.MessageBox]::Show($q, 'Akari', 'YesNo', 'Warning') -eq 'Yes'
+}
+
+function Start-AkariApply {
+    if ($script:Busy -or -not $script:Sel.Count) { return }
+    $q = { param($s) "'" + ([string]$s -replace "'", "''") + "'" }
+    $shared = [hashtable]::Synchronized(@{ Plan = @(Get-AkariPlanItems $script:Sel); SkipRestore = $script:RestoreDone })
+    # the job loads the tweaks itself: a script block must not cross runspaces
+    $code = @"
+`$root = $(& $q "$Root\Tweaks")
+`$all = @((Get-AkariTweaks `$root).Tweaks) + @(Import-AkariLegacyTweaks `$root)
+if (-not `$AkariShared.SkipRestore) {
+    `$AkariShared.Restore = New-AkariRestorePoint 'Akari'
+    if (-not `$AkariShared.Restore.Ok) { return }
+}
+`$AkariShared.Outcomes = @(Invoke-AkariPlan `$AkariShared.Plan `$all)
+"@
+    $label = "Applying $($script:Sel.Count) change$(if ($script:Sel.Count -ne 1) { 's' })"
+    Set-Busy $true $label
+    Add-Log $label
+    $script:Job = Start-AkariJob $code $script:Queue "$Root\Core" $shared
+    $script:Job.Label = $label
+    $script:Job.Kind = 'Apply'
+}
+
+# called by the Shell timer when the Apply job has ended
+function Complete-AkariApply($Shared) {
+    if ($Shared.Restore -and $Shared.Restore.Ok) { $script:RestoreDone = $true }
+    if ($null -eq $Shared.Outcomes) {
+        # stopped before any change: the restore point failed (or the job itself failed)
+        if ($Shared.Restore -and -not $Shared.Restore.Ok -and (Confirm-AkariNoRestore $Shared.Restore.Message)) {
+            $script:RestoreDone = $true
+            Start-AkariApply
+        }
+        return
+    }
+    $script:Outcomes = @($Shared.Outcomes)
+    $script:Step = 3
+}
+
+function Show-AkariResult {
+    $sum = Get-AkariRunSummary $script:Outcomes
+    $head = New-AkariText $sum.Text 14
+    $head.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
+    [void]$StepBody.Children.Add($head)
+    if ($sum.Reboot) {
+        $rb = New-AkariText 'Restart Windows to finish.' 14 'Warn'
+        $rb.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
+        [void]$StepBody.Children.Add($rb)
+    }
+    foreach ($o in $script:Outcomes) {
+        $t = $script:Tweaks | Where-Object { $_.Id -eq $o.Id } | Select-Object -First 1
+        $b = [Windows.Controls.Border]::new()
+        $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
+        $sp = [Windows.Controls.StackPanel]::new()
+        $sp.VerticalAlignment = 'Center'
+        [void]$sp.Children.Add((New-AkariText $(if ($t) { $t.Name } else { $o.Id }) 14))
+        $line = if ($o.Message) { "$($o.Outcome): $($o.Message)" } else { $o.Outcome }
+        [void]$sp.Children.Add((New-AkariText $line 12 $(if ($o.Outcome -eq 'Failed') { 'Bad' } else { 'Mu' })))
+        $b.Child = $sp
+        [void]$StepBody.Children.Add($b)
+    }
+}
+
+# Done: forget the Selection, read every State again, back to the Tweaks step
+function Reset-AkariSteps {
+    $script:Sel = New-AkariSelection
+    $script:CardEntries = [ordered]@{}
+    $script:TweaksView = $null
+    $script:Outcomes = @()
+    $script:Step = 1
+    Show-AkariSteps
 }
