@@ -1,5 +1,5 @@
-﻿# Rows: the old Ultimate row list (Optimize / Default / Run buttons). Temporary: deleted in M2b,
-# when Install / Utilities replace the old pages. Dot-sourced by Akari.ps1 after UI\Shell.ps1.
+﻿# Rows: Manual mode, the legacy Ultimate row list. Optimize / Default / Run buttons act right away, one Tweak at a time.
+# Dot-sourced by Akari.ps1 after UI\Shell.ps1.
 
 # ---- rows
 function New-Row($t) {

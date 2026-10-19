@@ -1,10 +1,13 @@
-# Steps: the Manual flow, Apps -> Tweaks -> Review & Apply (AkariOS-PLAN.md §4). Nothing changes while choosing:
+# Steps: the Install AkariOS page. It opens on a chooser: One-click (the old Akari-OS run, M4) or Guided.
+# Guided = Apps -> Tweaks -> Review & Apply (AkariOS-PLAN.md §4). Nothing changes while choosing:
 # cards write into the Selection, Review lists it, Apply runs it once and shows the Outcomes (step 3, after Review).
 # Needs UI\Selection.ps1 and UI\Cards.ps1. Initialize-AkariSteps wires the window elements (called by UI\Shell.ps1).
 
 $AkariSectionOrder = 'Optimize', 'Customize', 'Hardware', 'Advanced'
 $AkariSectionHeaders = @{ Hardware = 'Graphics & Hardware' }
 $AkariStepNames = 'Apps', 'Tweaks', 'Review & Apply'
+# 'Choose' (One-click or Guided) or 'Guided' (the steps)
+$script:Mode = 'Choose'
 $script:Step = 0
 $script:Sel = New-AkariSelection
 $script:CardEntries = [ordered]@{}
@@ -36,7 +39,10 @@ function Get-AkariStepGroups($Tweaks) {
 }
 
 function Initialize-AkariSteps {
-    $StepBack.Add_Click({ if ($script:Step -gt 0) { $script:Step--; Show-AkariSteps } })
+    $StepBack.Add_Click({
+        if ($script:Step -gt 0) { $script:Step-- } else { $script:Mode = 'Choose' }
+        Show-AkariSteps
+    })
     $StepNext.Add_Click({
         switch ($script:Step) {
             2 { Start-AkariApply }
@@ -157,7 +163,7 @@ function Set-AkariTweaksFilter([string]$q) {
 
 function Update-AkariStepFooter {
     $n = $script:Sel.Count
-    $StepBack.Visibility = if ($script:Step -gt 0) { 'Visible' } else { 'Hidden' }
+    $StepBack.Visibility = 'Visible'
     switch ($script:Step) {
         0 { $StepNext.Content = 'Next'; $StepNext.IsEnabled = $true }
         1 { $StepNext.Content = "Review ($n)"; $StepNext.IsEnabled = ($n -gt 0) }
@@ -166,7 +172,44 @@ function Update-AkariStepFooter {
     }
 }
 
+# the two ways to install: big cards, like Win11Debloat's start screen
+function New-AkariModeCard([string]$Glyph, [string]$Title, [string]$Text, [bool]$Enabled) {
+    $b = [Windows.Controls.Button]::new()
+    $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'ModeCard')
+    $b.IsEnabled = $Enabled
+    $sp = [Windows.Controls.StackPanel]::new()
+    $ic = New-AkariText $Glyph 28
+    $ic.SetResourceReference([Windows.Controls.TextBlock]::FontFamilyProperty, 'Icons')
+    $ic.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
+    $tt = New-AkariText $Title 18
+    $tt.FontWeight = 'SemiBold'
+    $tx = New-AkariText $Text 13 'Mu'
+    $tx.Margin = [Windows.Thickness]::new(0, 6, 0, 0)
+    foreach ($x in $ic, $tt, $tx) { [void]$sp.Children.Add($x) }
+    $b.Content = $sp
+    $b
+}
+
+function Show-AkariChooser {
+    $StepDots.Children.Clear()
+    if ($StepFooter) { $StepFooter.Visibility = 'Collapsed' }
+    $g = [Windows.Controls.Primitives.UniformGrid]::new()
+    $g.Columns = 2
+    $one = New-AkariModeCard ([string][char]0xE945) 'One-click' 'Applies everything AkariOS recommends, with restarts and Safe Mode handled for you. Coming in a later version.' $false
+    $one.Margin = [Windows.Thickness]::new(0, 0, 8, 0)
+    $guided = New-AkariModeCard ([string][char]0xE8FD) 'Guided' 'Pick the apps to remove and the Tweaks to apply, review the changes, then apply them in one go.' $true
+    $guided.Margin = [Windows.Thickness]::new(8, 0, 0, 0)
+    $guided.Add_Click({ $script:Mode = 'Guided'; $script:Step = 0; Show-AkariSteps })
+    [void]$g.Children.Add($one); [void]$g.Children.Add($guided)
+    $StepBody.Children.Clear()
+    [void]$StepBody.Children.Add($g)
+}
+
 function Show-AkariSteps {
+    # the Tweaks view is cached: detach it before the body is cleared, so it can be added again
+    if ($script:TweaksView -and $script:TweaksView.Parent) { $script:TweaksView.Parent.Children.Remove($script:TweaksView) }
+    if ($script:Mode -eq 'Choose') { Show-AkariChooser; return }
+    if ($StepFooter) { $StepFooter.Visibility = 'Visible' }
     $StepDots.Children.Clear()
     for ($i = 0; $i -lt 3; $i++) {
         $d = [Windows.Shapes.Ellipse]::new()
@@ -179,8 +222,6 @@ function Show-AkariSteps {
     $title.Margin = [Windows.Thickness]::new(8, 0, 0, 0)
     $title.VerticalAlignment = 'Center'
     [void]$StepDots.Children.Add($title)
-    # the Tweaks view is cached: detach it before clearing, so it can be added again
-    if ($script:TweaksView -and $script:TweaksView.Parent) { $script:TweaksView.Parent.Children.Remove($script:TweaksView) }
     $StepBody.Children.Clear()
     switch ($script:Step) {
         0 { [void]$StepBody.Children.Add((New-AkariText 'App removal comes in a later version. Select Next to choose Tweaks.' 14 'Mu')) }

@@ -27,7 +27,7 @@ Describe 'UI files' {
 
     It 'Controls.xaml parses and defines every style' {
         $s = "Add-Type -AssemblyName PresentationFramework; `$d = [Windows.Markup.XamlReader]::Parse((Get-Content '$Root\UI\Controls.xaml' -Raw)); " +
-             "`$miss = @('Switch', 'Combo', 'ComboItem', 'Check', 'SettingCard', 'Section', 'Accent', 'StepDot' | Where-Object { -not `$d.Contains(`$_) }); " +
+             "`$miss = @('Switch', 'Combo', 'ComboItem', 'Check', 'SettingCard', 'Section', 'Accent', 'StepDot', 'ModeCard' | Where-Object { -not `$d.Contains(`$_) }); " +
              "if (`$miss) { 'missing: ' + (`$miss -join ', ') } else { 'ok' }"
         Test-XamlInChild $s | Should Be 'ok'
     }

@@ -64,8 +64,11 @@ $StepDots = [Windows.Controls.StackPanel]::new(); $StepBody = [Windows.Controls.
 [void]$res.Children.Add($StepDots); [void]$res.Children.Add($StepBody)
 $StepBack = [Windows.Controls.Button]::new(); $StepNext = [Windows.Controls.Button]::new()
 $Search = [Windows.Controls.TextBox]::new()
+$StepFooter = [Windows.Controls.Border]::new()
 Show-AkariSteps
-"s0next=$($StepNext.Content)"; "s0back=$($StepBack.Visibility)"
+"chooser=$($StepBody.Children[0].Children.Count)"; "oneClick=$($StepBody.Children[0].Children[0].IsEnabled)"; "chooserFooter=$($StepFooter.Visibility)"
+$StepBody.Children[0].Children[1].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
+"mode=$script:Mode"; "s0next=$($StepNext.Content)"; "s0back=$($StepBack.Visibility)"; "guidedFooter=$($StepFooter.Visibility)"
 $script:Step = 1; Show-AkariSteps
 "s1next=$($StepNext.Content)"; "s1enabled=$($StepNext.IsEnabled)"; "cards=$($script:CardEntries.Count)"
 "legThree=$($script:CardEntries['leg'].Control.IsThreeState)"
@@ -90,9 +93,16 @@ $script:Step = 1; Show-AkariSteps
     } finally { Remove-Item $k -Recurse -Force -ErrorAction SilentlyContinue }
 
     It 'runs without errors' { $out['error'] | Should BeNullOrEmpty }
-    It 'starts on Apps with Next and no Back' {
+    It 'opens on the One-click / Guided chooser, One-click not ready yet' {
+        $out.chooser | Should Be '2'
+        $out.oneClick | Should Be 'False'
+        $out.chooserFooter | Should Be 'Collapsed'
+    }
+    It 'Guided starts on Apps, with Back to the chooser' {
+        $out.mode | Should Be 'Guided'
         $out.s0next | Should Be 'Next'
-        $out.s0back | Should Be 'Hidden'
+        $out.s0back | Should Be 'Visible'
+        $out.guidedFooter | Should Be 'Visible'
     }
     It 'shows a card per Tweak and disables Review at 0 changes' {
         $out.cards | Should Be '3'
@@ -156,7 +166,7 @@ $StepBack = [Windows.Controls.Button]::new(); $StepNext = [Windows.Controls.Butt
 # restore point failed and the user says No: nothing runs, Review stays
 function Confirm-AkariNoRestore($m) { $script:asked = $m; $false }
 Set-AkariPending $script:Sel $fake 'Default' 'Optimized'
-$script:Step = 2
+$script:Mode = 'Guided'; $script:Step = 2
 Complete-AkariApply ([hashtable]::Synchronized(@{ Restore = [pscustomobject]@{ Ok = $false; Message = 'protection off' } }))
 "asked=$script:asked"; "stayed=$script:Step"; "restoreDone=$script:RestoreDone"
 

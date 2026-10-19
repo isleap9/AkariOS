@@ -257,6 +257,35 @@
     </Setter>
   </Style>
 
+  <!-- Mode card (Install AkariOS: One-click / Guided): a big clickable card, lighter on hover. -->
+  <Style x:Key="ModeCard" TargetType="Button">
+    <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="B" Background="{DynamicResource S1}" BorderBrush="{DynamicResource Bd}" BorderThickness="1"
+                  CornerRadius="8" Padding="24,20" MinHeight="180">
+            <ContentPresenter VerticalAlignment="Top"/>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource Mu}"/>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="B" Property="Background" Value="{DynamicResource S2}"/>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter TargetName="B" Property="Opacity" Value="0.5"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
   <!-- Step dot: outlined; Tag="Current" fills it. -->
   <Style x:Key="StepDot" TargetType="Ellipse">
     <Setter Property="Width" Value="8"/>

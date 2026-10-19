@@ -3,7 +3,7 @@
 
 # ---- window
 $window = [Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\MainWindow.xaml" -Raw))
-# WinUI-style controls for the Manual steps (switch, combobox, setting card, ...)
+# WinUI-style controls for Install AkariOS (switch, combobox, setting card, ...)
 $window.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Controls.xaml" -Raw)))
 foreach ($n in 'Nav', 'Search', 'Heading', 'Rows', 'Page', 'Log', 'Logo', 'HomePanel', 'HostName', 'HostSub', 'Cards', 'CopySpecs',
                'Shell', 'Body', 'PaneCol', 'PaneToggle', 'HeaderIcon', 'HeaderSub', 'StatusDot', 'StatusRing', 'StatusText', 'StatusBar',
@@ -13,11 +13,13 @@ Initialize-AkariSteps
 # sidebar pages: icon glyph (Segoe Fluent Icons) and the subtitle under the page title
 $Pages = [ordered]@{
     Home       = @{ Glyph = [char]0xE80F; Sub = 'Your PC at a glance' }
-    # temporary entry point until M2b puts Manual on the Home page
-    Manual     = @{ Glyph = [char]0xE8FD; Sub = 'Choose your changes, review them, then apply them in one go' }
+    # Install AkariOS: One-click, or Guided (pick the Tweaks, review, apply once). The pages after it are Manual mode.
+    'Install AkariOS' = @{ Glyph = [char]0xE896; Sub = 'Optimize Windows in one click, or pick each change yourself' }
     Check      = @{ Glyph = [char]0xE9D9; Sub = 'Check your BIOS, storage, RAM and GPU, and stress test them' }
     Refresh    = @{ Glyph = [char]0xE72C; Sub = 'Reinstall or reset Windows, and get a fresh install ready' }
     Setup      = @{ Glyph = [char]0xE90F; Sub = 'First steps on a new install: activation, startup apps, updates' }
+    # one-file tweaks of the Optimize section, until the Manual pages follow the new Sections
+    Optimize   = @{ Glyph = [char]0xEC4A; Sub = 'Performance, privacy, power and gaming' }
     Installers = @{ Glyph = [char]0xE896; Sub = 'Download and install the apps and launchers you need' }
     Graphics   = @{ Glyph = [char]0xE7F4; Sub = 'Clean and install GPU drivers, and tune NVIDIA, AMD and Intel' }
     Windows    = @{ Glyph = [char]0xE771; Sub = 'Start menu, taskbar, theme and the rest of Windows' }
@@ -75,16 +77,16 @@ function Add-Log([string]$m) {
 
 function Show-Page {
     $q = $Search.Text.Trim()
-    # Manual steps: the header search filters the Tweaks step instead of searching the old pages
-    $onSteps = ($script:Cat -eq 'Manual')
+    # Install AkariOS: the header search filters the Guided Tweaks step instead of searching the Manual pages
+    $onSteps = ($script:Cat -eq 'Install AkariOS')
     $StepsPanel.Visibility = if ($onSteps) { 'Visible' } else { 'Collapsed' }
     $StepFooter.Visibility = $StepsPanel.Visibility
     if ($onSteps) {
         $Rows.Children.Clear()
         $HomePanel.Visibility = 'Collapsed'
-        $Heading.Text = 'Manual'
-        $HeaderSub.Text = $Pages['Manual'].Sub
-        $HeaderIcon.Text = [string]$Pages['Manual'].Glyph
+        $Heading.Text = 'Install AkariOS'
+        $HeaderSub.Text = $Pages['Install AkariOS'].Sub
+        $HeaderIcon.Text = [string]$Pages['Install AkariOS'].Glyph
         Show-AkariSteps
         return
     }
@@ -94,13 +96,13 @@ function Show-Page {
         $Heading.Text = 'Search'
         $HeaderSub.Text = "Results for `"$q`""
         $HeaderIcon.Text = [string][char]0xE721
-        $list = @($script:Tweaks | Where-Object { $_.Legacy -and $_.Kind -ne 'Toggle' -and "$($_.Name) $($_.Description)" -like "*$q*" })
+        $list = @($script:Tweaks | Where-Object { "$($_.Name) $($_.Description)" -like "*$q*" })
     } else {
         $Heading.Text = $script:Cat
         $HeaderSub.Text = $Pages[$script:Cat].Sub
         $HeaderIcon.Text = [string]$Pages[$script:Cat].Glyph
-        # old pages: legacy Actions and Groups only; Toggles and one-file tweaks are in the Manual steps
-        $list = @($script:Tweaks | Where-Object { $_.Legacy -and $_.Kind -ne 'Toggle' -and $_.Section -eq $script:Cat })
+        # Manual mode: every Tweak of this page, each row acting right away
+        $list = @($script:Tweaks | Where-Object { $_.Section -eq $script:Cat })
     }
     $HomePanel.Visibility = if ($onHome) { 'Visible' } else { 'Collapsed' }
     foreach ($t in $list) {
@@ -235,10 +237,10 @@ foreach ($c in $Pages.Keys) {
     $rb.Content = $g; $rb.Tag = $c; $rb.GroupName = 'nav'; $rb.ToolTip = $c
     $rb.Style = $window.FindResource('Nav')
     [void]$Nav.Children.Add($rb)
-    if ($c -eq 'Manual') {
-        # section heading under home (not a nav item), as NavigationViewItemHeader
+    if ($c -eq 'Install AkariOS') {
+        # Manual heading under Install AkariOS (not a nav item), as NavigationViewItemHeader: the old pages are Manual mode
         $hd = [Windows.Controls.TextBlock]::new()
-        $hd.Text = 'Scripts'
+        $hd.Text = 'Manual'
         $hd.FontSize = 14; $hd.FontWeight = [Windows.FontWeights]::SemiBold
         $hd.Margin = [Windows.Thickness]::new(16, 14, 0, 6)
         $hd.IsHitTestVisible = $false
