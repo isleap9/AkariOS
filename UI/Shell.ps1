@@ -3,6 +3,8 @@
 
 # ---- window
 $window = [Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\MainWindow.xaml" -Raw))
+# WinUI-style controls for the Manual steps (switch, combobox, setting card, ...)
+$window.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Controls.xaml" -Raw)))
 foreach ($n in 'Nav', 'Search', 'Heading', 'Rows', 'Page', 'Log','Logo', 'HomePanel', 'HostName', 'HostSub', 'Cards', 'CopySpecs',
                'Shell', 'Body', 'PaneCol', 'PaneToggle', 'HeaderIcon', 'HeaderSub', 'StatusDot', 'StatusRing', 'StatusText', 'StatusBar',
                'CapMin', 'CapMax', 'CapMaxGlyph', 'CapClose') { Set-Variable $n $window.FindName($n) }

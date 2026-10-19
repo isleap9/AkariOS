@@ -24,4 +24,11 @@ Describe 'UI files' {
         $hits = Select-String -Path @("$Root\Akari.ps1", "$Root\UI\*.ps1", "$Root\UI\*.xaml") -Pattern 'Tuner|Read-Prio|Read-Svc|SvcCur'
         @($hits).Count | Should Be 0
     }
+
+    It 'Controls.xaml parses and defines every style' {
+        $s = "Add-Type -AssemblyName PresentationFramework; `$d = [Windows.Markup.XamlReader]::Parse((Get-Content '$Root\UI\Controls.xaml' -Raw)); " +
+             "`$miss = @('Switch', 'Combo', 'ComboItem', 'Check', 'SettingCard', 'Section', 'Accent', 'StepDot' | Where-Object { -not `$d.Contains(`$_) }); " +
+             "if (`$miss) { 'missing: ' + (`$miss -join ', ') } else { 'ok' }"
+        Test-XamlInChild $s | Should Be 'ok'
+    }
 }
