@@ -123,6 +123,53 @@ Describe 'Invoke-AkariRun' {
     } finally { Remove-Item $k -Recurse -Force -ErrorAction SilentlyContinue }
 }
 
+Describe 'Requires and Explorer in a Run' {
+    $AkariStatePath = "$TestDrive\state.json"
+    foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'System') { . "$Core\$f.ps1" }
+    $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
+    $k = "HKCU:\Software\AkariTest\$([guid]::NewGuid())"
+    $w11 = ConvertTo-AkariTweak @{ Id = 'w11'; Name = 'W11'; Requires = 'Win11'; Explorer = $true
+        Registry = @{ Path = $k; Name = 'W'; Type = 'DWord'; Value = 0; Default = 1 } } 'x' $false
+    $plain = ConvertTo-AkariTweak @{ Id = 'plain'; Name = 'Plain'; Explorer = $true
+        Registry = @{ Path = $k; Name = 'P'; Type = 'DWord'; Value = 0; Default = 1 } } 'x' $false
+    $quiet = ConvertTo-AkariTweak @{ Id = 'quiet'; Name = 'Quiet'
+        Registry = @{ Path = $k; Name = 'Q'; Type = 'DWord'; Value = 0; Default = 1 } } 'x' $false
+    # Explorer is never really restarted in a test
+    Mock Restart-AkariExplorer { }
+
+    try {
+        Context 'on Windows 10' {
+            Mock Get-AkariOSBuild { 19045 }
+            It 'Skips a Win11 Tweak either way, with the reason, and changes nothing' {
+                $o = @(Invoke-AkariPlan @(@{ Id = 'w11'; Mode = 'Apply' }, @{ Id = 'w11'; Mode = 'Revert' }) @($w11))
+                ($o | ForEach-Object { "$($_.Outcome):$($_.Message)" }) -join ',' | Should Be 'Skipped:needs Win11,Skipped:needs Win11'
+                Get-AkariRegValue $k 'W' | Should BeNullOrEmpty
+                Assert-MockCalled Restart-AkariExplorer -Exactly 0 -Scope It
+            }
+        }
+
+        Context 'on Windows 11' {
+            Mock Get-AkariOSBuild { 26100 }
+            It 'runs it, and restarts Explorer once for two Explorer Tweaks' {
+                $o = @(Invoke-AkariPlan @(@{ Id = 'w11'; Mode = 'Apply' }, @{ Id = 'plain'; Mode = 'Apply' }, @{ Id = 'quiet'; Mode = 'Apply' }) @($w11, $plain, $quiet))
+                ($o | ForEach-Object { $_.Outcome }) -join ',' | Should Be 'Applied,Applied,Applied'
+                Assert-MockCalled Restart-AkariExplorer -Exactly 1 -Scope It
+            }
+            It 'does not restart Explorer when nothing changed (Already)' {
+                $o = @(Invoke-AkariPlan @(@{ Id = 'w11'; Mode = 'Apply' }, @{ Id = 'plain'; Mode = 'Apply' }) @($w11, $plain))
+                ($o | ForEach-Object { $_.Outcome }) -join ',' | Should Be 'Already,Already'
+                Assert-MockCalled Restart-AkariExplorer -Exactly 0 -Scope It
+            }
+            It 'restarts it for a Revert too, but not for a Tweak without Explorer' {
+                [void](Invoke-AkariPlan @(@{ Id = 'quiet'; Mode = 'Revert' }) @($quiet))
+                Assert-MockCalled Restart-AkariExplorer -Exactly 0 -Scope It
+                [void](Invoke-AkariPlan @(@{ Id = 'plain'; Mode = 'Revert' }) @($plain))
+                Assert-MockCalled Restart-AkariExplorer -Exactly 1 -Scope It
+            }
+        }
+    } finally { Remove-Item $k -Recurse -Force -ErrorAction SilentlyContinue }
+}
+
 Describe 'Start-AkariJob' {
     foreach ($f in 'Log', 'Registry', 'Runner') { . "$Core\$f.ps1" }
     $k = "HKCU:\Software\AkariTest\$([guid]::NewGuid())"

@@ -185,10 +185,10 @@ Describe 'The real app installs' {
 
     It 'loads every install with no Errors' {
         @($r.Problems | Where-Object { $_.Level -eq 'Error' }).Count | Should Be 0
-        $apps.Count | Should Be 65
+        $apps.Count | Should Be 67
     }
 
-    It 'installs most apps with winget' { @($apps | Where-Object { $_.Winget }).Count | Should Be 58 }
+    It 'installs most apps with winget' { @($apps | Where-Object { $_.Winget }).Count | Should Be 60 }
 
     It 'ships the files the installs copy' {
         foreach ($p in 'NotepadPlusPlus\config.xml', 'Afterburner\MSI Afterburner\Profiles\MSIAfterburner.cfg',

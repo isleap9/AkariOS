@@ -1,0 +1,46 @@
+# System helpers: what this PC is (Requires), and the system commands tweaks share. Every read and every
+# system-changing command goes through one function here, so tests mock that function (AGENTS.md rule 12).
+
+# the Windows build number (22000 and up = Windows 11)
+function Get-AkariOSBuild { [Environment]::OSVersion.Version.Build }
+
+# 'Laptop' or 'Desktop', from the chassis type (portable, laptop, notebook, tablet, convertible, ...); read once
+function Get-AkariChassis {
+    if (-not $script:AkariChassis) {
+        $types = @(try { (Get-CimInstance Win32_SystemEnclosure -ErrorAction Stop).ChassisTypes } catch { })
+        $portable = 8, 9, 10, 11, 12, 14, 18, 21, 30, 31, 32
+        $script:AkariChassis = if (@($types | Where-Object { $_ -in $portable }).Count) { 'Laptop' } else { 'Desktop' }
+    }
+    $script:AkariChassis
+}
+
+# $null when every Requires value is met on this PC, else the reason ('needs Win11')
+function Test-AkariRequirement($Tweak) {
+    foreach ($r in @($Tweak.Requires | Where-Object { $_ })) {
+        $met = switch ($r) {
+            'Win10' { (Get-AkariOSBuild) -lt 22000 }
+            'Win11' { (Get-AkariOSBuild) -ge 22000 }
+            'Laptop' { (Get-AkariChassis) -eq 'Laptop' }
+            'Desktop' { (Get-AkariChassis) -eq 'Desktop' }
+            default { $false }
+        }
+        if (-not $met) { return "needs $r" }
+    }
+    $null
+}
+
+# Explorer shows some changes only after a restart (taskbar, Start, context menu). Windows starts the shell again
+# by itself as the signed-in user; starting it from this elevated process would run it elevated.
+function Restart-AkariExplorer {
+    Write-Log 'Restarting Explorer'
+    Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+    # not back after 5 seconds (shell restart turned off): start it, better elevated than no taskbar
+    for ($i = 0; $i -lt 10 -and -not (Get-Process -Name explorer -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 }
+    if (-not (Get-Process -Name explorer -ErrorAction SilentlyContinue)) { Start-Process "$env:SystemRoot\explorer.exe" }
+}
+
+# the only powercfg call: returns its output lines (stderr included as text)
+function Invoke-AkariPowerCfg {
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
+    & "$env:SystemRoot\System32\powercfg.exe" @Arguments 2>&1 | ForEach-Object { "$_" }
+}

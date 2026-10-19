@@ -74,17 +74,30 @@ function Test-AkariRegMatch($Current, $Expected) {
     (@($Current | ForEach-Object { "$_" }) -join ',') -eq (@($Expected | ForEach-Object { "$_" }) -join ',')
 }
 
-# Registry entries are @{ Path; Name; Type; Value; Default } (Default $null = delete on Revert)
+# a key row has no Name: it is about the whole key. Its Value and Default are 'Key' (the key exists, created empty
+# if missing) or $null (the key is deleted with everything in it).
+function Test-AkariKeyRow([hashtable]$Entry) { -not $Entry.ContainsKey('Name') }
+
+# 'Key' when the key exists, else $null
+function Get-AkariRegKey([string]$Path) { if (Test-Path (Resolve-AkariRegPath $Path)) { 'Key' } else { $null } }
+
+# Registry entries are @{ Path; Name; Type; Value; Default } (Default $null = delete on Revert), or key rows
+# @{ Path; Value; Default } (see Test-AkariKeyRow). Binary values: Type 'Binary', Value a [byte[]].
 function Invoke-AkariRegistry([hashtable[]]$Entries, [ValidateSet('Apply', 'Revert')][string]$Mode) {
     foreach ($e in $Entries) {
         $v = if ($Mode -eq 'Apply') { $e.Value } else { Resolve-AkariDefault $e.Default }
-        if ($null -eq $v) { Remove-Reg $e.Path $e.Name } else { Set-Reg $e.Path $e.Name $v $e.Type }
+        if (Test-AkariKeyRow $e) {
+            $p = Resolve-AkariRegPath $e.Path
+            if ($null -eq $v) { if (Test-Path $p) { Remove-Item $p -Recurse -Force } }
+            elseif (-not (Test-Path $p)) { New-Item -Path $p -Force | Out-Null }
+        }
+        elseif ($null -eq $v) { Remove-Reg $e.Path $e.Name } else { Set-Reg $e.Path $e.Name $v $e.Type }
     }
 }
 
 function Get-AkariRegistryState([hashtable[]]$Entries) {
     try {
-        $cur = @(foreach ($e in $Entries) { , (Get-AkariRegValue $e.Path $e.Name) })
+        $cur = @(foreach ($e in $Entries) { if (Test-AkariKeyRow $e) { , (Get-AkariRegKey $e.Path) } else { , (Get-AkariRegValue $e.Path $e.Name) } })
         $opt = $true; $def = $true
         for ($i = 0; $i -lt $Entries.Count; $i++) {
             if (-not (Test-AkariRegMatch $cur[$i] $Entries[$i].Value)) { $opt = $false }

@@ -317,7 +317,7 @@ When every Entry has the same shape, the Group reads them from one data file. Se
 | `Confirm` | no | text of a Yes/No prompt shown before running |
 | `Reboot` | no | default `$false` |
 | `SafeMode` | no | `$true` if it must run in Safe Mode |
-| `Registry` | one of | data-driven registry changes (Toggle / Choice). `Default` is a value, a per-OS map, or `$null` (delete) |
+| `Registry` | one of | data-driven registry changes (Toggle / Choice). `Default` is a value, a per-OS map, or `$null` (delete). `Type = 'Binary'` takes a `[byte[]]`. A **key row** has no `Name`: `Value` / `Default` are `'Key'` (the key exists, created empty) or `$null` (the key is deleted with its contents). One owner per value: no two one-file tweaks set the same value or anything inside the same key row |
 | `Apply` / `Revert` / `Detect` | one of | script blocks for custom logic |
 | `Check` | no | extra "Check" button that only reports status |
 | `Choices`, `Recommended`, `Default` | Choice only | valid values (each may carry its own `Risk`), the Optimized value, the stock Windows value |
@@ -326,7 +326,7 @@ When every Entry has the same shape, the Group reads them from one data file. Se
 | `EntryKind` | no | Group only: engine-provided handler for data-list Entries (e.g. `ServiceStart`) |
 | `Requires` | no | `Win10`, `Win11`, `Laptop`, `Desktop` (later e.g. `NVIDIA`, `SSD`): unmet = hidden in Guided, `Skipped` in a Run |
 | `Explorer` | no | `$true` when the change shows only after Explorer restarts: the Run restarts Explorer once at the end if such a Tweak was Applied or Reverted |
-| `Winget`, `After` | no | Action only: winget package id(s) the engine installs, then the `After` block; no `Apply` with them |
+| `Winget`, `Before`, `After` | no | Action only: winget package id(s) the engine installs, between the `Before` and `After` blocks; no `Apply` with them |
 | `WingetSource` | no | `msstore`: the `Winget` id is a Microsoft Store product id |
 | `AppType` | no | Apps > Install only: the card the app shows in (Browsers, Communication, Game launchers, Gaming & hardware, Media, Utilities, Runtimes, Dev tools, Restore removed apps) |
 

@@ -79,7 +79,13 @@ Layout decided 2026-10-20:
 - **Ownership test:** no `(Path, Name)` in two one-file tweaks.
 - **Legacy smoke test:** the 7 real `Tweaks/*.ps1` load with zero Problems.
 
-**VM check:** none visible yet beyond Guided still listing everything (no tweak uses the new fields).
+Done 2026-10-20, with these choices:
+- `Core/System.ps1` holds `Get-AkariOSBuild`, `Get-AkariChassis`, `Test-AkariRequirement`, `Restart-AkariExplorer` and `Invoke-AkariPowerCfg` (one file instead of `Power.ps1` + `Explorer.ps1`).
+- Key rows: a row without `Name`; `Value` / `Default` = `'Key'` (exists, created empty if missing, contents untouched) or `$null` (deleted with its contents). So "delete on Apply, recreate empty on Revert" is `Value = $null; Default = 'Key'`.
+- The ownership rule is a loader Error (the second Tweak is not loaded), so the GUI console and the CLI show it too.
+- Edge and WebView (decided 2026-10-20): `Ported.psd1` maps `edge-webview` to `remove-edge`, `remove-webview2` and two new Downloads installs, `install-microsoft-edge` (Browsers) and `install-webview2-runtime` (Runtimes), winget with a new `Before` field that lifts the Edge Update block the removals set. Edge's policies (the legacy Default's uBlock etc.) are not part of the install; they can become a Customize Toggle.
+
+**VM check:** Guided › Tweaks no longer shows "Edge and WebView" under Windows; Optimize › Legacy › Windows still does. Downloads (and Guided › Apps › Install) shows Microsoft Edge under Browsers and Microsoft Edge WebView2 Runtime under Runtimes. Remove Edge and WebView2 in Guided › Apps, Apply, then install both from Downloads: they come back. The console shows no new Errors at startup.
 
 ### Task 4: Batch 1, Customize (Taskbar, Start, Explorer, Theme)
 

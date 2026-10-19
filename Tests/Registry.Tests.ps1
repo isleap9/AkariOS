@@ -16,6 +16,53 @@ Describe 'Resolve-AkariRegPath' {
     }
 }
 
+Describe 'Key rows and Binary values' {
+    . "$Core\Registry.ps1"
+    $k = "HKCU:\Software\AkariTest\$([guid]::NewGuid())"
+    # Apply deletes the whole key (and what is in it); Revert recreates it empty
+    $rows = [hashtable[]]@(
+        @{ Path = "$k\Gone"; Value = $null; Default = 'Key' }
+        @{ Path = $k; Name = 'Bin'; Type = 'Binary'; Value = [byte[]](1, 2, 3); Default = $null }
+    )
+
+    try {
+        It 'reads Default while the key exists and the value is absent' {
+            Set-Reg "$k\Gone" 'Inside' 5
+            Get-AkariRegistryState $rows | Should Be 'Default'
+        }
+
+        It 'Apply deletes the key with its values and writes the Binary value' {
+            Invoke-AkariRegistry $rows Apply
+            Test-Path "$k\Gone" | Should Be $false
+            (Get-AkariRegValue $k 'Bin') -join ',' | Should Be '1,2,3'
+            Get-AkariRegistryState $rows | Should Be 'Optimized'
+        }
+
+        It 'Revert recreates the key empty and deletes the Binary value' {
+            Invoke-AkariRegistry $rows Revert
+            Test-Path "$k\Gone" | Should Be $true
+            Get-AkariRegValue "$k\Gone" 'Inside' | Should BeNullOrEmpty
+            Get-AkariRegValue $k 'Bin' | Should BeNullOrEmpty
+            Get-AkariRegistryState $rows | Should Be 'Default'
+        }
+
+        It 'reads Custom for other bytes' {
+            Set-Reg $k 'Bin' ([byte[]](9, 9)) 'Binary'
+            Remove-Item "$k\Gone" -Recurse -Force
+            Get-AkariRegistryState $rows | Should Be 'Custom'
+        }
+
+        It 'Apply on a key row that wants the key creates it, without touching what is in it' {
+            $make = [hashtable[]]@(@{ Path = "$k\Made"; Value = 'Key'; Default = $null })
+            Set-Reg "$k\Made" 'Keep' 1
+            Invoke-AkariRegistry $make Apply
+            Get-AkariRegValue "$k\Made" 'Keep' | Should Be 1
+            Invoke-AkariRegistry $make Revert
+            Test-Path "$k\Made" | Should Be $false
+        }
+    } finally { Remove-Item $k -Recurse -Force -ErrorAction SilentlyContinue }
+}
+
 Describe 'Set-Reg and Get-AkariRegValue' {
     . "$Core\Registry.ps1"
     $k = "HKCU:\Software\AkariTest\$([guid]::NewGuid())"

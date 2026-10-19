@@ -43,7 +43,7 @@ function Get-AkariFoundList($Groups, [string]$EntryKind, [string[]]$Names) {
 # legacy apps: the removals with their own file (Tweaks\Apps\Remove, no Group); installed = their Detect says not
 # gone yet (quick file and registry checks)
 function Get-AkariLegacyRemoveList($Tweaks) {
-    $Tweaks | Where-Object { $_.Section -eq 'Apps' -and $_.Category -eq 'Remove' -and -not $_.Group } | Sort-Object Name | ForEach-Object {
+    $Tweaks | Where-Object { $_.Section -eq 'Apps' -and $_.Category -eq 'Remove' -and -not $_.Group -and (-not $_.Requires -or -not (Test-AkariRequirement $_)) } | Sort-Object Name | ForEach-Object {
         $gone = $false
         if ($_.Detect) { try { $gone = [bool](& $_.Detect) } catch { } }
         [pscustomobject]@{ Tweak = $_; Installed = -not $gone }
@@ -56,7 +56,7 @@ $AkariRestoreType = 'Restore removed apps'
 
 # the rows of the Install tab: the app installs, by name. Pure, no WPF.
 function Get-AkariInstallList($Tweaks) {
-    $Tweaks | Where-Object { $_.Section -eq 'Apps' -and $_.Category -eq 'Install' } | Sort-Object Name |
+    $Tweaks | Where-Object { $_.Section -eq 'Apps' -and $_.Category -eq 'Install' -and (-not $_.Requires -or -not (Test-AkariRequirement $_)) } | Sort-Object Name |
         ForEach-Object { [pscustomobject]@{ Tweak = $_; Installed = $true } }
 }
 

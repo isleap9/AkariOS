@@ -7,7 +7,7 @@ param([ValidateRange(1, 3)][int]$OneClick, [switch]$List, [string[]]$Apply, [str
 # ---- CLI: no relaunch, no WPF
 if ($List -or $Apply -or $Revert) {
     $CoreDir = Join-Path $PSScriptRoot 'Core'
-    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Appx', 'Winget', 'AppSetup') { . "$CoreDir\$f.ps1" }
+    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Appx', 'Winget', 'AppSetup', 'System') { . "$CoreDir\$f.ps1" }
     $loaded = Get-AkariTweaks (Join-Path $PSScriptRoot 'Tweaks')
     foreach ($p in $loaded.Problems) { [Console]::Error.WriteLine("$($p.Level): $($p.File): $($p.Message)") }
     if ($List) {
@@ -74,7 +74,7 @@ foreach ($c in @($Root, (Split-Path -Parent $Root), "$Root\Tweaks")) {
     if ($c -and (Test-Path "$c\UI\MainWindow.xaml") -and (Test-Path "$c\Tweaks")) { $Root = $c; break }
 }
 # ---- Core: helpers, loader, state and runner (the background job loads the same files)
-foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Appx', 'Winget', 'AppSetup', 'Restore') { . "$Root\Core\$f.ps1" }
+foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Appx', 'Winget', 'AppSetup', 'Restore', 'System') { . "$Root\Core\$f.ps1" }
 trap { Write-ErrLog "$($_.Exception.Message) $($_.InvocationInfo.PositionMessage)"; [void][Windows.MessageBox]::Show("Akari hit an error:`n`n$($_.Exception.Message)`n`n$($_.InvocationInfo.PositionMessage)", 'Akari'); exit }
 # remove 'downloaded from the internet' marks so Windows never nags about these files
 Get-ChildItem $Root -Filter *.ps1 -File -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
@@ -97,6 +97,9 @@ $loaded = Get-AkariTweaks "$Root\Tweaks"
 foreach ($t in @(Import-AkariLegacyTweaks "$Root\Tweaks") + @($loaded.Tweaks)) { $script:Tweaks.Add($t) }
 # data-list Groups (the apps list): the Apps step builds Entries for installed apps the data file doesn't list
 $script:Groups = @($loaded.Groups)
+# legacy ids replaced by one-file Tweaks (Tweaks\Ported.psd1): Guided hides them, Optimize > Legacy keeps them
+$script:Ported = $loaded.Ported
+foreach ($p in @(Test-AkariPorted $script:Ported $script:Tweaks)) { $loaded.Problems.Add($p) }
 
 # ---- GUI: Guided steps, shell, Legacy rows (UI\*.ps1), then show the window
 foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows') { . "$Root\UI\$f.ps1" }

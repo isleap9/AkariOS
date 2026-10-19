@@ -11,6 +11,12 @@ function Invoke-AkariTweak($Tweak, [ValidateSet('Apply', 'Revert')][string]$Mode
         Write-Log "Failed: $($Tweak.Name) (Value is only for Choices)"
         return New-AkariOutcome $Tweak.Id $Mode 'Failed' $false 'Value is only for Choices'
     }
+    # Requires (Core\System.ps1): a Tweak that makes no sense on this PC is not run either way
+    $why = if ($Tweak.Requires) { Test-AkariRequirement $Tweak } else { $null }
+    if ($why) {
+        Write-Log "Skipped: $($Tweak.Name) ($why)"
+        return New-AkariOutcome $Tweak.Id $Mode 'Skipped' $false $why
+    }
     if ($Tweak.Kind -eq 'Action' -and $Mode -eq 'Revert') {
         Write-Log "Skipped: $($Tweak.Name) (Action has no Revert)"
         return New-AkariOutcome $Tweak.Id $Mode 'Skipped' $false 'Action has no Revert'
@@ -60,13 +66,18 @@ function Invoke-AkariTweak($Tweak, [ValidateSet('Apply', 'Revert')][string]$Mode
 }
 
 # a Run from a plan: $Items are @{ Id; Mode; Value } (Value optional, Choices only).
-# One Outcome per item, in order; a Failed Tweak never stops the Run.
+# One Outcome per item, in order; a Failed Tweak never stops the Run. Explorer restarts once at the end when a Tweak
+# with Explorer = $true was Applied or Reverted.
 function Invoke-AkariPlan([object[]]$Items, $Tweaks) {
+    $explorer = $false
     foreach ($i in $Items) {
         $t = $Tweaks | Where-Object { $_.Id -eq $i.Id } | Select-Object -First 1
         if (-not $t) { Write-Log "Failed: $($i.Id) (unknown tweak id)"; New-AkariOutcome $i.Id $i.Mode 'Failed' $false 'Unknown tweak id'; continue }
-        Invoke-AkariTweak $t $i.Mode $i.Value
+        $o = Invoke-AkariTweak $t $i.Mode $i.Value
+        if ($t.Explorer -and $o.Outcome -in 'Applied', 'Reverted') { $explorer = $true }
+        $o
     }
+    if ($explorer) { Restart-AkariExplorer }
 }
 
 # a Run with one Mode for every id (CLI)
@@ -84,7 +95,7 @@ function Start-AkariJob([string]$Code, $Queue, [string]$CoreDir, [hashtable]$Sha
     $rs.SessionStateProxy.SetVariable('AkariShared', $Shared)
     $ps = [powershell]::Create()
     $ps.Runspace = $rs
-    $pre = (@('Log', 'Compat', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Restore', 'Appx', 'Winget', 'AppSetup') | ForEach-Object { ". '$CoreDir\$_.ps1'" }) -join "`n"
+    $pre = (@('Log', 'Compat', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Restore', 'Appx', 'Winget', 'AppSetup', 'System') | ForEach-Object { ". '$CoreDir\$_.ps1'" }) -join "`n"
     $wrapped = $pre + "`ntry {`n& {`n" + $Code + "`n} *>&1 | Out-String -Stream | ForEach-Object { if (`$_.Trim()) { Write-Log `$_ } }`n} catch { Write-Log ('Error: ' + `$_.Exception.Message) }"
     [void]$ps.AddScript($wrapped)
     @{ Ps = $ps; Rs = $rs; Handle = $ps.BeginInvoke(); Shared = $Shared }

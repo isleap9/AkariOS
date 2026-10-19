@@ -3,7 +3,9 @@
 
 $AkariTweakFields = 'Id', 'Name', 'Description', 'Section', 'Category', 'Kind', 'Risk', 'Button', 'Confirm', 'Reboot', 'SafeMode',
     'Requires', 'Registry', 'Choices', 'Recommended', 'Default', 'Editable', 'Apply', 'Revert', 'Detect', 'Check', 'Actions', 'Source', 'Legacy',
-    'EntryKind', 'Entries', 'KeepNames', 'Group', 'Package', 'Keep', 'Winget', 'WingetSource', 'After', 'AppType', 'StoreId'
+    'EntryKind', 'Entries', 'KeepNames', 'Group', 'Package', 'Keep', 'Winget', 'WingetSource', 'Before', 'After', 'AppType', 'StoreId', 'Explorer'
+# Requires values the engine knows (Core\System.ps1 Test-AkariRequirement): unmet = hidden in Guided, Skipped in a Run
+$AkariRequirements = 'Win10', 'Win11', 'Laptop', 'Desktop'
 # data-list Group handlers the engine knows (ADR 0002). Rows: the Entries are the data file's rows (every row is a
 # Tweak); otherwise the Entries are what is on this PC (read live by the GUI), the rows only name and rate them.
 # Apply / Detect: script text, {0} = the quoted Entry name, {1} = the quoted row StoreId (engine functions in
@@ -27,6 +29,8 @@ function ConvertTo-AkariTweak([hashtable]$h, [string]$Source, [bool]$Legacy) {
     $o.Editable = [bool]$o.Editable
     if ($null -ne $o.Registry) { $o.Registry = [hashtable[]]@($o.Registry) }
     $o.Keep = [bool]$o.Keep
+    $o.Explorer = [bool]$o.Explorer
+    if ($null -ne $o.Requires) { $o.Requires = [string[]]@($o.Requires) }
     $o.Source = $Source
     $o.Legacy = $Legacy
     [pscustomobject]$o
@@ -93,6 +97,9 @@ function Import-AkariTweakFile([string]$Path, [string]$TweaksRoot) {
             if ($h.EntryKind -eq 'StoreInstall' -and "$($r.StoreId)" -notmatch '^[A-Z0-9]+$') { throw "${rel}: Entry '$($r.Name)': StoreId must be a Microsoft Store product id" }
         }
     } elseif ($h.Kind -and $h.Kind -notin 'Toggle', 'Choice', 'Action') { throw "${rel}: Kind must be Toggle, Choice, Action or Group" }
+    foreach ($r in @($h.Requires | Where-Object { $_ })) {
+        if ($r -notin $AkariRequirements) { throw "${rel}: Requires '$r' is not one of $($AkariRequirements -join ', ')" }
+    }
     $catDir = Split-Path (Split-Path $Path -Parent) -Leaf
     $secDir = Split-Path (Split-Path (Split-Path $Path -Parent) -Parent) -Leaf
     if ($catDir -ne $h.Category -or $secDir -ne $h.Section) {
@@ -103,6 +110,15 @@ function Import-AkariTweakFile([string]$Path, [string]$TweaksRoot) {
         'Toggle' {
             if (-not $t.Registry -and -not ($t.Apply -and $t.Revert)) { throw "${rel}: a Toggle needs Registry, or both Apply and Revert" }
             foreach ($e in $t.Registry) {
+                if (-not $e.ContainsKey('Name')) {
+                    # a key row (Core\Registry.ps1 Test-AkariKeyRow): the whole key exists ('Key') or is deleted ($null)
+                    foreach ($k in 'Path', 'Value', 'Default') { if (-not $e.ContainsKey($k)) { throw "${rel}: key row is missing $k" } }
+                    foreach ($k in 'Value', 'Default') {
+                        if ($null -ne $e[$k] -and "$($e[$k])" -ne 'Key') { throw "${rel}: key row '$($e.Path)': $k must be 'Key' or `$null" }
+                    }
+                    if ($null -eq $e.Value -and $null -eq $e.Default) { throw "${rel}: key row '$($e.Path)': Value and Default are both `$null" }
+                    continue
+                }
                 foreach ($k in 'Path', 'Name', 'Type', 'Value') { if (-not $e.ContainsKey($k)) { throw "${rel}: Registry entry is missing $k" } }
                 # Default may be $null (= delete on Revert), but it must be written down
                 if (-not $e.ContainsKey('Default')) { throw "${rel}: Registry entry '$($e.Name)' is missing Default (use `$null to delete on Revert)" }
@@ -119,17 +135,17 @@ function Import-AkariTweakFile([string]$Path, [string]$TweaksRoot) {
         }
         'Action' {
             if ($t.Winget) {
-                # an app from winget: the engine installs it (Core\Winget.ps1), then runs After; Detect = installed
-                if ($t.Apply) { throw "${rel}: an Action with Winget gets its Apply from the engine; put extra steps in After" }
+                # an app from winget: the engine runs Before, installs it (Core\Winget.ps1), then runs After; Detect = installed
+                if ($t.Apply) { throw "${rel}: an Action with Winget gets its Apply from the engine; put extra steps in Before / After" }
                 $ids = @($t.Winget)
                 foreach ($i in $ids) { if ($i -notmatch '^[\w.+-]+$') { throw "${rel}: Winget id '$i' is not a package id" } }
                 # WingetSource 'msstore': a Microsoft Store app (its id is a Store product id)
                 $src = if ($t.WingetSource) { [string]$t.WingetSource } else { 'winget' }
                 if ($src -notin 'winget', 'msstore') { throw "${rel}: WingetSource must be winget or msstore" }
                 $tail = if ($src -eq 'msstore') { " 'msstore'" } else { '' }
-                $t.Apply = [scriptblock]::Create((@($ids | ForEach-Object { "Install-AkariWingetPackage '$_'$tail" }) + @("$($t.After)")) -join "`n")
+                $t.Apply = [scriptblock]::Create((@($t.Before | Where-Object { $_ } | ForEach-Object { "$_" }) + @($ids | ForEach-Object { "Install-AkariWingetPackage '$_'$tail" }) + @("$($t.After)")) -join "`n")
                 $t.Detect = [scriptblock]::Create((@($ids | ForEach-Object { "(Test-AkariWingetInstalled '$_'$tail)" }) -join ' -and '))
-            } elseif ($t.After) { throw "${rel}: After is only for an Action with Winget" }
+            } elseif ($t.After -or $t.Before) { throw "${rel}: Before and After are only for an Action with Winget" }
             if (-not $t.Apply) { throw "${rel}: an Action needs Apply" }
             if (-not (Select-String -Path $Path -Pattern '^\s*#\s*Action:\s*\S' -Quiet)) {
                 throw "${rel}: an Action file needs a '# Action: <why it can't be a Toggle>' line"
@@ -142,6 +158,24 @@ function Import-AkariTweakFile([string]$Path, [string]$TweaksRoot) {
     $t
 }
 
+# one owner per registry value (M3 plan): the id of a loaded Tweak that already has one of $Tweak's rows (the same
+# value, or anything inside a key another Tweak deletes or creates, or a key around another Tweak's values), else
+# $null. $Owners: the rows loaded so far, @{ Id; Path; Name } (Name $null = a key row). Paths compare without case.
+function Find-AkariRegistryOwner($Tweak, $Owners) {
+    $norm = { param($p) (([string]$p) -replace '^HKEY_CURRENT_USER\\', 'HKCU:\' -replace '^HKEY_LOCAL_MACHINE\\', 'HKLM:\').TrimEnd('\').ToLower() }
+    foreach ($e in $Tweak.Registry) {
+        $p = & $norm $e.Path
+        $key = -not $e.ContainsKey('Name')
+        foreach ($o in $Owners) {
+            $op = & $norm $o.Path
+            $same = (-not $key -and $null -ne $o.Name -and $p -eq $op -and "$($e.Name)" -eq "$($o.Name)")
+            $inside = ($null -eq $o.Name -and ($p -eq $op -or $p.StartsWith("$op\"))) -or ($key -and ($op -eq $p -or $op.StartsWith("$p\")))
+            if ($same -or $inside) { return $o.Id }
+        }
+    }
+    $null
+}
+
 function Get-AkariTweaks([string]$TweaksRoot) {
     $TweaksRoot = (Resolve-Path $TweaksRoot).Path
     $tweaks = [System.Collections.Generic.List[object]]::new()
@@ -151,6 +185,7 @@ function Get-AkariTweaks([string]$TweaksRoot) {
     $files = Get-ChildItem $TweaksRoot -Directory | ForEach-Object { Get-ChildItem $_.FullName -Directory } |
         ForEach-Object { Get-ChildItem $_.FullName -Filter *.ps1 -File } | Sort-Object FullName
     $seen = @{}
+    $owners = [System.Collections.Generic.List[object]]::new()
     foreach ($f in $files) {
         try { $t = Import-AkariTweakFile $f.FullName $TweaksRoot }
         catch { $problems.Add([pscustomobject]@{ File = $f.FullName; Level = 'Error'; Message = $_.Exception.Message }); continue }
@@ -178,7 +213,41 @@ function Get-AkariTweaks([string]$TweaksRoot) {
         if ($t.Kind -eq 'Toggle' -and -not $t.Detect -and -not $t.Registry) {
             $problems.Add([pscustomobject]@{ File = $f.FullName; Level = 'Warning'; Message = 'no Detect: State falls back to what Akari last applied' })
         }
+        if ($t.Registry) {
+            $owner = Find-AkariRegistryOwner $t $owners
+            if ($owner) {
+                $problems.Add([pscustomobject]@{ File = $f.FullName; Level = 'Error'; Message = "a registry value of '$($t.Id)' is already owned by '$owner' (one owner per value)" })
+                $seen.Remove($t.Id)
+                continue
+            }
+            foreach ($e in $t.Registry) { $owners.Add(@{ Id = $t.Id; Path = $e.Path; Name = $(if ($e.ContainsKey('Name')) { [string]$e.Name } else { $null }) }) }
+        }
         $tweaks.Add($t)
     }
-    @{ Tweaks = $tweaks; Groups = $groups; Problems = $problems }
+    @{ Tweaks = $tweaks; Groups = $groups; Problems = $problems; Ported = (Get-AkariPorted $TweaksRoot $problems) }
+}
+
+# Tweaks\Ported.psd1: legacy id -> the one-file ids that fully replace it (ADR 0004). Guided hides a legacy row listed
+# here; Optimize > Legacy keeps it. A broken file is a Problem and counts as empty.
+function Get-AkariPorted([string]$TweaksRoot, $Problems) {
+    $file = Join-Path $TweaksRoot 'Ported.psd1'
+    $map = @{}
+    if (-not (Test-Path $file)) { return $map }
+    try {
+        $data = Import-PowerShellDataFile $file
+        foreach ($k in $data.Keys) { $map[[string]$k] = [string[]]@($data[$k]) }
+    } catch { $Problems.Add([pscustomobject]@{ File = $file; Level = 'Error'; Message = "Ported.psd1: $($_.Exception.Message)" }) }
+    $map
+}
+
+# Problems for Ported.psd1 ids that don't exist: the key must be a legacy id, every value a one-file id. Pure.
+function Test-AkariPorted([hashtable]$Ported, $Tweaks) {
+    $legacy = @($Tweaks | Where-Object { $_.Legacy } | ForEach-Object { $_.Id })
+    $new = @($Tweaks | Where-Object { -not $_.Legacy } | ForEach-Object { $_.Id })
+    foreach ($k in $Ported.Keys) {
+        if ($k -notin $legacy) { [pscustomobject]@{ File = 'Tweaks\Ported.psd1'; Level = 'Error'; Message = "'$k' is not a legacy id" } }
+        foreach ($v in $Ported[$k]) {
+            if ($v -notin $new) { [pscustomobject]@{ File = 'Tweaks\Ported.psd1'; Level = 'Error'; Message = "'$k' -> '$v' is not a one-file Tweak id" } }
+        }
+    }
 }

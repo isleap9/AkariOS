@@ -29,11 +29,14 @@ $script:Outcomes = @()
 # a restore point is made once per GUI session; the user may also choose to go on without one
 $script:RestoreDone = $false
 
-# Sections and Categories shown in the Tweaks step: one-file Toggles, Choices and Actions, plus legacy Toggles
-# (legacy Actions and Groups stay on the old pages until M2b). Pure, no WPF.
-function Get-AkariStepGroups($Tweaks) {
+# Sections and Categories shown in the Tweaks step: one-file Toggles, Choices and Actions whose Requires this PC meets
+# (Core\System.ps1), plus legacy Toggles not yet ported ($Ported: Tweaks\Ported.psd1; legacy Actions and Groups stay
+# on Optimize > Legacy). Pure, no WPF.
+function Get-AkariStepGroups($Tweaks, [hashtable]$Ported = @{}) {
+    if (-not $Ported) { $Ported = @{} }
     # apps (Section Apps: removals and installs) have their own step
-    $list = @($Tweaks | Where-Object { $_.Section -ne 'Apps' -and -not $_.Group -and (($_.Legacy -and $_.Kind -eq 'Toggle') -or (-not $_.Legacy -and $_.Kind -in 'Toggle', 'Choice', 'Action')) })
+    $list = @($Tweaks | Where-Object { $_.Section -ne 'Apps' -and -not $_.Group -and (($_.Legacy -and $_.Kind -eq 'Toggle' -and -not $Ported.ContainsKey($_.Id)) -or
+        (-not $_.Legacy -and $_.Kind -in 'Toggle', 'Choice', 'Action' -and (-not $_.Requires -or -not (Test-AkariRequirement $_)))) })
     $sections = @($list | ForEach-Object { $_.Section } | Select-Object -Unique)
     $ordered = @($AkariSectionOrder | Where-Object { $_ -in $sections }) + @($sections | Where-Object { $_ -notin $AkariSectionOrder } | Sort-Object)
     foreach ($s in $ordered) {
@@ -236,7 +239,7 @@ function Set-AkariTweaksColumns([int]$Cols) {
 function Get-AkariTweaksView {
     if ($script:TweaksView) { return $script:TweaksView }
     $script:TweakCards = @()
-    foreach ($g in Get-AkariStepGroups $script:Tweaks) {
+    foreach ($g in Get-AkariStepGroups $script:Tweaks $script:Ported) {
         foreach ($c in $g.Categories) {
             # one-file tweaks: a card per Category; legacy tweaks: a card per old page, marked "Not yet ported"
             $legacy = ($c.Name -eq 'Not yet ported')

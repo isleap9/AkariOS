@@ -37,6 +37,21 @@ Describe 'Get-AkariStepGroups' {
         $ids = @($g | ForEach-Object { $_.Categories } | ForEach-Object { $_.Ids }) | Sort-Object
         $ids -join ',' | Should Be 'a1,a2,h1,o1,o2,o3,w1'
     }
+
+    It 'hides a legacy Toggle listed in Ported.psd1' {
+        $ids = @(Get-AkariStepGroups $list @{ 'w1' = @('o1') } | ForEach-Object { $_.Categories } | ForEach-Object { $_.Ids }) | Sort-Object
+        $ids -join ',' | Should Be 'a1,a2,h1,o1,o2,o3'
+    }
+
+    Context 'Requires on Windows 10' {
+        function Test-AkariRequirement($t) { if ($t.Requires -contains 'Win11') { 'needs Win11' } }
+        $req = @($list) + @(ConvertTo-AkariTweak @{ Id = 'w11'; Name = 'w11'; Section = 'Optimize'; Category = 'Gaming'; Risk = 'Safe'; Requires = 'Win11' } 'x' $false)
+        It 'hides a Tweak whose Requires this PC does not meet' {
+            $ids = @(Get-AkariStepGroups $req | ForEach-Object { $_.Categories } | ForEach-Object { $_.Ids })
+            $ids -contains 'w11' | Should Be $false
+            $ids -contains 'o1' | Should Be $true
+        }
+    }
 }
 
 Describe 'Manual steps (in memory, no window)' {
