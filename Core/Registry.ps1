@@ -39,23 +39,36 @@ function Get-AkariUserFolder([string]$Name) {
     }
 }
 
+# Paths are literal everywhere (-LiteralPath): a key named '*' (HKEY_CLASSES_ROOT\* = all files) must never act as a
+# wildcard. A key's unnamed value is Name '(default)'.
+
 # $null when the key or value is absent; DWords come back unsigned
 function Get-AkariRegValue([string]$Path, [string]$Name) {
     $p = Resolve-AkariRegPath $Path
-    $v = (Get-ItemProperty -Path $p -Name $Name -ErrorAction SilentlyContinue).$Name
+    $v = (Get-ItemProperty -LiteralPath $p -Name $Name -ErrorAction SilentlyContinue).$Name
     if ($v -is [int] -and $v -lt 0) { return [BitConverter]::ToUInt32([BitConverter]::GetBytes($v), 0) }
     $v
 }
 
 function Set-Reg($Path, $Name, $Value, $Type = 'DWord') {
     $p = Resolve-AkariRegPath $Path
-    if (-not (Test-Path $p)) { New-Item -Path $p -Force | Out-Null }
+    # New-Item takes the path literally (no wildcards)
+    if (-not (Test-Path -LiteralPath $p)) { New-Item -Path $p -Force | Out-Null }
     # the registry provider wants a signed Int32 for DWords above 2^31
     if ($Type -eq 'DWord' -and [double]$Value -gt [int]::MaxValue) { $Value = [BitConverter]::ToInt32([BitConverter]::GetBytes([uint32]$Value), 0) }
-    New-ItemProperty -Path $p -Name $Name -Value $Value -PropertyType $Type -Force | Out-Null
+    New-ItemProperty -LiteralPath $p -Name $Name -Value $Value -PropertyType $Type -Force | Out-Null
 }
 
-function Remove-Reg($Path, $Name) { Remove-ItemProperty -Path (Resolve-AkariRegPath $Path) -Name $Name -ErrorAction SilentlyContinue }
+function Remove-Reg($Path, $Name) {
+    $p = Resolve-AkariRegPath $Path
+    if ($Name -eq '(default)') {
+        # Remove-ItemProperty can't remove a key's unnamed value
+        $k = Get-Item -LiteralPath $p -ErrorAction SilentlyContinue
+        if ($k) { $w = $k.OpenSubKey('', $true); try { $w.DeleteValue('', $false) } finally { $w.Close() } }
+        return
+    }
+    Remove-ItemProperty -LiteralPath $p -Name $Name -ErrorAction SilentlyContinue
+}
 
 # a Default may be a per-OS map: @{ Win10 = 1; Win11 = 0 }
 function Resolve-AkariDefault($Default) {
@@ -70,8 +83,10 @@ function Resolve-AkariDefault($Default) {
 function Test-AkariRegMatch($Current, $Expected) {
     if ($null -eq $Expected) { return $null -eq $Current }
     if ($null -eq $Current) { return $false }
-    # "$_" per item: -join would use the source text of a number passed as an argument ('0x28', not '40')
-    (@($Current | ForEach-Object { "$_" }) -join ',') -eq (@($Expected | ForEach-Object { "$_" }) -join ',')
+    # "$_" per item: -join would use the source text of a number passed as an argument ('0x28', not '40'). A negative
+    # Int32 is a DWord written as a hex literal (0xffc06700 parses as -4167936): compare it unsigned, as it is read back.
+    $text = { param($x) if ($x -is [int] -and $x -lt 0) { "$([BitConverter]::ToUInt32([BitConverter]::GetBytes($x), 0))" } else { "$x" } }
+    (@($Current | ForEach-Object { & $text $_ }) -join ',') -eq (@($Expected | ForEach-Object { & $text $_ }) -join ',')
 }
 
 # a key row has no Name: it is about the whole key. Its Value and Default are 'Key' (the key exists, created empty
@@ -79,7 +94,7 @@ function Test-AkariRegMatch($Current, $Expected) {
 function Test-AkariKeyRow([hashtable]$Entry) { -not $Entry.ContainsKey('Name') }
 
 # 'Key' when the key exists, else $null
-function Get-AkariRegKey([string]$Path) { if (Test-Path (Resolve-AkariRegPath $Path)) { 'Key' } else { $null } }
+function Get-AkariRegKey([string]$Path) { if (Test-Path -LiteralPath (Resolve-AkariRegPath $Path)) { 'Key' } else { $null } }
 
 # Registry entries are @{ Path; Name; Type; Value; Default } (Default $null = delete on Revert), or key rows
 # @{ Path; Value; Default } (see Test-AkariKeyRow). Binary values: Type 'Binary', Value a [byte[]].
@@ -88,8 +103,8 @@ function Invoke-AkariRegistry([hashtable[]]$Entries, [ValidateSet('Apply', 'Reve
         $v = if ($Mode -eq 'Apply') { $e.Value } else { Resolve-AkariDefault $e.Default }
         if (Test-AkariKeyRow $e) {
             $p = Resolve-AkariRegPath $e.Path
-            if ($null -eq $v) { if (Test-Path $p) { Remove-Item $p -Recurse -Force } }
-            elseif (-not (Test-Path $p)) { New-Item -Path $p -Force | Out-Null }
+            if ($null -eq $v) { if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Recurse -Force } }
+            elseif (-not (Test-Path -LiteralPath $p)) { New-Item -Path $p -Force | Out-Null }
         }
         elseif ($null -eq $v) { Remove-Reg $e.Path $e.Name } else { Set-Reg $e.Path $e.Name $v $e.Type }
     }

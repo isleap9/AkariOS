@@ -63,6 +63,53 @@ Describe 'Key rows and Binary values' {
     } finally { Remove-Item $k -Recurse -Force -ErrorAction SilentlyContinue }
 }
 
+Describe 'DWords written as hex literals' {
+    . "$Core\Registry.ps1"
+    $k = "HKCU:\Software\AkariTest\$([guid]::NewGuid())"
+    $rows = [hashtable[]]@(@{ Path = $k; Name = 'C'; Type = 'DWord'; Value = 0xff191919; Default = 0xffd47800 })
+    try {
+        It 'reads 0xff191919 back as Optimized after Apply, and the Default after Revert' {
+            Invoke-AkariRegistry $rows Apply
+            Get-AkariRegValue $k 'C' | Should Be 4279834905
+            Get-AkariRegistryState $rows | Should Be 'Optimized'
+            Invoke-AkariRegistry $rows Revert
+            Get-AkariRegistryState $rows | Should Be 'Default'
+        }
+    } finally { Remove-Item $k -Recurse -Force -ErrorAction SilentlyContinue }
+}
+
+Describe 'Literal paths and the (default) value' {
+    . "$Core\Registry.ps1"
+    $k = "HKCU:\Software\AkariTest\$([guid]::NewGuid())"
+    # siblings a wildcard '*' would also match
+    foreach ($s in 'a', 'b') { Set-Reg "$k\$s\shell\pin" 'Keep' 1 }
+    $rows = [hashtable[]]@(
+        @{ Path = "$k\*\shell\pin"; Name = '(default)'; Type = 'String'; Value = $null; Default = '{guid}' }
+        @{ Path = "$k\*\shell\pin"; Value = $null; Default = 'Key' }
+    )
+
+    try {
+        It 'treats a key named * literally (HKEY_CLASSES_ROOT\* is "all files")' {
+            Invoke-AkariRegistry $rows Revert
+            Get-AkariRegValue "$k\*\shell\pin" '(default)' | Should Be '{guid}'
+            Get-AkariRegistryState $rows | Should Be 'Default'
+            Invoke-AkariRegistry $rows Apply
+            Test-Path -LiteralPath "$k\*\shell\pin" | Should Be $false
+            Get-AkariRegValue "$k\a\shell\pin" 'Keep' | Should Be 1
+            Get-AkariRegValue "$k\b\shell\pin" 'Keep' | Should Be 1
+            Get-AkariRegistryState $rows | Should Be 'Optimized'
+        }
+
+        It 'sets, reads and removes a key''s (default) value' {
+            Set-Reg "$k\d" '(default)' '' 'String'
+            Get-AkariRegValue "$k\d" '(default)' | Should Be ''
+            Remove-Reg "$k\d" '(default)'
+            (Get-Item -LiteralPath (Resolve-AkariRegPath "$k\d")).ValueCount | Should Be 0
+            Get-AkariRegValue "$k\d" '(default)' | Should BeNullOrEmpty
+        }
+    } finally { Remove-Item $k -Recurse -Force -ErrorAction SilentlyContinue }
+}
+
 Describe 'Set-Reg and Get-AkariRegValue' {
     . "$Core\Registry.ps1"
     $k = "HKCU:\Software\AkariTest\$([guid]::NewGuid())"

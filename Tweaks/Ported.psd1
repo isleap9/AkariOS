@@ -14,4 +14,12 @@
     'start-shortcuts' = @('start-akarios-shortcuts')
     # 6 Windows\8 Widgets
     'widgets'         = @('taskbar-disable-widgets')
+    # 6 Windows\4 Context Menu
+    'context-menu'      = @('explorer-classic-context-menu', 'explorer-trim-context-menu')
+    # 6 Windows\5 Theme Black (its Control Panel\Colors Background "0 0 0" is the Default already)
+    'theme-black'       = @('theme-dark-mode', 'theme-no-transparency', 'theme-black-accent')
+    # 6 Windows\6 Signout Lockscreen Wallpaper Black (the black desktop wallpaper is now the AkariOS wallpaper)
+    'signout-wallpaper' = @('theme-black-lock-screen', 'theme-no-signin-blur', 'theme-akarios-wallpaper')
+    # 6 Windows\7 User Account Pictures Black
+    'account-pictures'  = @('theme-black-account-pictures')
 }

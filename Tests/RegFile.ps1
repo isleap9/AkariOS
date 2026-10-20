@@ -15,7 +15,7 @@ function Read-AkariRegFile([string]$Path) {
             continue
         }
         if (-not $key -or $l -notmatch '^(@|"(?:[^"\\]|\\.)*")=(.*)$') { continue }
-        $name = if ($Matches[1] -eq '@') { '' } else { $Matches[1].Trim('"') -replace '\\\\', '\' }
+        $name = if ($Matches[1] -eq '@') { '(default)' } else { $Matches[1].Trim('"') -replace '\\\\', '\' }
         $raw = $Matches[2]
         $v = switch -Regex ($raw) {
             '^-$' { $null; break }
@@ -29,9 +29,15 @@ function Read-AkariRegFile([string]$Path) {
     $map
 }
 
-# the reg.reg value for a tweak's Registry row, or the string 'absent' when reg.reg doesn't touch it
+# the reg.reg value for a tweak's Registry row, or the string 'absent' when reg.reg doesn't touch it. A key row
+# (no Name): $null when reg.reg deletes the key, 'Key' when it writes something in it.
 function Get-AkariRegFileValue($Map, $Row) {
     $p = ([string]$Row.Path).ToLower() -replace '\\controlset001\\', '\currentcontrolset\'
+    if (-not $Row.ContainsKey('Name')) {
+        if ($Map.ContainsKey("$p|")) { return , $null }
+        if (@($Map.Keys | Where-Object { $_.StartsWith("$p|") -or $_.StartsWith("$p\") }).Count) { return 'Key' }
+        return 'absent'
+    }
     foreach ($cand in @($p, ($p -replace '\\currentcontrolset\\', '\controlset001\'))) {
         $k = "$cand|$(([string]$Row.Name).ToLower())"
         if ($Map.ContainsKey($k)) { return , $Map[$k] }

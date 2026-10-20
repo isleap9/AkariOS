@@ -39,6 +39,15 @@ function Restart-AkariExplorer {
     if (-not (Get-Process -Name explorer -ErrorAction SilentlyContinue)) { Start-Process "$env:SystemRoot\explorer.exe" }
 }
 
+# shows $Path as the desktop wallpaper now (the registry value is the tweak's job, in the real user's hive):
+# SystemParametersInfo(SPI_SETDESKWALLPAPER) with SPIF_SENDCHANGE only, so the elevated account's profile is not written
+function Set-AkariDesktopWallpaper([string]$Path) {
+    if (-not ('AkariWallpaper' -as [type])) {
+        Add-Type -TypeDefinition 'using System.Runtime.InteropServices; public class AkariWallpaper { [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni); }'
+    }
+    [void][AkariWallpaper]::SystemParametersInfo(20, 0, $Path, 2)
+}
+
 # the only powercfg call: returns its output lines (stderr included as text)
 function Invoke-AkariPowerCfg {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)

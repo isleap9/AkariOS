@@ -114,10 +114,12 @@ function Import-AkariTweakFile([string]$Path, [string]$TweaksRoot) {
                 if (-not $e.ContainsKey('Name')) {
                     # a key row (Core\Registry.ps1 Test-AkariKeyRow): the whole key exists ('Key') or is deleted ($null)
                     foreach ($k in 'Path', 'Value', 'Default') { if (-not $e.ContainsKey($k)) { throw "${rel}: key row is missing $k" } }
-                    foreach ($k in 'Value', 'Default') {
-                        if ($null -ne $e[$k] -and "$($e[$k])" -ne 'Key') { throw "${rel}: key row '$($e.Path)': $k must be 'Key' or `$null" }
+                    # Default may be a per-OS map (@{ Win10 = $null; Win11 = 'Key' }), like a value row's
+                    $defs = if ($e.Default -is [hashtable]) { @($e.Default.Values) } else { , $e.Default }
+                    foreach ($x in @(, $e.Value) + $defs) {
+                        if ($null -ne $x -and "$x" -ne 'Key') { throw "${rel}: key row '$($e.Path)': Value and Default must be 'Key' or `$null" }
                     }
-                    if ($null -eq $e.Value -and $null -eq $e.Default) { throw "${rel}: key row '$($e.Path)': Value and Default are both `$null" }
+                    if ($null -eq $e.Value -and -not @($defs | Where-Object { $null -ne $_ }).Count) { throw "${rel}: key row '$($e.Path)': Value and Default are both `$null" }
                     continue
                 }
                 foreach ($k in 'Path', 'Name', 'Type', 'Value') { if (-not $e.ContainsKey($k)) { throw "${rel}: Registry entry is missing $k" } }

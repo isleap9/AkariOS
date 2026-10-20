@@ -52,8 +52,13 @@ Describe 'AkariOS marks match OneClick\reg.reg' {
     }
 
     It 'reads reg.reg' { $reg.Count | Should BeGreaterThan 400 }
+    # registry tweaks One-click sets in a script instead of reg.reg (checked by hand against OneClick\steptwo.ps1)
+    $byScript = @(
+        'explorer-trim-context-menu'   # steptwo.ps1 "remove context menu items", lines ~797-829
+    )
+
     It 'marks only tweaks whose every value reg.reg sets the same way' {
-        @($check | Where-Object { $_.Marked -and -not $_.Same } | ForEach-Object { $_.Id }) -join ',' | Should Be ''
+        @($check | Where-Object { $_.Marked -and -not $_.Same -and $_.Id -notin $byScript } | ForEach-Object { $_.Id }) -join ',' | Should Be ''
     }
     It 'marks every tweak reg.reg fully sets' {
         @($check | Where-Object { $_.Same -and -not $_.Marked } | ForEach-Object { $_.Id }) -join ',' | Should Be ''
@@ -66,17 +71,20 @@ Describe 'Customize: tweaks with script blocks' {
     $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
     $k = "HKCU:\Software\AkariTest\$([guid]::NewGuid())"
     function Load($rel) { Import-AkariTweakFile (Join-Path $Tw $rel) $Tw }
-    # every HKCU path lands under the test key, never in the real hive
-    Mock Resolve-AkariRegPath { if ($Path -match '^HKCU:\\(.*)$') { "$k\$($Matches[1])" } else { $Path } }
+    # every HKCU and HKLM path lands under the test key, never in the real hives
+    Mock Resolve-AkariRegPath { if ($Path -match '^HKCU:\\(.*)$') { "$k\$($Matches[1])" } elseif ($Path -match '^HKLM:\\(.*)$') { "$k\HKLM\$($Matches[1])" } else { $Path } }
     Mock Get-AkariUserFolder { "$TestDrive\User\$Name" }
     Mock Restart-AkariExplorer { }
     Mock Stop-Process { }
+    Mock Set-AkariDesktopWallpaper { }
     $realProgramData = $env:ProgramData
     $env:ProgramData = "$TestDrive\ProgramData"
+    $realSystemRoot = $env:SystemRoot
 
     try {
-        It 'redirects the user hive, the user folders and ProgramData (guard)' {
+        It 'redirects the user hive, the machine hive, the user folders and ProgramData (guard)' {
             Resolve-AkariRegPath 'HKCU:\Control Panel\NotifyIconSettings' | Should Be "$k\Control Panel\NotifyIconSettings"
+            Resolve-AkariRegPath 'HKLM:\SOFTWARE\Classes\*\shell' | Should Be "$k\HKLM\SOFTWARE\Classes\*\shell"
             Get-AkariUserFolder 'Programs' | Should Be "$TestDrive\User\Programs"
             $env:ProgramData | Should Be "$TestDrive\ProgramData"
         }
@@ -167,8 +175,110 @@ Describe 'Customize: tweaks with script blocks' {
                 (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Already'
             }
         }
+        Context 'Trim the right-click menu, Windows 11' {
+            Mock Get-AkariOSBuild { 26100 }
+            $t = Load 'Customize\Explorer\TrimContextMenu.ps1'
+            $fav = "$k\HKLM\SOFTWARE\Classes\*\shell\pintohomefile"
+            # siblings of the '*' key that a wildcard would also hit
+            New-Item "$k\HKLM\SOFTWARE\Classes\txtfile\shell\pintohomefile" -Force | Out-Null
+            It 'Revert builds Windows'' entries, Apply removes them (only under *), Revert brings them back' {
+                Invoke-AkariRegistry $t.Registry Revert
+                Get-AkariState $t | Should Be 'Default'
+                (Get-ItemProperty -LiteralPath $fav).MUIVerb | Should Be '@shell32.dll,-51608'
+                (Get-Item -LiteralPath "$k\HKLM\SOFTWARE\Classes\exefile\shellex\ContextMenuHandlers\Compatibility").GetValue('') | Should Be '{1d27f844-3a1f-4410-85ac-14651078412d}'
+                (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+                Test-Path -LiteralPath $fav | Should Be $false
+                Test-Path -LiteralPath "$k\HKLM\SOFTWARE\Classes\Folder\shell\pintohome" | Should Be $false
+                Test-Path -LiteralPath "$k\HKLM\SOFTWARE\Classes\txtfile\shell\pintohomefile" | Should Be $true
+                Get-AkariState $t | Should Be 'Optimized'
+                (Invoke-AkariTweak $t Revert).Outcome | Should Be 'Reverted'
+                (Get-ItemProperty -LiteralPath "$fav\command").DelegateExecute | Should Be '{b455f46e-e4af-4035-b0a4-cf18d2f6f28e}'
+                Get-AkariState $t | Should Be 'Default'
+            }
+        }
+
+        Context 'Trim the right-click menu, Windows 10' {
+            Mock Get-AkariOSBuild { 19045 }
+            Mock Resolve-AkariDefault { if ($Default -is [hashtable] -and $Default.ContainsKey('Win10')) { $Default['Win10'] } else { $Default } }
+            $t = Load 'Customize\Explorer\TrimContextMenu.ps1'
+            It 'Revert does not create Add to Favorites (Windows 11 only)' {
+                Remove-Item "$k\HKLM\SOFTWARE\Classes\*" -Recurse -Force -ErrorAction SilentlyContinue
+                Invoke-AkariRegistry $t.Registry Revert
+                Test-Path -LiteralPath "$k\HKLM\SOFTWARE\Classes\*\shell\pintohomefile" | Should Be $false
+                Test-Path -LiteralPath "$k\HKLM\SOFTWARE\Classes\Folder\shell\pintohome" | Should Be $true
+            }
+        }
+
+        Context 'Classic right-click menu' {
+            $t = Load 'Customize\Explorer\ClassicContextMenu.ps1'
+            $clsid = "$k\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}"
+            It 'writes an empty (default) under InprocServer32, and Revert deletes the whole key' {
+                Get-AkariState $t | Should Be 'Default'
+                (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+                (Get-Item -LiteralPath "$clsid\InprocServer32").GetValue('') | Should Be ''
+                Get-AkariState $t | Should Be 'Optimized'
+                (Invoke-AkariTweak $t Revert).Outcome | Should Be 'Reverted'
+                Test-Path -LiteralPath $clsid | Should Be $false
+            }
+        }
+
+        Context 'Black lock screen' {
+            $env:SystemRoot = "$TestDrive\Windows"
+            New-Item $env:SystemRoot -ItemType Directory -Force | Out-Null
+            $t = Load 'Customize\Theme\BlackLockScreen.ps1'
+            It 'makes a black image, points the lock screen at it, and Revert removes both' {
+                try {
+                    Get-AkariState $t | Should Be 'Default'
+                    (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+                    Test-Path "$TestDrive\Windows\Black.jpg" | Should Be $true
+                    (Get-ItemProperty "$k\HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP").LockScreenImagePath | Should Be "$TestDrive\Windows\Black.jpg"
+                    Get-AkariState $t | Should Be 'Optimized'
+                    (Invoke-AkariTweak $t Revert).Outcome | Should Be 'Reverted'
+                    Test-Path "$TestDrive\Windows\Black.jpg" | Should Be $false
+                    Get-AkariState $t | Should Be 'Default'
+                } finally { $env:SystemRoot = $realSystemRoot }
+            }
+        }
+
+        Context 'AkariOS wallpaper' {
+            $env:SystemRoot = "$TestDrive\Windows"
+            $t = Load 'Customize\Theme\AkariOSWallpaper.ps1'
+            It 'copies the AkariOS image, sets it for the real user, refreshes the desktop; Revert = img0.jpg' {
+                try {
+                    (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+                    (Get-Item "$TestDrive\Windows\Web\AkariOS\img.jpg").Length | Should Be (Get-Item (Join-Path $Root 'OneClick\img.jpg')).Length
+                    (Get-ItemProperty "$k\Control Panel\Desktop").Wallpaper | Should Be "$TestDrive\Windows\Web\AkariOS\img.jpg"
+                    Assert-MockCalled Set-AkariDesktopWallpaper -ParameterFilter { $Path -like '*\Web\AkariOS\img.jpg' }
+                    Get-AkariState $t | Should Be 'Optimized'
+                    (Invoke-AkariTweak $t Revert).Outcome | Should Be 'Reverted'
+                    (Get-ItemProperty "$k\Control Panel\Desktop").Wallpaper | Should Be "$TestDrive\Windows\Web\Wallpaper\Windows\img0.jpg"
+                    Test-Path "$TestDrive\Windows\Web\AkariOS" | Should Be $false
+                    Get-AkariState $t | Should Be 'Default'
+                } finally { $env:SystemRoot = $realSystemRoot }
+            }
+        }
+
+        Context 'Black account pictures' {
+            $t = Load 'Customize\Theme\BlackAccountPictures.ps1'
+            $dir = "$TestDrive\ProgramData\Microsoft\User Account Pictures"
+            New-Item $dir -ItemType Directory -Force | Out-Null
+            Add-Type -AssemblyName System.Drawing
+            $b = New-Object System.Drawing.Bitmap 8, 8
+            $b.SetPixel(1, 1, [System.Drawing.Color]::Red); $b.Save("$dir\user.png", [System.Drawing.Imaging.ImageFormat]::Png); $b.Dispose()
+            It 'saves the originals, paints them black, and Revert puts the originals back' {
+                Get-AkariState $t | Should Be 'Default'
+                (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+                Test-Path "$TestDrive\ProgramData\User Account Pictures\user.png" | Should Be $true
+                $p = [System.Drawing.Bitmap]::FromFile("$dir\user.png"); $px = $p.GetPixel(1, 1).ToArgb(); $p.Dispose()
+                $px | Should Be ([System.Drawing.Color]::Black.ToArgb())
+                Get-AkariState $t | Should Be 'Optimized'
+                (Invoke-AkariTweak $t Revert).Outcome | Should Be 'Reverted'
+                Get-AkariState $t | Should Be 'Default'
+            }
+        }
     } finally {
         $env:ProgramData = $realProgramData
+        $env:SystemRoot = $realSystemRoot
         Remove-Item $k -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
