@@ -8,6 +8,7 @@
     Kind        = 'Action'
     Button      = 'Install'
     Risk        = 'Safe'
+    AkariOS     = $true
     Description = 'File archiver. Akari keeps its right-click menu short (Open archive, Extract, Add to archive).'
     Winget      = '7zip.7zip'
     After       = {

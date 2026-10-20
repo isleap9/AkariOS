@@ -356,7 +356,8 @@ Loader rules:
 ```
 
 - Simple presets can skip `Phases` and just list `Tweaks`.
-- A bare id means Apply (Choices get their `Recommended` value). A Choice can be given an explicit value with an object entry: `{ "services/SysMain": "Manual" }`. Only Choices take a value.
+- A bare id means Apply (Choices get their `Recommended` value). A Choice can be given an explicit value with an object entry: `{ "services/SysMain": "Manual" }`. `{ "id": "Default" }` means Revert (so a saved Selection with unchecked rows comes back as it was). `"<group>/*"` means every non-keep Entry of that data-list Group on this PC (`appx/*`, `capability/*`, `feature/*`).
+- Built (M3): `Core/Presets.ps1`, `Presets/AkariOS.json` (kept equal to the `AkariOS = $true` marks by a test), Quick select on the Apps and Tweaks steps, Last used after each Guided Run, CLI `-Preset` / `-RevertPreset` (a separate switch: `-Revert` already takes ids).
 - **Save preset** writes the same JSON format (flat `Tweaks`, no Phases) from the user's current GUI selection, including services changed through "Show all". On a machine without that service the Outcome is Skipped.
 - User presets may contain Phases if written by hand.
 - `-Revert -Preset <name>` reverts the Toggles and Choices in reverse order and skips Actions.

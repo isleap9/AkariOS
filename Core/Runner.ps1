@@ -106,10 +106,16 @@ function Invoke-AkariPlan([object[]]$Items, $Tweaks) {
         $o
     }
     if ($explorer) { Restart-AkariExplorer }
-    if ($last.Count -gt 1) { Write-Log "Warning: $($last.Count) changes restart the PC, only the first runs now: $(@($last | ForEach-Object { $_.Tweak.Name }) -join ', '). Select the others again after the restart." }
-    foreach ($x in $last) {
-        Write-Log "Last: $($x.Tweak.Name) (restarts the PC)"
-        Invoke-AkariTweak $x.Tweak $x.Item.Mode $x.Item.Value
+    # only one can run: once it starts the restart, Windows refuses to start anything else ("Access is denied")
+    for ($n = 0; $n -lt $last.Count; $n++) {
+        $x = $last[$n]
+        if ($n -eq 0) {
+            Write-Log "Last: $($x.Tweak.Name) (restarts the PC)"
+            Invoke-AkariTweak $x.Tweak $x.Item.Mode $x.Item.Value
+        } else {
+            Write-Log "Skipped: $($x.Tweak.Name) (it restarts the PC too: select it again after this restart)"
+            New-AkariOutcome $x.Tweak.Id $x.Item.Mode 'Skipped' $false 'restarts the PC too: run it after this restart'
+        }
     }
 }
 

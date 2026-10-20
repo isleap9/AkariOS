@@ -199,10 +199,12 @@ Describe 'Changes that restart the PC run last' {
         ($o | ForEach-Object { $_.Id }) -join ',' | Should Be 'a,b,safe'
     }
 
-    It 'warns when two changes restart the PC' {
-        $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
-        [void](Invoke-AkariPlan @(@{ Id = 'boot'; Mode = 'Apply' }, @{ Id = 'safe'; Mode = 'Apply' }) @($safe, $boot))
-        @($LogQueue.ToArray()) -join "`n" | Should Match 'Warning: 2 changes restart the PC'
+    It 'runs only the first of two changes that restart the PC, and reports the other Skipped' {
+        $order.Clear()
+        $o = @(Invoke-AkariPlan @(@{ Id = 'boot'; Mode = 'Apply' }, @{ Id = 'safe'; Mode = 'Apply' }) @($safe, $boot))
+        ($order -join ',') | Should Be 'boot'
+        ($o | ForEach-Object { "$($_.Id):$($_.Outcome)" }) -join ',' | Should Be 'boot:Applied,safe:Skipped'
+        $o[1].Message | Should Match 'after this restart'
     }
 
     It 'tells Review about it' {

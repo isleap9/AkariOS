@@ -188,17 +188,93 @@ function Set-AkariChoiceTarget([string]$Id, $Value) {
     Update-AkariStepFooter
 }
 
-# the toolbar above the grid: Quick select (Presets, later), Clear selection, Show current state
+# ---- Quick select (Core\Presets.ps1): a preset replaces the whole Selection, Apps and Tweaks alike
+
+# the presets the menu lists: built-in (Presets\), Last used, the user's own
+function Get-AkariQuickSelectList {
+    $all = @(Get-AkariPresets "$Root\Presets")
+    @($all | Where-Object { $_.Builtin }) + @(Get-AkariLastUsed | Where-Object { $_ }) + @($all | Where-Object { -not $_.Builtin })
+}
+
+# puts the Selection on $Preset: every row back where it starts, then the preset's changes checked. Both views are
+# built first (they read every State and app once). Wildcards (appx/*, ...) are remembered for the features read later.
+function Set-AkariQuickSelect($Preset) {
+    [void](Get-AkariAppsView)
+    [void](Get-AkariTweaksView)
+    $known = @($script:Tweaks) + @($script:AppRows.Values | ForEach-Object { $_.Tweak })
+    $plan = Resolve-AkariPreset $Preset $known
+    Reset-AkariTweakRows
+    foreach ($e in @($script:AppRows.Values)) { Set-AkariAppChecked $e $false }
+    $script:Sel = New-AkariSelection
+    $byId = @{}; foreach ($i in $plan.Items) { $byId[$i.Id] = $i }
+    $wild = @($Preset.Entries | Where-Object { $_.Id -like '*/[*]' } | ForEach-Object { $_.Id.Substring(0, $_.Id.Length - 2) })
+    Select-AkariApps ({ param($t) ($t.Group -and $t.Group -in $wild -and -not $t.Keep) -or $byId.ContainsKey($t.Id) }.GetNewClosure())
+    foreach ($e in @($script:AppRows.Values | Where-Object { -not (Test-AkariRemoveRow $_) -and $byId.ContainsKey($_.Tweak.Id) })) { Set-AkariAppChecked $e $true }
+    $missing = 0
+    foreach ($i in $plan.Items) {
+        $e = $script:TweakRows[$i.Id]
+        if (-not $e) { if (-not $script:AppRows.Contains($i.Id)) { $missing++ }; continue }
+        $t = $e.Tweak
+        $target = if ($i.Mode -eq 'Revert') { 'Default' } elseif ($t.Kind -eq 'Choice') { if ($i.ContainsKey('Value')) { $i.Value } else { $t.Recommended } } else { 'Optimized' }
+        Set-AkariRowControl $e $(if ($target -eq 'Default' -and $t.Kind -ne 'Choice') { 'None' } elseif ($target -eq 'Default') { Resolve-AkariDefault $t.Default } else { $target })
+        if ($t.Kind -eq 'Choice') { $e.Shown = $(if ($target -eq 'Default') { Resolve-AkariDefault $t.Default } else { $target }) }
+        Set-AkariPending $script:Sel $t $e.State $(if ($target -eq 'Default' -and $t.Kind -eq 'Choice') { Resolve-AkariDefault $t.Default } else { $target }) $e.Current
+    }
+    Update-AkariAppsStatus
+    Update-AkariStepFooter
+    $note = if ($missing -or $plan.Unknown.Count) { " ($($missing + $plan.Unknown.Count) not on this PC or not shown here)" } else { '' }
+    Add-Log "Quick select: $($Preset.Name), $($script:Sel.Count) changes$note"
+}
+
+# saves the current Selection as a user preset (asks for its name)
+function Save-AkariQuickSelect {
+    if (-not $script:Sel.Count) { [void][Windows.MessageBox]::Show('Pick some changes first, then save them as a preset.', 'Akari'); return }
+    Add-Type -AssemblyName Microsoft.VisualBasic
+    $name = [Microsoft.VisualBasic.Interaction]::InputBox('A name for this preset:', 'Akari', '')
+    if (-not $name -or -not $name.Trim()) { return }
+    $path = Save-AkariPreset $name.Trim() @(Get-AkariPlanItems $script:Sel) 'Saved from Install AkariOS'
+    Add-Log "Preset saved: $path"
+}
+
+# the Quick select button: a menu of presets, built each time it opens (a preset saved just now is listed)
+function New-AkariQuickSelect {
+    $b = [Windows.Controls.Button]::new()
+    $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Btn')
+    $b.Content = 'Quick select ' + [char]0x25BE
+    $b.ToolTip = 'Pick a preset: it replaces every pick on the Apps and Tweaks steps'
+    $b.Margin = [Windows.Thickness]::new(0, 0, 8, 0)
+    $b.ContextMenu = [Windows.Controls.ContextMenu]::new()
+    $b.Add_Click({
+        param($s, $a)
+        $m = $s.ContextMenu
+        $m.Items.Clear()
+        foreach ($p in @(Get-AkariQuickSelectList)) {
+            $it = [Windows.Controls.MenuItem]::new()
+            $it.Header = $(if ($p.Builtin -and $p.Name -eq 'AkariOS') { 'AkariOS (recommended)' } else { $p.Name })
+            $it.ToolTip = $p.Description
+            $it.Tag = $p
+            $it.Add_Click({ param($x, $y) Set-AkariQuickSelect $x.Tag })
+            [void]$m.Items.Add($it)
+        }
+        [void]$m.Items.Add([Windows.Controls.Separator]::new())
+        $save = [Windows.Controls.MenuItem]::new()
+        $save.Header = 'Save current as preset' + [char]0x2026
+        $save.Add_Click({ Save-AkariQuickSelect })
+        [void]$m.Items.Add($save)
+        $m.PlacementTarget = $s
+        $m.Placement = 'Bottom'
+        $m.IsOpen = $true
+    })
+    $b
+}
+
+# the toolbar above the grid: Quick select (Presets), Clear selection, Show current state
 function New-AkariTweaksToolbar {
     $bar = [Windows.Controls.StackPanel]::new()
     $bar.Orientation = 'Horizontal'
     $bar.Margin = [Windows.Thickness]::new(0, 0, 0, 16)
-    $quick = [Windows.Controls.Button]::new()
-    $quick.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Btn')
-    $quick.Content = 'Quick select ' + [char]0x25BE
-    $quick.IsEnabled = $false
-    $quick.ToolTip = 'Presets (AkariOS, Gaming, Privacy, Last used) come in a later version'
-    [Windows.Controls.ToolTipService]::SetShowOnDisabled($quick, $true)
+    $quick = New-AkariQuickSelect
+    $quick.Margin = [Windows.Thickness]::new(0)
     $clear = [Windows.Controls.Button]::new()
     $clear.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Btn')
     $clear.Content = 'Clear selection'
@@ -517,6 +593,8 @@ function Complete-AkariApply($Shared) {
         return
     }
     $script:Outcomes = @($Shared.Outcomes)
+    # Last used (Quick select): what this Run was asked to do
+    try { Save-AkariLastUsed @($Shared.Plan) } catch { Add-Log "Warning: Last used not saved ($($_.Exception.Message))" }
     $script:Step = 3
 }
 

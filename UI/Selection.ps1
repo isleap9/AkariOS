@@ -58,7 +58,7 @@ function Get-AkariRestartNote($Sel, $Tweaks) {
     })
     if (-not $names.Count) { return $null }
     if ($names.Count -eq 1) { return "$($names[0]) restarts the PC (into Safe Mode for some), so it runs last, after every other change." }
-    "These restart the PC: $($names -join ', '). Only $($names[0]) runs now, last; select the others again after the restart."
+    "These restart the PC: $($names -join ', '). Only $($names[0]) runs now, last; the others are skipped: select them again after the restart."
 }
 
 # items for Invoke-AkariPlan

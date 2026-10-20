@@ -1,13 +1,14 @@
 ﻿#requires -Version 5.1
-param([ValidateRange(1, 3)][int]$OneClick, [switch]$List, [string[]]$Apply, [string[]]$Revert)
+param([ValidateRange(1, 3)][int]$OneClick, [switch]$List, [string[]]$Apply, [string[]]$Revert, [string]$Preset, [string]$RevertPreset)
 # Akari. GUI:  powershell -ExecutionPolicy Bypass -File Akari.ps1
 # One-click phases (RunOnce after a restart):  Akari.ps1 -OneClick 2|3
-# CLI:  Akari.ps1 -List  |  Akari.ps1 -Apply id,id  |  Akari.ps1 -Revert id,id   (Apply/Revert need an elevated shell)
+# CLI:  Akari.ps1 -List  |  -Apply id,id  |  -Revert id,id  |  -Preset <name|file.json>  |  -RevertPreset <name|file.json>
+#       (all but -List need an elevated shell; -RevertPreset reverts in reverse order and skips Actions)
 
 # ---- CLI: no relaunch, no WPF
-if ($List -or $Apply -or $Revert) {
+if ($List -or $Apply -or $Revert -or $Preset -or $RevertPreset) {
     $CoreDir = Join-Path $PSScriptRoot 'Core'
-    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Appx', 'Winget', 'AppSetup', 'System') { . "$CoreDir\$f.ps1" }
+    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Appx', 'Winget', 'AppSetup', 'System', 'Presets') { . "$CoreDir\$f.ps1" }
     $loaded = Get-AkariTweaks (Join-Path $PSScriptRoot 'Tweaks')
     foreach ($p in $loaded.Problems) { [Console]::Error.WriteLine("$($p.Level): $($p.File): $($p.Message)") }
     if ($List) {
@@ -18,11 +19,29 @@ if ($List -or $Apply -or $Revert) {
     }
     $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]'Administrator')
     if (-not $admin) { [Console]::Error.WriteLine('Run Akari from an elevated PowerShell to Apply or Revert.'); exit 2 }
-    $mode = if ($Apply) { 'Apply' } else { 'Revert' }
-    $ids = if ($Apply) { $Apply } else { $Revert }
     # Outcome lines are the CLI's output; per-tweak log lines are not repeated
     $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
-    $outcomes = @(Invoke-AkariRun $ids $mode $loaded.Tweaks)
+    if ($Preset -or $RevertPreset) {
+        $name = if ($Preset) { $Preset } else { $RevertPreset }
+        $p = Find-AkariPreset $name (Join-Path $PSScriptRoot 'Presets')
+        if (-not $p) { [Console]::Error.WriteLine("No preset '$name' (built-in, in $AkariPresetDir, or a .json file)."); exit 2 }
+        $all = @($loaded.Tweaks)
+        # wildcards (appx/*, capability/*, feature/*) mean what is on this PC: build those Entries
+        if (@($p.Entries | Where-Object { $_.Id -like '*/[*]' }).Count) {
+            $names = @(Get-AkariAppxInstalled) + @(Get-AkariCapabilitiesInstalled | ForEach-Object { "capability/$_" }) + @(Get-AkariFeaturesEnabled | ForEach-Object { "feature/$_" })
+            foreach ($n in $names) {
+                $id = if ($n -like '*/*') { $n } else { "appx/$n" }
+                if (-not ($all | Where-Object { $_.Id -eq $id })) { $e = Resolve-AkariEntry $loaded.Groups $id; if ($e) { $all += $e } }
+            }
+        }
+        $plan = Resolve-AkariPreset $p $all -Revert:([bool]$RevertPreset)
+        foreach ($u in $plan.Unknown) { [Console]::Error.WriteLine("Warning: preset $($p.Name): '$u' is not a Tweak here") }
+        $outcomes = @(Invoke-AkariPlan $plan.Items $all)
+    } else {
+        $mode = if ($Apply) { 'Apply' } else { 'Revert' }
+        $ids = if ($Apply) { $Apply } else { $Revert }
+        $outcomes = @(Invoke-AkariRun $ids $mode $loaded.Tweaks)
+    }
     foreach ($o in $outcomes) {
         $line = '{0,-9} {1}  {2}' -f $o.Outcome, $o.Id, $o.Message
         Write-Output $line
@@ -74,7 +93,7 @@ foreach ($c in @($Root, (Split-Path -Parent $Root), "$Root\Tweaks")) {
     if ($c -and (Test-Path "$c\UI\MainWindow.xaml") -and (Test-Path "$c\Tweaks")) { $Root = $c; break }
 }
 # ---- Core: helpers, loader, state and runner (the background job loads the same files)
-foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Appx', 'Winget', 'AppSetup', 'Restore', 'System') { . "$Root\Core\$f.ps1" }
+foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Appx', 'Winget', 'AppSetup', 'Restore', 'System', 'Presets') { . "$Root\Core\$f.ps1" }
 trap { Write-ErrLog "$($_.Exception.Message) $($_.InvocationInfo.PositionMessage)"; [void][Windows.MessageBox]::Show("Akari hit an error:`n`n$($_.Exception.Message)`n`n$($_.InvocationInfo.PositionMessage)", 'Akari'); exit }
 # remove 'downloaded from the internet' marks so Windows never nags about these files
 Get-ChildItem $Root -Filter *.ps1 -File -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue

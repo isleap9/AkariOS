@@ -327,6 +327,8 @@ function Get-AkariAppsView {
     $p.RemoveBar = [Windows.Controls.StackPanel]::new()
     $p.RemoveBar.Orientation = 'Horizontal'
     $p.RemoveBar.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
+    # Quick select (UI\Steps.ps1): a whole preset, Apps and Tweaks
+    if (Get-Command New-AkariQuickSelect -ErrorAction SilentlyContinue) { [void]$p.RemoveBar.Children.Add((New-AkariQuickSelect)) }
     [void]$p.RemoveBar.Children.Add((New-AkariAppsButton 'Select recommended' 'Win11Debloat''s pick: what is on this PC and marked Recommended' { Select-AkariApps { param($t) $t.Risk -eq 'Safe' } }))
     [void]$p.RemoveBar.Children.Add((New-AkariAppsButton 'AkariOS' 'The AkariOS debloat (FR33THY''s): every Store app, optional feature, Windows feature and legacy app on this PC except its keep-list' { Select-AkariApps { param($t) -not $t.Keep } }))
     [void]$p.RemoveBar.Children.Add((New-AkariAppsButton 'Clear selection' 'Uncheck everything to remove' { Select-AkariApps { param($t) $false } }))

@@ -8,6 +8,7 @@
     Kind        = 'Action'
     Button      = 'Install'
     Risk        = 'Safe'
+    AkariOS     = $true
     Description = 'Private Chromium-based web browser. Akari turns off hardware acceleration and background mode, and removes its updaters.'
     Winget      = 'ImputNet.Helium'
     After       = {

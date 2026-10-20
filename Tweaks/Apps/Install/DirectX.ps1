@@ -8,6 +8,7 @@
     Kind        = 'Action'
     Button      = 'Install'
     Risk        = 'Safe'
+    AkariOS     = $true
     Description = 'The older DirectX 9-11 files many games still need.'
     Winget      = 'Microsoft.DirectX'
 }

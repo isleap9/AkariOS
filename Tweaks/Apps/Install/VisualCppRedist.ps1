@@ -8,6 +8,7 @@
     Kind        = 'Action'
     Button      = 'Install'
     Risk        = 'Safe'
+    AkariOS     = $true
     Description = 'Every Visual C++ runtime from 2005 to 2022, 32- and 64-bit. Most games need some of them.'
     Winget      = 'Microsoft.VCRedist.2005.x86',
                   'Microsoft.VCRedist.2005.x64',

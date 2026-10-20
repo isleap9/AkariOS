@@ -159,6 +159,8 @@ Done 2026-10-20 together with Task 5 (one batch, as decided that day): 58 tweaks
   └ Save current as preset…
 ```
 
+Done 2026-10-20. Changes from the above: Revert in a preset is `{ "id": "Default" }`; the CLI revert is `-RevertPreset <name>` (`-Revert` takes ids); `AkariOS.json` = the marks (plus the One-click installs 7-Zip, Visual C++, Helium, DirectX, now marked too), checked by a test; a wildcard that matches nothing is not reported (capability / feature Entries exist only once read).
+
 **VM check:** Quick select › AkariOS ticks the expected rows on both steps; Clear restores; Save as preset → reopen Akari → it is listed and reproduces the Selection; after a Run, Last used reproduces it.
 
 ### Task 8: Docs and status
