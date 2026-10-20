@@ -36,4 +36,18 @@
     # 3 Setup rows a 6 Windows port already covers (same values, same Defaults)
     'memory-compression' = @('disable-memory-compression')
     'background-apps'    = @('performance-background-apps-off')
+    # 8 Advanced. Not listed yet: adv-defender, services (Safe Mode, M4); rebar, smt-ht, core1-thread1, priority (per-game
+    # tools, not settings); ulps (Graphics).
+    'firewall'           = @('security-firewall-off')
+    'spectre-meltdown'   = @('security-spectre-meltdown-off')
+    'dep'                = @('security-dep-off')
+    'download-warning'   = @('security-download-warning-off')
+    'whql-bypass'        = @('security-whql-secure-boot-bypass')
+    'mmagent'            = @('system-mmagent-off', 'disable-memory-compression')
+    'mpo'                = @('display-mpo-off', 'gaming-windowed-optimizations')
+    'hw-legacy-flip'     = @('display-fullscreen-exclusive')
+    'hw-composed-flip'   = @('display-composed-independent-flip')
+    'keyboard-shortcuts' = @('system-keyboard-shortcuts-off')
+    'start-search-shell' = @('system-start-search-shell-off', 'taskbar-hide-search')
+    'nvme-driver'        = @('system-nvme-native-driver')
 }

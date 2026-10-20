@@ -55,6 +55,18 @@ function Invoke-AkariCsc([string]$Source, [string]$Out) {
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $Out)) { throw "csc failed: $($log -join ' ')" }
 }
 
+# the boot entry's settings as text lines ("bcdedit /enum {current}"; read only). Changes go through
+# Invoke-AkariBcdEdit (Core\Phases.ps1).
+function Read-AkariBcd { & "$env:SystemRoot\System32\bcdedit.exe" /enum '{current}' 2>&1 | ForEach-Object { "$_" } }
+
+# a protected system file or folder made writable for the administrators group (takeown + icacls, as the old scripts
+# did); Windows keeps it that way. Tests mock this.
+function Grant-AkariOwnership([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+    & "$env:SystemRoot\System32\takeown.exe" /f $Path /a /r /d y 2>&1 | Out-Null
+    & "$env:SystemRoot\System32\icacls.exe" $Path /grant '*S-1-5-32-544:F' /t /q 2>&1 | Out-Null
+}
+
 # the only powercfg call: returns its output lines (stderr included as text)
 function Invoke-AkariPowerCfg {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)

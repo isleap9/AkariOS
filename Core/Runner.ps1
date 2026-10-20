@@ -1,4 +1,4 @@
-# Runner: Applies or Reverts Tweaks and returns one Outcome per Tweak
+﻿# Runner: Applies or Reverts Tweaks and returns one Outcome per Tweak
 # (Applied, Reverted, Already, Skipped, Failed). The GUI and the CLI share it.
 
 function New-AkariOutcome([string]$Id, [string]$Mode, [string]$Outcome, [bool]$Reboot = $false, [string]$Message = '') {
@@ -134,7 +134,7 @@ function Start-AkariJob([string]$Code, $Queue, [string]$CoreDir, [hashtable]$Sha
     $rs.SessionStateProxy.SetVariable('AkariShared', $Shared)
     $ps = [powershell]::Create()
     $ps.Runspace = $rs
-    $pre = (@('Log', 'Compat', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Restore', 'Appx', 'Winget', 'AppSetup', 'System') | ForEach-Object { ". '$CoreDir\$_.ps1'" }) -join "`n"
+    $pre = (@('Log', 'Compat', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Restore', 'Appx', 'Winget', 'AppSetup', 'System', 'Phases') | ForEach-Object { ". '$CoreDir\$_.ps1'" }) -join "`n"
     $wrapped = $pre + "`ntry {`n& {`n" + $Code + "`n} *>&1 | Out-String -Stream | ForEach-Object { if (`$_.Trim()) { Write-Log `$_ } }`n} catch { Write-Log ('Error: ' + `$_.Exception.Message) }"
     [void]$ps.AddScript($wrapped)
     @{ Ps = $ps; Rs = $rs; Handle = $ps.BeginInvoke(); Shared = $Shared }
