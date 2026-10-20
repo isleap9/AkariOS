@@ -146,7 +146,7 @@ Services through cmdlets (`Get/Set/New-Service`), powercfg through `Invoke-Akari
 - **Quick select** (toolbar dropdown on Apps and Tweaks): AkariOS, Last used, user presets, "Save current as preset…". Picking one **replaces** the Selection (Clear selection, then the preset's items).
 - **Last used** saved after each Guided Run.
 - CLI: `-Preset <name|file>` (Apply), `-Revert -Preset` (reverse order, Actions skipped and reported).
-- `AkariOS.json` = the ported equivalents of what One-click does that exist so far; no `Phases` yet (M4 adds them and switches One-click from `OneClick/*.ps1` to the preset).
+- `AkariOS.json` = the ported equivalents of what One-click does that exist so far (decided 2026-10-20: the tweaks marked `AkariOS = $true`, so build it from the marks or check it against them); no `Phases` yet (M4 adds them and switches One-click from `OneClick/*.ps1` to the preset).
 
 ```
  [Quick select ▾] [Clear selection] [☐ Show current state]      [search…]

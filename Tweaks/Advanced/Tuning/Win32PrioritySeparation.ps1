@@ -5,6 +5,7 @@
     Category    = 'Tuning'
     Kind        = 'Choice'
     Risk        = 'Safe'
+    AkariOS     = $true
     Reboot      = $true
     Description = 'Short, variable quanta with a 3:1 foreground boost (0x26).'
     Registry    = @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl'; Name = 'Win32PrioritySeparation'; Type = 'DWord' }

@@ -3,7 +3,7 @@
 
 $AkariTweakFields = 'Id', 'Name', 'Description', 'Section', 'Category', 'Kind', 'Risk', 'Button', 'Confirm', 'Reboot', 'SafeMode',
     'Requires', 'Registry', 'Choices', 'Recommended', 'Default', 'Editable', 'Apply', 'Revert', 'Detect', 'Check', 'Actions', 'Source', 'Legacy',
-    'EntryKind', 'Entries', 'KeepNames', 'Group', 'Package', 'Keep', 'Winget', 'WingetSource', 'Before', 'After', 'AppType', 'StoreId', 'Explorer'
+    'EntryKind', 'Entries', 'KeepNames', 'Group', 'Package', 'Keep', 'Winget', 'WingetSource', 'Before', 'After', 'AppType', 'StoreId', 'Explorer', 'AkariOS'
 # Requires values the engine knows (Core\System.ps1 Test-AkariRequirement): unmet = hidden in Guided, Skipped in a Run
 $AkariRequirements = 'Win10', 'Win11', 'Laptop', 'Desktop'
 # data-list Group handlers the engine knows (ADR 0002). Rows: the Entries are the data file's rows (every row is a
@@ -30,6 +30,7 @@ function ConvertTo-AkariTweak([hashtable]$h, [string]$Source, [bool]$Legacy) {
     if ($null -ne $o.Registry) { $o.Registry = [hashtable[]]@($o.Registry) }
     $o.Keep = [bool]$o.Keep
     $o.Explorer = [bool]$o.Explorer
+    $o.AkariOS = [bool]$o.AkariOS
     if ($null -ne $o.Requires) { $o.Requires = [string[]]@($o.Requires) }
     $o.Source = $Source
     $o.Legacy = $Legacy

@@ -4,6 +4,7 @@
     Section     = 'Optimize'
     Category    = 'Performance'
     Risk        = 'Caution'
+    AkariOS     = $true
     Reboot      = $true
     Description = 'Stops Windows compressing memory pages in RAM. Uses less CPU, but more RAM.'
     Detect      = { -not (Get-MMAgent).MemoryCompression }

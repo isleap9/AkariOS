@@ -8,6 +8,7 @@ $AkariCategoryGlyphs = @{
     Gaming = 0xE7FC; Performance = 0xEC4A; Tuning = 0xE9E9; Privacy = 0xE72E
     Check = 0xE9D9; Refresh = 0xE72C; Setup = 0xE90F; Graphics = 0xE7F4
     Windows = 0xE771; Hardware = 0xE950; Advanced = 0xE945
+    Taskbar = 0xE7C4; Start = 0xECA5; Explorer = 0xE8B7; Theme = 0xE790
 }
 
 # masonry: each card goes to the column with the least rows so far (ties: the leftmost). Pure, no WPF.
@@ -63,7 +64,13 @@ function New-AkariTweakRow($Tweak, [string]$State, $Current = $null) {
         [void]$glyphs.Children.Add((New-AkariGlyph 0xE9CE 'Ter' $tip))
     }
     $name = [Windows.Controls.TextBlock]::new()
-    $name.Text = $Tweak.Name
+    [void]$name.Inlines.Add([Windows.Documents.Run]::new($Tweak.Name))
+    # part of the AkariOS setup (what One-click applies): "(AkariOS)" after the name, muted
+    if ($Tweak.AkariOS) {
+        $tag = [Windows.Documents.Run]::new(' (AkariOS)')
+        $tag.SetResourceReference([Windows.Documents.TextElement]::ForegroundProperty, 'Mu')
+        [void]$name.Inlines.Add($tag)
+    }
     $name.FontSize = 13
     $name.TextWrapping = 'Wrap'
     $name.VerticalAlignment = 'Center'

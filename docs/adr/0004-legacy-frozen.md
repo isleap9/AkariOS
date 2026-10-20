@@ -4,7 +4,7 @@ Decided 2026-10-19. The AkariOS-Ultimate tweaks (the 7 generated `Tweaks/*.ps1` 
 
 This replaces the old migration rule ("delete the `Add-Tweak` entry once ported, delete the adapter with the last category"). The port changes much more than the code: per-OS Defaults, `Detect`, `Requires`, split or merged tweaks. Some of those changes will be wrong at first, and the Legacy pages are the tested fallback while that happens. Power users also keep the pages they know.
 
-The cost is that the same setting has two implementations that can drift apart. The one-file tweak is the one that gets fixed; Legacy only gets a fix when it is broken.
+The cost is that the same setting has two implementations that can drift apart. The one-file tweak is the one that gets fixed; Legacy only gets a fix when it is broken, or when the AkariOS setup itself changes and every path (Guided, One-click, Legacy) must follow (2026-10-20: the Start pins became Settings and File Explorer; a test keeps the three copies of that layout equal).
 
 ## Considered Options
 

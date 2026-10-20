@@ -86,6 +86,10 @@ $e = New-AkariTweakRow $ch 'Custom' 7; Show $e
 Set-AkariRowControl $e 7; "chTyped=$($e.Control.Text)"
 $e = New-AkariTweakRow $act 'Unknown'; Show $e
 "actType=$($e.Control.GetType().Name)"; "actGlyphs=$($e.Glyphs.Children.Count)"
+$ak = ConvertTo-AkariTweak @{ Id = 'ak'; Name = 'Ak'; Description = 'D'; Risk = 'Safe'; AkariOS = $true } 'x' $false
+$e = New-AkariTweakRow $ak 'Default'; Show $e
+function Shown($tb) { [Windows.Documents.TextRange]::new($tb.ContentStart, $tb.ContentEnd).Text }
+"akName=$(Shown $e.Control.Content)"; "plainName=$(Shown (New-AkariTweakRow $tog 'Default').Control.Content)"
 $c = New-AkariCategoryCard 'Windows' 0xE771 'Not yet ported'
 "cardHead=$($c.Panel.Children[0].Children.Count)"
 '@
@@ -136,6 +140,11 @@ $c = New-AkariCategoryCard 'Windows' 0xE771 'Not yet ported'
     }
 
     It 'builds a category card head: icon, title, note' { $out.cardHead | Should Be '3' }
+
+    It 'marks a Tweak of the AkariOS setup with (AkariOS) after its name' {
+        $out.akName | Should Be 'Ak (AkariOS)'
+        $out.plainName | Should Be 'Tog'
+    }
 }
 
 Describe 'Shell navigation' {

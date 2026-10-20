@@ -22,6 +22,9 @@ function Invoke-AkariTweak($Tweak, [ValidateSet('Apply', 'Revert')][string]$Mode
         return New-AkariOutcome $Tweak.Id $Mode 'Skipped' $false 'Action has no Revert'
     }
     $want = if ($Mode -eq 'Apply') { 'Optimized' } else { 'Default' }
+    # $AkariTweakDir: the tweak file's folder, for files shipped next to it (e.g. Tweaks\Apps\Install\Files); Detect,
+    # Apply and Revert blocks all see it
+    $AkariTweakDir = if ($Tweak.Source -and (Test-Path -LiteralPath $Tweak.Source)) { Split-Path $Tweak.Source } else { '' }
     if ($null -ne $Value -and $Mode -eq 'Apply') {
         $e = $Tweak.Registry[0]
         $cur = try { Get-AkariRegValue $e.Path $e.Name } catch { $null }
@@ -47,11 +50,9 @@ function Invoke-AkariTweak($Tweak, [ValidateSet('Apply', 'Revert')][string]$Mode
         } else {
             # rebuilt from text so a block loaded in another runspace never runs in that runspace's session state
             $sb = [scriptblock]::Create($Tweak.$Mode.ToString())
-            # $AkariTweakDir: the tweak file's folder, for files shipped next to it (e.g. Tweaks\Apps\Install\Files)
-            $dir = if ($Tweak.Source -and (Test-Path -LiteralPath $Tweak.Source)) { Split-Path $Tweak.Source } else { '' }
             # cmdlet errors stop the tweak (-ErrorAction Stop by default); a native tool's stderr (reg.exe, powercfg...)
             # is only logged: 5.1 turns it into an error record, and $ErrorActionPreference = 'Stop' would abort on it
-            & { $ErrorActionPreference = 'Continue'; $PSDefaultParameterValues = @{ '*:ErrorAction' = 'Stop' }; $AkariTweakDir = $dir; & $sb } *>&1 |
+            & { $ErrorActionPreference = 'Continue'; $PSDefaultParameterValues = @{ '*:ErrorAction' = 'Stop' }; & $sb } *>&1 |
                 ForEach-Object { if ($_ -is [Management.Automation.ErrorRecord] -and "$($_.FullyQualifiedErrorId)" -like 'NativeCommandError*') { "$($_.Exception.Message)" } else { $_ } } |
                 Out-String -Stream | ForEach-Object { Write-Log $_ }
         }

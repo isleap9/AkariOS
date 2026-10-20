@@ -4,6 +4,7 @@
     Section     = 'Optimize'
     Category    = 'Gaming'
     Risk        = 'Safe'
+    AkariOS     = $true
     Description = 'Turns off background game recording.'
     Registry    = @(
         @{ Path = 'HKCU:\System\GameConfigStore'; Name = 'GameDVR_Enabled'; Type = 'DWord'; Value = 0; Default = 1 }

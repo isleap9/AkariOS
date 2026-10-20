@@ -27,6 +27,8 @@ function Set-AkariRememberedState([string]$Id, [bool]$Applied) {
 function Get-AkariState($Tweak) {
     if ($Tweak.Kind -eq 'Action') { return 'Unknown' }
     if ($Tweak.Detect) {
+        # like Apply / Revert, Detect sees $AkariTweakDir (the tweak file's folder, for files shipped next to it)
+        $AkariTweakDir = if ($Tweak.Source -and (Test-Path -LiteralPath $Tweak.Source)) { Split-Path $Tweak.Source } else { '' }
         try { $r = & $Tweak.Detect } catch { return 'Unknown' }
         if ($r -is [bool]) { if ($r) { return 'Optimized' } else { return 'Default' } }
         if ($r -is [string] -and $r -in $AkariStates) { return $r }
