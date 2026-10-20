@@ -1,0 +1,41 @@
+# A release: push a tag v<version> that matches $AkariVersion in Core/Version.ps1.
+#   git tag -a v0.1.0 -m "release notes here"   (an annotated tag's message becomes the notes; else GitHub writes them)
+#   git push origin v0.1.0
+# Builds AkariOS-<version>.zip (one AkariOS\ folder with what Akari runs from) and publishes it. Akari's updater
+# (Core/Update.ps1) reads the latest release and checks the zip against the SHA-256 GitHub reports for it.
+# Windows runner: files get CRLF line endings, like a Windows checkout (.cmd and .reg files need them).
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the zip
+        shell: pwsh
+        run: |
+          $ver = (Select-String -Path Core/Version.ps1 -Pattern "AkariVersion = '([^']+)'").Matches[0].Groups[1].Value
+          if ("v$ver" -ne $env:GITHUB_REF_NAME) { throw "Tag $env:GITHUB_REF_NAME does not match `$AkariVersion = '$ver' in Core/Version.ps1" }
+          New-Item dist/AkariOS -ItemType Directory -Force | Out-Null
+          Copy-Item Akari.ps1, Core, UI, Tweaks, Presets, OneClick, Assets, LICENSE, CREDITS.md, AllowScripts.cmd dist/AkariOS -Recurse
+          Compress-Archive dist/AkariOS "dist/AkariOS-$ver.zip"
+          "AKARI_VERSION=$ver" >> $env:GITHUB_ENV
+
+      - name: Publish the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          # checkout may leave an annotated tag lightweight: fetch it as it is
+          git fetch --force origin "refs/tags/${tag}:refs/tags/${tag}"
+          $notes = if ((git cat-file -t $tag) -eq 'tag') { '--notes-from-tag' } else { '--generate-notes' }
+          gh release create $tag "dist/AkariOS-$env:AKARI_VERSION.zip" --title "AkariOS $env:AKARI_VERSION" $notes

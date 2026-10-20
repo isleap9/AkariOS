@@ -388,9 +388,23 @@
               <StackPanel x:Name="StepBody"/>
             </StackPanel>
 
-            <!-- Home page: four tiles (built in UI\Shell.ps1); no sidebar on this page. -->
+            <!-- Home page: the update bar (only when a newer release exists, UI\About.ps1), four tiles (built in
+                 UI\Shell.ps1) and the About link; no sidebar on this page. -->
             <StackPanel x:Name="HomePanel" Visibility="Collapsed">
+              <Border x:Name="UpdateBar" Visibility="Collapsed" CornerRadius="4" BorderThickness="1" Padding="16,10" Margin="0,0,0,12"
+                      BorderBrush="{DynamicResource Bd}" Background="{DynamicResource S1}">
+                <DockPanel>
+                  <TextBlock DockPanel.Dock="Left" Text="&#xE896;" FontFamily="{StaticResource Icons}" FontSize="16"
+                             VerticalAlignment="Center" Margin="0,0,12,0" Foreground="{DynamicResource Ok}"/>
+                  <Button x:Name="UpdateOpen" DockPanel.Dock="Right" Style="{StaticResource Btn}" Content="See what's new" Margin="12,0,0,0"/>
+                  <TextBlock x:Name="UpdateText" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                </DockPanel>
+              </Border>
               <UniformGrid x:Name="HomeTiles" Columns="4" Margin="0,8,0,0"/>
+              <Button x:Name="AboutLink" Style="{StaticResource Ghost}" HorizontalAlignment="Left" Margin="0,16,0,0" Padding="0"
+                      ToolTip="Version, updates and credits">
+                <TextBlock Text="About AkariOS" Margin="8,4" Foreground="{DynamicResource Mu}"/>
+              </Button>
             </StackPanel>
 
             <StackPanel x:Name="Rows"/>

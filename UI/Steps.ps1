@@ -87,7 +87,7 @@ function Get-AkariLegacyList($Tweaks, [string]$Page, [string]$Query) {
 
 function Step-AkariBack {
     # the choosers' Back goes Home, Back on the first Downloads step to where Downloads was opened (no sidebar here)
-    if ($script:Cat -eq 'Optimize' -or $script:Mode -eq 'Choose') { Select-AkariPage 'Home'; return }
+    if ($script:Cat -in 'Optimize', 'About' -or $script:Mode -eq 'Choose') { Select-AkariPage 'Home'; return }
     $prev = Get-AkariFlowStep $script:Mode $script:Step -1
     if ($null -ne $prev) { $script:Step = $prev }
     elseif ($script:Mode -eq 'Downloads') { Select-AkariPage $script:FlowExit; return }

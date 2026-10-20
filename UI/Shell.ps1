@@ -7,7 +7,8 @@ $window = [Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\MainWindow.x
 $window.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Controls.xaml" -Raw)))
 foreach ($n in 'Nav', 'Search', 'Heading', 'Rows', 'Page', 'Logo', 'HomePanel',
                'Shell', 'Body', 'Main', 'PaneCol', 'PaneToggle', 'HomeTiles', 'HeaderIcon', 'HeaderSub', 'StatusDot', 'StatusRing', 'StatusText', 'StatusBar',
-               'CapMin', 'CapMax', 'CapMaxGlyph', 'CapClose', 'StepsPanel', 'StepDots', 'StepBody', 'StepFooter', 'StepBack', 'StepNext') { Set-Variable $n $window.FindName($n) }
+               'CapMin', 'CapMax', 'CapMaxGlyph', 'CapClose', 'StepsPanel', 'StepDots', 'StepBody', 'StepFooter', 'StepBack', 'StepNext',
+               'UpdateBar', 'UpdateText', 'UpdateOpen', 'AboutLink') { Set-Variable $n $window.FindName($n) }
 Initialize-AkariSteps
 
 # every page: icon glyph (Segoe Fluent Icons) and the subtitle under the page title. Home, Install AkariOS,
@@ -20,6 +21,8 @@ $Pages = [ordered]@{
     Optimize   = @{ Glyph = [char]0xE713; Sub = 'Manual, in-depth optimization for Windows' }
     # Downloads: the Guided Install cards on their own (apps, runtimes, tools; Store apps the debloat removed)
     Downloads  = @{ Glyph = [char]0xE896; Sub = 'Install apps, runtimes and tools, from winget where possible' }
+    # About & Updates (UI\About.ps1): the Home link and the update bar open it
+    About      = @{ Glyph = [char]0xE946; Sub = 'Version, updates and credits' }
     # Legacy pages: the frozen AkariOS-Ultimate tweaks (ADR 0004)
     Check      = @{ Glyph = [char]0xE9D9; Sub = 'Check your BIOS, storage, RAM and GPU, and stress test them' }
     Refresh    = @{ Glyph = [char]0xE72C; Sub = 'Reinstall or reset Windows, and get a fresh install ready' }
@@ -99,17 +102,20 @@ function Show-Page {
     $onSteps = ($script:Cat -in 'Install AkariOS', 'Downloads')
     # the Optimize chooser; a search typed there lists Legacy matches instead
     $onChooser = (-not $q -and $script:Cat -eq 'Optimize')
+    # About & Updates: full window like the chooser, Back leads home
+    $onAbout = (-not $q -and $script:Cat -eq 'About')
     # full-window pages like Home: no sidebar (Back leads home)
-    if ($onSteps -or $onChooser) { Set-AkariPane $false }
-    $StepsPanel.Visibility = if ($onSteps -or $onChooser) { 'Visible' } else { 'Collapsed' }
+    if ($onSteps -or $onChooser -or $onAbout) { Set-AkariPane $false }
+    $StepsPanel.Visibility = if ($onSteps -or $onChooser -or $onAbout) { 'Visible' } else { 'Collapsed' }
     $StepFooter.Visibility = $StepsPanel.Visibility
-    if ($onSteps -or $onChooser) {
+    if ($onSteps -or $onChooser -or $onAbout) {
         $Rows.Children.Clear()
         $HomePanel.Visibility = 'Collapsed'
         $Heading.Text = $script:Cat
         $HeaderSub.Text = $Pages[$script:Cat].Sub
         $HeaderIcon.Text = [string]$Pages[$script:Cat].Glyph
         if ($onChooser) { Show-AkariOptimizeChooser; return }
+        if ($onAbout) { Show-AkariAbout; return }
         Enter-AkariFlow $script:Cat
         Show-AkariSteps
         return

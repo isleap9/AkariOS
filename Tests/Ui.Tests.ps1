@@ -151,11 +151,12 @@ Describe 'Shell navigation' {
     # builds the shell in a child STA PowerShell with fixture tweaks; the window is never shown (no ShowDialog)
     $probe = "$TestDrive\shell.ps1"
     Set-Content $probe -Value @'
-param($Root, $LogFile)
+param($Root, $LogFile, $Install)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework
 $AkariLogFile = $LogFile
-foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'Restore') { . "$Root\Core\$f.ps1" }
+foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'Restore', 'Version', 'Update') { . "$Root\Core\$f.ps1" }
+$AkariInstallDir = $Install
 function L($id, $page, $name) { ConvertTo-AkariTweak @{ Id = $id; Name = $name; Description = 'D'; Section = $page; Category = ''; Risk = 'Safe'; Kind = 'Action'; Button = 'Run'; Apply = { } } 'x' $true }
 $script:Tweaks = [System.Collections.Generic.List[object]]::new()
 foreach ($t in @((L 'dark' 'Windows' 'Dark theme'), (L 'bios' 'Check' 'BIOS check'), (L 'leg-adv' 'Advanced' 'Old advanced'),
@@ -164,8 +165,10 @@ $script:Groups = @(); $script:RowCache = @{}; $script:Cat = 'Home'; $script:Busy
 $script:Queue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
 $loaded = @{ Problems = @() }
 function Get-AkariAppxInstalled { @() }; function Start-AkariFeatureRead { }
-foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows') { . "$Root\UI\$f.ps1" }
+foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows', 'About') { . "$Root\UI\$f.ps1" }
 $timer.Stop()
+# the launch prompt is a dialog: record it instead
+function Show-AkariUpdatePrompt { $script:Prompted = $true }
 function Click($b) { $b.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent)) }
 function Rows { ($Rows.Children | ForEach-Object { if ($_ -is [Windows.Controls.TextBlock]) { 'msg' } else { $_.Child.Children[0].Children[1].Children[0].Text } }) -join ',' }
 "nav=$(($Nav.Children | ForEach-Object { $_.Tag }) -join ',')"
@@ -180,9 +183,18 @@ $Search.Text = 'theme'; "search=$(Rows)"; $Search.Text = ''
 $Nav.Children[0].IsChecked = $true; "backToChooser=$script:Cat,$($PaneCol.Width.Value)"
 Click $StepBack; "chooserBack=$script:Cat"
 Click $HomeTiles.Children[2]; "dlHome=$script:FlowExit"
+Select-AkariPage 'Home'; Click $AboutLink; "about=$script:Cat,$($StepsPanel.Visibility),$($PaneCol.Width.Value),$($HomePanel.Visibility)"
+"aboutVersion=$($script:AboutParts.Version.Text)"
+Click $StepBack; "aboutBack=$script:Cat"
+$rel = @{ Ok = $true; Version = [version]'9.0.0'; Notes = "## New`n- **fast**"; PageUrl = 'https://example.test/r'; AssetUrl = 'https://example.test/a.zip'; Digest = 'sha256:x' }
+$script:Prompted = $false; Complete-AkariUpdateCheck $rel $false; "launch=$script:Prompted,$($UpdateBar.Visibility),$($UpdateText.Text)"
+Select-AkariPage 'Optimize'; $script:Prompted = $false; Complete-AkariUpdateCheck $rel $false; "launchAway=$script:Prompted"
+Select-AkariPage 'About'; "aboutAvail=$($script:AboutParts.Status.Text)|$($script:AboutParts.Update.Visibility)|$($script:AboutParts.Notes.Text -replace "`n", '/' -replace [char]0x2022, '*')"
+Complete-AkariUpdateCheck @{ Ok = $false; Message = 'No releases yet.' } $true; "aboutError=$($script:AboutParts.Status.Text)|$($script:AboutParts.Update.Visibility)"
+Complete-AkariUpdateCheck @{ Ok = $true; Version = [version]$AkariVersion } $false; "latest=$($UpdateBar.Visibility)"
 '@
     $out = @{}
-    & powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -LogFile "$TestDrive\a.log" 2>&1 | ForEach-Object {
+    & powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -LogFile "$TestDrive\a.log" -Install "$TestDrive\inst" 2>&1 | ForEach-Object {
         $l = "$_"; $i = $l.IndexOf('='); if ($i -gt 0 -and $l -notmatch '^\[') { $out[$l.Substring(0, $i)] = $l.Substring($i + 1) } elseif ($l -notmatch '^\[') { $out['error'] += $l }
     }
 
@@ -207,6 +219,20 @@ Click $HomeTiles.Children[2]; "dlHome=$script:FlowExit"
         $out.chooserBack | Should Be 'Home'
     }
     It 'Downloads from Home exits to Home' { $out.dlHome | Should Be 'Home' }
+    It 'the About link on Home opens About, full window, and Back goes Home' {
+        $out.about | Should Be 'About,Visible,0,Collapsed'
+        $out.aboutVersion | Should Match '^AkariOS \d+\.\d+\.\d+$'
+        $out.aboutBack | Should Be 'Home'
+    }
+    It 'a launch check that finds an update asks on Home and shows the Home bar' {
+        $out.launch | Should Match '^True,Visible,AkariOS 9\.0\.0 is available'
+    }
+    It 'a launch check does not ask once the user has left Home' { $out.launchAway | Should Be 'False' }
+    It 'About shows the update, its Update button and the notes as text' {
+        $out.aboutAvail | Should Match '^AkariOS 9\.0\.0 is available.*\|Visible\|New/\* fast$'
+    }
+    It 'About shows a failed check and hides Update' { $out.aboutError | Should Be 'No releases yet.|Collapsed' }
+    It 'the Home bar hides when there is nothing to install' { $out.latest | Should Be 'Collapsed' }
 }
 
 Describe 'Console instead of a log panel' {

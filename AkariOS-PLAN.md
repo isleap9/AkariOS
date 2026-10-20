@@ -384,6 +384,7 @@ Loader rules:
   iwr 'https://github.com/isleap9/AkariOS/releases/latest/download/Akari.ps1' -useb | iex
   ```
 - Never edit the bundled file by hand.
+- ✅ Releases and updates (decided 2026-10-20, before M6): `$AkariVersion` in `Core/Version.ps1` (SemVer, `1.0.0` at M6), tag `v<version>`; `.github/workflows/release.yml` zips the runtime folders into `AkariOS-<version>.zip` and publishes it. A folder install updates itself (`Core/Update.ps1`, `UI/About.ps1`): a background check on every GUI launch (never CLI or `-Resume`) and a Check button on the About page; an update found while still on Home asks "Update now / Later", Home shows a bar until Akari closes; never automatic. Install: download, SHA-256 against the `digest` GitHub reports (refused without one), unpack, then a helper outside the folder waits for Akari to exit, swaps the folder (old copy kept as `.old`, put back on failure) and restarts Akari. Blocked in a git checkout, during a Run in phases or while changes are applied. `%LOCALAPPDATA%\Akari` is never touched. Offline / rate limit: silent on launch, one line on the About page. Run through `iex` (M6), Akari is always the latest and offers no update.
 
 ---
 
