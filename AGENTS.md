@@ -7,7 +7,7 @@ PowerShell 5.1 + WPF app that debloats and optimizes Windows 10 22H2 / 11 for ga
 
 ## Current layout (transitional)
 
-The port is in progress (M1 Engine and M2a Manual steps done, M3 in progress; plans in `docs/plans/`).
+The port is in progress (M1 Engine, M2a Manual steps and M3 Windows port + Presets done; plans in `docs/plans/`).
 
 - `Akari.ps1`: `-OneClick 2|3` branch (One-click phases resumed by RunOnce, console only), CLI branch (`-List`, `-Apply id,id`, `-Revert id,id`, `-Preset <name|file.json>`, `-RevertPreset <name|file.json>`; all but `-List` need an elevated shell; preset wildcards read what is on the PC), then elevation (the elevated console stays visible: launch banner, live log), Core and tweak loading, and dot-sourcing `UI/*.ps1`.
 - `Core/` (dot-sourced function files, no tweak logic):

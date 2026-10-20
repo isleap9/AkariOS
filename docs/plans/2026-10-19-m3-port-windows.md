@@ -169,6 +169,19 @@ Done 2026-10-20. Changes from the above: Revert in a preset is `{ "id": "Default
 
 ---
 
+## Status (2026-10-20): done
+
+All eight tasks are done and checked on the VM (Windows 11 26H2; Windows 10 where it matters).
+
+- **UI:** Optimize is a Legacy / Advanced chooser; only Legacy has a sidebar (Downloads in the old Installers slot). The legacy `edge-webview` row, deleted by e94039d, is back (ADR 0004). The Home spec cards are gone.
+- **Engine:** `Requires`, `Explorer` (one restart per Run), registry key rows and literal paths, `(default)` values, Binary and hex DWords, `Before` / `After`, `Ported.psd1`, one owner per registry value, `$AkariTweakDir` in Detect. Changes that restart the PC or go into Safe Mode run last, one per Run, and Review says so.
+- **Port:** 126 one-file tweaks in Optimize and Customize from `6 Windows` (Control Panel Settings generated from its own .reg blocks), plus Edge / WebView2 installs in Downloads.
+- **AkariOS marks:** `AkariOS = $true` shows "(AkariOS)" in Guided. A test checks them against `OneClick/reg.reg` and `steptwo.ps1`.
+- **Presets:** `Presets/AkariOS.json` = the marks; Quick select, Last used, CLI `-Preset` / `-RevertPreset`.
+- **Along the way:** the AkariOS Start pins are Settings + File Explorer in Guided, One-click and Legacy alike (captured on 26H2); the new logo, the new One-click wallpaper, the console banner from `Assets/ascii.txt`.
+- **Found in the sources:** `UserPreferencesMask` was written as text by FR33THY's .reg and by `reg.reg` (Windows wants binary, so One-click's animation settings likely never applied). The ported tweak writes it correctly; `reg.reg` itself is unchanged.
+- **Left in Legacy (shown in Guided as "Not yet ported"):** Control Panel (focus / priority notification blobs, app actions, Explorer `IsEnabled`), Copilot (app removal), Gamebar (its Revert reinstalls the Xbox apps), Notepad (settings hive), UAC, Defender optimize, and the `8 Advanced`, `7 Hardware`, `5 Graphics`, `3 Setup` rows.
+
 ## After this plan
 
 - **Batch 4, Advanced › Security** (`31 UAC`, `32 Core Isolation`, `33 Defender Optimize`, and `8 Advanced` Defender, Firewall, Spectre, DEP, download warning): SmartScreen and other normal-boot parts can come first; the Safe Mode parts wait for M4 (Phases from a Run).
@@ -178,4 +191,4 @@ Done 2026-10-20. Changes from the above: Revert in a preset is `{ "id": "Default
 ## Still open (recommendations, confirm before the task that needs them)
 
 - `OneClick/akarios.ps1` downloads the old AkariOS-Ultimate to the Desktop: **drop it**; after M6, replace with a Desktop shortcut running the `iwr` one-liner.
-- AkariOS-Files (7 non-winget installs, One-click installers, Edge/WebView reinstall): **move with M6** (Releases + `Core/Download.ps1`), not in this plan.
+- AkariOS-Files (the non-winget installs, the One-click installers; the Edge / WebView2 reinstall now comes from winget): **move with M6** (Releases + `Core/Download.ps1`), not in this plan.

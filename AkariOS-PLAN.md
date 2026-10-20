@@ -133,41 +133,49 @@ Things to keep: one-job-at-a-time runner, log queue drained on the UI thread, `D
 AkariOS/
 ├─ Akari.ps1                  # entry point (GUI / CLI / preset)
 ├─ Core/
-│  ├─ Loader.ps1              # discovers + validates tweak files
-│  ├─ Registry.ps1            # Set / Remove / Test registry helpers (incl. real-user HKCU)
-│  ├─ Services.ps1            # service start-type helpers
+│  ├─ Loader.ps1              # discovers + validates tweak files, Ported.psd1, one owner per registry value
+│  ├─ Registry.ps1            # Set / Remove / Test registry helpers (incl. real-user HKCU, key rows, literal paths)
 │  ├─ Trusted.ps1             # Run-Trusted (TrustedInstaller), one copy only
-│  ├─ Download.ps1            # fetch binaries from the GitHub Release (7-Zip, DDU, VC++…)
-│  ├─ Runner.ps1              # apply/revert list of ids, background runspace, reboot tracking
+│  ├─ Runner.ps1              # apply/revert list of ids, background runspace, restart-last, Explorer once
 │  ├─ State.ps1               # Detect / remembered state
-│  ├─ Phases.ps1              # RunOnce / scheduled-task resume, Safe Mode on/off
-│  ├─ Presets.ps1             # load/save Preset JSON (built-in + user)
-│  └─ Log.ps1
+│  ├─ System.ps1              # OS / chassis reads (Requires), Explorer restart, powercfg, csc, wallpaper refresh
+│  ├─ Presets.ps1             # load/save Preset JSON (built-in + user), Last used
+│  ├─ Phases.ps1              # RunOnce resume, Safe Mode on/off (One-click)
+│  ├─ Appx.ps1, Winget.ps1, AppSetup.ps1, Restore.ps1   # apps, installs, restore point
+│  ├─ Legacy.ps1, Compat.ps1  # the Add-Tweak adapter and shims for Legacy (frozen)
+│  ├─ Log.ps1                 # log, console banner (Assets\ascii.txt)
+│  ├─ Services.ps1            # (later) service start-type helpers
+│  └─ Download.ps1            # (later, M6) fetch binaries from the GitHub Release (7-Zip, DDU, VC++…)
 ├─ Tweaks/
 │  ├─ *.ps1                   # Legacy: the 7 generated AkariOS-Ultimate files, frozen (ADR 0004)
 │  ├─ Ported.psd1             # legacy id → the one-file ids that fully replace it
-│  ├─ Apps/
+│  ├─ Apps/                   # Remove (debloat), Install (Downloads)
 │  ├─ Optimize/
 │  │  ├─ Gaming/
+│  │  ├─ Network/
 │  │  ├─ Performance/
 │  │  ├─ Power/
 │  │  ├─ Privacy/
-│  │  ├─ Services/
+│  │  ├─ Services/            # (later) the Services data-list Group
 │  │  └─ Update/
 │  ├─ Customize/
 │  │  ├─ Taskbar/
 │  │  ├─ Start/
 │  │  ├─ Explorer/
-│  │  └─ Theme/
-│  ├─ Hardware/              # Section shown as "Graphics & Hardware"
+│  │  ├─ Theme/
+│  │  ├─ Notifications/
+│  │  ├─ Input/
+│  │  ├─ Accessibility/
+│  │  ├─ Sound/
+│  │  └─ System/
+│  ├─ Hardware/              # (later) Section shown as "Graphics & Hardware"
 │  │  ├─ Graphics/
 │  │  └─ Devices/
 │  └─ Advanced/
 │     └─ Tuning/              # Win32PrioritySeparation, SvcHostSplitThreshold Choices
 ├─ Presets/
-│  ├─ AkariOS.json            # full one-click (replaces Akari-OS repo)
-│  ├─ Gaming.json
-│  └─ Light.json
+│  └─ AkariOS.json            # the AkariOS setup = the AkariOS marks (M4 adds its Phases and runs One-click from it)
+├─ OneClick/                  # the imported Akari-OS phases, run natively until M4
 ├─ UI/
 │  ├─ MainWindow.xaml         # shell, carried over from AkariOS-Ultimate
 │  ├─ Controls.xaml           # WinUI-style switch, combobox, setting card, expander
@@ -175,11 +183,11 @@ AkariOS/
 │  ├─ Rows.ps1                # Optimize › Legacy rows (act right away)
 │  ├─ Selection.ps1           # pending changes of the Manual steps (no WPF)
 │  ├─ Cards.ps1               # one setting card per Tweak
-│  ├─ Steps.ps1               # Apps → Tweaks → Review & Apply
-│  └─ Toolbox.ps1             # Install / Utilities (M2b)
-├─ Assets/                    # logo, wallpaper, start2 layout
+│  ├─ Apps.ps1                # the Apps step (Remove / Install), Downloads
+│  └─ Steps.ps1               # choosers, Apps → Tweaks → Review & Apply, Quick select
+├─ Assets/                    # logo (png, ico, ascii.txt for the console)
 ├─ Build/
-│  └─ Bundle.ps1              # merges everything into one Akari.ps1 for release (skips _ref/)
+│  └─ Bundle.ps1              # (M6) merges everything into one Akari.ps1 for release (skips _ref/)
 ├─ _ref/                      # local reference projects, gitignored (see §10)
 ├─ .github/workflows/release.yml
 ├─ .gitignore                 # includes _ref/
@@ -415,7 +423,8 @@ Shallow clones (`git clone --depth 1`) kept next to the code so agents always ha
    - replace inline copies of `Run-Trusted` with the `Core/Trusted.ps1` one;
    - convert pure registry bodies (`cmd /c reg add …`) into `Registry` data.
    The `Add-Tweak` adapter (`Core/Legacy.ps1`) and `Core/Compat.ps1` stay as long as Legacy does.
-4. **Port Akari-OS:** (One-click already runs the imported `OneClick/` scripts as-is; this step replaces them) split `akarios.ps1`, `stepone.ps1`, `steptwo.ps1` and `reg.reg` into tweak files; build `Presets/AkariOS.json` and `Core/Phases.ps1`.
+   ✅ `6 Windows` (M3, Oct 2026): 126 one-file tweaks in Optimize and Customize, most of Control Panel Settings generated from its own Optimize / Default `.reg` blocks. Left in Legacy for now: Control Panel's focus / priority notification blobs, app actions and Explorer `IsEnabled`; Copilot's app removal; Gamebar's Revert (reinstalls the Xbox apps); Notepad settings (an app settings hive); UAC, Core isolation, Defender (Safe Mode, M4). Next: `8 Advanced`, `7 Hardware`, `5 Graphics`, `3 Setup` (Toggles only).
+4. **Port Akari-OS:** (One-click already runs the imported `OneClick/` scripts as-is; this step replaces them) split `akarios.ps1`, `stepone.ps1`, `steptwo.ps1` and `reg.reg` into tweak files; build `Presets/AkariOS.json` and `Core/Phases.ps1`. M3 started it: every one-file Tweak One-click also does is marked `AkariOS = $true` (checked against `reg.reg` and `steptwo.ps1` by a test), and `Presets/AkariOS.json` is those marks; M4 adds the Phases and switches One-click to the preset.
 5. ✅ M2a (Oct 2026, `docs/plans/2026-10-19-m2a-manual-steps.md`: UI split, controls, Manual steps, Apply with restore point; M2b still to do) **GUI:** build the §4 experience inside the kept shell: split `Akari.ps1` into `UI/Shell.ps1`, `UI/Home.ps1`, `UI/Steps.ps1`, `UI/Cards.ps1`, `UI/Toolbox.ps1`; WinUI-style control templates in XAML. Comes **before** the port (step 3), so ported Tweaks land straight in the new UI.
 6. **Build + Release:** `Bundle.ps1` + GitHub Action; move binaries from AkariOS-Files into Releases; `Core/Download.ps1`; retire `IWR.ps1` and `AllowScripts.cmd`.
 7. **Archive:** `Akari-OS`, `AkariOS-Files`, Akari Tool (C#), AkariOS-Companion, WinUI toolbox. Add a README line pointing to `isleap9/AkariOS`.
@@ -428,11 +437,11 @@ Shallow clones (`git clone --depth 1`) kept next to the code so agents always ha
 |---|---|
 | **M1: Engine** | Core extracted from `Akari.ps1`; Loader + Registry + Runner work from CLI: `-List`, `-Apply`, `-Revert` on 3 sample tweaks; GUI still runs through the `Add-Tweak` adapter. |
 | **M2: Experience** (M2a ✅ Manual steps; M2b: Home, Install / Utilities, status bar, log panel gone) | §4 experience inside the kept shell: Home (One-click / Manual / Undo everything), guided steps (Tweaks → Review & Apply; Apps step stubbed), Install / Utilities pages, WinUI-style cards / switch / combobox, status bar with Restart required; tuners and log panel gone; old tweaks reachable until ported. Built from Core/Loader only. |
-| **M3: Windows category** (plan `docs/plans/2026-10-19-m3-port-windows.md`) | Optimize chooser (Legacy / Advanced); engine prep (`Requires`, `Explorer`, `Ported.psd1`); `6 Windows` from the old no-UI Ultimate ported to one-file tweaks, all Toggles revertible with `Detect` (Security parts wait for M4); Presets with Quick select, Last used and CLI `-Preset`. |
+| **M3: Windows category** ✅ Oct 2026 (plan `docs/plans/2026-10-19-m3-port-windows.md`) | Optimize chooser (Legacy / Advanced); engine prep (`Requires`, `Explorer`, `Ported.psd1`); `6 Windows` from the old no-UI Ultimate ported to one-file tweaks, all Toggles revertible with `Detect` (Security parts wait for M4); Presets with Quick select, Last used and CLI `-Preset`. |
 | **M4: One-click** | AkariOS one-click (Home button and `-Preset AkariOS`) reproduces the old Akari-OS 3-phase run, including reboots and Safe Mode. |
-| **M5: Apps + Config** | App removal checklist + WinGet installs; Import / Export (Quick select, Last used and Save as preset come with M3). |
+| **M5: Apps + Config** | Import / Export of settings (the Home tile). Already done earlier: the app removal checklist and winget installs (Guided Apps, Downloads), Quick select, Last used and Save as preset (M3). |
 | **M6: Release** | Bundled single-file release via GitHub Action, old repos archived. |
-| **M7: Polish** | Rest of the port, Services list, `Requires` filtering, own tweaks, new Home extras. |
+| **M7: Polish** | Rest of the port, Services list, own tweaks, new Home extras, Optimize › Advanced. (`Requires` filtering came with M3.) |
 
 ---
 
