@@ -199,3 +199,43 @@ Describe 'The real app installs' {
 
     It 'has no legacy installer left' { Test-Path "$Root\Tweaks\Installers.ps1" | Should Be $false }
 }
+
+Describe 'Install-AkariMicrosoftStore' {
+    $Core = Join-Path (Split-Path $PSScriptRoot) 'Core'
+    foreach ($f in 'Log', 'Registry', 'Appx', 'Winget') { . "$Core\$f.ps1" }
+    $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
+    Mock Add-AppxPackage { }
+    Mock Install-AkariWingetTool { }
+    Mock Start-Process { }
+    Mock Start-Sleep { }
+    Context 'already there' {
+        Mock Test-AkariAppxInstalled { $true }
+        Mock Invoke-AkariWinget { @{ Code = 0; Out = @() } }
+        It 'does nothing' {
+            Install-AkariMicrosoftStore
+            Assert-MockCalled Invoke-AkariWinget -Exactly 0 -Scope It
+            Assert-MockCalled Start-Process -Exactly 0 -Scope It
+        }
+    }
+    Context 'removed for every user (no copy on the disk): winget brings it back' {
+        $script:wingetRan = $false
+        Mock Get-AkariAppxPackages { }
+        Mock Test-AkariAppxInstalled { $script:wingetRan }
+        Mock Invoke-AkariWinget { $script:wingetRan = $true; @{ Code = 0; Out = @() } }
+        It 'installs product 9WZDNCRFJBMP from msstore and never needs wsreset' {
+            Install-AkariMicrosoftStore
+            Assert-MockCalled Invoke-AkariWinget -Exactly 1 -Scope It -ParameterFilter { ($Arguments -join ' ') -match '^install --id 9WZDNCRFJBMP --exact --source msstore ' }
+            Assert-MockCalled Start-Process -Exactly 0 -Scope It
+        }
+    }
+    Context 'winget fails too' {
+        Mock Get-AkariAppxPackages { }
+        Mock Test-AkariAppxInstalled { $false }
+        Mock Invoke-AkariWinget { @{ Code = -1; Out = @('No applicable installer') } }
+        It 'falls back to wsreset -i, then says so when it is still not there' {
+            { Install-AkariMicrosoftStore } | Should Throw 'still downloading'
+            Assert-MockCalled Start-Process -Exactly 1 -Scope It -ParameterFilter { $FilePath -like '*wsreset.exe' -and $ArgumentList -eq '-i' }
+            ($LogQueue.ToArray() -join '|') | Should Match 'winget failed'
+        }
+    }
+}

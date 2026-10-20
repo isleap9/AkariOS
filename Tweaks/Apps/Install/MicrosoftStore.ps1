@@ -12,7 +12,7 @@
     Kind        = 'Action'
     Button      = 'Install'
     Risk        = 'Safe'
-    Description = 'Brings the Microsoft Store back after a debloat: registers it again, or has Windows download it (wsreset -i).'
+    Description = 'Brings the Microsoft Store back after a debloat: registers it again, else downloads it with winget (msstore), else has Windows reinstall it (wsreset -i).'
     Detect      = { Test-AkariAppxInstalled 'Microsoft.WindowsStore' }
     Apply       = { Install-AkariMicrosoftStore }
 }

@@ -70,20 +70,31 @@ function Install-AkariAppInstaller {
     Add-AppxPackage "$tmp\AppInstaller.msixbundle" -ErrorAction Stop
 }
 
-# the Microsoft Store, for 'msstore' installs (the debloat may have removed it): registered again when it is still on
-# the disk for another user, else Windows downloads it (wsreset -i), waited for up to 5 minutes
+# the Microsoft Store, for 'msstore' installs and its own restore row (the debloat removes it for every user, so its
+# files are usually gone). In order, until it is there: registered again from a copy still on the disk; winget from the
+# msstore source (product 9WZDNCRFJBMP: Windows' install service downloads it, the Store app isn't needed); Windows'
+# own reinstall (wsreset -i), waited for up to 5 minutes. Each step is logged.
+$AkariStoreProductId = '9WZDNCRFJBMP'
 function Install-AkariMicrosoftStore {
     if (Test-AkariAppxInstalled 'Microsoft.WindowsStore') { return }
-    Write-Log 'Microsoft Store: installing it first'
-    Get-AkariAppxPackages | Where-Object { $_.Name -like '*WindowsStore*' -and $_.InstallLocation } | ForEach-Object {
+    Write-Log 'Microsoft Store: registering it again'
+    Get-AkariAppxPackages | Where-Object { $_.Name -like '*WindowsStore*' -and $_.InstallLocation -and (Test-Path -LiteralPath "$($_.InstallLocation)\AppxManifest.xml") } | ForEach-Object {
         Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppxManifest.xml" -ErrorAction SilentlyContinue
     }
     if (Test-AkariAppxInstalled 'Microsoft.WindowsStore') { return }
+    Write-Log 'Microsoft Store: not on the disk any more, downloading it with winget'
+    try {
+        Install-AkariWingetTool
+        $r = Invoke-AkariWinget @('install', '--id', $AkariStoreProductId, '--exact', '--source', 'msstore', '--silent',
+            '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity')
+        if ($r.Code -notin $AkariWingetOk) { Write-Log ("Microsoft Store: winget failed (0x{0:X8}): {1}" -f $r.Code, "$(@($r.Out | Where-Object { $_ -match '[A-Za-z]{3}' }) | Select-Object -Last 1)".Trim()) }
+    } catch { Write-Log "Microsoft Store: winget failed: $($_.Exception.Message)" }
+    if (Test-AkariAppxInstalled 'Microsoft.WindowsStore') { return }
+    Write-Log 'Microsoft Store: asking Windows to reinstall it (wsreset -i), this can take a few minutes'
     Start-Process "$env:SystemRoot\System32\wsreset.exe" -ArgumentList '-i' -WindowStyle Hidden
     for ($i = 0; $i -lt 60 -and -not (Test-AkariAppxInstalled 'Microsoft.WindowsStore'); $i++) { Start-Sleep -Seconds 5 }
     if (-not (Test-AkariAppxInstalled 'Microsoft.WindowsStore')) { throw 'the Microsoft Store is still downloading: try again in a few minutes' }
 }
-
 # installs one winget package silently; throws with winget's last line when it fails.
 # $Source 'msstore': a Microsoft Store product id (the Store is installed first when it is missing)
 function Install-AkariWingetPackage([string]$Id, [string]$Source = 'winget') {
