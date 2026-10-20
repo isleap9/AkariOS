@@ -181,28 +181,12 @@ IWR "https://github.com/isleap9/AkariOS-Files/releases/download/Files/directx.ex
 # install directx
 Start-Process -Wait "$env:SystemRoot\Temp\directx\DXSETUP.exe" -ArgumentList "/silent" -WindowStyle Hidden
 
-        Write-Host "ULTIMATE`n"
-        ## explorer "https://github.com/isleap9/AkariOS-Ultimate"
-
-# download akarios ultimate to the desktop, skipped if the download fails
-try {
-IWR "https://github.com/isleap9/AkariOS-Ultimate/archive/refs/heads/main.zip" -OutFile "$env:SystemRoot\Temp\AkariOS-Ultimate.zip" -ErrorAction Stop
-Remove-Item -Recurse -Force "$env:SystemRoot\Temp\AkariOS-Ultimate" -ErrorAction SilentlyContinue | Out-Null
-Expand-Archive -Path "$env:SystemRoot\Temp\AkariOS-Ultimate.zip" -DestinationPath "$env:SystemRoot\Temp\AkariOS-Ultimate" -Force -ErrorAction Stop
-$Desktop = (New-Object -ComObject Shell.Application).Namespace('shell:Desktop').Self.Path
-New-Item -Path "$Desktop\AkariOS-Ultimate" -ItemType Directory -Force | Out-Null
-Copy-Item -Path "$env:SystemRoot\Temp\AkariOS-Ultimate\AkariOS-Ultimate-main\*" -Destination "$Desktop\AkariOS-Ultimate" -Recurse -Force -ErrorAction Stop
+# (the old AkariOS-Ultimate Desktop download is gone: Akari itself has those pages, Optimize > Legacy)
 
 # allow double click powershell scripts
 cmd /c "reg add `"HKCR\Applications\powershell.exe\shell\open\command`" /ve /t REG_SZ /d `"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoLogo -ExecutionPolicy unrestricted -File \`"`"%1\`"`"`" /f >nul 2>&1"
 cmd /c "reg add `"HKCU\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell`" /v `"ExecutionPolicy`" /t REG_SZ /d `"Unrestricted`" /f >nul 2>&1"
 cmd /c "reg add `"HKLM\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell`" /v `"ExecutionPolicy`" /t REG_SZ /d `"Unrestricted`" /f >nul 2>&1"
-
-# unblock all files
-Get-ChildItem -Path "$Desktop\AkariOS-Ultimate" -Recurse | Unblock-File
-} catch {
-Write-Host "AkariOS-Ultimate download failed, skipping`n" -ForegroundColor Yellow
-}
 
         Write-Host "REMOVEUWP`n"
         ## ms-settings:appsfeatures

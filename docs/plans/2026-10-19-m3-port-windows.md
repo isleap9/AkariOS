@@ -188,7 +188,7 @@ All eight tasks are done and checked on the VM (Windows 11 26H2; Windows 10 wher
 - Next plan: `8 Advanced`, `7 Hardware`, `5 Graphics`, `3 Setup` (Toggles only), Services Group (ADR 0002), Optimize › Advanced design.
 - M4: One-click from `Presets/AkariOS.json` with Phases.
 
-## Still open (recommendations, confirm before the task that needs them)
+## Decided (2026-10-20)
 
-- `OneClick/akarios.ps1` downloads the old AkariOS-Ultimate to the Desktop: **drop it**; after M6, replace with a Desktop shortcut running the `iwr` one-liner.
-- AkariOS-Files (the non-winget installs, the One-click installers; the Edge / WebView2 reinstall now comes from winget): **move with M6** (Releases + `Core/Download.ps1`), not in this plan.
+- `OneClick/akarios.ps1` no longer downloads the old AkariOS-Ultimate to the Desktop (Akari has those pages). After M6, maybe a Desktop shortcut running the `iwr` one-liner.
+- AkariOS-Files (the non-winget installs, the One-click installers; the Edge / WebView2 reinstall now comes from winget) stays as it is until M6 (Releases + `Core/Download.ps1`).
