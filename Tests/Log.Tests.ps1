@@ -1,5 +1,30 @@
 $Core = Join-Path (Split-Path $PSScriptRoot) 'Core'
 
+Describe 'Console banner (Assets\ascii.txt)' {
+    . "$Core\Log.ps1"
+
+    It 'drops blank rows and the common left margin' {
+        Set-Content "$TestDrive\art.txt" @('', '   ', '      .  ', '     ...', '    +++=  ', '', '')
+        (Get-AkariBannerArt "$TestDrive\art.txt" 1 1) -join '|' | Should Be '  .| ...|++++'
+    }
+
+    It 'scales height and width, each character the most common in its block (= counts as +)' {
+        Set-Content "$TestDrive\sq.txt" @('..++', '..+=', '   .', '  ==')
+        (Get-AkariBannerArt "$TestDrive\sq.txt" 0.5 0.5) -join '|' | Should Be '.+| +'
+    }
+
+    It 'gives nothing for a missing file (the text banner shows instead)' {
+        @(Get-AkariBannerArt "$TestDrive\none.txt").Count | Should Be 0
+    }
+
+    It 'finds the AkariOS logo next to Core and it fits a default console (80 x 30, with the lines under it)' {
+        $a = @(Get-AkariBannerArt)
+        $a.Count | Should BeGreaterThan 10
+        $a.Count | Should BeLessThan 25
+        ($a | Measure-Object Length -Maximum).Maximum | Should BeLessThan 79
+    }
+}
+
 Describe 'Write-Log' {
     . "$Core\Log.ps1"
 
