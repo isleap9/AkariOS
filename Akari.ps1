@@ -1,14 +1,15 @@
 ﻿#requires -Version 5.1
-param([ValidateRange(1, 3)][int]$OneClick, [switch]$List, [string[]]$Apply, [string[]]$Revert, [string]$Preset, [string]$RevertPreset)
+param([ValidateRange(1, 3)][int]$OneClick, [switch]$List, [string[]]$Apply, [string[]]$Revert, [string]$Preset, [string]$RevertPreset, [switch]$Resume)
 # Akari. GUI:  powershell -ExecutionPolicy Bypass -File Akari.ps1
-# One-click phases (RunOnce after a restart):  Akari.ps1 -OneClick 2|3
+# A Run in phases, after a restart (RunOnce; Core\Phases.ps1):  Akari.ps1 -Resume
+# The old imported One-click bodies (OneClick\*.ps1, until the VM check of M4):  Akari.ps1 -OneClick 2|3
 # CLI:  Akari.ps1 -List  |  -Apply id,id  |  -Revert id,id  |  -Preset <name|file.json>  |  -RevertPreset <name|file.json>
 #       (all but -List need an elevated shell; -RevertPreset reverts in reverse order and skips Actions)
 
 # ---- CLI: no relaunch, no WPF
 if ($List -or $Apply -or $Revert -or $Preset -or $RevertPreset) {
     $CoreDir = Join-Path $PSScriptRoot 'Core'
-    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Appx', 'Winget', 'AppSetup', 'System', 'Presets', 'Phases') { . "$CoreDir\$f.ps1" }
+    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Appx', 'Winget', 'AppSetup', 'System', 'Presets', 'Phases', 'Restore') { . "$CoreDir\$f.ps1" }
     $loaded = Get-AkariTweaks (Join-Path $PSScriptRoot 'Tweaks')
     foreach ($p in $loaded.Problems) { [Console]::Error.WriteLine("$($p.Level): $($p.File): $($p.Message)") }
     if ($List) {
@@ -25,18 +26,11 @@ if ($List -or $Apply -or $Revert -or $Preset -or $RevertPreset) {
         $name = if ($Preset) { $Preset } else { $RevertPreset }
         $p = Find-AkariPreset $name (Join-Path $PSScriptRoot 'Presets')
         if (-not $p) { [Console]::Error.WriteLine("No preset '$name' (built-in, in $AkariPresetDir, or a .json file)."); exit 2 }
-        $all = @($loaded.Tweaks)
-        # wildcards (appx/*, capability/*, feature/*) mean what is on this PC: build those Entries
-        if (@($p.Entries | Where-Object { $_.Id -like '*/[*]' }).Count) {
-            $names = @(Get-AkariAppxInstalled) + @(Get-AkariCapabilitiesInstalled | ForEach-Object { "capability/$_" }) + @(Get-AkariFeaturesEnabled | ForEach-Object { "feature/$_" })
-            foreach ($n in $names) {
-                $id = if ($n -like '*/*') { $n } else { "appx/$n" }
-                if (-not ($all | Where-Object { $_.Id -eq $id })) { $e = Resolve-AkariEntry $loaded.Groups $id; if ($e) { $all += $e } }
-            }
-        }
-        $plan = Resolve-AkariPreset $p $all -Revert:([bool]$RevertPreset)
-        foreach ($u in $plan.Unknown) { [Console]::Error.WriteLine("Warning: preset $($p.Name): '$u' is not a Tweak here") }
-        $outcomes = @(Invoke-AkariPlan $plan.Items $all)
+        # wildcards (appx/*, capability/*, feature/*) mean what is on this PC; a preset with Phases restarts the PC
+        # between them and goes on in Akari's console (Akari.ps1 -Resume)
+        $r = New-AkariPresetRun $p $loaded -Revert:([bool]$RevertPreset)
+        foreach ($u in $r.Unknown) { [Console]::Error.WriteLine("Warning: preset $($p.Name): '$u' is not a Tweak here") }
+        $outcomes = @(Start-AkariPhases $r.Run $r.Tweaks | Where-Object { $_.Outcome })
     } else {
         $mode = if ($Apply) { 'Apply' } else { 'Revert' }
         $ids = if ($Apply) { $Apply } else { $Revert }
@@ -52,7 +46,24 @@ if ($List -or $Apply -or $Revert -or $Preset -or $RevertPreset) {
     exit 0
 }
 
-# ---- One-click phases 2 and 3: started by RunOnce after a restart (OneClick\OneClick.ps1); console only, no GUI
+# ---- a Run in phases goes on after a restart (RunOnce, Core\Phases.ps1); console only, no GUI
+if ($Resume) {
+    $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]'Administrator')
+    if (-not $admin) {
+        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Maximized -File `"$PSCommandPath`" -Resume" -Verb RunAs
+        exit
+    }
+    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Appx', 'Winget', 'AppSetup', 'System', 'Presets', 'Phases', 'Restore') { . "$PSScriptRoot\Core\$f.ps1" }
+    Write-AkariBanner 'AkariOS is continuing...'
+    $run = Get-AkariRun
+    if (-not $run) { Write-Log 'Nothing to continue.'; exit }
+    $loaded = Get-AkariTweaks (Join-Path $PSScriptRoot 'Tweaks')
+    $status = @(Start-AkariPhases $run (Get-AkariRunTweaks $run $loaded) | Where-Object { $_ -is [string] }) | Select-Object -Last 1
+    if ($status -ne 'Restarting') { Write-AkariRunSummary $run.Outcomes; Write-Host '  Press Enter to close this window.'; [void][Console]::ReadLine() }
+    exit
+}
+
+# ---- One-click phases 2 and 3 of the old imported bodies: started by RunOnce after a restart (OneClick\OneClick.ps1)
 if ($OneClick) {
     $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]'Administrator')
     if (-not $admin) {
@@ -124,10 +135,9 @@ foreach ($p in @(Test-AkariPorted $script:Ported $script:Tweaks)) { $loaded.Prob
 foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows') { . "$Root\UI\$f.ps1" }
 [void]$window.ShowDialog()
 
-# ---- One-click: the window closed to hand this console to the Akari-OS run (it restarts the PC itself)
+# ---- One-click: the window closed to hand this console to the AkariOS preset's Run (Core\Phases.ps1 restarts the PC
+# between its phases and goes on through Akari.ps1 -Resume)
 if ($script:OneClickPath) {
-    . "$Root\Core\Phases.ps1"
-    . "$Root\OneClick\OneClick.ps1"
     Write-AkariBanner 'AkariOS One-click is running...'
     # an AkariOS restore point before the first change (unless the window said no); if it fails, the user decides
     if ($script:OneClickRestore) {
@@ -137,5 +147,10 @@ if ($script:OneClickPath) {
             if ($go -ne 'Yes') { Write-Log 'One-click cancelled: no restore point.'; exit }
         }
     }
-    [void](Invoke-AkariOneClick 1 $Root)
+    $preset = Read-AkariPreset $script:OneClickPath $true
+    if (-not $preset) { Write-Log "One-click: $($script:OneClickPath) could not be read."; [void][Console]::ReadLine(); exit }
+    Write-Log 'Reading the apps and features on this PC...'
+    $r = New-AkariPresetRun $preset $loaded
+    $status = @(Start-AkariPhases $r.Run $r.Tweaks | Where-Object { $_ -is [string] }) | Select-Object -Last 1
+    if ($status -ne 'Restarting') { Write-AkariRunSummary $r.Run.Outcomes; Write-Host '  Press Enter to close this window.'; [void][Console]::ReadLine() }
 }

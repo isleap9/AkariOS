@@ -34,8 +34,8 @@ $script:RestoreDone = $false
 # on Optimize > Legacy). Pure, no WPF.
 function Get-AkariStepGroups($Tweaks, [hashtable]$Ported = @{}) {
     if (-not $Ported) { $Ported = @{} }
-    # apps (Section Apps: removals and installs) have their own step
-    $list = @($Tweaks | Where-Object { $_.Section -ne 'Apps' -and -not $_.Group -and (($_.Legacy -and $_.Kind -eq 'Toggle' -and -not $Ported.ContainsKey($_.Id)) -or
+    # apps (Section Apps: removals and installs) have their own step; Section OneClick is One-click's own steps
+    $list = @($Tweaks | Where-Object { $_.Section -notin 'Apps', 'OneClick' -and -not $_.Group -and (($_.Legacy -and $_.Kind -eq 'Toggle' -and -not $Ported.ContainsKey($_.Id)) -or
         (-not $_.Legacy -and $_.Kind -in 'Toggle', 'Choice', 'Action' -and (-not $_.Requires -or -not (Test-AkariRequirement $_)))) })
     $sections = @($list | ForEach-Object { $_.Section } | Select-Object -Unique)
     $ordered = @($AkariSectionOrder | Where-Object { $_ -in $sections }) + @($sections | Where-Object { $_ -notin $AkariSectionOrder } | Sort-Object)
@@ -393,8 +393,9 @@ function New-AkariModeCard([string]$Glyph, [string]$Title, [string]$Text, [bool]
     $b
 }
 
-# One-click: the Akari-OS run (OneClick\akarios.ps1, then stepone.ps1 in Safe Mode, then steptwo.ps1), started in
-# Akari's own console: the window closes and Akari.ps1 runs the script there after ShowDialog returns (no new window).
+# One-click: the AkariOS preset's Run (Presets\AkariOS.json: preparation, Safe Mode, then the debloat and tweaks, with
+# restarts in between: Core\Phases.ps1), in Akari's own console: the window closes and Akari.ps1 starts the Run there
+# after ShowDialog returns (no new window).
 function Confirm-AkariOneClick {
     $q = "AkariOS One-click changes a lot of Windows, including security features.`n`n" +
          "- Run it on a fresh install or a PC you can reinstall. There is no uninstaller.`n" +
@@ -407,7 +408,7 @@ function Confirm-AkariOneClick {
 }
 
 function Start-AkariOneClick {
-    $path = "$Root\OneClick\akarios.ps1"
+    $path = "$Root\Presets\AkariOS.json"
     if (-not (Test-Path $path)) { [void][Windows.MessageBox]::Show("Missing: $path", 'Akari'); return }
     if ($script:Busy -or -not (Confirm-AkariOneClick)) { return }
     # asked here, in the window; Akari.ps1 makes it in the console before phase 1

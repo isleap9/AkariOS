@@ -83,6 +83,20 @@ function Grant-AkariOwnership([string]$Path) {
     & "$env:SystemRoot\System32\icacls.exe" $Path /grant '*S-1-5-32-544:F' /t /q 2>&1 | Out-Null
 }
 
+# turns a scheduled task on or off; $false when the task isn't on this PC. Tests mock this.
+function Set-AkariScheduledTask([string]$TaskPath, [string]$TaskName, [bool]$Enabled) {
+    if (-not (Get-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -ErrorAction SilentlyContinue)) { return $false }
+    if ($Enabled) { [void](Enable-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -ErrorAction SilentlyContinue) }
+    else { [void](Disable-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -ErrorAction SilentlyContinue) }
+    $true
+}
+
+# runs a program (a tool a tweak ships or installs: 7-Zip, lodctr, ...) and waits; returns its exit code. Tests mock this.
+function Invoke-AkariExe([string]$Path, [string[]]$Arguments) {
+    & $Path @Arguments 2>&1 | ForEach-Object { "$_" } | Out-Null
+    $LASTEXITCODE
+}
+
 # the only powercfg call: returns its output lines (stderr included as text)
 function Invoke-AkariPowerCfg {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)

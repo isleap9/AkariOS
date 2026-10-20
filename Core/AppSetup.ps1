@@ -1,4 +1,4 @@
-﻿# AppSetup: helpers for app installs and removals (Tweaks\Apps): downloads, autostart, background updaters, shortcuts,
+# AppSetup: helpers for app installs and removals (Tweaks\Apps): downloads, autostart, background updaters, shortcuts,
 # MSI uninstalls and self-uninstalling Windows tools. No app-specific logic here. HKCU and user folders go to the real
 # user (rule 6).
 
@@ -113,4 +113,12 @@ function Import-AkariAppSettings([string]$Family, [string]$RegText) {
     finally { [gc]::Collect(); Start-Sleep -Seconds 1; [void](Invoke-AkariRegExe unload 'HKLM\AkariAppHive') }
     Remove-Item -LiteralPath $file -ErrorAction SilentlyContinue
     $true
+}
+
+# imports .reg text with reg.exe; its HKEY_CURRENT_USER keys go to the real user (rule 6). Returns reg.exe's exit code.
+function Import-AkariRegText([string]$Text) {
+    $Text = $Text -replace '\[(-?)HKEY_CURRENT_USER\\', "[`$1HKEY_USERS\$(Get-AkariUserSid)\"
+    $file = Join-Path $env:TEMP "akari-import-$PID.reg"
+    Set-Content -LiteralPath $file -Value $Text -Encoding Unicode
+    try { Invoke-AkariRegExe import $file } finally { Remove-Item -LiteralPath $file -ErrorAction SilentlyContinue }
 }

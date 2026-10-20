@@ -185,11 +185,12 @@ Describe 'Changes that restart the PC run last' {
     $a = & $mk 'a' "Write-Output 'no restart'" $true
     $b = & $mk 'b' "cmd /c reg add HKLM\SYSTEM\CurrentControlSet\Control\SafeBoot\Network\x /f" $false
 
-    It 'knows which blocks restart (Safe Mode, shutdown /r, Restart-Computer), not a SafeBoot registry path' {
+    It 'knows which blocks restart (bcdedit safeboot, shutdown /r, Restart-Computer), not a SafeBoot registry path' {
         Test-AkariRestarts $safe 'Apply' | Should Be $true
         Test-AkariRestarts $boot 'Revert' | Should Be $true
         Test-AkariRestarts $b 'Apply' | Should Be $false
-        Test-AkariRestarts (ConvertTo-AkariTweak @{ Id = 'sm'; Name = 'sm'; SafeMode = $true; Apply = { } } 'x' $false) 'Apply' | Should Be $true
+        # a one-file SafeMode Tweak doesn't restart by itself: Invoke-AkariPlan takes it to Safe Mode (Core\Phases.ps1)
+        Test-AkariRestarts (ConvertTo-AkariTweak @{ Id = 'sm'; Name = 'sm'; SafeMode = $true; Apply = { } } 'x' $false) 'Apply' | Should Be $false
     }
 
     It 'runs every other change first, in order, then Explorer, then the restarting one' {

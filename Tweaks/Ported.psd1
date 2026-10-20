@@ -64,4 +64,9 @@
     'bitlocker'          = @('performance-bitlocker-off')
     'store-settings'     = @('apps-store-settings', 'update-store-auto-update')
     'updates-pause'      = @('update-pause-one-year')
+    # 6 Windows security parts and Notepad (M4: Safe Mode through Core\Phases.ps1). Not listed: adv-defender and services
+    # (8 Advanced), core-isolation (an Open button).
+    'uac'                = @('security-uac-off')
+    'defender'           = @('security-defender-settings', 'security-defender-tasks-off')
+    'notepad'            = @('apps-notepad-settings')
 }

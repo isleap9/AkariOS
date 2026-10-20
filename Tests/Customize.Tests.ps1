@@ -58,6 +58,9 @@ Describe 'AkariOS marks match OneClick\reg.reg' {
         'system-no-windows-backup'     # its CDPUserSvc Start = 4 row: steptwo.ps1 line ~410
         'power-fast-startup-off'       # steptwo.ps1 power plan part, line ~1004
         'power-throttling-off'         # steptwo.ps1 power plan part, line ~1007
+        'system-terminal-not-default'  # akarios.ps1 "disable open terminal by default"
+        'security-uac-off'             # stepone.ps1 "disable uac"
+        'security-defender-tasks-off'  # steptwo.ps1 SmartScreen for Edge / Store apps and the Defender tasks, lines ~440-452
     )
 
     It 'marks only tweaks whose every value reg.reg sets the same way' {

@@ -78,10 +78,11 @@ function Invoke-AkariTweak($Tweak, [ValidateSet('Apply', 'Revert')][string]$Mode
 # bcdedit ... safeboot minimal): nothing after it in the same Run would get to run
 $AkariRestartPattern = '(?im)\bshutdown(\.exe)?\s+(/|-)r\b|\bRestart-Computer\b|\bbcdedit\b[^\r\n]*\bsafeboot\s+(minimal|network)\b'
 
-# $true when running $Tweak in $Mode restarts the PC (or goes into Safe Mode): a one-file Tweak with SafeMode, or a
-# block whose text does it. Pure.
+# $true when running $Tweak in $Mode restarts the PC (or goes into Safe Mode): a block whose text does it (legacy
+# bodies, a driver cleaner that restarts). One-file SafeMode Tweaks don't: Core\Phases.ps1 takes them there. Pure.
 function Test-AkariRestarts($Tweak, [string]$Mode) {
-    if ($Tweak.SafeMode) { return $true }
+    # Restarts: an Apply that restarts the PC itself (a driver cleaner run with its own restart switch)
+    if ($Tweak.Restarts -and $Mode -eq 'Apply') { return $true }
     $block = if ($Mode -eq 'Revert') { $Tweak.Revert } else { $Tweak.Apply }
     [bool]("$block" -match $AkariRestartPattern)
 }
@@ -90,13 +91,19 @@ function Test-AkariRestarts($Tweak, [string]$Mode) {
 # One Outcome per item; a Failed Tweak never stops the Run. Tweaks that restart the PC or go into Safe Mode run last
 # (after Explorer's restart), so everything else is done before the PC goes down; the rest keep their order.
 # Explorer restarts once when a Tweak with Explorer = $true was Applied or Reverted.
+# SafeMode Tweaks outside Safe Mode: once the rest is done, Akari restarts into Safe Mode, runs them there and restarts
+# back (Start-AkariPhases); their Outcome says so and needs a restart.
 function Invoke-AkariPlan([object[]]$Items, $Tweaks) {
     $explorer = $false
     $now = [System.Collections.Generic.List[object]]::new()
     $last = [System.Collections.Generic.List[object]]::new()
+    $safe = [System.Collections.Generic.List[object]]::new()
+    # Core\Phases.ps1 (loaded with the Runner everywhere a Run can need Safe Mode)
+    $inSafeMode = [bool](Get-Command Test-AkariSafeMode -ErrorAction SilentlyContinue) -and (Test-AkariSafeMode)
     foreach ($i in $Items) {
         $t = $Tweaks | Where-Object { $_.Id -eq $i.Id } | Select-Object -First 1
-        if ($t -and (Test-AkariRestarts $t $i.Mode)) { $last.Add(@{ Item = $i; Tweak = $t }) } else { $now.Add(@{ Item = $i; Tweak = $t }) }
+        if ($t -and $t.SafeMode -and -not $inSafeMode -and -not ($t.Kind -eq 'Action' -and $i.Mode -eq 'Revert') -and -not (Test-AkariRequirement $t) -and ($t.Kind -eq 'Action' -or (Get-AkariState $t) -ne $(if ($i.Mode -eq 'Revert') { 'Default' } else { 'Optimized' }))) { $safe.Add(@{ Item = $i; Tweak = $t }) }
+        elseif ($t -and (Test-AkariRestarts $t $i.Mode)) { $last.Add(@{ Item = $i; Tweak = $t }) } else { $now.Add(@{ Item = $i; Tweak = $t }) }
     }
     foreach ($x in $now) {
         $i = $x.Item; $t = $x.Tweak
@@ -106,6 +113,24 @@ function Invoke-AkariPlan([object[]]$Items, $Tweaks) {
         $o
     }
     if ($explorer) { Restart-AkariExplorer }
+    # Safe Mode next: it is the restart, so the restarting Tweaks wait for another Run
+    if ($safe.Count) {
+        foreach ($x in $last) {
+            Write-Log "Skipped: $($x.Tweak.Name) (it restarts the PC: select it again after Safe Mode)"
+            New-AkariOutcome $x.Tweak.Id $x.Item.Mode 'Skipped' $false 'restarts the PC: run it after Safe Mode'
+        }
+        foreach ($x in $safe) {
+            $verb = if ($x.Item.Mode -eq 'Revert') { 'Reverted' } else { 'Applied' }
+            Write-Log "In Safe Mode: $($x.Tweak.Name)"
+            New-AkariOutcome $x.Tweak.Id $x.Item.Mode $verb $true 'in Safe Mode, after the restart'
+        }
+        $run = New-AkariRun 'Safe Mode' @(
+            @{ Name = 'Safe Mode'; Boot = 'SafeMode'; Items = @($safe | ForEach-Object { $_.Item }) }
+            @{ Name = 'Back to normal'; Boot = 'Normal'; Items = @() }
+        )
+        [void](Start-AkariPhases $run $Tweaks)
+        return
+    }
     # only one can run: once it starts the restart, Windows refuses to start anything else ("Access is denied")
     for ($n = 0; $n -lt $last.Count; $n++) {
         $x = $last[$n]

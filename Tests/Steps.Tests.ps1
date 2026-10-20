@@ -17,6 +17,7 @@ Describe 'Get-AkariStepGroups' {
         T 'o1' 'Optimize' 'Gaming'
         T 'o3' 'Optimize' 'Gaming' 'Action'
         T 'g1' 'Graphics' '' 'Group' $true
+        T 'oc1' 'OneClick' 'Finish' 'Action'
     )
     $g = @(Get-AkariStepGroups $list)
 
@@ -160,8 +161,8 @@ $script:Step = 1; Show-AkariSteps
     }
     It 'One-click asks first; No launches nothing' { $out.declinedLaunch | Should Be 'False' }
     It 'One-click runs in Akari''s own console, no new window' { $out.newWindow | Should Be 'False' }
-    It 'One-click Yes hands OneClick\akarios.ps1 to the console and closes the window' {
-        $out.launched | Should Match 'OneClick\\akarios\.ps1'
+    It 'One-click Yes hands the AkariOS preset to the console and closes the window' {
+        $out.launched | Should Match 'Presets\\AkariOS\.json'
         $out.closed | Should Be 'True'
     }
     It 'Back on the chooser goes Home' { $out.backTo | Should Be 'Home' }

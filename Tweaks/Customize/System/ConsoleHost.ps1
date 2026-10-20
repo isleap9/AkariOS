@@ -1,10 +1,11 @@
-# Ported from AkariOS-Ultimate (FR33THY Ultimate) 6 Windows\22 Control Panel Settings.
+# Ported from AkariOS-Ultimate (FR33THY Ultimate) 6 Windows\22 Control Panel Settings (One-click: akarios.ps1).
 @{
     Id          = 'system-terminal-not-default'
     Name        = 'Console windows instead of Terminal'
     Section     = 'Customize'
     Category    = 'System'
     Risk        = 'Safe'
+    AkariOS     = $true
     Requires    = 'Win11'
     Description = 'Command Prompt and PowerShell open in the classic console window, not in Windows Terminal.'
     Registry    = @(

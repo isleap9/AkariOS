@@ -8,7 +8,7 @@ $Tw = Join-Path $Root 'Tweaks'
 
 Describe 'Advanced tweaks' {
     $AkariStatePath = "$TestDrive\state.json"
-    foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'System', 'Phases') { . "$Core\$f.ps1" }
+    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'System', 'Phases') { . "$Core\$f.ps1" }
     $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
     $tk = "HKCU:\Software\AkariTest\$([guid]::NewGuid())"
     function Load($rel) { Import-AkariTweakFile (Join-Path $Tw $rel) $Tw }
@@ -22,6 +22,12 @@ Describe 'Advanced tweaks' {
     Mock Start-Sleep { }
     Mock Restart-AkariExplorer { }
     Mock Get-AkariOSBuild { 26100 }
+    # second guard: no test here may change a real scheduled task or write as TrustedInstaller
+    Mock Set-AkariScheduledTask { $true }
+    Mock Disable-ScheduledTask { }
+    Mock Enable-ScheduledTask { }
+    Mock Run-Trusted { }
+    Mock Test-AkariSafeMode { $true }
     $realSystemRoot = $env:SystemRoot
 
     try {
@@ -34,7 +40,8 @@ Describe 'Advanced tweaks' {
             $files = Get-ChildItem "$Tw\Advanced\Security", "$Tw\Advanced\Display", "$Tw\Advanced\System" -Filter *.ps1 -File
             foreach ($f in $files) {
                 $t = Import-AkariTweakFile $f.FullName $Tw
-                if (-not $t.Registry) { continue }
+                # pure registry Toggles only: a Toggle with an After block (scheduled tasks, ...) gets its own Context with mocks
+                if (-not $t.Registry -or $t.After) { continue }
                 It "$($t.Id) round-trips to the Default" {
                     (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
                     Get-AkariState $t | Should Be 'Optimized'
@@ -146,6 +153,50 @@ Describe 'Advanced tweaks' {
                     $o.Message | Should Match 'in use'
                     Assert-MockCalled Move-Item -Exactly 5 -Scope It
                 } finally { $env:SystemRoot = $realSystemRoot }
+            }
+        }
+
+        Context 'Defender scheduled tasks and SmartScreen' {
+            $t = Load 'Advanced\Security\DefenderTasks.ps1'
+            It 'disables the five tasks on Apply and enables them on Revert, with the SmartScreen values' {
+                (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+                Assert-MockCalled Set-AkariScheduledTask -Exactly 5 -Scope It -ParameterFilter { -not $Enabled }
+                Assert-MockCalled Set-AkariScheduledTask -Exactly 1 -Scope It -ParameterFilter { $TaskName -eq 'Windows Defender Scheduled Scan' -and $TaskPath -eq '\Microsoft\Windows\Windows Defender\' }
+                Get-AkariRegValue 'HKCU:\SOFTWARE\Microsoft\Edge\SmartScreenEnabled' '(default)' | Should Be 0
+                Get-AkariState $t | Should Be 'Optimized'
+                (Invoke-AkariTweak $t Revert).Outcome | Should Be 'Reverted'
+                Assert-MockCalled Set-AkariScheduledTask -Exactly 5 -Scope It -ParameterFilter { $Enabled }
+                Get-AkariState $t | Should Be 'Default'
+            }
+        }
+
+        Context 'Windows Security settings (in Safe Mode)' {
+            $t = Load 'Advanced\Security\DefenderSettings.ps1'
+            It 'is a SafeMode Tweak' { $t.SafeMode | Should Be $true }
+            It 'writes the values as TrustedInstaller and as admin, clears VBS; Revert puts the Defaults back' {
+                Get-AkariState $t | Should Not Be 'Optimized'
+                (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+                Assert-MockCalled Run-Trusted -Scope It -ParameterFilter { $command.Contains("Windows Defender\Features' -Name 'TamperProtection' -Value 4 -PropertyType DWord") }
+                Assert-MockCalled Run-Trusted -Scope It -ParameterFilter { $command.Contains("-Name 'MitigationOptions' -Value ([byte[]](34,34,34,0,0,2,0,0,0,2,") }
+                Assert-MockCalled Run-Trusted -Exactly 0 -Scope It -ParameterFilter { $command.Contains('Account protection') }
+                Assert-MockCalled Invoke-AkariBcdEdit -Scope It -ParameterFilter { $Arguments -eq '/deletevalue hypervisorlaunchtype' }
+                Get-AkariRegValue 'HKCU:\SOFTWARE\Microsoft\Windows Defender Security Center\Account protection' 'DisableNotifications' | Should Be 1
+                Get-AkariState $t | Should Be 'Optimized'
+                (Invoke-AkariTweak $t Revert).Outcome | Should Be 'Reverted'
+                Assert-MockCalled Run-Trusted -Scope It -ParameterFilter { $command.Contains("-Name 'SmartScreenEnabled' -Value 'Warn' -PropertyType String") }
+                Assert-MockCalled Run-Trusted -Scope It -ParameterFilter { $command.Contains("-Name 'WasEnabledBy' -ErrorAction") } -Exactly 1
+                Get-AkariState $t | Should Be 'Default'
+            }
+        }
+
+        Context 'Invoke-AkariRegistryTrusted' {
+            It 'batches the HKLM rows into a few Run-Trusted calls, skipping HKCU' {
+                $rows = @(1..30 | ForEach-Object { @{ Path = "HKLM:\SOFTWARE\AkariTest\Key$_"; Name = "V$_"; Type = 'DWord'; Value = $_; Default = $null } }) +
+                    @(@{ Path = 'HKCU:\Software\X'; Name = 'U'; Type = 'DWord'; Value = 1; Default = $null })
+                Invoke-AkariRegistryTrusted $rows Apply
+                Assert-MockCalled Run-Trusted -Scope It -ParameterFilter { $command.Length -gt 1500 } -Exactly 0
+                Assert-MockCalled Run-Trusted -Scope It -ParameterFilter { $command -like '*HKCU*' -or $command -like '*Software\X*' } -Exactly 0
+                Assert-MockCalled Run-Trusted -Scope It -ParameterFilter { $command.Contains("Key30' -Name 'V30' -Value 30 ") } -Exactly 1
             }
         }
     } finally {

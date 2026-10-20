@@ -78,8 +78,9 @@ Describe 'Presets\AkariOS.json' {
         (Resolve-AkariPreset $p $loaded.Tweaks).Unknown -join ',' | Should Be ''
     }
 
-    It 'is exactly the debloat, the non-keep legacy app removals and every Tweak marked AkariOS' {
+    It 'is exactly the debloat, the non-keep legacy app removals, One-click''s own steps and every Tweak marked AkariOS' {
         $want = @('appx/*', 'capability/*', 'feature/*') +
+            @($loaded.Tweaks | Where-Object { $_.Section -eq 'OneClick' } | ForEach-Object { $_.Id }) +
             @($loaded.Tweaks | Where-Object { -not $_.Group -and $_.Section -eq 'Apps' -and $_.Category -eq 'Remove' -and -not $_.Keep } | ForEach-Object { $_.Id }) +
             @($loaded.Tweaks | Where-Object { -not $_.Group -and $_.AkariOS } | ForEach-Object { $_.Id })
         @($want | Where-Object { $_ -notin $ids }) -join ',' | Should Be ''

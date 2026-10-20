@@ -23,9 +23,10 @@ Describe 'Phases' {
             Assert-MockCalled Invoke-AkariBcdEdit -Times 1 -Exactly -Scope It -ParameterFilter { $Arguments -eq '/set {current} safeboot minimal' }
         }
 
-        It 'throws when bcdedit fails' {
+        It 'throws when bcdedit cannot turn Safe Mode on; turning it off when it is off is fine' {
             Mock Invoke-AkariBcdEdit { 1 }
-            { Set-AkariSafeBoot $false } | Should Throw 'Safe Mode off'
+            { Set-AkariSafeBoot $true } | Should Throw 'Safe Mode on'
+            { Set-AkariSafeBoot $false } | Should Not Throw
             Assert-MockCalled Invoke-AkariBcdEdit -Times 1 -Exactly -Scope It -ParameterFilter { $Arguments -eq '/deletevalue {current} safeboot' }
         }
     } finally {
