@@ -185,6 +185,10 @@ Click $StepBack; "chooserBack=$script:Cat"
 Click $HomeTiles.Children[2]; "dlHome=$script:FlowExit"
 Select-AkariPage 'Home'; Click $AboutLink; "about=$script:Cat,$($StepsPanel.Visibility),$($PaneCol.Width.Value),$($HomePanel.Visibility)"
 "aboutVersion=$($script:AboutParts.Version.Text)"
+"aboutLinks=$(($script:AboutParts.Links.Children | Where-Object { $_.Visibility -eq 'Visible' } | ForEach-Object { $_.Content }) -join ',')"
+"aboutCredits=$($script:AboutParts.Credits.Children.Count),$($script:AboutParts.Credits.Children[0].Children[0].Text)"
+"aboutLicense=$($script:AboutParts.License.Text -replace '[^ -~]', '?')"
+"appVersion=$($AppVersion.Text)"
 Click $StepBack; "aboutBack=$script:Cat"
 $rel = @{ Ok = $true; Version = [version]'9.0.0'; Notes = "## New`n- **fast**"; PageUrl = 'https://example.test/r'; AssetUrl = 'https://example.test/a.zip'; Digest = 'sha256:x' }
 $script:Prompted = $false; Complete-AkariUpdateCheck $rel $false; "launch=$script:Prompted,$($UpdateBar.Visibility),$($UpdateText.Text)"
@@ -224,6 +228,12 @@ Complete-AkariUpdateCheck @{ Ok = $true; Version = [version]$AkariVersion } $fal
         $out.aboutVersion | Should Match '^AkariOS \d+\.\d+\.\d+$'
         $out.aboutBack | Should Be 'Home'
     }
+    It 'About lists the links (a link without a URL is hidden), the credits and the license' {
+        $out.aboutLinks | Should Be 'GitHub,Report a bug,Discord,Open log folder'
+        $out.aboutCredits | Should Match '^\d+,FR33THY Ultimate$'
+        $out.aboutLicense | Should Be 'MIT License ? ? 2026 isleap9'
+    }
+    It 'the status bar shows the version' { $out.appVersion | Should Match '^AkariOS \d+\.\d+\.\d+$' }
     It 'a launch check that finds an update asks on Home and shows the Home bar' {
         $out.launch | Should Match '^True,Visible,AkariOS 9\.0\.0 is available'
     }
@@ -233,6 +243,16 @@ Complete-AkariUpdateCheck @{ Ok = $true; Version = [version]$AkariVersion } $fal
     }
     It 'About shows a failed check and hides Update' { $out.aboutError | Should Be 'No releases yet.|Collapsed' }
     It 'the Home bar hides when there is nothing to install' { $out.latest | Should Be 'Collapsed' }
+}
+
+Describe 'About data (UI\About.psd1)' {
+    $d = Import-PowerShellDataFile "$Root\UI\About.psd1"
+    It 'every link and credit has a name and an https URL (only a link may wait for its URL)' {
+        foreach ($l in $d.Links) { $l.Name | Should Not BeNullOrEmpty; if ($l.Url) { $l.Url | Should Match '^https://' } }
+        foreach ($c in $d.Credits) { "$($c.Name): $($c.Text) $($c.Url)" | Should Match '^.+: .+ https://\S+$' }
+        $d.License.Url | Should Match '^https://'
+        $d.FullCredits | Should Match '^https://'
+    }
 }
 
 Describe 'Console instead of a log panel' {

@@ -415,7 +415,7 @@
 
     </Grid>
 
-    <!-- Status bar: Ready, or what is running now with a progress bar; the app name on the right. -->
+    <!-- Status bar: Ready, or what is running now with a progress bar; the app name and version on the right. -->
     <Grid Grid.Row="2" Grid.ColumnSpan="2" Margin="16,6,16,6">
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
         <!-- the green dot at rest; a spinning ring while something runs -->
@@ -455,7 +455,7 @@
           </Rectangle>
         </Border>
       </StackPanel>
-      <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="10.5" Text="AkariOS"
+      <TextBlock x:Name="AppVersion" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="10.5" Text="AkariOS"
                  Foreground="{DynamicResource Ter}"/>
     </Grid>
   </Grid>

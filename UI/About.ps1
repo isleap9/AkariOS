@@ -49,10 +49,86 @@ function Show-AkariAbout {
     $p.Notes = New-AkariText '' 13 'Mu'
     foreach ($x in $p.Version, $p.Status, $bar, $p.NotesHead, $p.Notes) { [void]$sp.Children.Add($x) }
     $card.Child = $sp
+    $d = $script:AboutData
+    # links: a button each (hidden until it has a URL), then the log folder (for whoever is helping)
+    $links = New-AkariAboutCard 'Links'
+    $p.Links = [Windows.Controls.WrapPanel]::new()
+    foreach ($l in $d.Links) {
+        $b = New-AkariAboutButton $l.Name $l.Url
+        $b.Visibility = if ($l.Url) { 'Visible' } else { 'Collapsed' }
+        [void]$p.Links.Children.Add($b)
+    }
+    $log = New-AkariAboutButton 'Open log folder' ''
+    $log.Add_Click({ $f = Split-Path $AkariLogFile; if (Test-Path $f) { Start-Process explorer.exe $f } })
+    [void]$p.Links.Children.Add($log)
+    [void]$links.Body.Children.Add($p.Links)
+    # credits: name, what it gave AkariOS, a link
+    $credits = New-AkariAboutCard 'Credits'
+    $p.Credits = [Windows.Controls.StackPanel]::new()
+    foreach ($c in $d.Credits) {
+        $row = [Windows.Controls.Grid]::new()
+        $row.Margin = [Windows.Thickness]::new(0, 0, 0, 6)
+        foreach ($w in 220, -1, -2) {
+            $cd = [Windows.Controls.ColumnDefinition]::new()
+            $cd.Width = if ($w -eq -1) { [Windows.GridLength]::new(1, 'Star') } elseif ($w -eq -2) { [Windows.GridLength]::Auto } else { [Windows.GridLength]::new($w) }
+            [void]$row.ColumnDefinitions.Add($cd)
+        }
+        $n = New-AkariText $c.Name 13
+        $n.FontWeight = 'SemiBold'; $n.VerticalAlignment = 'Center'
+        $t = New-AkariText $c.Text 13 'Mu'
+        $t.VerticalAlignment = 'Center'
+        $b = New-AkariAboutButton 'Open' $c.Url
+        $b.Margin = [Windows.Thickness]::new(12, 0, 0, 0)
+        [Windows.Controls.Grid]::SetColumn($t, 1); [Windows.Controls.Grid]::SetColumn($b, 2)
+        foreach ($x in $n, $t, $b) { [void]$row.Children.Add($x) }
+        [void]$p.Credits.Children.Add($row)
+    }
+    [void]$credits.Body.Children.Add($p.Credits)
+    $full = New-AkariAboutButton 'Full credits' $d.FullCredits
+    $full.HorizontalAlignment = 'Left'
+    $full.Margin = [Windows.Thickness]::new(0, 6, 0, 0)
+    [void]$credits.Body.Children.Add($full)
+    # license: one line and a link
+    $lic = New-AkariAboutCard 'License'
+    $lp = [Windows.Controls.DockPanel]::new()
+    $view = New-AkariAboutButton 'View license' $d.License.Url
+    [Windows.Controls.DockPanel]::SetDock($view, 'Right')
+    $p.License = New-AkariText $d.License.Text 13 'Mu'
+    $p.License.VerticalAlignment = 'Center'
+    [void]$lp.Children.Add($view); [void]$lp.Children.Add($p.License)
+    [void]$lic.Body.Children.Add($lp)
     $script:AboutParts = $p
     Update-AkariAboutUpdate
     $StepBody.Children.Clear()
-    [void]$StepBody.Children.Add($card)
+    $card.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
+    foreach ($x in $card, $links.Card, $credits.Card, $lic.Card) { [void]$StepBody.Children.Add($x) }
+}
+
+# the About page's data: links, credits, license (UI\About.psd1)
+$script:AboutData = Import-PowerShellDataFile "$Root\UI\About.psd1"
+
+# an About card with a title: @{ Card; Body }
+function New-AkariAboutCard([string]$Title) {
+    $c = [Windows.Controls.Border]::new()
+    $c.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
+    $c.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
+    $sp = [Windows.Controls.StackPanel]::new()
+    $h = New-AkariText $Title 14
+    $h.FontWeight = 'SemiBold'
+    $h.Margin = [Windows.Thickness]::new(0, 0, 0, 10)
+    [void]$sp.Children.Add($h)
+    $c.Child = $sp
+    @{ Card = $c; Body = $sp }
+}
+
+# a button that opens $Url in the browser (no Url: the caller adds its own click)
+function New-AkariAboutButton([string]$Text, [string]$Url) {
+    $b = [Windows.Controls.Button]::new()
+    $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Btn')
+    $b.Content = $Text
+    $b.Margin = [Windows.Thickness]::new(0, 0, 8, 0)
+    if ($Url) { $b.Tag = $Url; $b.Add_Click({ param($s, $e) Start-Process ([string]$s.Tag) }) }
+    $b
 }
 
 # the About page's update part, from the last check

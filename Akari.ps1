@@ -88,7 +88,8 @@ if (-not $isAdmin -or -not $isSta) {
 
 # ---- console: launch banner; every log line is printed here while Akari runs
 . "$PSScriptRoot\Core\Log.ps1"
-Write-AkariBanner 'AkariOS is launching...'
+. "$PSScriptRoot\Core\Version.ps1"
+Write-AkariBanner "AkariOS $AkariVersion is launching..."
 
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Xaml
 Add-Type -MemberDefinition @'
