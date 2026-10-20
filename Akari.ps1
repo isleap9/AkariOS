@@ -147,10 +147,11 @@ if ($script:OneClickPath) {
             if ($go -ne 'Yes') { Write-Log 'One-click cancelled: no restore point.'; exit }
         }
     }
-    $preset = Read-AkariPreset $script:OneClickPath $true
-    if (-not $preset) { Write-Log "One-click: $($script:OneClickPath) could not be read."; [void][Console]::ReadLine(); exit }
+    # not $preset: that is the -Preset parameter ([string]; names ignore case)
+    $oneClickPreset = Read-AkariPreset $script:OneClickPath $true
+    if (-not $oneClickPreset) { Write-Log "One-click: $($script:OneClickPath) could not be read."; [void][Console]::ReadLine(); exit }
     Write-Log 'Reading the apps and features on this PC...'
-    $r = New-AkariPresetRun $preset $loaded
+    $r = New-AkariPresetRun $oneClickPreset $loaded
     $status = @(Start-AkariPhases $r.Run $r.Tweaks | Where-Object { $_ -is [string] }) | Select-Object -Last 1
     if ($status -ne 'Restarting') { Write-AkariRunSummary $r.Run.Outcomes; Write-Host '  Press Enter to close this window.'; [void][Console]::ReadLine() }
 }

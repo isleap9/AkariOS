@@ -37,3 +37,15 @@ Describe 'Akari.ps1 -Apply without elevation' {
         ($r.Out -join "`n") | Should Match 'elevated'
     }
 }
+
+Describe 'Akari.ps1 parameters' {
+    # PowerShell names ignore case: `$preset = ...` would turn a value into the [string] -Preset parameter
+    It 'never assigns to one of its own parameter names' {
+        $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path (Split-Path $PSScriptRoot) 'Akari.ps1'), [ref]$null, [ref]$null)
+        $params = @($ast.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath })
+        $hits = @($ast.FindAll({ param($n) $n -is [Management.Automation.Language.AssignmentStatementAst] }, $true) |
+            ForEach-Object { $_.Left } | Where-Object { $_ -is [Management.Automation.Language.VariableExpressionAst] -and $_.VariablePath.UserPath -in $params } |
+            ForEach-Object { "line $($_.Extent.StartLineNumber): `$$($_.VariablePath.UserPath)" })
+        $hits -join ', ' | Should Be ''
+    }
+}
