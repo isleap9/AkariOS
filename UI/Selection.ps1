@@ -49,6 +49,18 @@ function Get-AkariReviewItems($Sel) {
     foreach ($i in $Sel.Values) { [pscustomobject]@{ Id = $i.Id; Name = $i.Name; From = $i.From; To = $i.To } }
 }
 
+# the Review note about changes that restart the PC (Test-AkariRestarts, Core\Runner.ps1: they run last), or $null.
+# Two or more can't all run in one go: only the first does before the restart. Pure, no WPF.
+function Get-AkariRestartNote($Sel, $Tweaks) {
+    $names = @(foreach ($i in $Sel.Values) {
+        $t = $Tweaks | Where-Object { $_.Id -eq $i.Id } | Select-Object -First 1
+        if ($t -and (Test-AkariRestarts $t $i.Mode)) { $i.Name }
+    })
+    if (-not $names.Count) { return $null }
+    if ($names.Count -eq 1) { return "$($names[0]) restarts the PC (into Safe Mode for some), so it runs last, after every other change." }
+    "These restart the PC: $($names -join ', '). Only $($names[0]) runs now, last; select the others again after the restart."
+}
+
 # items for Invoke-AkariPlan
 function Get-AkariPlanItems($Sel) {
     foreach ($i in $Sel.Values) {

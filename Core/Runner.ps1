@@ -74,19 +74,43 @@ function Invoke-AkariTweak($Tweak, [ValidateSet('Apply', 'Revert')][string]$Mode
     New-AkariOutcome $Tweak.Id $Mode $done $Tweak.Reboot
 }
 
+# a block that restarts the PC or sets the next boot to Safe Mode (legacy bodies: shutdown /r, Restart-Computer,
+# bcdedit ... safeboot minimal): nothing after it in the same Run would get to run
+$AkariRestartPattern = '(?im)\bshutdown(\.exe)?\s+(/|-)r\b|\bRestart-Computer\b|\bbcdedit\b[^\r\n]*\bsafeboot\s+(minimal|network)\b'
+
+# $true when running $Tweak in $Mode restarts the PC (or goes into Safe Mode): a one-file Tweak with SafeMode, or a
+# block whose text does it. Pure.
+function Test-AkariRestarts($Tweak, [string]$Mode) {
+    if ($Tweak.SafeMode) { return $true }
+    $block = if ($Mode -eq 'Revert') { $Tweak.Revert } else { $Tweak.Apply }
+    [bool]("$block" -match $AkariRestartPattern)
+}
+
 # a Run from a plan: $Items are @{ Id; Mode; Value } (Value optional, Choices only).
-# One Outcome per item, in order; a Failed Tweak never stops the Run. Explorer restarts once at the end when a Tweak
-# with Explorer = $true was Applied or Reverted.
+# One Outcome per item; a Failed Tweak never stops the Run. Tweaks that restart the PC or go into Safe Mode run last
+# (after Explorer's restart), so everything else is done before the PC goes down; the rest keep their order.
+# Explorer restarts once when a Tweak with Explorer = $true was Applied or Reverted.
 function Invoke-AkariPlan([object[]]$Items, $Tweaks) {
     $explorer = $false
+    $now = [System.Collections.Generic.List[object]]::new()
+    $last = [System.Collections.Generic.List[object]]::new()
     foreach ($i in $Items) {
         $t = $Tweaks | Where-Object { $_.Id -eq $i.Id } | Select-Object -First 1
+        if ($t -and (Test-AkariRestarts $t $i.Mode)) { $last.Add(@{ Item = $i; Tweak = $t }) } else { $now.Add(@{ Item = $i; Tweak = $t }) }
+    }
+    foreach ($x in $now) {
+        $i = $x.Item; $t = $x.Tweak
         if (-not $t) { Write-Log "Failed: $($i.Id) (unknown tweak id)"; New-AkariOutcome $i.Id $i.Mode 'Failed' $false 'Unknown tweak id'; continue }
         $o = Invoke-AkariTweak $t $i.Mode $i.Value
         if ($t.Explorer -and $o.Outcome -in 'Applied', 'Reverted') { $explorer = $true }
         $o
     }
     if ($explorer) { Restart-AkariExplorer }
+    if ($last.Count -gt 1) { Write-Log "Warning: $($last.Count) changes restart the PC, only the first runs now: $(@($last | ForEach-Object { $_.Tweak.Name }) -join ', '). Select the others again after the restart." }
+    foreach ($x in $last) {
+        Write-Log "Last: $($x.Tweak.Name) (restarts the PC)"
+        Invoke-AkariTweak $x.Tweak $x.Item.Mode $x.Item.Value
+    }
 }
 
 # a Run with one Mode for every id (CLI)

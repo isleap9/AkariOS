@@ -420,6 +420,13 @@ function Show-AkariSteps {
             Set-AkariTweaksFilter $Search.Text.Trim()
         }
         2 {
+            # changes that restart the PC run last (Core\Runner.ps1): say so before Apply
+            $note = Get-AkariRestartNote $script:Sel $script:Tweaks
+            if ($note) {
+                $n = New-AkariText $note 13 'Warn'
+                $n.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
+                [void]$StepBody.Children.Add($n)
+            }
             foreach ($r in Get-AkariReviewItems $script:Sel) {
                 $b = [Windows.Controls.Border]::new()
                 $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')

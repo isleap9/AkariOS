@@ -170,6 +170,52 @@ Describe 'Requires and Explorer in a Run' {
     } finally { Remove-Item $k -Recurse -Force -ErrorAction SilentlyContinue }
 }
 
+Describe 'Changes that restart the PC run last' {
+    $AkariStatePath = "$TestDrive\state.json"
+    foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'System') { . "$Core\$f.ps1" }
+    . (Join-Path (Split-Path $PSScriptRoot) 'UI\Selection.ps1')
+    $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
+    $order = [System.Collections.Generic.List[string]]::new()
+    Mock Restart-AkariExplorer { $order.Add('explorer') }
+    # legacy-style bodies: the restart lines are never reached (the tweak records itself and returns first)
+    $mk = { param($id, $body, $explorer) ConvertTo-AkariTweak @{ Id = $id; Name = $id; Explorer = $explorer
+        Apply = [scriptblock]::Create("`$order.Add('$id'); return`n$body"); Revert = [scriptblock]::Create("`$order.Add('$id-r'); return`n$body"); Detect = { $false } } 'x' $true }
+    $safe = & $mk 'safe' "cmd /c `"bcdedit /set {current} safeboot minimal >nul 2>&1`"`nshutdown -r -t 00" $false
+    $boot = & $mk 'boot' 'Restart-Computer -Force' $false
+    $a = & $mk 'a' "Write-Output 'no restart'" $true
+    $b = & $mk 'b' "cmd /c reg add HKLM\SYSTEM\CurrentControlSet\Control\SafeBoot\Network\x /f" $false
+
+    It 'knows which blocks restart (Safe Mode, shutdown /r, Restart-Computer), not a SafeBoot registry path' {
+        Test-AkariRestarts $safe 'Apply' | Should Be $true
+        Test-AkariRestarts $boot 'Revert' | Should Be $true
+        Test-AkariRestarts $b 'Apply' | Should Be $false
+        Test-AkariRestarts (ConvertTo-AkariTweak @{ Id = 'sm'; Name = 'sm'; SafeMode = $true; Apply = { } } 'x' $false) 'Apply' | Should Be $true
+    }
+
+    It 'runs every other change first, in order, then Explorer, then the restarting one' {
+        $order.Clear()
+        $o = @(Invoke-AkariPlan @(@{ Id = 'safe'; Mode = 'Apply' }, @{ Id = 'a'; Mode = 'Apply' }, @{ Id = 'b'; Mode = 'Apply' }) @($safe, $a, $b))
+        ($order -join ',') | Should Be 'a,b,explorer,safe'
+        ($o | ForEach-Object { $_.Id }) -join ',' | Should Be 'a,b,safe'
+    }
+
+    It 'warns when two changes restart the PC' {
+        $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
+        [void](Invoke-AkariPlan @(@{ Id = 'boot'; Mode = 'Apply' }, @{ Id = 'safe'; Mode = 'Apply' }) @($safe, $boot))
+        @($LogQueue.ToArray()) -join "`n" | Should Match 'Warning: 2 changes restart the PC'
+    }
+
+    It 'tells Review about it' {
+        $sel = New-AkariSelection
+        Set-AkariPending $sel $safe 'Default' 'Optimized'
+        Set-AkariPending $sel $a 'Default' 'Optimized'
+        Get-AkariRestartNote $sel @($safe, $a) | Should Match '^safe restarts the PC.*runs last'
+        Set-AkariPending $sel $boot 'Default' 'Optimized'
+        Get-AkariRestartNote $sel @($safe, $a, $boot) | Should Match 'Only safe runs now'
+        Get-AkariRestartNote (New-AkariSelection) @($safe) | Should BeNullOrEmpty
+    }
+}
+
 Describe 'Start-AkariJob' {
     foreach ($f in 'Log', 'Registry', 'Runner') { . "$Core\$f.ps1" }
     $k = "HKCU:\Software\AkariTest\$([guid]::NewGuid())"

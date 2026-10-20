@@ -61,7 +61,7 @@ param($Root, $Key)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework
 $AkariStatePath = "$env:TEMP\akari-steps-test-state.json"
-foreach ($f in 'Log', 'Registry', 'Loader', 'State') { . "$Root\Core\$f.ps1" }
+foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner') { . "$Root\Core\$f.ps1" }
 $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
 New-Item $Key -Force | Out-Null; New-ItemProperty $Key -Name 'O' -Value 0 -PropertyType DWord | Out-Null
 $script:Tweaks = @(
@@ -396,7 +396,7 @@ Describe 'Apps step (in memory, no window, fake packages)' {
 param($Root)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework
-foreach ($f in 'Log', 'Registry', 'Loader', 'State') { . "$Root\Core\$f.ps1" }
+foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner') { . "$Root\Core\$f.ps1" }
 $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
 $g = ConvertTo-AkariTweak @{ Id = 'appx'; Kind = 'Group'; Name = 'G'; Section = 'Apps'; Category = 'Remove'; Risk = 'Caution'; EntryKind = 'AppxRemove' } 'x' $false
 $cap = ConvertTo-AkariTweak @{ Id = 'capability'; Kind = 'Group'; Name = 'Optional features'; Section = 'Apps'; Category = 'Remove'; Risk = 'Caution'
