@@ -33,4 +33,7 @@
     'ipv4-only'         = @('network-ipv4-only')
     'cleanup'           = @('performance-clean-temp')
     'loudness-eq'       = @('sound-loudness-eq-tab')
+    # 3 Setup rows a 6 Windows port already covers (same values, same Defaults)
+    'memory-compression' = @('disable-memory-compression')
+    'background-apps'    = @('performance-background-apps-off')
 }
