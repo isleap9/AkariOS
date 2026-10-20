@@ -59,4 +59,9 @@
     'nvidia-settings'    = @('graphics-nvidia-settings')
     'amd-settings'       = @('graphics-amd-settings')
     'bg-polling-cap'     = @('input-background-polling-uncapped')
+    # 3 Setup (Toggles). Not listed: edge-settings (its updater / service removal is remove-edge's, its Default
+    # reinstalled Edge); the Open / Run Actions stay Legacy.
+    'bitlocker'          = @('performance-bitlocker-off')
+    'store-settings'     = @('apps-store-settings', 'update-store-auto-update')
+    'updates-pause'      = @('update-pause-one-year')
 }

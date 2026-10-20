@@ -1,0 +1,14 @@
+Windows Registry Editor Version 5.00
+
+; Microsoft Store settings (settings.dat, loaded at HKLM\AkariAppHive by Import-AkariAppSettings).
+; {0} = 00 (off, Apply) or 01 (on, Revert); the rest is a timestamp.
+
+[HKEY_LOCAL_MACHINE\AkariAppHive\LocalState]
+; video autoplay
+"VideoAutoplay"=hex(5f5e10b):{0},96,9d,69,8d,cd,93,dc,01
+; notifications for app installations
+"EnableAppInstallNotifications"=hex(5f5e10b):{0},36,d0,88,8e,cd,93,dc,01
+
+[HKEY_LOCAL_MACHINE\AkariAppHive\LocalState\PersistentSettings]
+; personalized experiences
+"PersonalizationEnabled"=hex(5f5e10b):{0},0d,56,a1,8a,cd,93,dc,01
