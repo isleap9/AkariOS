@@ -24,6 +24,7 @@
                    "gaming-presence-writer-off",
                    "gaming-windowed-optimizations",
                    "gaming-xbox-controller-no-game-bar",
+                   "input-background-polling-uncapped",
                    "network-ipv4-only",
                    "network-no-ics-control",
                    "disable-memory-compression",

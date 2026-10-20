@@ -50,4 +50,13 @@
     'keyboard-shortcuts' = @('system-keyboard-shortcuts-off')
     'start-search-shell' = @('system-start-search-shell-off', 'taskbar-hide-search')
     'nvme-driver'        = @('system-nvme-native-driver')
+    'ulps'               = @('graphics-amd-ulps-off')
+    # 5 Graphics and 7 Hardware (Toggles). Driver clean / installs, DirectX, C++ and the Open / test Actions stay Legacy.
+    'hdcp'               = @('graphics-hdcp-off')
+    'p0-state'           = @('graphics-p0-state')
+    'msi-mode'           = @('graphics-msi-mode')
+    'intel-settings'     = @('graphics-intel-settings', 'gaming-windowed-optimizations')
+    'nvidia-settings'    = @('graphics-nvidia-settings')
+    'amd-settings'       = @('graphics-amd-settings')
+    'bg-polling-cap'     = @('input-background-polling-uncapped')
 }

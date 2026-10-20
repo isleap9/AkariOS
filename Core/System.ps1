@@ -14,6 +14,21 @@ function Get-AkariChassis {
     $script:AkariChassis
 }
 
+# the display adapters' driver keys (Class\{4d36e968-...}\0000, 0001, ...): @{ Path; Name; Vendor } with Vendor
+# NVIDIA / AMD / Intel / Other. Tweaks write their per-GPU values under Path. Read only; tests mock this.
+$AkariGpuClass = 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}'
+function Get-AkariGpus {
+    foreach ($k in @(Get-ChildItem -LiteralPath $AkariGpuClass -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -match '^\d{4}$' })) {
+        $p = Get-ItemProperty -LiteralPath $k.PSPath -ErrorAction SilentlyContinue
+        $text = "$($p.ProviderName) $($p.DriverDesc)"
+        $vendor = if ($text -match 'NVIDIA') { 'NVIDIA' } elseif ($text -match '\bAMD\b|\bATI\b|Advanced Micro|Radeon') { 'AMD' } elseif ($text -match 'Intel') { 'Intel' } else { 'Other' }
+        [pscustomobject]@{ Path = "$AkariGpuClass\$($k.PSChildName)"; Name = "$($p.DriverDesc)"; Vendor = $vendor }
+    }
+}
+
+# the display adapters' device instance ids (PCI\VEN_...), for values under Enum\<id>\Device Parameters. Read only.
+function Get-AkariGpuDevices { @(Get-PnpDevice -Class Display -ErrorAction SilentlyContinue | ForEach-Object { $_.InstanceId }) }
+
 # $null when every Requires value is met on this PC, else the reason ('needs Win11')
 function Test-AkariRequirement($Tweak) {
     foreach ($r in @($Tweak.Requires | Where-Object { $_ })) {
@@ -22,6 +37,7 @@ function Test-AkariRequirement($Tweak) {
             'Win11' { (Get-AkariOSBuild) -ge 22000 }
             'Laptop' { (Get-AkariChassis) -eq 'Laptop' }
             'Desktop' { (Get-AkariChassis) -eq 'Desktop' }
+            { $_ -in 'NVIDIA', 'AMD', 'Intel' } { [bool](@(Get-AkariGpus) | Where-Object { $_.Vendor -eq $r }) }
             default { $false }
         }
         if (-not $met) { return "needs $r" }
