@@ -9,6 +9,7 @@ $AkariCategoryGlyphs = @{
     Check = 0xE9D9; Refresh = 0xE72C; Setup = 0xE90F; Graphics = 0xE7F4
     Windows = 0xE771; Hardware = 0xE950; Advanced = 0xE945
     Taskbar = 0xE7C4; Start = 0xECA5; Explorer = 0xE8B7; Theme = 0xE790
+    Update = 0xE895; Power = 0xE7E8; Network = 0xE839; Notifications = 0xEA8F; Input = 0xE765; Accessibility = 0xE776; Sound = 0xE767; System = 0xE770
 }
 
 # masonry: each card goes to the column with the least rows so far (ties: the leftmost). Pure, no WPF.

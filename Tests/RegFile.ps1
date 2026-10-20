@@ -9,7 +9,7 @@ function Read-AkariRegFile([string]$Path) {
         $l = $l.Trim()
         if (-not $l -or $l.StartsWith(';')) { continue }
         if ($l -match '^\[(-?)(HKEY_[A-Z_]+)\\(.+)\]$') {
-            $hive = @{ HKEY_CURRENT_USER = 'HKCU:'; HKEY_LOCAL_MACHINE = 'HKLM:'; HKEY_CLASSES_ROOT = 'HKCR:'; HKEY_USERS = 'HKU:' }[$Matches[2]]
+            $hive = @{ HKEY_CURRENT_USER = 'HKCU:'; HKEY_LOCAL_MACHINE = 'HKLM:'; HKEY_CLASSES_ROOT = 'HKLM:\SOFTWARE\Classes'; HKEY_USERS = 'Registry::HKEY_USERS' }[$Matches[2]]
             $key = "$hive\$($Matches[3])".ToLower()
             if ($Matches[1]) { $map["$key|"] = $null; $key = $null }
             continue
@@ -20,6 +20,12 @@ function Read-AkariRegFile([string]$Path) {
         $v = switch -Regex ($raw) {
             '^-$' { $null; break }
             '^dword:([0-9a-fA-F]+)$' { [uint32]::Parse($Matches[1], 'HexNumber'); break }
+            # expandable text, 64-bit number, multi-line text, then any other hex as bytes
+            # UserPreferencesMask is binary; reg.reg (like FR33THY's script) writes it as hex(2): compare its bytes
+            '^hex\(2\):(.*)$' { if ($name -eq 'UserPreferencesMask') { [byte[]]@($Matches[1] -split ',' | Where-Object { $_.Trim() } | ForEach-Object { [Convert]::ToByte($_.Trim(), 16) }); break }
+                [Text.Encoding]::Unicode.GetString([byte[]]@($Matches[1] -split ',' | Where-Object { $_.Trim() } | ForEach-Object { [Convert]::ToByte($_.Trim(), 16) })).TrimEnd([char]0); break }
+            '^hex\(b\):(.*)$' { [BitConverter]::ToUInt64([byte[]]@($Matches[1] -split ',' | Where-Object { $_.Trim() } | ForEach-Object { [Convert]::ToByte($_.Trim(), 16) }), 0); break }
+            '^hex\(7\):(.*)$' { , @([Text.Encoding]::Unicode.GetString([byte[]]@($Matches[1] -split ',' | Where-Object { $_.Trim() } | ForEach-Object { [Convert]::ToByte($_.Trim(), 16) })).TrimEnd([char]0) -split [char]0); break }
             '^hex(\([0-9a-f]+\))?:(.*)$' { [byte[]]@($Matches[2] -split ',' | Where-Object { $_ } | ForEach-Object { [Convert]::ToByte($_.Trim(), 16) }); break }
             '^"(.*)"$' { $Matches[1] -replace '\\\\', '\'; break }
             default { $raw }

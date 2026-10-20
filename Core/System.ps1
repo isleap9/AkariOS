@@ -48,6 +48,13 @@ function Set-AkariDesktopWallpaper([string]$Path) {
     [void][AkariWallpaper]::SystemParametersInfo(20, 0, $Path, 2)
 }
 
+# compiles C# source to an .exe with the .NET Framework's own compiler (always on Windows 10 / 11); throws on failure
+function Invoke-AkariCsc([string]$Source, [string]$Out) {
+    $csc = "$env:SystemRoot\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+    $log = & $csc -nologo "-out:$Out" $Source 2>&1 | ForEach-Object { "$_" }
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $Out)) { throw "csc failed: $($log -join ' ')" }
+}
+
 # the only powercfg call: returns its output lines (stderr included as text)
 function Invoke-AkariPowerCfg {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)

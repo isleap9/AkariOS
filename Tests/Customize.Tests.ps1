@@ -12,7 +12,7 @@ Describe 'Customize: Requires on version-only settings' {
     $rows = foreach ($t in @($r.Tweaks | Where-Object { $_.Registry })) { foreach ($e in $t.Registry) { [pscustomobject]@{ T = $t; Path = $e.Path; Name = $e.Name } } }
 
     It 'marks Windows 11-only values Win11' {
-        $w11 = @($rows | Where-Object { $_.Name -in 'TaskbarAl', 'HideRecommendedSection', 'TaskbarMn', 'ShowCopilotButton', 'TaskbarEndTask', 'AllAppsViewMode' -or $_.Path -like '*FeatureManagement\Overrides*' -or $_.Path -like '*\Dsh' })
+        $w11 = @($rows | Where-Object { $_.Name -in 'TaskbarAl', 'HideRecommendedSection', 'TaskbarMn', 'ShowCopilotButton', 'TaskbarEndTask', 'AllAppsViewMode' -or $_.Path -like '*FeatureManagement\Overrides*' -or $_.Path -like '*Policies\Microsoft\Dsh' })
         $w11.Count | Should BeGreaterThan 0
         @($w11 | Where-Object { $_.T.Requires -notcontains 'Win11' } | ForEach-Object { $_.T.Id }) -join ',' | Should Be ''
     }
@@ -55,6 +55,9 @@ Describe 'AkariOS marks match OneClick\reg.reg' {
     # registry tweaks One-click sets in a script instead of reg.reg (checked by hand against OneClick\steptwo.ps1)
     $byScript = @(
         'explorer-trim-context-menu'   # steptwo.ps1 "remove context menu items", lines ~797-829
+        'system-no-windows-backup'     # its CDPUserSvc Start = 4 row: steptwo.ps1 line ~410
+        'power-fast-startup-off'       # steptwo.ps1 power plan part, line ~1004
+        'power-throttling-off'         # steptwo.ps1 power plan part, line ~1007
     )
 
     It 'marks only tweaks whose every value reg.reg sets the same way' {

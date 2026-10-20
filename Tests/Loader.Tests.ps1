@@ -110,6 +110,7 @@ Describe 'Get-AkariTweaks' {
         @{ File = 'BadRequires.ps1'; Says = "Requires 'Mars'" }
         @{ File = 'KeyRowBad.ps1'; Says = "Value and Default must be 'Key'" }
         @{ File = 'BeforeNoWinget.ps1'; Says = 'only for an Action with Winget' }
+        @{ File = 'ToggleAfterNoRegistry.ps1'; Says = 'After on a Toggle needs Registry' }
         @{ File = 'ZOwner.ps1'; Says = "owned by 'good-registry'" }
         @{ File = 'ZOwnerKey.ps1'; Says = "owned by 'good-key'" }
     )

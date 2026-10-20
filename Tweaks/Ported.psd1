@@ -22,4 +22,15 @@
     'signout-wallpaper' = @('theme-black-lock-screen', 'theme-no-signin-blur', 'theme-akarios-wallpaper')
     # 6 Windows\7 User Account Pictures Black
     'account-pictures'  = @('theme-black-account-pictures')
+    # 6 Windows\24-30, 35 (Task 6). Not listed yet: control-panel (focus / priority notification blobs, app actions and
+    # the Explorer "IsEnabled" value are not ported), copilot (no Copilot app removal), gamebar (its Revert reinstalls
+    # the Xbox apps), notepad (needs loading Notepad's settings hive).
+    'power-plan'        = @('power-ultimate-plan', 'power-hibernate-off', 'power-fast-startup-off', 'power-throttling-off', 'power-hide-lock-sleep')
+    'timer-resolution'  = @('performance-timer-resolution')
+    'write-cache'       = @('performance-write-cache-flushing-off')
+    'devmgr-power'      = @('power-device-power-saving-off')
+    'netadapter-power'  = @('power-network-adapter-power-saving-off')
+    'ipv4-only'         = @('network-ipv4-only')
+    'cleanup'           = @('performance-clean-temp')
+    'loudness-eq'       = @('sound-loudness-eq-tab')
 }

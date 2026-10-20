@@ -47,6 +47,14 @@ function Invoke-AkariTweak($Tweak, [ValidateSet('Apply', 'Revert')][string]$Mode
             if ($null -eq $v) { Remove-Reg $e.Path $e.Name } else { Set-Reg $e.Path $e.Name $v $e.Type }
         } elseif ($Tweak.Registry) {
             Invoke-AkariRegistry $Tweak.Registry $Mode
+            # a registry Toggle's After: one more step after the values, both ways ($AkariMode = Apply / Revert),
+            # e.g. a scheduled task or a database the values need reset
+            if ($Tweak.After) {
+                $sb = [scriptblock]::Create($Tweak.After.ToString())
+                & { $ErrorActionPreference = 'Continue'; $PSDefaultParameterValues = @{ '*:ErrorAction' = 'Stop' }; $AkariMode = $Mode; & $sb } *>&1 |
+                    ForEach-Object { if ($_ -is [Management.Automation.ErrorRecord] -and "$($_.FullyQualifiedErrorId)" -like 'NativeCommandError*') { "$($_.Exception.Message)" } else { $_ } } |
+                    Out-String -Stream | ForEach-Object { Write-Log $_ }
+            }
         } else {
             # rebuilt from text so a block loaded in another runspace never runs in that runspace's session state
             $sb = [scriptblock]::Create($Tweak.$Mode.ToString())

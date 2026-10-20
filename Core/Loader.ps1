@@ -110,6 +110,8 @@ function Import-AkariTweakFile([string]$Path, [string]$TweaksRoot) {
     switch ($t.Kind) {
         'Toggle' {
             if (-not $t.Registry -and -not ($t.Apply -and $t.Revert)) { throw "${rel}: a Toggle needs Registry, or both Apply and Revert" }
+            # After on a Toggle: a step after its Registry rows, run on Apply and on Revert ($AkariMode)
+            if ($t.After -and -not $t.Registry) { throw "${rel}: After on a Toggle needs Registry (Apply / Revert blocks do the whole job)" }
             foreach ($e in $t.Registry) {
                 if (-not $e.ContainsKey('Name')) {
                     # a key row (Core\Registry.ps1 Test-AkariKeyRow): the whole key exists ('Key') or is deleted ($null)

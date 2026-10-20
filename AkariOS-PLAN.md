@@ -327,7 +327,7 @@ When every Entry has the same shape, the Group reads them from one data file. Se
 | `Requires` | no | `Win10`, `Win11`, `Laptop`, `Desktop` (later e.g. `NVIDIA`, `SSD`): unmet = hidden in Guided, `Skipped` in a Run |
 | `AkariOS` | no | `$true` when the Tweak is part of the AkariOS setup (One-click sets the same thing, e.g. in `OneClick/reg.reg`): Guided shows "(AkariOS)" after its name. A test keeps registry tweaks in line with `reg.reg` both ways |
 | `Explorer` | no | `$true` when the change shows only after Explorer restarts: the Run restarts Explorer once at the end if such a Tweak was Applied or Reverted |
-| `Winget`, `Before`, `After` | no | Action only: winget package id(s) the engine installs, between the `Before` and `After` blocks; no `Apply` with them |
+| `Winget`, `Before`, `After` | no | Action only: winget package id(s) the engine installs, between the `Before` and `After` blocks; no `Apply` with them. On a registry Toggle, `After` is one more step after its rows, on Apply and on Revert (`$AkariMode`), e.g. a scheduled task |
 | `WingetSource` | no | `msstore`: the `Winget` id is a Microsoft Store product id |
 | `AppType` | no | Apps > Install only: the card the app shows in (Browsers, Communication, Game launchers, Gaming & hardware, Media, Utilities, Runtimes, Dev tools, Restore removed apps) |
 
