@@ -115,6 +115,60 @@ function Import-AkariAppSettings([string]$Family, [string]$RegText) {
     $true
 }
 
+# reads a Store app's own settings without touching them: a copy of the real user's settings.dat is loaded at
+# HKLM\AkariAppRead, exported with reg.exe (it writes the app's value types as hex(...), which .NET can't read), unloaded.
+# 'Key\Name' -> [byte[]]; @{} when the app has no settings yet; $null when they can't be read (the app holds the file).
+function Read-AkariAppSettings([string]$Family) {
+    $dat = Join-Path (Get-AkariUserFolder 'Local AppData') "Packages\$Family\Settings\settings.dat"
+    if (-not (Test-Path -LiteralPath $dat)) { return @{} }
+    $dir = Join-Path $env:TEMP "akari-read-$PID"
+    try {
+        New-Item $dir -ItemType Directory -Force | Out-Null
+        try { Copy-Item -LiteralPath $dat -Destination "$dir\settings.dat" -ErrorAction Stop } catch { return $null }
+        foreach ($log in 'LOG1', 'LOG2') { Copy-Item -LiteralPath "$dat.$log" -Destination "$dir\settings.dat.$log" -ErrorAction SilentlyContinue }
+        if ((Invoke-AkariRegExe load 'HKLM\AkariAppRead' "$dir\settings.dat") -ne 0) { return $null }
+        try { $code = Invoke-AkariRegExe export 'HKLM\AkariAppRead' "$dir\settings.reg" /y }
+        finally { [void](Invoke-AkariRegExe unload 'HKLM\AkariAppRead') }
+        if ($code -ne 0 -or -not (Test-Path -LiteralPath "$dir\settings.reg")) { return $null }
+        ConvertFrom-AkariRegExport (Get-Content -LiteralPath "$dir\settings.reg" -Raw) 'HKEY_LOCAL_MACHINE\AkariAppRead'
+    } finally { Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue }
+}
+
+# the hex values of .reg text (reg export) under the key $Root: 'Key\Name' (relative to $Root) -> [byte[]]. Pure.
+function ConvertFrom-AkariRegExport([string]$Text, [string]$Root) {
+    $values = @{}
+    $key = $null
+    foreach ($line in ($Text -replace '\\\r?\n\s*', '') -split '\r?\n') {
+        if ($line -match '^\[(.*)\]\s*$') {
+            $k = $Matches[1]
+            $key = if ($k -eq $Root) { '' } elseif ($k.StartsWith("$Root\", 'OrdinalIgnoreCase')) { $k.Substring($Root.Length + 1) } else { $null }
+            continue
+        }
+        if ($null -eq $key -or $line -notmatch '^"((?:[^"\\]|\\.)*)"=hex(?:\([0-9a-fA-F]+\))?:([0-9a-fA-F,]*)\s*$') { continue }
+        $name = $Matches[1] -replace '\\(.)', '$1'
+        $hex = $Matches[2]
+        $bytes = [byte[]]@(if ($hex) { $hex.Split(',') | ForEach-Object { [Convert]::ToByte($_, 16) } })
+        $values[$(if ($key) { "$key\$name" } else { $name })] = $bytes
+    }
+    $values
+}
+
+# State of a Store app's settings from the first byte of each value. $Rows: @{ Name = 'Key\Name'; Value; Default }.
+# Optimized when every value is Value; Default when every value is Default or unset (no settings yet = Default);
+# else Custom. Unknown when they can't be read.
+function Get-AkariAppSettingState([string]$Family, $Rows) {
+    $v = Read-AkariAppSettings $Family
+    if ($null -eq $v) { return 'Unknown' }
+    $opt = $true; $def = $true
+    foreach ($r in $Rows) {
+        $b = $v[$r.Name]
+        $first = if ($b -and $b.Count) { [int]$b[0] } else { $null }
+        if ($first -ne $r.Value) { $opt = $false }
+        if ($null -ne $first -and $first -ne $r.Default) { $def = $false }
+    }
+    if ($opt) { 'Optimized' } elseif ($def) { 'Default' } else { 'Custom' }
+}
+
 # imports .reg text with reg.exe; its HKEY_CURRENT_USER keys go to the real user (rule 6). Returns reg.exe's exit code.
 function Import-AkariRegText([string]$Text) {
     $Text = $Text -replace '\[(-?)HKEY_CURRENT_USER\\', "[`$1HKEY_USERS\$(Get-AkariUserSid)\"

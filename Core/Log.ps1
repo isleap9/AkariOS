@@ -13,6 +13,25 @@ function Write-ErrLog([string]$m) {
     try { New-Item (Split-Path $AkariLogFile) -ItemType Directory -Force | Out-Null; Add-Content $AkariLogFile ("[{0}] {1}" -f (Get-Date -Format s), $m) } catch { }
 }
 
+# the loader's Problems: Warnings go to akari.log only, Errors through $Show too (stderr in the CLI, the GUI's log)
+function Write-AkariProblems($Problems, [scriptblock]$Show) {
+    foreach ($p in $Problems) {
+        $m = "$($p.Level): $($p.File): $($p.Message)"
+        if ($p.Level -eq 'Error') { & $Show $m } else { Write-ErrLog $m }
+    }
+}
+
+# Akari.ps1's trap: the error goes to akari.log, then to a message box when WPF is loaded (the GUI), else to the
+# console (CLI, -Resume, -OneClick: no WPF there). -Wait keeps a console that RunOnce opened up until Enter.
+function Write-AkariCrash($ErrorRecord, [switch]$Wait) {
+    $m = "$($ErrorRecord.Exception.Message) $($ErrorRecord.InvocationInfo.PositionMessage)"
+    Write-ErrLog $m
+    $box = 'System.Windows.MessageBox' -as [type]
+    if ($box) { [void]$box::Show("Akari hit an error:`n`n$m", 'Akari'); return }
+    [Console]::Error.WriteLine("Akari hit an error: $m")
+    if ($Wait) { [Console]::Out.WriteLine('  Press Enter to close this window.'); [void][Console]::ReadLine() }
+}
+
 # console banner (Akari's console stays open next to the window and shows the live log)
 # the AkariOS logo for the console (Assets\ascii.txt): blank rows at the top and bottom dropped, the common left margin
 # trimmed, then scaled: $Scale for the height (0.7 still fits a default 80 x 30 window with the lines under it),

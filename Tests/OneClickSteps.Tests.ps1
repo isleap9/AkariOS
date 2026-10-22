@@ -164,9 +164,19 @@ Describe 'Notepad settings' {
     $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
     Mock Get-AkariUserFolder { "$TestDrive\User\$Name" }
     Mock Import-AkariAppSettings { $true }
+    # Detect reads nothing real: Unknown, so Apply and Revert both run
+    Mock Read-AkariAppSettings { $null }
+    Mock Invoke-AkariRegExe { 1 }
     Mock Stop-Process { }
     Mock Start-Sleep { }
     function Load($rel) { Import-AkariTweakFile (Join-Path $Tw $rel) $Tw }
+    Context 'Notepad Detect' {
+        Mock Read-AkariAppSettings { @{ 'LocalState\OpenFile' = [byte[]](1, 0, 0, 0, 9); 'LocalState\GhostFile' = [byte[]](0, 9); 'LocalState\RewriteEnabled' = [byte[]](0, 9) } }
+        It 'reads OpenFile, GhostFile and RewriteEnabled from Notepad''s hive' {
+            Get-AkariState (Load 'Customize\Apps\NotepadSettings.ps1') | Should Be 'Optimized'
+            Assert-MockCalled Read-AkariAppSettings -Exactly 1 -Scope It -ParameterFilter { $Family -eq 'Microsoft.WindowsNotepad_8wekyb3d8bbwe' }
+        }
+    }
     It 'Notepad: imports its settings; Revert deletes its settings file' {
         $t = Load 'Customize\Apps\NotepadSettings.ps1'
         (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'

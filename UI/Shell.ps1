@@ -267,7 +267,7 @@ foreach ($i in 0..$last) { $HomeTiles.Children[$i].Margin = [Windows.Thickness]:
 # ---- go
 $window.Add_Loaded({
     Select-AkariPage $script:Cat
-    foreach ($p in $loaded.Problems) { Add-Log "$($p.Level): $($p.File): $($p.Message)" }
+    Write-AkariProblems $loaded.Problems { param($m) Add-Log $m }
     Add-Log 'Ready.'
     $script:Busy = $false
 })

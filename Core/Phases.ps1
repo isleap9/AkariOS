@@ -92,6 +92,8 @@ function Start-AkariPhases($Run, $Tweaks, [string]$AkariPath = "$AkariRoot\Akari
     $count = @($Run.Phases).Count
     $find = { param($id) $Tweaks | Where-Object { $_.Id -eq $id } | Select-Object -First 1 }
     $lastOut = @()
+    # restarts and stops also go to akari.log: the console that shows them is gone after the restart
+    $note = { param($m) Write-Log $m; Write-ErrLog $m }
     $restartsPC = { param($item) $t = & $find $item.Id; [bool]($t -and (Test-AkariRestarts $t $item.Mode)) }
     for ($i = [int]$Run.Next; $i -lt $count; $i++) {
         $ph = $Run.Phases[$i]
@@ -99,7 +101,7 @@ function Start-AkariPhases($Run, $Tweaks, [string]$AkariPath = "$AkariRoot\Akari
         if (($ph.Boot -eq 'SafeMode') -ne $safe) {
             $Run.Next = $i; Save-AkariRun $Run
             Set-AkariNextBoot $ph.Boot $AkariPath
-            Write-Log "Restarting into $(if ($ph.Boot -eq 'SafeMode') { 'Safe Mode' } else { 'normal mode' }) for: $($ph.Name)"
+            & $note "Restarting into $(if ($ph.Boot -eq 'SafeMode') { 'Safe Mode' } else { 'normal mode' }) for: $($ph.Name)"
             Restart-AkariPC
             return 'Restarting'
         }
@@ -119,7 +121,7 @@ function Start-AkariPhases($Run, $Tweaks, [string]$AkariPath = "$AkariRoot\Akari
         if ($safe -and @($out | Where-Object { $_.Outcome -eq 'Failed' }).Count) {
             Clear-AkariRun
             try { Set-AkariSafeBoot $false } catch { }
-            Write-Log "Stopped in Safe Mode: a change failed (see above). Safe Mode is off again; restart when you are ready."
+            & $note "Stopped in Safe Mode: a change failed (see above). Safe Mode is off again; restart when you are ready."
             return 'Stopped'
         }
         # a Tweak restarted the PC: Windows is going down, the next phase resumes after it
@@ -131,7 +133,7 @@ function Start-AkariPhases($Run, $Tweaks, [string]$AkariPath = "$AkariRoot\Akari
         }
         if ($next -and ($next.Boot -eq 'SafeMode') -ne $safe) {
             if (-not $restarts) { Set-AkariNextBoot $next.Boot $AkariPath }
-            Write-Log "Restarting into $(if ($next.Boot -eq 'SafeMode') { 'Safe Mode' } else { 'normal mode' }) for: $($next.Name)"
+            & $note "Restarting into $(if ($next.Boot -eq 'SafeMode') { 'Safe Mode' } else { 'normal mode' }) for: $($next.Name)"
             Restart-AkariPC
             return 'Restarting'
         }
@@ -140,7 +142,7 @@ function Start-AkariPhases($Run, $Tweaks, [string]$AkariPath = "$AkariRoot\Akari
     if (Test-AkariSafeMode) { Set-AkariSafeBoot $false }
     if ($count -gt 1 -and @($lastOut | Where-Object { $_.Reboot }).Count) {
         Write-AkariRunSummary $Run.Outcomes
-        Write-Log 'All phases done. Restarting in 15 seconds to finish.'
+        & $note 'All phases done. Restarting in 15 seconds to finish.'
         Restart-AkariPC 15
         return 'Restarting'
     }

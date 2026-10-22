@@ -37,6 +37,86 @@ Describe 'Import-AkariAppSettings' {
     }
 }
 
+Describe 'Read-AkariAppSettings (Detect: a copy of the hive, read only)' {
+    foreach ($f in 'Log', 'Registry', 'AppSetup') { . "$Core\$f.ps1" }
+    Mock Get-AkariUserFolder { "$TestDrive\User\Local" }
+    $export = "Windows Registry Editor Version 5.00`r`n`r`n[HKEY_LOCAL_MACHINE\AkariAppRead]`r`n`"Top`"=hex:05`r`n`r`n" +
+        "[HKEY_LOCAL_MACHINE\AkariAppRead\LocalState]`r`n`"VideoAutoplay`"=hex(5f5e10b):00,96,9d,69`r`n" +
+        "`"Long`"=hex(5f5e10b):01,02,\`r`n  03,04`r`n`"Text`"=`"x`"`r`n`"Empty`"=hex(5f5e10b):`r`n`r`n" +
+        "[HKEY_LOCAL_MACHINE\AkariAppRead\LocalState\PersistentSettings]`r`n`"PersonalizationEnabled`"=hex(5f5e10b):01,0d`r`n`r`n" +
+        "[HKEY_LOCAL_MACHINE\Other]`r`n`"Nope`"=hex:01`r`n"
+    $dat = "$TestDrive\User\Local\Packages\Some.App_x\Settings\settings.dat"
+
+    It 'parses reg export text: hex values below the root, continued lines joined, others skipped' {
+        $v = ConvertFrom-AkariRegExport $export 'HKEY_LOCAL_MACHINE\AkariAppRead'
+        ($v.Keys | Sort-Object) -join ',' | Should Be 'LocalState\Empty,LocalState\Long,LocalState\PersistentSettings\PersonalizationEnabled,LocalState\VideoAutoplay,Top'
+        $v['LocalState\VideoAutoplay'] -join ',' | Should Be '0,150,157,105'
+        $v['LocalState\Long'] -join ',' | Should Be '1,2,3,4'
+        $v['Top'] -join ',' | Should Be '5'
+        @($v['LocalState\Empty']).Count | Should Be 0
+    }
+
+    Context 'the app has settings' {
+        Mock Invoke-AkariRegExe { if ($Arguments[0] -eq 'export') { Set-Content -LiteralPath $Arguments[2] -Value $export -Encoding Unicode }; 0 }
+        It 'loads a copy (never the app''s file), exports it, unloads it, cleans up' {
+            New-Item $dat -ItemType File -Force | Out-Null
+            $v = Read-AkariAppSettings 'Some.App_x'
+            $v['LocalState\PersistentSettings\PersonalizationEnabled'] -join ',' | Should Be '1,13'
+            Assert-MockCalled Invoke-AkariRegExe -Exactly 1 -Scope It -ParameterFilter { $Arguments[0] -eq 'load' -and $Arguments[1] -eq 'HKLM\AkariAppRead' -and $Arguments[2] -notlike '*\Packages\*' }
+            Assert-MockCalled Invoke-AkariRegExe -Exactly 1 -Scope It -ParameterFilter { $Arguments[0] -eq 'export' -and $Arguments[1] -eq 'HKLM\AkariAppRead' }
+            Assert-MockCalled Invoke-AkariRegExe -Exactly 1 -Scope It -ParameterFilter { $Arguments[0] -eq 'unload' -and $Arguments[1] -eq 'HKLM\AkariAppRead' }
+            Test-Path "$env:TEMP\akari-read-$PID" | Should Be $false
+            Test-Path $dat | Should Be $true
+        }
+        It 'is $null while the app holds its file' {
+            New-Item $dat -ItemType File -Force | Out-Null
+            $lock = [IO.File]::Open($dat, 'Open', 'ReadWrite', 'None')
+            try { Read-AkariAppSettings 'Some.App_x' | Should Be $null } finally { $lock.Dispose() }
+            Assert-MockCalled Invoke-AkariRegExe -Exactly 0 -Scope It
+        }
+    }
+    Context 'the copy will not load' {
+        Mock Invoke-AkariRegExe { 1 }
+        It 'is $null and exports nothing' {
+            New-Item $dat -ItemType File -Force | Out-Null
+            Read-AkariAppSettings 'Some.App_x' | Should Be $null
+            Assert-MockCalled Invoke-AkariRegExe -Exactly 0 -Scope It -ParameterFilter { $Arguments[0] -eq 'export' }
+        }
+    }
+    Context 'no settings yet' {
+        Mock Invoke-AkariRegExe { 0 }
+        It 'is empty' {
+            @((Read-AkariAppSettings 'Missing.App_x').Keys).Count | Should Be 0
+            Assert-MockCalled Invoke-AkariRegExe -Exactly 0 -Scope It
+        }
+    }
+}
+
+Describe 'Get-AkariAppSettingState' {
+    foreach ($f in 'Log', 'Registry', 'AppSetup') { . "$Core\$f.ps1" }
+    $rows = @(@{ Name = 'LocalState\A'; Value = 0; Default = 1 }, @{ Name = 'LocalState\B'; Value = 1; Default = 0 })
+    Context 'all optimized' {
+        Mock Read-AkariAppSettings { @{ 'LocalState\A' = [byte[]](0, 9); 'LocalState\B' = [byte[]](1, 9) } }
+        It 'is Optimized' { Get-AkariAppSettingState 'X' $rows | Should Be 'Optimized' }
+    }
+    Context 'defaults, one value unset' {
+        Mock Read-AkariAppSettings { @{ 'LocalState\A' = [byte[]](1, 9) } }
+        It 'is Default' { Get-AkariAppSettingState 'X' $rows | Should Be 'Default' }
+    }
+    Context 'no settings yet' {
+        Mock Read-AkariAppSettings { @{} }
+        It 'is Default' { Get-AkariAppSettingState 'X' $rows | Should Be 'Default' }
+    }
+    Context 'mixed' {
+        Mock Read-AkariAppSettings { @{ 'LocalState\A' = [byte[]](0, 9); 'LocalState\B' = [byte[]](0, 9) } }
+        It 'is Custom' { Get-AkariAppSettingState 'X' $rows | Should Be 'Custom' }
+    }
+    Context 'unreadable (the app is running)' {
+        Mock Read-AkariAppSettings { $null }
+        It 'is Unknown' { Get-AkariAppSettingState 'X' $rows | Should Be 'Unknown' }
+    }
+}
+
 Describe 'Setup tweaks' {
     $AkariStatePath = "$TestDrive\state.json"
     foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'System', 'AppSetup') { . "$Core\$f.ps1" }
@@ -47,12 +127,21 @@ Describe 'Setup tweaks' {
     Mock Start-Process { }
     Mock Stop-Process { }
     Mock Start-Sleep { }
+    # guard: Detect never reads the real Store hive here
+    Mock Read-AkariAppSettings { $null }
+    Mock Invoke-AkariRegExe { 1 }
 
     try {
         It 'redirects both hives (guard)' { Resolve-AkariRegPath 'HKLM:\SOFTWARE\Policies\Microsoft\Edge' | Should Be "$tk\HKLM\SOFTWARE\Policies\Microsoft\Edge" }
 
         Context 'Store settings' {
-            Mock Import-AkariAppSettings { $true }
+            # the Store's hive: the first byte of its three values, set by the (mocked) import
+            $hive = @{ Byte = 1 }
+            Mock Import-AkariAppSettings { $hive.Byte = if ($RegText -match '"VideoAutoplay"=hex\(5f5e10b\):00') { 0 } else { 1 }; $true }
+            Mock Read-AkariAppSettings {
+                $b = [byte[]]($hive.Byte, 9)
+                @{ 'LocalState\VideoAutoplay' = $b; 'LocalState\EnableAppInstallNotifications' = $b; 'LocalState\PersistentSettings\PersonalizationEnabled' = $b }
+            }
             $t = Load 'Customize\Apps\StoreSettings.ps1'
             It 'imports the Store values off on Apply and on on Revert, with the Store closed' {
                 (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'

@@ -1,6 +1,6 @@
 # Ported from AkariOS-Ultimate (FR33THY Ultimate) 6 Windows "Notepad Settings" (One-click: steptwo.ps1). The values
 # live in Notepad's own settings hive (Import-AkariAppSettings); its Default deletes that file, so Notepad starts over
-# with its own defaults. No Detect: the hive can't be read while Notepad runs.
+# with its own defaults. Detect reads a copy of that hive: Unknown while Notepad runs (it holds the file).
 @{
     Id          = 'apps-notepad-settings'
     Name        = 'Notepad: new window, no session restore, no AI rewrite'
@@ -9,6 +9,13 @@
     Risk        = 'Safe'
     AkariOS     = $true
     Description = 'Files open in a new window instead of a tab, Notepad doesn''t reopen your last session, and the Copilot rewrite is off.'
+    # first byte: OpenFile 1 = new window (0 = tab), GhostFile and RewriteEnabled 0 = off
+    Detect      = {
+        Get-AkariAppSettingState 'Microsoft.WindowsNotepad_8wekyb3d8bbwe' @(
+            @{ Name = 'LocalState\OpenFile'; Value = 1; Default = 0 }
+            @{ Name = 'LocalState\GhostFile'; Value = 0; Default = 1 }
+            @{ Name = 'LocalState\RewriteEnabled'; Value = 0; Default = 1 })
+    }
     Apply       = {
         Stop-Process -Name Notepad -Force -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 2

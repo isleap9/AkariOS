@@ -47,6 +47,7 @@ Describe 'Runs in phases' {
                 $saved.Next | Should Be 1
                 $saved.Sid | Should Be 'S-1-5-21-test'
                 @($saved.Outcomes).Count | Should Be 1
+                Get-Content $AkariLogFile -Raw | Should Match 'Restarting into Safe Mode for: two'
             }
 
             It 'resumed in Safe Mode: runs phase 2 there, then sets a normal boot and the resume for phase 3, restarts' {
@@ -70,6 +71,7 @@ Describe 'Runs in phases' {
                 Test-Path $AkariRunPath | Should Be $false
                 Get-AkariRegValue $ro '!akari-resume' | Should Be $null
                 Assert-MockCalled Restart-AkariPC -Exactly 1 -Scope It
+                Get-Content $AkariLogFile -Raw | Should Match 'All phases done'
             }
         }
 
@@ -82,6 +84,7 @@ Describe 'Runs in phases' {
                 $order.Count | Should Be 0
                 (Get-AkariRun).Next | Should Be 0
                 Get-AkariRegValue $ro '*!akari-resume' | Should Not BeNullOrEmpty
+                Get-Content $AkariLogFile -Raw | Should Match 'Restarting into Safe Mode for: sm'
                 Clear-AkariRun
             }
         }
@@ -95,6 +98,7 @@ Describe 'Runs in phases' {
                 Test-Path $AkariRunPath | Should Be $false
                 Get-AkariRegValue $ro '!akari-resume' | Should Be $null
                 Assert-MockCalled Invoke-AkariBcdEdit -Scope It -ParameterFilter { $Arguments -eq '/deletevalue {current} safeboot' }
+                Get-Content $AkariLogFile -Raw | Should Match 'Stopped in Safe Mode'
             }
         }
 

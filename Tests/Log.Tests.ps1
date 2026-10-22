@@ -43,6 +43,33 @@ Describe 'Write-Log' {
     }
 }
 
+Describe 'Write-AkariProblems (loader Problems)' {
+    . "$Core\Log.ps1"
+    $AkariLogFile = "$TestDrive\problems.log"
+
+    It 'logs Warnings to akari.log only and shows Errors' {
+        $shown = [Collections.Generic.List[string]]::new()
+        Write-AkariProblems @(
+            [pscustomobject]@{ File = 'a.ps1'; Level = 'Warning'; Message = 'no Detect' }
+            [pscustomobject]@{ File = 'b.ps1'; Level = 'Error'; Message = 'broken' }) { param($m) $shown.Add($m) }
+        $shown -join '|' | Should Be 'Error: b.ps1: broken'
+        Get-Content $AkariLogFile -Raw | Should Match 'Warning: a\.ps1: no Detect'
+    }
+}
+
+Describe 'Write-AkariCrash (Akari.ps1 trap)' {
+    It 'without WPF (CLI, -Resume): logs the error to akari.log and prints it, no message box' {
+        $log = "$TestDrive\crash.log"
+        $cmd = "`$AkariLogFile = '$log'; . '$Core\Log.ps1'; try { throw 'boom' } catch { Write-AkariCrash `$_ }"
+        $p = Start-Process powershell.exe -ArgumentList '-NoProfile', '-Command', $cmd -NoNewWindow -PassThru `
+            -RedirectStandardOutput "$TestDrive\out.txt" -RedirectStandardError "$TestDrive\err.txt"
+        $p.WaitForExit(10000) | Should Be $true
+        Get-Content $log -Raw | Should Match 'boom'
+        Get-Content "$TestDrive\err.txt" -Raw | Should Match 'Akari hit an error:.*boom'
+        Get-Content "$TestDrive\err.txt" -Raw | Should Not Match 'MessageBox'
+    }
+}
+
 Describe 'Write-Host shim without a LogQueue (CLI)' {
     It 'prints once and returns' {
         $cmd = ". '$Core\Log.ps1'; . '$Core\Compat.ps1'; Write-Host 'x'"

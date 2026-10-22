@@ -11,7 +11,7 @@ if ($List -or $Apply -or $Revert -or $Preset -or $RevertPreset) {
     $CoreDir = Join-Path $PSScriptRoot 'Core'
     foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Appx', 'Winget', 'AppSetup', 'System', 'Presets', 'Phases', 'Restore') { . "$CoreDir\$f.ps1" }
     $loaded = Get-AkariTweaks (Join-Path $PSScriptRoot 'Tweaks')
-    foreach ($p in $loaded.Problems) { [Console]::Error.WriteLine("$($p.Level): $($p.File): $($p.Message)") }
+    Write-AkariProblems $loaded.Problems { param($m) [Console]::Error.WriteLine($m) }
     if ($List) {
         $loaded.Tweaks | Sort-Object Section, Category, Id | ForEach-Object {
             [pscustomobject]@{ Id = $_.Id; Kind = $_.Kind; Section = $_.Section; Category = $_.Category; Risk = $_.Risk; State = Get-AkariState $_ }
@@ -110,7 +110,8 @@ foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legac
 $AkariInstallDir = if ($PSScriptRoot) { $Root } else { '' }
 # after an update: the previous copy (<folder>.old) and the download folder go
 Remove-AkariUpdateLeftover $AkariInstallDir
-trap { Write-ErrLog "$($_.Exception.Message) $($_.InvocationInfo.PositionMessage)"; [void][Windows.MessageBox]::Show("Akari hit an error:`n`n$($_.Exception.Message)`n`n$($_.InvocationInfo.PositionMessage)", 'Akari'); exit }
+# covers the whole script, the CLI / -Resume / -OneClick branches above too (a trap applies to its entire scope)
+trap { Write-AkariCrash $_ -Wait:($Resume -or $OneClick); exit 1 }
 # remove 'downloaded from the internet' marks so Windows never nags about these files
 Get-ChildItem $Root -Filter *.ps1 -File -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
 foreach ($sub in 'Tweaks', 'UI', 'OneClick') { Get-ChildItem "$Root\$sub" -Recurse -File -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue }

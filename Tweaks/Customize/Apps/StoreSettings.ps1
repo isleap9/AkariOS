@@ -1,6 +1,6 @@
 # Ported from AkariOS-Ultimate (FR33THY Ultimate) 3 Setup\11 Store Settings (One-click sets it in steptwo.ps1). The
 # values live in the Store's own settings hive, typed 0x5f5e10b (first byte 0 = off, then a timestamp). Its
-# AutoDownload value is update-store-auto-update's. No Detect: the hive can't be read while the Store runs.
+# AutoDownload value is update-store-auto-update's. Detect reads a copy of that hive: Unknown while the Store runs.
 @{
     Id          = 'apps-store-settings'
     Name        = 'Microsoft Store: no autoplay, install toasts or personalization'
@@ -9,6 +9,12 @@
     Risk        = 'Safe'
     AkariOS     = $true
     Description = 'Store settings: video autoplay off, app install notifications off, personalized experiences off.'
+    Detect      = {
+        Get-AkariAppSettingState 'Microsoft.WindowsStore_8wekyb3d8bbwe' @(
+            @{ Name = 'LocalState\VideoAutoplay'; Value = 0; Default = 1 }
+            @{ Name = 'LocalState\EnableAppInstallNotifications'; Value = 0; Default = 1 }
+            @{ Name = 'LocalState\PersistentSettings\PersonalizationEnabled'; Value = 0; Default = 1 })
+    }
     Apply       = {
         # the settings page first, so the Microsoft account's personalization setting is there to override
         try { Start-Process 'ms-windows-store:settings' } catch { }
