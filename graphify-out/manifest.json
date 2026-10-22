@@ -1,0 +1,2228 @@
+{
+  "Akari.ps1": {
+    "mtime": 1792499881.7371943,
+    "seen": 1792642134.8058522,
+    "ast_hash": "e4358c44990952ef7cd2d1553ba89a72",
+    "semantic_hash": "e4358c44990952ef7cd2d1553ba89a72"
+  },
+  "Core/AppSetup.ps1": {
+    "mtime": 1792467349.4922385,
+    "seen": 1792642134.805857,
+    "ast_hash": "3fa04fdd87cf6e86e02c7bff72dc7e6b",
+    "semantic_hash": "3fa04fdd87cf6e86e02c7bff72dc7e6b"
+  },
+  "Core/Appx.ps1": {
+    "mtime": 1792445263.7654257,
+    "seen": 1792642134.805859,
+    "ast_hash": "b7fb8befcf28cb3e54fcd83f56ae3e08",
+    "semantic_hash": "b7fb8befcf28cb3e54fcd83f56ae3e08"
+  },
+  "Core/Compat.ps1": {
+    "mtime": 1792445263.7654257,
+    "seen": 1792642134.80586,
+    "ast_hash": "176f56c8d6e05d7a87472d44db1beff8",
+    "semantic_hash": "176f56c8d6e05d7a87472d44db1beff8"
+  },
+  "Core/Legacy.ps1": {
+    "mtime": 1792445263.7659261,
+    "seen": 1792642134.8058612,
+    "ast_hash": "5183823818380505bc5f4dbcfada9be4",
+    "semantic_hash": "5183823818380505bc5f4dbcfada9be4"
+  },
+  "Core/Loader.ps1": {
+    "mtime": 1792467332.0991428,
+    "seen": 1792642134.805862,
+    "ast_hash": "67035ba08b70eb88cbeca10ababecc88",
+    "semantic_hash": "67035ba08b70eb88cbeca10ababecc88"
+  },
+  "Core/Log.ps1": {
+    "mtime": 1792464969.358611,
+    "seen": 1792642134.805863,
+    "ast_hash": "8b52a5c6ca662ffa0c69a9dc5922290d",
+    "semantic_hash": "8b52a5c6ca662ffa0c69a9dc5922290d"
+  },
+  "Core/Phases.ps1": {
+    "mtime": 1792468585.8265557,
+    "seen": 1792642134.8058639,
+    "ast_hash": "5b1bc20feb6bb800f2214a808e401c29",
+    "semantic_hash": "5b1bc20feb6bb800f2214a808e401c29"
+  },
+  "Core/Presets.ps1": {
+    "mtime": 1792467862.9180632,
+    "seen": 1792642134.8058648,
+    "ast_hash": "37dee6d4ab5626e4f7406117c5feb669",
+    "semantic_hash": "37dee6d4ab5626e4f7406117c5feb669"
+  },
+  "Core/Registry.ps1": {
+    "mtime": 1792456546.094208,
+    "seen": 1792642134.8058658,
+    "ast_hash": "d01dcf93addeccdd2bfe8002e86c601c",
+    "semantic_hash": "d01dcf93addeccdd2bfe8002e86c601c"
+  },
+  "Core/Restore.ps1": {
+    "mtime": 1792445263.767446,
+    "seen": 1792642134.8058665,
+    "ast_hash": "f0d998f287e770db89fc590d50b3a31c",
+    "semantic_hash": "f0d998f287e770db89fc590d50b3a31c"
+  },
+  "Core/Runner.ps1": {
+    "mtime": 1792467332.1056447,
+    "seen": 1792642134.8058674,
+    "ast_hash": "a670748cbcd3d38ed427fe531d7b76aa",
+    "semantic_hash": "a670748cbcd3d38ed427fe531d7b76aa"
+  },
+  "Core/State.ps1": {
+    "mtime": 1792452492.1046317,
+    "seen": 1792642134.8058684,
+    "ast_hash": "4be2754beee02d9169e6d7a9e71c72ba",
+    "semantic_hash": "4be2754beee02d9169e6d7a9e71c72ba"
+  },
+  "Core/System.ps1": {
+    "mtime": 1792468111.0690603,
+    "seen": 1792642134.8058693,
+    "ast_hash": "d522d5776f9ef2b912eca021035a7610",
+    "semantic_hash": "d522d5776f9ef2b912eca021035a7610"
+  },
+  "Core/Trusted.ps1": {
+    "mtime": 1792467172.7523794,
+    "seen": 1792642134.80587,
+    "ast_hash": "c0d0bfa6995e132bf639e3845f1a7c35",
+    "semantic_hash": "c0d0bfa6995e132bf639e3845f1a7c35"
+  },
+  "Core/Update.ps1": {
+    "mtime": 1792498651.704571,
+    "seen": 1792642134.8058708,
+    "ast_hash": "2cf093d4dd271760ecf8d155172eb62e",
+    "semantic_hash": "2cf093d4dd271760ecf8d155172eb62e"
+  },
+  "Core/Version.ps1": {
+    "mtime": 1792500594.573204,
+    "seen": 1792642134.8058717,
+    "ast_hash": "27fdb2977d4a17fb4e26da566ab7a062",
+    "semantic_hash": "27fdb2977d4a17fb4e26da566ab7a062"
+  },
+  "Core/Winget.ps1": {
+    "mtime": 1792470302.0510855,
+    "seen": 1792642134.8058727,
+    "ast_hash": "ebe0044a05d6beabfadad9e4365a13c9",
+    "semantic_hash": "ebe0044a05d6beabfadad9e4365a13c9"
+  },
+  "OneClick/OneClick.ps1": {
+    "mtime": 1792445263.7690017,
+    "seen": 1792642134.8058734,
+    "ast_hash": "e08c7bcc35df6b17ad63b94a2fc2e861",
+    "semantic_hash": "e08c7bcc35df6b17ad63b94a2fc2e861"
+  },
+  "OneClick/akarios.ps1": {
+    "mtime": 1792465344.3454163,
+    "seen": 1792642134.805874,
+    "ast_hash": "fc5395f9d742ca376f1c45bcc49ed3a1",
+    "semantic_hash": "fc5395f9d742ca376f1c45bcc49ed3a1"
+  },
+  "OneClick/settimerresolutionservice.cs": {
+    "mtime": 1792445263.7710655,
+    "seen": 1792642134.8058753,
+    "ast_hash": "9436ce60d2c69faa093919c8a0a8e7fa",
+    "semantic_hash": "9436ce60d2c69faa093919c8a0a8e7fa"
+  },
+  "OneClick/stepone.ps1": {
+    "mtime": 1792445263.7710655,
+    "seen": 1792642134.805876,
+    "ast_hash": "9fa9d2e9faaa31ff24a3ca4177e8107b",
+    "semantic_hash": "9fa9d2e9faaa31ff24a3ca4177e8107b"
+  },
+  "OneClick/steptwo.ps1": {
+    "mtime": 1792445263.7720685,
+    "seen": 1792642134.8058772,
+    "ast_hash": "8cb7f6d5e6f10c4c4040070766802453",
+    "semantic_hash": "8cb7f6d5e6f10c4c4040070766802453"
+  },
+  "Presets/AkariOS.json": {
+    "mtime": 1792467491.65412,
+    "seen": 1792642134.805878,
+    "ast_hash": "da8ed09786c0ad23b3d36fb6ac022a3e",
+    "semantic_hash": "da8ed09786c0ad23b3d36fb6ac022a3e"
+  },
+  "Tests/Advanced.Tests.ps1": {
+    "mtime": 1792468449.2514484,
+    "seen": 1792642134.8058789,
+    "ast_hash": "51da5d3e5f2ad9bf965a74aad35685e9",
+    "semantic_hash": "51da5d3e5f2ad9bf965a74aad35685e9"
+  },
+  "Tests/Appx.Tests.ps1": {
+    "mtime": 1792445263.7725902,
+    "seen": 1792642134.8058796,
+    "ast_hash": "dfc1c88596105e77e4c40ab6549f569b",
+    "semantic_hash": "dfc1c88596105e77e4c40ab6549f569b"
+  },
+  "Tests/Cli.Tests.ps1": {
+    "mtime": 1792469016.252436,
+    "seen": 1792642134.8058805,
+    "ast_hash": "bffec5968906e418adf718ce526d6d33",
+    "semantic_hash": "bffec5968906e418adf718ce526d6d33"
+  },
+  "Tests/Customize.Tests.ps1": {
+    "mtime": 1792467737.2048895,
+    "seen": 1792642134.8058813,
+    "ast_hash": "8a3ea345a3b69521e809a514a561b7ef",
+    "semantic_hash": "8a3ea345a3b69521e809a514a561b7ef"
+  },
+  "Tests/Fixtures/Legacy/Sample.ps1": {
+    "mtime": 1792445263.7730906,
+    "seen": 1792642134.8058822,
+    "ast_hash": "910fc82af2232e53d299a8d7b8651e5e",
+    "semantic_hash": "910fc82af2232e53d299a8d7b8651e5e"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/ActionNoReason.ps1": {
+    "mtime": 1792445263.7735915,
+    "seen": 1792642134.805883,
+    "ast_hash": "21bbc8b76e21cc5c8e96d780dcb4d63b",
+    "semantic_hash": "21bbc8b76e21cc5c8e96d780dcb4d63b"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/AfterNoWinget.ps1": {
+    "mtime": 1792445263.7735915,
+    "seen": 1792642134.805884,
+    "ast_hash": "6177d5e260dbb10535457d3965881250",
+    "semantic_hash": "6177d5e260dbb10535457d3965881250"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/BadId.ps1": {
+    "mtime": 1792445263.7735915,
+    "seen": 1792642134.8058846,
+    "ast_hash": "f83e8bcf6caa276003ee31d81d9f6697",
+    "semantic_hash": "f83e8bcf6caa276003ee31d81d9f6697"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/BadRequires.ps1": {
+    "mtime": 1792449616.2708635,
+    "seen": 1792642134.8058856,
+    "ast_hash": "d2d4533fb0664d482189c079535c49f8",
+    "semantic_hash": "d2d4533fb0664d482189c079535c49f8"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/BadRisk.ps1": {
+    "mtime": 1792445263.7735915,
+    "seen": 1792642134.8058863,
+    "ast_hash": "921d8f3a07cca890909608e52540ee36",
+    "semantic_hash": "921d8f3a07cca890909608e52540ee36"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/BeforeNoWinget.ps1": {
+    "mtime": 1792449616.2713652,
+    "seen": 1792642134.8058872,
+    "ast_hash": "b7e60ce24b77ee414cb8fdb3a7daf8ba",
+    "semantic_hash": "b7e60ce24b77ee414cb8fdb3a7daf8ba"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/ChoiceBadRec.ps1": {
+    "mtime": 1792445263.774596,
+    "seen": 1792642134.805888,
+    "ast_hash": "c34fe73138470c42475b8709fec55788",
+    "semantic_hash": "c34fe73138470c42475b8709fec55788"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/GoodAction.ps1": {
+    "mtime": 1792445263.774596,
+    "seen": 1792642134.8058891,
+    "ast_hash": "53cd4dcc2206173fd355e96ddf4ed949",
+    "semantic_hash": "53cd4dcc2206173fd355e96ddf4ed949"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/GoodBefore.ps1": {
+    "mtime": 1792449616.2723658,
+    "seen": 1792642134.8058898,
+    "ast_hash": "1b37d4d4d15e3ae74fa086e7ab3abcaf",
+    "semantic_hash": "1b37d4d4d15e3ae74fa086e7ab3abcaf"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/GoodChoice.ps1": {
+    "mtime": 1792445263.7751205,
+    "seen": 1792642134.8058908,
+    "ast_hash": "5a4491676261d00de695fff1cadf9f00",
+    "semantic_hash": "5a4491676261d00de695fff1cadf9f00"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/GoodGroup.ps1": {
+    "mtime": 1792445263.7751205,
+    "seen": 1792642134.8058915,
+    "ast_hash": "3ad44e9e7ebc5659da27b70faafb4b34",
+    "semantic_hash": "3ad44e9e7ebc5659da27b70faafb4b34"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/GoodKey.ps1": {
+    "mtime": 1792449616.272866,
+    "seen": 1792642134.8058927,
+    "ast_hash": "f6c181f643525583a434b185265f9995",
+    "semantic_hash": "f6c181f643525583a434b185265f9995"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/GoodRegistry.ps1": {
+    "mtime": 1792445263.7756207,
+    "seen": 1792642134.8058934,
+    "ast_hash": "fdf3b9ba0d343d5711c971095f5b6a6a",
+    "semantic_hash": "fdf3b9ba0d343d5711c971095f5b6a6a"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/GoodWinget.ps1": {
+    "mtime": 1792445263.7756207,
+    "seen": 1792642134.8058944,
+    "ast_hash": "3af7bc272938e2dc6b68275647d0e26e",
+    "semantic_hash": "3af7bc272938e2dc6b68275647d0e26e"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/GroupKind.ps1": {
+    "mtime": 1792445263.7756207,
+    "seen": 1792642134.8058956,
+    "ast_hash": "05b015ed3edbac77d639021ff8c5f1bb",
+    "semantic_hash": "05b015ed3edbac77d639021ff8c5f1bb"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/Interactive.ps1": {
+    "mtime": 1792445263.77622,
+    "seen": 1792642134.8058965,
+    "ast_hash": "396bb858b93c14235876901d436a128c",
+    "semantic_hash": "396bb858b93c14235876901d436a128c"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/KeyRowBad.ps1": {
+    "mtime": 1792449616.273866,
+    "seen": 1792642134.8058975,
+    "ast_hash": "f1d9c1af489dd06fbb87f10d829dbb84",
+    "semantic_hash": "f1d9c1af489dd06fbb87f10d829dbb84"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/MissingName.ps1": {
+    "mtime": 1792445263.77622,
+    "seen": 1792642134.8058982,
+    "ast_hash": "5cbd72e194b1a9d048da349b3d30a0ec",
+    "semantic_hash": "5cbd72e194b1a9d048da349b3d30a0ec"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/NoDetect.ps1": {
+    "mtime": 1792445263.7767203,
+    "seen": 1792642134.805899,
+    "ast_hash": "de6cf04dbfae3e056db6513aff4b8b43",
+    "semantic_hash": "de6cf04dbfae3e056db6513aff4b8b43"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/NoRevert.ps1": {
+    "mtime": 1792445263.7767203,
+    "seen": 1792642134.8058999,
+    "ast_hash": "f4d4b2e6b4f2b1ea7141ad3ec6e3cf8c",
+    "semantic_hash": "f4d4b2e6b4f2b1ea7141ad3ec6e3cf8c"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/RegNoDefault.ps1": {
+    "mtime": 1792445263.7772217,
+    "seen": 1792642134.8059008,
+    "ast_hash": "a1518e862bbe5b95c11124018b8429d9",
+    "semantic_hash": "a1518e862bbe5b95c11124018b8429d9"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/Syntax.ps1": {
+    "mtime": 1792445263.7772217,
+    "seen": 1792642134.8059015,
+    "ast_hash": "468ca8ce6320d38bf100cc2c200b134c",
+    "semantic_hash": "468ca8ce6320d38bf100cc2c200b134c"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/ToggleAfterNoRegistry.ps1": {
+    "mtime": 1792458879.1479757,
+    "seen": 1792642134.8059025,
+    "ast_hash": "6cc846629e8f64806131b20ed3b9aab6",
+    "semantic_hash": "6cc846629e8f64806131b20ed3b9aab6"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/WingetApply.ps1": {
+    "mtime": 1792445263.7772217,
+    "seen": 1792642134.8059037,
+    "ast_hash": "54c22cfadd02c5875400d6d7eefd49ff",
+    "semantic_hash": "54c22cfadd02c5875400d6d7eefd49ff"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/WingetBadId.ps1": {
+    "mtime": 1792445263.7772217,
+    "seen": 1792642134.8059044,
+    "ast_hash": "8570f84c3565bc5bdba96eb9c68abbef",
+    "semantic_hash": "8570f84c3565bc5bdba96eb9c68abbef"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/WrongFolder.ps1": {
+    "mtime": 1792445263.7772217,
+    "seen": 1792642134.805905,
+    "ast_hash": "0b8247d9c3ea2609d0d5cb905a928889",
+    "semantic_hash": "0b8247d9c3ea2609d0d5cb905a928889"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/ZDup.ps1": {
+    "mtime": 1792445263.7782247,
+    "seen": 1792642134.8059058,
+    "ast_hash": "30e37ff2e4ad7abd2b87b3d68fe68ca0",
+    "semantic_hash": "30e37ff2e4ad7abd2b87b3d68fe68ca0"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/ZOwner.ps1": {
+    "mtime": 1792449616.275867,
+    "seen": 1792642134.8059068,
+    "ast_hash": "1f12f54a3904775ee53dd8c9c7906771",
+    "semantic_hash": "1f12f54a3904775ee53dd8c9c7906771"
+  },
+  "Tests/Fixtures/Tweaks/Optimize/Gaming/ZOwnerKey.ps1": {
+    "mtime": 1792449616.275867,
+    "seen": 1792642134.8059077,
+    "ast_hash": "ccb6d4554a963c3b0f48b226c75028c9",
+    "semantic_hash": "ccb6d4554a963c3b0f48b226c75028c9"
+  },
+  "Tests/Fixtures/Tweaks/Ported.psd1": {
+    "mtime": 1792449616.2593546,
+    "seen": 1792642134.8059084,
+    "ast_hash": "631c13b8cc6963c9393cd8305dbd3772",
+    "semantic_hash": "631c13b8cc6963c9393cd8305dbd3772"
+  },
+  "Tests/Hardware.Tests.ps1": {
+    "mtime": 1792466218.097468,
+    "seen": 1792642134.8059094,
+    "ast_hash": "f2c3a3274adc3473a556c52a71f8436c",
+    "semantic_hash": "f2c3a3274adc3473a556c52a71f8436c"
+  },
+  "Tests/Legacy.Tests.ps1": {
+    "mtime": 1792461053.0987015,
+    "seen": 1792642134.8059103,
+    "ast_hash": "b1325405d1e6f9aaf7211299f80ff2af",
+    "semantic_hash": "b1325405d1e6f9aaf7211299f80ff2af"
+  },
+  "Tests/Loader.Tests.ps1": {
+    "mtime": 1792458876.5428267,
+    "seen": 1792642134.805911,
+    "ast_hash": "08ad99eb58b4fd88e9903ef6c848c3ae",
+    "semantic_hash": "08ad99eb58b4fd88e9903ef6c848c3ae"
+  },
+  "Tests/Log.Tests.ps1": {
+    "mtime": 1792464979.989749,
+    "seen": 1792642134.8059118,
+    "ast_hash": "ae36b2634f9cff81df8f461164566900",
+    "semantic_hash": "ae36b2634f9cff81df8f461164566900"
+  },
+  "Tests/OneClick.Tests.ps1": {
+    "mtime": 1792445263.778726,
+    "seen": 1792642134.8059127,
+    "ast_hash": "37179349a64a37d2478169ab168eb2dc",
+    "semantic_hash": "37179349a64a37d2478169ab168eb2dc"
+  },
+  "Tests/OneClickSteps.Tests.ps1": {
+    "mtime": 1792468608.5242841,
+    "seen": 1792642134.8059137,
+    "ast_hash": "3ba6d3ac03a31679822083ff410efb65",
+    "semantic_hash": "3ba6d3ac03a31679822083ff410efb65"
+  },
+  "Tests/Optimize.Tests.ps1": {
+    "mtime": 1792458879.153561,
+    "seen": 1792642134.8059146,
+    "ast_hash": "74ff40b1ae82700bee1338a9f61cf0c5",
+    "semantic_hash": "74ff40b1ae82700bee1338a9f61cf0c5"
+  },
+  "Tests/Phases.Tests.ps1": {
+    "mtime": 1792467130.118359,
+    "seen": 1792642134.8059154,
+    "ast_hash": "8d463717c762291b04a588418d414217",
+    "semantic_hash": "8d463717c762291b04a588418d414217"
+  },
+  "Tests/Presets.Tests.ps1": {
+    "mtime": 1792467737.2089117,
+    "seen": 1792642134.805916,
+    "ast_hash": "84ac57810f3209f0aa5035a75810a057",
+    "semantic_hash": "84ac57810f3209f0aa5035a75810a057"
+  },
+  "Tests/RegFile.ps1": {
+    "mtime": 1792457312.3294754,
+    "seen": 1792642134.8059173,
+    "ast_hash": "b506980b3b408c10394b53b6b06741b0",
+    "semantic_hash": "b506980b3b408c10394b53b6b06741b0"
+  },
+  "Tests/Registry.Tests.ps1": {
+    "mtime": 1792456546.1752784,
+    "seen": 1792642134.8059182,
+    "ast_hash": "05fd5ce9ce07fcf3b0862d1002cf8f7e",
+    "semantic_hash": "05fd5ce9ce07fcf3b0862d1002cf8f7e"
+  },
+  "Tests/Restore.Tests.ps1": {
+    "mtime": 1792445263.7802722,
+    "seen": 1792642134.805919,
+    "ast_hash": "8be7ed6cd35b74c5cac3d4a0405d2907",
+    "semantic_hash": "8be7ed6cd35b74c5cac3d4a0405d2907"
+  },
+  "Tests/Run.ps1": {
+    "mtime": 1792445263.7802722,
+    "seen": 1792642134.80592,
+    "ast_hash": "650d6830aa35f6637055979013c14cb6",
+    "semantic_hash": "650d6830aa35f6637055979013c14cb6"
+  },
+  "Tests/RunPhases.Tests.ps1": {
+    "mtime": 1792468608.5357292,
+    "seen": 1792642134.8059216,
+    "ast_hash": "04112d22f37318cac74b96cec7f4d054",
+    "semantic_hash": "04112d22f37318cac74b96cec7f4d054"
+  },
+  "Tests/Runner.Tests.ps1": {
+    "mtime": 1792467130.1150203,
+    "seen": 1792642134.805923,
+    "ast_hash": "3590c45f9752087acff537a4de28683f",
+    "semantic_hash": "3590c45f9752087acff537a4de28683f"
+  },
+  "Tests/Selection.Tests.ps1": {
+    "mtime": 1792445263.7807708,
+    "seen": 1792642134.805924,
+    "ast_hash": "a962d9811d7a72546804b32474465475",
+    "semantic_hash": "a962d9811d7a72546804b32474465475"
+  },
+  "Tests/Setup.Tests.ps1": {
+    "mtime": 1792466522.8759727,
+    "seen": 1792642134.8059247,
+    "ast_hash": "35c5087a81e10236fe7d3fc69890c2e8",
+    "semantic_hash": "35c5087a81e10236fe7d3fc69890c2e8"
+  },
+  "Tests/State.Tests.ps1": {
+    "mtime": 1792445263.7807708,
+    "seen": 1792642134.8059258,
+    "ast_hash": "5316dbcd79fb7351ccc294fa31031f6c",
+    "semantic_hash": "5316dbcd79fb7351ccc294fa31031f6c"
+  },
+  "Tests/Steps.Tests.ps1": {
+    "mtime": 1792468220.032819,
+    "seen": 1792642134.8059266,
+    "ast_hash": "45a2cd8b44d7e8dc9ade8820aa5e8dc9",
+    "semantic_hash": "45a2cd8b44d7e8dc9ade8820aa5e8dc9"
+  },
+  "Tests/System.Tests.ps1": {
+    "mtime": 1792449616.2588542,
+    "seen": 1792642134.8059285,
+    "ast_hash": "7dd2d0b04b1eec569364a656eac33253",
+    "semantic_hash": "7dd2d0b04b1eec569364a656eac33253"
+  },
+  "Tests/Ui.Tests.ps1": {
+    "mtime": 1792500114.1882472,
+    "seen": 1792642134.8059292,
+    "ast_hash": "d33fe9b73818e518cb07b9344a4ae921",
+    "semantic_hash": "d33fe9b73818e518cb07b9344a4ae921"
+  },
+  "Tests/Update.Tests.ps1": {
+    "mtime": 1792498663.118898,
+    "seen": 1792642134.80593,
+    "ast_hash": "a5cdf584d1eea0f4add52ab1afa5e095",
+    "semantic_hash": "a5cdf584d1eea0f4add52ab1afa5e095"
+  },
+  "Tests/Winget.Tests.ps1": {
+    "mtime": 1792470315.683804,
+    "seen": 1792642134.805931,
+    "ast_hash": "410994798efa91a9e123106fd11807c4",
+    "semantic_hash": "410994798efa91a9e123106fd11807c4"
+  },
+  "Tweaks/Advanced.ps1": {
+    "mtime": 1792445263.7833161,
+    "seen": 1792642134.8059318,
+    "ast_hash": "78715ed5f5e79824252e7633c7a5bfc7",
+    "semantic_hash": "78715ed5f5e79824252e7633c7a5bfc7"
+  },
+  "Tweaks/Advanced/Display/ComposedFlip.ps1": {
+    "mtime": 1792465747.5189438,
+    "seen": 1792642134.8059325,
+    "ast_hash": "a7d38fa39b866ac3dfeaa83120038304",
+    "semantic_hash": "a7d38fa39b866ac3dfeaa83120038304"
+  },
+  "Tweaks/Advanced/Display/FullscreenExclusive.ps1": {
+    "mtime": 1792465747.5194442,
+    "seen": 1792642134.8059332,
+    "ast_hash": "a809261393fab773797ff5f0524d93b5",
+    "semantic_hash": "a809261393fab773797ff5f0524d93b5"
+  },
+  "Tweaks/Advanced/Display/Mpo.ps1": {
+    "mtime": 1792465747.519945,
+    "seen": 1792642134.8059342,
+    "ast_hash": "db814537e5c9944d9ecb9e40ddcbf2d2",
+    "semantic_hash": "db814537e5c9944d9ecb9e40ddcbf2d2"
+  },
+  "Tweaks/Advanced/Security/DataExecutionPrevention.ps1": {
+    "mtime": 1792467452.5943606,
+    "seen": 1792642134.8059356,
+    "ast_hash": "5ee7836aa77a45a6dfd546eb75a9d217",
+    "semantic_hash": "5ee7836aa77a45a6dfd546eb75a9d217"
+  },
+  "Tweaks/Advanced/Security/DefenderSettings.ps1": {
+    "mtime": 1792467452.594862,
+    "seen": 1792642134.8059363,
+    "ast_hash": "41b549948e7b76ecf1a91cf09a6068ee",
+    "semantic_hash": "41b549948e7b76ecf1a91cf09a6068ee"
+  },
+  "Tweaks/Advanced/Security/DefenderTasks.ps1": {
+    "mtime": 1792468152.9392653,
+    "seen": 1792642134.8059373,
+    "ast_hash": "2788813a2ae4ef9a0747d2edbf1a735e",
+    "semantic_hash": "2788813a2ae4ef9a0747d2edbf1a735e"
+  },
+  "Tweaks/Advanced/Security/DownloadWarning.ps1": {
+    "mtime": 1792467452.5953624,
+    "seen": 1792642134.8059382,
+    "ast_hash": "b458646fb6c3d75950f997befea1c817",
+    "semantic_hash": "b458646fb6c3d75950f997befea1c817"
+  },
+  "Tweaks/Advanced/Security/Files/defender-settings.psd1": {
+    "mtime": 1792467452.5973642,
+    "seen": 1792642134.8059392,
+    "ast_hash": "a537f1d27d1140749e74fa5874adc8f0",
+    "semantic_hash": "a537f1d27d1140749e74fa5874adc8f0"
+  },
+  "Tweaks/Advanced/Security/Firewall.ps1": {
+    "mtime": 1792467452.595863,
+    "seen": 1792642134.80594,
+    "ast_hash": "6a3aa70810b243c2b589cc8a184649bb",
+    "semantic_hash": "6a3aa70810b243c2b589cc8a184649bb"
+  },
+  "Tweaks/Advanced/Security/SpectreMeltdown.ps1": {
+    "mtime": 1792467452.596363,
+    "seen": 1792642134.805941,
+    "ast_hash": "93caecfd9cc1be7734e6b9807e816285",
+    "semantic_hash": "93caecfd9cc1be7734e6b9807e816285"
+  },
+  "Tweaks/Advanced/Security/Uac.ps1": {
+    "mtime": 1792467452.5968635,
+    "seen": 1792642134.8059418,
+    "ast_hash": "75cef0511b8a5a9d8f89c9ac329703ae",
+    "semantic_hash": "75cef0511b8a5a9d8f89c9ac329703ae"
+  },
+  "Tweaks/Advanced/Security/WhqlBypass.ps1": {
+    "mtime": 1792467452.5968635,
+    "seen": 1792642134.8059425,
+    "ast_hash": "78e893204c2afd8547288eb337c83612",
+    "semantic_hash": "78e893204c2afd8547288eb337c83612"
+  },
+  "Tweaks/Advanced/System/KeyboardShortcuts.ps1": {
+    "mtime": 1792465747.519945,
+    "seen": 1792642134.8059433,
+    "ast_hash": "150c2842ee71df5a1f67926cf080b1c8",
+    "semantic_hash": "150c2842ee71df5a1f67926cf080b1c8"
+  },
+  "Tweaks/Advanced/System/MMAgent.ps1": {
+    "mtime": 1792465747.520445,
+    "seen": 1792642134.8059442,
+    "ast_hash": "f5c280a9b987fec3f48d3a2bd8345026",
+    "semantic_hash": "f5c280a9b987fec3f48d3a2bd8345026"
+  },
+  "Tweaks/Advanced/System/NvmeDriver.ps1": {
+    "mtime": 1792465747.5209453,
+    "seen": 1792642134.8059452,
+    "ast_hash": "48ee6ba2835fa0c5393c30c6000b59c3",
+    "semantic_hash": "48ee6ba2835fa0c5393c30c6000b59c3"
+  },
+  "Tweaks/Advanced/System/StartSearchShell.ps1": {
+    "mtime": 1792465747.5214458,
+    "seen": 1792642134.8059459,
+    "ast_hash": "c3fb649af79c7bb726d45464bcca8fc4",
+    "semantic_hash": "c3fb649af79c7bb726d45464bcca8fc4"
+  },
+  "Tweaks/Advanced/Tuning/SvcHostSplitThreshold.ps1": {
+    "mtime": 1792445263.7833161,
+    "seen": 1792642134.8059466,
+    "ast_hash": "7c0c072e751c3f06832a52f0ef2c8e48",
+    "semantic_hash": "7c0c072e751c3f06832a52f0ef2c8e48"
+  },
+  "Tweaks/Advanced/Tuning/Win32PrioritySeparation.ps1": {
+    "mtime": 1792453718.6995754,
+    "seen": 1792642134.8059473,
+    "ast_hash": "0b155d111f9c475edb993f4ce4d8ceb7",
+    "semantic_hash": "0b155d111f9c475edb993f4ce4d8ceb7"
+  },
+  "Tweaks/Apps/Install/7Zip.ps1": {
+    "mtime": 1792461877.7154317,
+    "seen": 1792642134.8059485,
+    "ast_hash": "4da1175e7aed1e0b1fa8608d582d4563",
+    "semantic_hash": "4da1175e7aed1e0b1fa8608d582d4563"
+  },
+  "Tweaks/Apps/Install/Audacity.ps1": {
+    "mtime": 1792445263.7848427,
+    "seen": 1792642134.8059492,
+    "ast_hash": "406bff7750da2898ef684c02481207d6",
+    "semantic_hash": "406bff7750da2898ef684c02481207d6"
+  },
+  "Tweaks/Apps/Install/BattleNet.ps1": {
+    "mtime": 1792445263.7848427,
+    "seen": 1792642134.80595,
+    "ast_hash": "0c3734c75c54bba4121a969aaca4b1ac",
+    "semantic_hash": "0c3734c75c54bba4121a969aaca4b1ac"
+  },
+  "Tweaks/Apps/Install/Bitwarden.ps1": {
+    "mtime": 1792445263.7848427,
+    "seen": 1792642134.8059506,
+    "ast_hash": "1ffe6d6276bc753693a5b665208a529d",
+    "semantic_hash": "1ffe6d6276bc753693a5b665208a529d"
+  },
+  "Tweaks/Apps/Install/Brave.ps1": {
+    "mtime": 1792445263.785344,
+    "seen": 1792642134.8059516,
+    "ast_hash": "d528d82139d04a6ceedc53fe0b1d3121",
+    "semantic_hash": "d528d82139d04a6ceedc53fe0b1d3121"
+  },
+  "Tweaks/Apps/Install/BulkCrapUninstaller.ps1": {
+    "mtime": 1792445263.785344,
+    "seen": 1792642134.8059525,
+    "ast_hash": "7750ac98743190ae5e33f5d3978ebd3b",
+    "semantic_hash": "7750ac98743190ae5e33f5d3978ebd3b"
+  },
+  "Tweaks/Apps/Install/CapFrameX.ps1": {
+    "mtime": 1792445263.7859423,
+    "seen": 1792642134.805955,
+    "ast_hash": "68a1d67be096a209f05134dd55cbb5f4",
+    "semantic_hash": "68a1d67be096a209f05134dd55cbb5f4"
+  },
+  "Tweaks/Apps/Install/CpuZ.ps1": {
+    "mtime": 1792445263.7864432,
+    "seen": 1792642134.8059556,
+    "ast_hash": "0a341b4166f4310f20deb5fdf19cdead",
+    "semantic_hash": "0a341b4166f4310f20deb5fdf19cdead"
+  },
+  "Tweaks/Apps/Install/CustomResolutionUtility.ps1": {
+    "mtime": 1792445263.7864432,
+    "seen": 1792642134.8059566,
+    "ast_hash": "21aeba38522cac33e6558e0e1639331b",
+    "semantic_hash": "21aeba38522cac33e6558e0e1639331b"
+  },
+  "Tweaks/Apps/Install/DirectX.ps1": {
+    "mtime": 1792461877.7204354,
+    "seen": 1792642134.8059573,
+    "ast_hash": "4c4182080433e0a8c52d8bf236b39d81",
+    "semantic_hash": "4c4182080433e0a8c52d8bf236b39d81"
+  },
+  "Tweaks/Apps/Install/Discord.ps1": {
+    "mtime": 1792445263.7870014,
+    "seen": 1792642134.805958,
+    "ast_hash": "2ed79fcab06fcb5c6b9a8c7ec7e2478c",
+    "semantic_hash": "2ed79fcab06fcb5c6b9a8c7ec7e2478c"
+  },
+  "Tweaks/Apps/Install/DotNetDesktop.ps1": {
+    "mtime": 1792445263.7875016,
+    "seen": 1792642134.805959,
+    "ast_hash": "6f1cd6f77f90b4df74528f69ccc94f51",
+    "semantic_hash": "6f1cd6f77f90b4df74528f69ccc94f51"
+  },
+  "Tweaks/Apps/Install/ElectronicArts.ps1": {
+    "mtime": 1792445263.7875016,
+    "seen": 1792642134.8059597,
+    "ast_hash": "ea63aca9703219910dc1a59a6fa11301",
+    "semantic_hash": "ea63aca9703219910dc1a59a6fa11301"
+  },
+  "Tweaks/Apps/Install/EpicGames.ps1": {
+    "mtime": 1792445263.7875016,
+    "seen": 1792642134.8059604,
+    "ast_hash": "df373431a6a847ab643b3c97be8c4237",
+    "semantic_hash": "df373431a6a847ab643b3c97be8c4237"
+  },
+  "Tweaks/Apps/Install/Everything.ps1": {
+    "mtime": 1792445263.7881844,
+    "seen": 1792642134.8059611,
+    "ast_hash": "e81b9ba507cb212a711d437c102ce38a",
+    "semantic_hash": "e81b9ba507cb212a711d437c102ce38a"
+  },
+  "Tweaks/Apps/Install/Firefox.ps1": {
+    "mtime": 1792445263.7917683,
+    "seen": 1792642134.805962,
+    "ast_hash": "37fbc52aa2ca3a31fe19fc1e9c182dba",
+    "semantic_hash": "37fbc52aa2ca3a31fe19fc1e9c182dba"
+  },
+  "Tweaks/Apps/Install/Foobar2000.ps1": {
+    "mtime": 1792445263.7917683,
+    "seen": 1792642134.805963,
+    "ast_hash": "c1b4d0c5c1f8d286b6b08dc4c2cbc05f",
+    "semantic_hash": "c1b4d0c5c1f8d286b6b08dc4c2cbc05f"
+  },
+  "Tweaks/Apps/Install/FrameView.ps1": {
+    "mtime": 1792445263.79227,
+    "seen": 1792642134.8059638,
+    "ast_hash": "5615fc2ba63e89555524c16aa5545e96",
+    "semantic_hash": "5615fc2ba63e89555524c16aa5545e96"
+  },
+  "Tweaks/Apps/Install/Git.ps1": {
+    "mtime": 1792445263.79227,
+    "seen": 1792642134.8059645,
+    "ast_hash": "49b6301302ff9bab6d820052cdfd0d22",
+    "semantic_hash": "49b6301302ff9bab6d820052cdfd0d22"
+  },
+  "Tweaks/Apps/Install/GogGalaxy.ps1": {
+    "mtime": 1792445263.7927706,
+    "seen": 1792642134.8059654,
+    "ast_hash": "217c9a8e98d465e98576a3436f3c67e6",
+    "semantic_hash": "217c9a8e98d465e98576a3436f3c67e6"
+  },
+  "Tweaks/Apps/Install/GoogleChrome.ps1": {
+    "mtime": 1792445263.7927706,
+    "seen": 1792642134.8059661,
+    "ast_hash": "715a5cd989be22c158a0550681850411",
+    "semantic_hash": "715a5cd989be22c158a0550681850411"
+  },
+  "Tweaks/Apps/Install/GpuZ.ps1": {
+    "mtime": 1792445263.7927706,
+    "seen": 1792642134.805967,
+    "ast_hash": "33f02c9dd14ed8ff2560fb8d36456ff3",
+    "semantic_hash": "33f02c9dd14ed8ff2560fb8d36456ff3"
+  },
+  "Tweaks/Apps/Install/HWiNFO.ps1": {
+    "mtime": 1792445263.7927706,
+    "seen": 1792642134.8059678,
+    "ast_hash": "1afa8948850d9396ba4e5e86e31bdb2a",
+    "semantic_hash": "1afa8948850d9396ba4e5e86e31bdb2a"
+  },
+  "Tweaks/Apps/Install/HandBrake.ps1": {
+    "mtime": 1792445263.7937737,
+    "seen": 1792642134.8059685,
+    "ast_hash": "f25fecc91059dfe20d4b8b891d0b9eea",
+    "semantic_hash": "f25fecc91059dfe20d4b8b891d0b9eea"
+  },
+  "Tweaks/Apps/Install/Helium.ps1": {
+    "mtime": 1792461877.719434,
+    "seen": 1792642134.8059695,
+    "ast_hash": "275b312a3acdee24a93dfd030030d53c",
+    "semantic_hash": "275b312a3acdee24a93dfd030030d53c"
+  },
+  "Tweaks/Apps/Install/JavaRuntime.ps1": {
+    "mtime": 1792445263.7942946,
+    "seen": 1792642134.8059702,
+    "ast_hash": "b3463b2ba4a40a4ae01e170158bf96c0",
+    "semantic_hash": "b3463b2ba4a40a4ae01e170158bf96c0"
+  },
+  "Tweaks/Apps/Install/LibreWolf.ps1": {
+    "mtime": 1792445263.7942946,
+    "seen": 1792642134.805971,
+    "ast_hash": "9149998f03064c2346a7805effd08306",
+    "semantic_hash": "9149998f03064c2346a7805effd08306"
+  },
+  "Tweaks/Apps/Install/MicrosoftEdge.ps1": {
+    "mtime": 1792449616.2573516,
+    "seen": 1792642134.8059719,
+    "ast_hash": "333d0464a9528b41a91ba7c28a59ce24",
+    "semantic_hash": "333d0464a9528b41a91ba7c28a59ce24"
+  },
+  "Tweaks/Apps/Install/MicrosoftStore.ps1": {
+    "mtime": 1792470429.110794,
+    "seen": 1792642134.8059728,
+    "ast_hash": "5d9991379b7fa001e6d27c2157127646",
+    "semantic_hash": "5d9991379b7fa001e6d27c2157127646"
+  },
+  "Tweaks/Apps/Install/MoreClockTool.ps1": {
+    "mtime": 1792445263.794795,
+    "seen": 1792642134.8059735,
+    "ast_hash": "79198d10bbb65aac6d9faf4ee210b413",
+    "semantic_hash": "79198d10bbb65aac6d9faf4ee210b413"
+  },
+  "Tweaks/Apps/Install/Mpv.ps1": {
+    "mtime": 1792445263.794795,
+    "seen": 1792642134.8059745,
+    "ast_hash": "ca734d22a2da01ec33d9001bcea8f57f",
+    "semantic_hash": "ca734d22a2da01ec33d9001bcea8f57f"
+  },
+  "Tweaks/Apps/Install/MsiAfterburner.ps1": {
+    "mtime": 1792445263.794795,
+    "seen": 1792642134.8059752,
+    "ast_hash": "791eba0a70c2b32264ed64f4daf03269",
+    "semantic_hash": "791eba0a70c2b32264ed64f4daf03269"
+  },
+  "Tweaks/Apps/Install/NanaZip.ps1": {
+    "mtime": 1792445263.7954774,
+    "seen": 1792642134.8059762,
+    "ast_hash": "9db96ba19292d40e404ae04eef41c9a6",
+    "semantic_hash": "9db96ba19292d40e404ae04eef41c9a6"
+  },
+  "Tweaks/Apps/Install/NodeJs.ps1": {
+    "mtime": 1792445263.7954774,
+    "seen": 1792642134.8059769,
+    "ast_hash": "aa41db1fc45f9cfb618ffa96e037f7bd",
+    "semantic_hash": "aa41db1fc45f9cfb618ffa96e037f7bd"
+  },
+  "Tweaks/Apps/Install/NotepadPlusPlus.ps1": {
+    "mtime": 1792445263.7959774,
+    "seen": 1792642134.8059776,
+    "ast_hash": "48098afe60d2ebb3c510f6e293679e5d",
+    "semantic_hash": "48098afe60d2ebb3c510f6e293679e5d"
+  },
+  "Tweaks/Apps/Install/NvidiaApp.ps1": {
+    "mtime": 1792445263.7959774,
+    "seen": 1792642134.8059783,
+    "ast_hash": "dd1c697801bef1f12ae64018f63c05a3",
+    "semantic_hash": "dd1c697801bef1f12ae64018f63c05a3"
+  },
+  "Tweaks/Apps/Install/NvidiaProfileInspector.ps1": {
+    "mtime": 1792445263.7959774,
+    "seen": 1792642134.8059793,
+    "ast_hash": "9a6ff7fc8f520ed5a5c074f2bccb925d",
+    "semantic_hash": "9a6ff7fc8f520ed5a5c074f2bccb925d"
+  },
+  "Tweaks/Apps/Install/ObsStudio.ps1": {
+    "mtime": 1792445263.7967708,
+    "seen": 1792642134.80598,
+    "ast_hash": "41d1a8746f6d86b3ae95e932db2a6b1b",
+    "semantic_hash": "41d1a8746f6d86b3ae95e932db2a6b1b"
+  },
+  "Tweaks/Apps/Install/Occt.ps1": {
+    "mtime": 1792445263.7967708,
+    "seen": 1792642134.8059807,
+    "ast_hash": "6d479540ce563ea90f5251a29d7d9780",
+    "semantic_hash": "6d479540ce563ea90f5251a29d7d9780"
+  },
+  "Tweaks/Apps/Install/OnboardMemoryManager.ps1": {
+    "mtime": 1792445263.797271,
+    "seen": 1792642134.8059816,
+    "ast_hash": "b5ccbfd5861fc61aa4686932c42f4d06",
+    "semantic_hash": "b5ccbfd5861fc61aa4686932c42f4d06"
+  },
+  "Tweaks/Apps/Install/OperaGX.ps1": {
+    "mtime": 1792445263.797271,
+    "seen": 1792642134.8059824,
+    "ast_hash": "0f901eae37b585cd013c1fa3ddc2ab2e",
+    "semantic_hash": "0f901eae37b585cd013c1fa3ddc2ab2e"
+  },
+  "Tweaks/Apps/Install/Parsec.ps1": {
+    "mtime": 1792445263.797772,
+    "seen": 1792642134.8059833,
+    "ast_hash": "8840264a1b8ffd4ecb5ab946c7685478",
+    "semantic_hash": "8840264a1b8ffd4ecb5ab946c7685478"
+  },
+  "Tweaks/Apps/Install/Playnite.ps1": {
+    "mtime": 1792445263.797772,
+    "seen": 1792642134.8059843,
+    "ast_hash": "a9c4d1a53399e35e07265d9ff79ba44c",
+    "semantic_hash": "a9c4d1a53399e35e07265d9ff79ba44c"
+  },
+  "Tweaks/Apps/Install/PotPlayer.ps1": {
+    "mtime": 1792445263.797772,
+    "seen": 1792642134.805985,
+    "ast_hash": "354ec323b93d185b6a63d68724f44c3b",
+    "semantic_hash": "354ec323b93d185b6a63d68724f44c3b"
+  },
+  "Tweaks/Apps/Install/PowerToys.ps1": {
+    "mtime": 1792445263.797772,
+    "seen": 1792642134.8059857,
+    "ast_hash": "412a4731a8d127d2b33976319f33ad07",
+    "semantic_hash": "412a4731a8d127d2b33976319f33ad07"
+  },
+  "Tweaks/Apps/Install/ProcessLasso.ps1": {
+    "mtime": 1792445263.798775,
+    "seen": 1792642134.805987,
+    "ast_hash": "087d2e2e5546043d4528aa0fc817816a",
+    "semantic_hash": "087d2e2e5546043d4528aa0fc817816a"
+  },
+  "Tweaks/Apps/Install/Python.ps1": {
+    "mtime": 1792445263.798775,
+    "seen": 1792642134.8059876,
+    "ast_hash": "1350afeca518eabf8e9f88acc833a2b1",
+    "semantic_hash": "1350afeca518eabf8e9f88acc833a2b1"
+  },
+  "Tweaks/Apps/Install/QBittorrent.ps1": {
+    "mtime": 1792445263.7992764,
+    "seen": 1792642134.8059883,
+    "ast_hash": "dea82ef31855ded876b98d471f5fd622",
+    "semantic_hash": "dea82ef31855ded876b98d471f5fd622"
+  },
+  "Tweaks/Apps/Install/RockstarGames.ps1": {
+    "mtime": 1792445263.7992764,
+    "seen": 1792642134.805989,
+    "ast_hash": "af74d33c29e5ba56fdbebf5bfd77cb28",
+    "semantic_hash": "af74d33c29e5ba56fdbebf5bfd77cb28"
+  },
+  "Tweaks/Apps/Install/Rufus.ps1": {
+    "mtime": 1792445263.7997775,
+    "seen": 1792642134.80599,
+    "ast_hash": "a6eca26a013de9f7221b0f396fd9375b",
+    "semantic_hash": "a6eca26a013de9f7221b0f396fd9375b"
+  },
+  "Tweaks/Apps/Install/ShareX.ps1": {
+    "mtime": 1792445263.7997775,
+    "seen": 1792642134.805991,
+    "ast_hash": "7fe711928e6833f502428906ab977cf7",
+    "semantic_hash": "7fe711928e6833f502428906ab977cf7"
+  },
+  "Tweaks/Apps/Install/Signal.ps1": {
+    "mtime": 1792445263.8002803,
+    "seen": 1792642134.8059916,
+    "ast_hash": "54f6b1ce122490db71adee2960e7c481",
+    "semantic_hash": "54f6b1ce122490db71adee2960e7c481"
+  },
+  "Tweaks/Apps/Install/Spotify.ps1": {
+    "mtime": 1792445263.8002803,
+    "seen": 1792642134.8059924,
+    "ast_hash": "8b0c827d2b9c5b52d1f516612e82c610",
+    "semantic_hash": "8b0c827d2b9c5b52d1f516612e82c610"
+  },
+  "Tweaks/Apps/Install/Steam.ps1": {
+    "mtime": 1792445263.8002803,
+    "seen": 1792642134.8059936,
+    "ast_hash": "3d3cee6337d57bef07bbef740c50407e",
+    "semantic_hash": "3d3cee6337d57bef07bbef740c50407e"
+  },
+  "Tweaks/Apps/Install/StoreApps.ps1": {
+    "mtime": 1792445263.8002803,
+    "seen": 1792642134.8059943,
+    "ast_hash": "3092b753b5a066079e660491721b74d8",
+    "semantic_hash": "3092b753b5a066079e660491721b74d8"
+  },
+  "Tweaks/Apps/Install/StoreApps.psd1": {
+    "mtime": 1792445263.801286,
+    "seen": 1792642134.805995,
+    "ast_hash": "8502ed2753685f40dd8379af979f3656",
+    "semantic_hash": "8502ed2753685f40dd8379af979f3656"
+  },
+  "Tweaks/Apps/Install/TeamSpeak.ps1": {
+    "mtime": 1792445263.8017888,
+    "seen": 1792642134.8059957,
+    "ast_hash": "f88bf13b8453acdd447974b886219468",
+    "semantic_hash": "f88bf13b8453acdd447974b886219468"
+  },
+  "Tweaks/Apps/Install/Telegram.ps1": {
+    "mtime": 1792445263.8017888,
+    "seen": 1792642134.805997,
+    "ast_hash": "650fc96349547512c951f5a0c3056a3b",
+    "semantic_hash": "650fc96349547512c951f5a0c3056a3b"
+  },
+  "Tweaks/Apps/Install/UbisoftConnect.ps1": {
+    "mtime": 1792445263.8017888,
+    "seen": 1792642134.8059976,
+    "ast_hash": "1c6af21458b0077befd4da3e78aa58bf",
+    "semantic_hash": "1c6af21458b0077befd4da3e78aa58bf"
+  },
+  "Tweaks/Apps/Install/UngoogledChromium.ps1": {
+    "mtime": 1792445263.8017888,
+    "seen": 1792642134.8059983,
+    "ast_hash": "739c77bfa10f200117b1a99fe077cf0e",
+    "semantic_hash": "739c77bfa10f200117b1a99fe077cf0e"
+  },
+  "Tweaks/Apps/Install/VisualCppRedist.ps1": {
+    "mtime": 1792461877.7179332,
+    "seen": 1792642134.805999,
+    "ast_hash": "7259aab1c5e73217eb3d71be819dcece",
+    "semantic_hash": "7259aab1c5e73217eb3d71be819dcece"
+  },
+  "Tweaks/Apps/Install/Vivaldi.ps1": {
+    "mtime": 1792445263.8027925,
+    "seen": 1792642134.8060002,
+    "ast_hash": "123d14fdbc4d077e5ffdffb2de17a317",
+    "semantic_hash": "123d14fdbc4d077e5ffdffb2de17a317"
+  },
+  "Tweaks/Apps/Install/Vlc.ps1": {
+    "mtime": 1792445263.8027925,
+    "seen": 1792642134.806001,
+    "ast_hash": "7f47a2c35444a1b0b99ab5a5ec10efdb",
+    "semantic_hash": "7f47a2c35444a1b0b99ab5a5ec10efdb"
+  },
+  "Tweaks/Apps/Install/VsCode.ps1": {
+    "mtime": 1792445263.8027925,
+    "seen": 1792642134.806002,
+    "ast_hash": "d86c9c210ebe53d3a98cc7e8ecf8c581",
+    "semantic_hash": "d86c9c210ebe53d3a98cc7e8ecf8c581"
+  },
+  "Tweaks/Apps/Install/WebView2Runtime.ps1": {
+    "mtime": 1792449616.2578516,
+    "seen": 1792642134.8060026,
+    "ast_hash": "c87fc00a3e959c3ada527ebcfee06c25",
+    "semantic_hash": "c87fc00a3e959c3ada527ebcfee06c25"
+  },
+  "Tweaks/Apps/Install/WhatsApp.ps1": {
+    "mtime": 1792445263.8027925,
+    "seen": 1792642134.8060036,
+    "ast_hash": "616929af3011f06d9f681e3b48aeb56c",
+    "semantic_hash": "616929af3011f06d9f681e3b48aeb56c"
+  },
+  "Tweaks/Apps/Install/WinRar.ps1": {
+    "mtime": 1792445263.803799,
+    "seen": 1792642134.8060043,
+    "ast_hash": "dc470dd94c2fc5b39029a5b8935f0166",
+    "semantic_hash": "dc470dd94c2fc5b39029a5b8935f0166"
+  },
+  "Tweaks/Apps/Install/WindowsTerminal.ps1": {
+    "mtime": 1792445263.803799,
+    "seen": 1792642134.806005,
+    "ast_hash": "9bbf90351dc3335c02206eb6c26dc49c",
+    "semantic_hash": "9bbf90351dc3335c02206eb6c26dc49c"
+  },
+  "Tweaks/Apps/Install/ZenBrowser.ps1": {
+    "mtime": 1792445263.803799,
+    "seen": 1792642134.806006,
+    "ast_hash": "817d46a979a3b618443ec8802474e513",
+    "semantic_hash": "817d46a979a3b618443ec8802474e513"
+  },
+  "Tweaks/Apps/Remove/Appx.ps1": {
+    "mtime": 1792445263.8045092,
+    "seen": 1792642134.8060067,
+    "ast_hash": "950482ab84c66d582bd0d3c61beaaa7d",
+    "semantic_hash": "950482ab84c66d582bd0d3c61beaaa7d"
+  },
+  "Tweaks/Apps/Remove/Appx.psd1": {
+    "mtime": 1792445263.8045092,
+    "seen": 1792642134.8060086,
+    "ast_hash": "531d1d43d884138e38af9d160a8a3227",
+    "semantic_hash": "531d1d43d884138e38af9d160a8a3227"
+  },
+  "Tweaks/Apps/Remove/Brlapi.ps1": {
+    "mtime": 1792445263.8050096,
+    "seen": 1792642134.8060095,
+    "ast_hash": "e29462a0e1d11cb5cfbee66dd19b1a29",
+    "semantic_hash": "e29462a0e1d11cb5cfbee66dd19b1a29"
+  },
+  "Tweaks/Apps/Remove/Capabilities.ps1": {
+    "mtime": 1792445263.8050096,
+    "seen": 1792642134.8060107,
+    "ast_hash": "c77c554617c6e7cb976b8acbfff23936",
+    "semantic_hash": "c77c554617c6e7cb976b8acbfff23936"
+  },
+  "Tweaks/Apps/Remove/Capabilities.psd1": {
+    "mtime": 1792445263.8050096,
+    "seen": 1792642134.8060114,
+    "ast_hash": "3d4e11517c62677d4afb8aed262b3a9a",
+    "semantic_hash": "3d4e11517c62677d4afb8aed262b3a9a"
+  },
+  "Tweaks/Apps/Remove/Edge.ps1": {
+    "mtime": 1792445263.8060017,
+    "seen": 1792642134.8060122,
+    "ast_hash": "911644420aa81df0c84aa4de8b43cb58",
+    "semantic_hash": "911644420aa81df0c84aa4de8b43cb58"
+  },
+  "Tweaks/Apps/Remove/Features.ps1": {
+    "mtime": 1792445263.8060017,
+    "seen": 1792642134.8060129,
+    "ast_hash": "e571f72f1818de3717e626dab61f857d",
+    "semantic_hash": "e571f72f1818de3717e626dab61f857d"
+  },
+  "Tweaks/Apps/Remove/Features.psd1": {
+    "mtime": 1792445263.8065019,
+    "seen": 1792642134.8060136,
+    "ast_hash": "2c8dbe6c0213d1ed0dd9be8ab8e556f7",
+    "semantic_hash": "2c8dbe6c0213d1ed0dd9be8ab8e556f7"
+  },
+  "Tweaks/Apps/Remove/GameInput.ps1": {
+    "mtime": 1792445263.8065019,
+    "seen": 1792642134.8060148,
+    "ast_hash": "035f0363c7d29bc2008208ed7e4fa91b",
+    "semantic_hash": "035f0363c7d29bc2008208ed7e4fa91b"
+  },
+  "Tweaks/Apps/Remove/OneDrive.ps1": {
+    "mtime": 1792445263.8065019,
+    "seen": 1792642134.8060155,
+    "ast_hash": "06eead63711569b109a8c874fdd9e522",
+    "semantic_hash": "06eead63711569b109a8c874fdd9e522"
+  },
+  "Tweaks/Apps/Remove/RemoteDesktopConnection.ps1": {
+    "mtime": 1792445263.8065019,
+    "seen": 1792642134.8060162,
+    "ast_hash": "bbf0507ae24986c1ff87ee175cf3fdbb",
+    "semantic_hash": "bbf0507ae24986c1ff87ee175cf3fdbb"
+  },
+  "Tweaks/Apps/Remove/SnippingToolLegacy.ps1": {
+    "mtime": 1792445263.8065019,
+    "seen": 1792642134.806017,
+    "ast_hash": "81f09ccb8f343aa7fdc8fd8a48afe1a3",
+    "semantic_hash": "81f09ccb8f343aa7fdc8fd8a48afe1a3"
+  },
+  "Tweaks/Apps/Remove/UpdateForX64.ps1": {
+    "mtime": 1792445263.8074992,
+    "seen": 1792642134.8060179,
+    "ast_hash": "ed95e829f37e888b4a9742efbab65d86",
+    "semantic_hash": "ed95e829f37e888b4a9742efbab65d86"
+  },
+  "Tweaks/Apps/Remove/UpdateHealthTools.ps1": {
+    "mtime": 1792445263.8074992,
+    "seen": 1792642134.8060188,
+    "ast_hash": "b3f66af744efdca5b214fd05deb36861",
+    "semantic_hash": "b3f66af744efdca5b214fd05deb36861"
+  },
+  "Tweaks/Apps/Remove/WebView2.ps1": {
+    "mtime": 1792445263.8079982,
+    "seen": 1792642134.8060195,
+    "ast_hash": "0a44db0b95fe5b858091e9891f83ed66",
+    "semantic_hash": "0a44db0b95fe5b858091e9891f83ed66"
+  },
+  "Tweaks/Check.ps1": {
+    "mtime": 1792445263.8079982,
+    "seen": 1792642134.8060203,
+    "ast_hash": "de2a40fc92061e82ab8b6f7453825777",
+    "semantic_hash": "de2a40fc92061e82ab8b6f7453825777"
+  },
+  "Tweaks/Customize/Accessibility/ShortcutsNarrator.ps1": {
+    "mtime": 1792457338.0250072,
+    "seen": 1792642134.8060212,
+    "ast_hash": "747a5d57f24318671650994beb92f748",
+    "semantic_hash": "747a5d57f24318671650994beb92f748"
+  },
+  "Tweaks/Customize/Apps/EdgeSettings.ps1": {
+    "mtime": 1792467452.5978646,
+    "seen": 1792642134.806022,
+    "ast_hash": "425e6098027a912b46bf57aae0477d22",
+    "semantic_hash": "425e6098027a912b46bf57aae0477d22"
+  },
+  "Tweaks/Customize/Apps/NotepadSettings.ps1": {
+    "mtime": 1792467452.5983648,
+    "seen": 1792642134.806023,
+    "ast_hash": "1e09ff8717365f320582bed7d1e4d99b",
+    "semantic_hash": "1e09ff8717365f320582bed7d1e4d99b"
+  },
+  "Tweaks/Customize/Apps/StoreSettings.ps1": {
+    "mtime": 1792467452.5983648,
+    "seen": 1792642134.8060236,
+    "ast_hash": "0a0941e8b30b82fa8fc4d39f9cd169e3",
+    "semantic_hash": "0a0941e8b30b82fa8fc4d39f9cd169e3"
+  },
+  "Tweaks/Customize/Explorer/ClassicContextMenu.ps1": {
+    "mtime": 1792456626.5288413,
+    "seen": 1792642134.8060246,
+    "ast_hash": "d7a5e8ab7d676f671e44308070f87fe4",
+    "semantic_hash": "d7a5e8ab7d676f671e44308070f87fe4"
+  },
+  "Tweaks/Customize/Explorer/DesktopRecycleBin.ps1": {
+    "mtime": 1792456626.532845,
+    "seen": 1792642134.8060255,
+    "ast_hash": "d66733ff3295f7b49382a87c9014d0c2",
+    "semantic_hash": "d66733ff3295f7b49382a87c9014d0c2"
+  },
+  "Tweaks/Customize/Explorer/FolderOptions.ps1": {
+    "mtime": 1792456626.533348,
+    "seen": 1792642134.8060262,
+    "ast_hash": "2892343c6ac974a25f908a214c1314f4",
+    "semantic_hash": "2892343c6ac974a25f908a214c1314f4"
+  },
+  "Tweaks/Customize/Explorer/Hide3DObjects.ps1": {
+    "mtime": 1792456626.533348,
+    "seen": 1792642134.806027,
+    "ast_hash": "8f1898c134fe67bfe0dabacb0f7ac489",
+    "semantic_hash": "8f1898c134fe67bfe0dabacb0f7ac489"
+  },
+  "Tweaks/Customize/Explorer/HideFrequentFolders.ps1": {
+    "mtime": 1792456626.5338469,
+    "seen": 1792642134.806028,
+    "ast_hash": "5f7abf1bfc6a6ded56c35fda69627d28",
+    "semantic_hash": "5f7abf1bfc6a6ded56c35fda69627d28"
+  },
+  "Tweaks/Customize/Explorer/HideGallery.ps1": {
+    "mtime": 1792456626.5343475,
+    "seen": 1792642134.8060288,
+    "ast_hash": "392d3b6786da46d59dd6701840033e0e",
+    "semantic_hash": "392d3b6786da46d59dd6701840033e0e"
+  },
+  "Tweaks/Customize/Explorer/HideHome.ps1": {
+    "mtime": 1792456626.5348468,
+    "seen": 1792642134.8060296,
+    "ast_hash": "343bd7752dfffa74f3d7ceac2e7dd918",
+    "semantic_hash": "343bd7752dfffa74f3d7ceac2e7dd918"
+  },
+  "Tweaks/Customize/Explorer/HideNetwork.ps1": {
+    "mtime": 1792456626.5348468,
+    "seen": 1792642134.8060303,
+    "ast_hash": "72a015b5797dbd6a81ced2be2c106149",
+    "semantic_hash": "72a015b5797dbd6a81ced2be2c106149"
+  },
+  "Tweaks/Customize/Explorer/HideOfficeFiles.ps1": {
+    "mtime": 1792456626.5353475,
+    "seen": 1792642134.806031,
+    "ast_hash": "6fd300abf78a0204869c5a91546feccb",
+    "semantic_hash": "6fd300abf78a0204869c5a91546feccb"
+  },
+  "Tweaks/Customize/Explorer/OpenThisPC.ps1": {
+    "mtime": 1792456626.5358481,
+    "seen": 1792642134.806032,
+    "ast_hash": "da366b21c7429cc1ce505bf58ecdad58",
+    "semantic_hash": "da366b21c7429cc1ce505bf58ecdad58"
+  },
+  "Tweaks/Customize/Explorer/ShowExtensions.ps1": {
+    "mtime": 1792456626.5363472,
+    "seen": 1792642134.806033,
+    "ast_hash": "0c2084a0ce634026937e8bc694981fcd",
+    "semantic_hash": "0c2084a0ce634026937e8bc694981fcd"
+  },
+  "Tweaks/Customize/Explorer/ShowHiddenFiles.ps1": {
+    "mtime": 1792456626.5368478,
+    "seen": 1792642134.8060336,
+    "ast_hash": "b659c2871afa43439029a910383782d9",
+    "semantic_hash": "b659c2871afa43439029a910383782d9"
+  },
+  "Tweaks/Customize/Explorer/TrimContextMenu.ps1": {
+    "mtime": 1792456626.5373478,
+    "seen": 1792642134.8060343,
+    "ast_hash": "2328da1be59711a6bef2252f2d34e9ee",
+    "semantic_hash": "2328da1be59711a6bef2252f2d34e9ee"
+  },
+  "Tweaks/Customize/Input/CursorScheme.ps1": {
+    "mtime": 1792457338.01324,
+    "seen": 1792642134.8060365,
+    "ast_hash": "18ec4c995ee7bd5cc9394cd03bbf4487",
+    "semantic_hash": "18ec4c995ee7bd5cc9394cd03bbf4487"
+  },
+  "Tweaks/Customize/Input/LanguageBar.ps1": {
+    "mtime": 1792457337.9923942,
+    "seen": 1792642134.8060372,
+    "ast_hash": "10780f7d86c9d452ed59e84a56130395",
+    "semantic_hash": "10780f7d86c9d452ed59e84a56130395"
+  },
+  "Tweaks/Customize/Input/PointerPrecision.ps1": {
+    "mtime": 1792457338.0051467,
+    "seen": 1792642134.806038,
+    "ast_hash": "b98957089a8f64ef8401705b851e92a7",
+    "semantic_hash": "b98957089a8f64ef8401705b851e92a7"
+  },
+  "Tweaks/Customize/Input/PrintScreen.ps1": {
+    "mtime": 1792457338.0062194,
+    "seen": 1792642134.8060389,
+    "ast_hash": "95b476356c6282e419e1f3d450fe502f",
+    "semantic_hash": "95b476356c6282e419e1f3d450fe502f"
+  },
+  "Tweaks/Customize/Input/TouchKeyboard.ps1": {
+    "mtime": 1792457337.9939072,
+    "seen": 1792642134.8060398,
+    "ast_hash": "0c57d47b3481cb64d6a21cde028a731c",
+    "semantic_hash": "0c57d47b3481cb64d6a21cde028a731c"
+  },
+  "Tweaks/Customize/Input/Typing.ps1": {
+    "mtime": 1792457337.9871924,
+    "seen": 1792642134.8060405,
+    "ast_hash": "7ee31ecdf1bd8addae38bba87f0de070",
+    "semantic_hash": "7ee31ecdf1bd8addae38bba87f0de070"
+  },
+  "Tweaks/Customize/Notifications/NotificationsOff.ps1": {
+    "mtime": 1792457337.9799664,
+    "seen": 1792642134.8060412,
+    "ast_hash": "eb2cf23da0f46d7ffe57ae52e8a9791d",
+    "semantic_hash": "eb2cf23da0f46d7ffe57ae52e8a9791d"
+  },
+  "Tweaks/Customize/Notifications/Quieter.ps1": {
+    "mtime": 1792457337.9831889,
+    "seen": 1792642134.8060422,
+    "ast_hash": "54df8ffbb663f03bab74ed294fab89e5",
+    "semantic_hash": "54df8ffbb663f03bab74ed294fab89e5"
+  },
+  "Tweaks/Customize/Notifications/Suggestions.ps1": {
+    "mtime": 1792457337.9841897,
+    "seen": 1792642134.806043,
+    "ast_hash": "861da30e4eb8363895962b627af6ca1a",
+    "semantic_hash": "861da30e4eb8363895962b627af6ca1a"
+  },
+  "Tweaks/Customize/Sound/CommunicationsDucking.ps1": {
+    "mtime": 1792457338.034942,
+    "seen": 1792642134.8060439,
+    "ast_hash": "1e5c13e9195d1a64afc99be761366f60",
+    "semantic_hash": "1e5c13e9195d1a64afc99be761366f60"
+  },
+  "Tweaks/Customize/Sound/LoudnessEQ.ps1": {
+    "mtime": 1792457874.2644928,
+    "seen": 1792642134.8060446,
+    "ast_hash": "3a53c3744154a0d56602ed307f5613fe",
+    "semantic_hash": "3a53c3744154a0d56602ed307f5613fe"
+  },
+  "Tweaks/Customize/Sound/NoSoundScheme.ps1": {
+    "mtime": 1792457338.03259,
+    "seen": 1792642134.8060455,
+    "ast_hash": "050713053c9612a9df10e8e60fbeb512",
+    "semantic_hash": "050713053c9612a9df10e8e60fbeb512"
+  },
+  "Tweaks/Customize/Sound/NoStartupSound.ps1": {
+    "mtime": 1792457338.033628,
+    "seen": 1792642134.8060462,
+    "ast_hash": "7e948215b599ea18615fc4117d42639e",
+    "semantic_hash": "7e948215b599ea18615fc4117d42639e"
+  },
+  "Tweaks/Customize/Start/AkariOSPins.ps1": {
+    "mtime": 1792455379.316881,
+    "seen": 1792642134.806047,
+    "ast_hash": "4c42bf56572ef326d43615d4aa071696",
+    "semantic_hash": "4c42bf56572ef326d43615d4aa071696"
+  },
+  "Tweaks/Customize/Start/AkariOSShortcuts.ps1": {
+    "mtime": 1792453718.6795585,
+    "seen": 1792642134.806048,
+    "ast_hash": "98e6312a588af3b5c595d5b2a3324118",
+    "semantic_hash": "98e6312a588af3b5c595d5b2a3324118"
+  },
+  "Tweaks/Customize/Start/AllAppsList.ps1": {
+    "mtime": 1792453718.6810596,
+    "seen": 1792642134.8060484,
+    "ast_hash": "2e1d5e26ab30129ae666346d501755d1",
+    "semantic_hash": "2e1d5e26ab30129ae666346d501755d1"
+  },
+  "Tweaks/Customize/Start/CompactLayout.ps1": {
+    "mtime": 1792453718.682561,
+    "seen": 1792642134.8060493,
+    "ast_hash": "9438362c8fda958afab68147b362255f",
+    "semantic_hash": "9438362c8fda958afab68147b362255f"
+  },
+  "Tweaks/Customize/Start/HideAccessibilityFolders.ps1": {
+    "mtime": 1792453718.684062,
+    "seen": 1792642134.8060503,
+    "ast_hash": "d58ae541767b9250410e74f06a772378",
+    "semantic_hash": "d58ae541767b9250410e74f06a772378"
+  },
+  "Tweaks/Customize/Start/HideAccountNotifications.ps1": {
+    "mtime": 1792453718.6855638,
+    "seen": 1792642134.806051,
+    "ast_hash": "e9b9ef031820e736f13f3b01658b7c8b",
+    "semantic_hash": "e9b9ef031820e736f13f3b01658b7c8b"
+  },
+  "Tweaks/Customize/Start/HideBrowsingSites.ps1": {
+    "mtime": 1792453718.6870644,
+    "seen": 1792642134.8060517,
+    "ast_hash": "9234420bea70c35c6557ebbb7abbce37",
+    "semantic_hash": "9234420bea70c35c6557ebbb7abbce37"
+  },
+  "Tweaks/Customize/Start/HideMostUsed.ps1": {
+    "mtime": 1792453718.6880658,
+    "seen": 1792642134.8060527,
+    "ast_hash": "c14d2c5fa1bbd776ee1188be63ffd2a7",
+    "semantic_hash": "c14d2c5fa1bbd776ee1188be63ffd2a7"
+  },
+  "Tweaks/Customize/Start/HidePinnedSection.ps1": {
+    "mtime": 1792453733.5588467,
+    "seen": 1792642134.8060534,
+    "ast_hash": "0619692627eb1c143d809c13d43c02bc",
+    "semantic_hash": "0619692627eb1c143d809c13d43c02bc"
+  },
+  "Tweaks/Customize/Start/HideRecentItems.ps1": {
+    "mtime": 1792453718.6885664,
+    "seen": 1792642134.8060544,
+    "ast_hash": "9b610961aedef6cb7dcd2eee43be58f6",
+    "semantic_hash": "9b610961aedef6cb7dcd2eee43be58f6"
+  },
+  "Tweaks/Customize/Start/HideRecentlyAdded.ps1": {
+    "mtime": 1792453718.6900675,
+    "seen": 1792642134.806055,
+    "ast_hash": "77628a506f7d9f6eba75b90330d53210",
+    "semantic_hash": "77628a506f7d9f6eba75b90330d53210"
+  },
+  "Tweaks/Customize/Start/HideRecommended.ps1": {
+    "mtime": 1792453718.6910684,
+    "seen": 1792642134.806056,
+    "ast_hash": "b7f7b1064cadf00eb5c993063945e129",
+    "semantic_hash": "b7f7b1064cadf00eb5c993063945e129"
+  },
+  "Tweaks/Customize/Start/HideSuggestions.ps1": {
+    "mtime": 1792453718.692069,
+    "seen": 1792642134.8060567,
+    "ast_hash": "60f3c14a526ba61ef063738da23f3306",
+    "semantic_hash": "60f3c14a526ba61ef063738da23f3306"
+  },
+  "Tweaks/Customize/Start/MorePins.ps1": {
+    "mtime": 1792453718.6935704,
+    "seen": 1792642134.8060575,
+    "ast_hash": "aec37c257aa4681ad07c7dc0c3a6bf94",
+    "semantic_hash": "aec37c257aa4681ad07c7dc0c3a6bf94"
+  },
+  "Tweaks/Customize/Start/NewStartMenu.ps1": {
+    "mtime": 1792453718.695072,
+    "seen": 1792642134.8060584,
+    "ast_hash": "2ab01c140288a9f4249f2fe35ba817f5",
+    "semantic_hash": "2ab01c140288a9f4249f2fe35ba817f5"
+  },
+  "Tweaks/Customize/System/AltTab.ps1": {
+    "mtime": 1792457338.039925,
+    "seen": 1792642134.8060594,
+    "ast_hash": "c114b8345ef05664bfc4d8918167d51a",
+    "semantic_hash": "c114b8345ef05664bfc4d8918167d51a"
+  },
+  "Tweaks/Customize/System/BlackConsole.ps1": {
+    "mtime": 1792457338.0454206,
+    "seen": 1792642134.80606,
+    "ast_hash": "6957b6add6c1985f9c2975e0eb0442ea",
+    "semantic_hash": "6957b6add6c1985f9c2975e0eb0442ea"
+  },
+  "Tweaks/Customize/System/BsodDetails.ps1": {
+    "mtime": 1792457338.04175,
+    "seen": 1792642134.8060608,
+    "ast_hash": "593aaf8a5d08674ea2c7e250eca40a54",
+    "semantic_hash": "593aaf8a5d08674ea2c7e250eca40a54"
+  },
+  "Tweaks/Customize/System/ConsoleHost.ps1": {
+    "mtime": 1792467267.123417,
+    "seen": 1792642134.8060617,
+    "ast_hash": "2689d6e426dbb82401c0aece7a2d850e",
+    "semantic_hash": "2689d6e426dbb82401c0aece7a2d850e"
+  },
+  "Tweaks/Customize/System/CrossDevice.ps1": {
+    "mtime": 1792457794.0637364,
+    "seen": 1792642134.8060627,
+    "ast_hash": "cd2cfa2fced6f5830f3ebb8c084adea5",
+    "semantic_hash": "cd2cfa2fced6f5830f3ebb8c084adea5"
+  },
+  "Tweaks/Customize/System/DefaultPrinter.ps1": {
+    "mtime": 1792457338.066314,
+    "seen": 1792642134.8060637,
+    "ast_hash": "99b803559b7af69b9da878ea6b742d99",
+    "semantic_hash": "99b803559b7af69b9da878ea6b742d99"
+  },
+  "Tweaks/Customize/System/DynamicLighting.ps1": {
+    "mtime": 1792457338.0494323,
+    "seen": 1792642134.8060644,
+    "ast_hash": "acd1c4f435215f9cae810604e2ac2f59",
+    "semantic_hash": "acd1c4f435215f9cae810604e2ac2f59"
+  },
+  "Tweaks/Customize/System/LongPaths.ps1": {
+    "mtime": 1792457338.0410821,
+    "seen": 1792642134.806065,
+    "ast_hash": "116906a013118a52abc7f74d50d2a124",
+    "semantic_hash": "116906a013118a52abc7f74d50d2a124"
+  },
+  "Tweaks/Customize/System/MenuDelay.ps1": {
+    "mtime": 1792457338.04693,
+    "seen": 1792642134.806066,
+    "ast_hash": "46f2e9076b2735e23378d89bbd1ea9f8",
+    "semantic_hash": "46f2e9076b2735e23378d89bbd1ea9f8"
+  },
+  "Tweaks/Customize/System/NoAutoPlay.ps1": {
+    "mtime": 1792457338.047931,
+    "seen": 1792642134.8060668,
+    "ast_hash": "7bf143c6886f73a5e1178834ef05e3d6",
+    "semantic_hash": "7bf143c6886f73a5e1178834ef05e3d6"
+  },
+  "Tweaks/Customize/System/Scaling100.ps1": {
+    "mtime": 1792457338.072322,
+    "seen": 1792642134.8060675,
+    "ast_hash": "f0b2b10e946326d97697221590513622",
+    "semantic_hash": "f0b2b10e946326d97697221590513622"
+  },
+  "Tweaks/Customize/System/SettingsHideHome.ps1": {
+    "mtime": 1792457338.0431688,
+    "seen": 1792642134.8060682,
+    "ast_hash": "f5d2fd904a5bac4ee639b0e259cc93ac",
+    "semantic_hash": "f5d2fd904a5bac4ee639b0e259cc93ac"
+  },
+  "Tweaks/Customize/System/SignIn.ps1": {
+    "mtime": 1792457338.0638115,
+    "seen": 1792642134.806069,
+    "ast_hash": "f09fbc1a8024da43cf395eeaf4ae921e",
+    "semantic_hash": "f09fbc1a8024da43cf395eeaf4ae921e"
+  },
+  "Tweaks/Customize/System/Snap.ps1": {
+    "mtime": 1792457338.0384214,
+    "seen": 1792642134.8060699,
+    "ast_hash": "41f4858fe0fd4e749aa03b3e79ffeac1",
+    "semantic_hash": "41f4858fe0fd4e749aa03b3e79ffeac1"
+  },
+  "Tweaks/Customize/System/Troubleshooters.ps1": {
+    "mtime": 1792457338.0678153,
+    "seen": 1792642134.8060706,
+    "ast_hash": "3bccd042e0319b84e032f82e86bcb404",
+    "semantic_hash": "3bccd042e0319b84e032f82e86bcb404"
+  },
+  "Tweaks/Customize/System/WebServices.ps1": {
+    "mtime": 1792457338.0703168,
+    "seen": 1792642134.8060713,
+    "ast_hash": "6884e78c3a73c0b339af4bf4ba674dff",
+    "semantic_hash": "6884e78c3a73c0b339af4bf4ba674dff"
+  },
+  "Tweaks/Customize/System/WindowsBackup.ps1": {
+    "mtime": 1792457338.061805,
+    "seen": 1792642134.8060722,
+    "ast_hash": "dd8d511fd9141267e25d57319b886de2",
+    "semantic_hash": "dd8d511fd9141267e25d57319b886de2"
+  },
+  "Tweaks/Customize/System/Wpbt.ps1": {
+    "mtime": 1792457338.0693161,
+    "seen": 1792642134.8060732,
+    "ast_hash": "3ac85ab964f43a459ed0de337cbb2231",
+    "semantic_hash": "3ac85ab964f43a459ed0de337cbb2231"
+  },
+  "Tweaks/Customize/Taskbar/AlignLeft.ps1": {
+    "mtime": 1792453718.6355221,
+    "seen": 1792642134.806074,
+    "ast_hash": "df2d0b062edabf7217183c110685df3d",
+    "semantic_hash": "df2d0b062edabf7217183c110685df3d"
+  },
+  "Tweaks/Customize/Taskbar/DisableNewsInterests.ps1": {
+    "mtime": 1792453718.6590407,
+    "seen": 1792642134.8060746,
+    "ast_hash": "431ca59b5c234989f8cebcbe6cd26d5d",
+    "semantic_hash": "431ca59b5c234989f8cebcbe6cd26d5d"
+  },
+  "Tweaks/Customize/Taskbar/DisableWidgets.ps1": {
+    "mtime": 1792453718.660542,
+    "seen": 1792642134.8060753,
+    "ast_hash": "d5a9f9903c9469deadcae126d3057588",
+    "semantic_hash": "d5a9f9903c9469deadcae126d3057588"
+  },
+  "Tweaks/Customize/Taskbar/EndTask.ps1": {
+    "mtime": 1792453718.661543,
+    "seen": 1792642134.8060765,
+    "ast_hash": "a0b05db0af243b0a54ec7f6e3c3add2d",
+    "semantic_hash": "a0b05db0af243b0a54ec7f6e3c3add2d"
+  },
+  "Tweaks/Customize/Taskbar/FarCornerDesktop.ps1": {
+    "mtime": 1792453718.6630447,
+    "seen": 1792642134.8060772,
+    "ast_hash": "6898406033353c1230409536f145e05c",
+    "semantic_hash": "6898406033353c1230409536f145e05c"
+  },
+  "Tweaks/Customize/Taskbar/HideChat.ps1": {
+    "mtime": 1792453718.664045,
+    "seen": 1792642134.806078,
+    "ast_hash": "5f1f4fb54145423ccd1694d3150bcc97",
+    "semantic_hash": "5f1f4fb54145423ccd1694d3150bcc97"
+  },
+  "Tweaks/Customize/Taskbar/HideCopilot.ps1": {
+    "mtime": 1792453718.6650455,
+    "seen": 1792642134.8060787,
+    "ast_hash": "47bc71e40c3ca491e62b827c667ff2f9",
+    "semantic_hash": "47bc71e40c3ca491e62b827c667ff2f9"
+  },
+  "Tweaks/Customize/Taskbar/HideMeetNow.ps1": {
+    "mtime": 1792453718.6660469,
+    "seen": 1792642134.8060794,
+    "ast_hash": "09aac182b5d2d9e411ed5f1ca62a945e",
+    "semantic_hash": "09aac182b5d2d9e411ed5f1ca62a945e"
+  },
+  "Tweaks/Customize/Taskbar/HideSearch.ps1": {
+    "mtime": 1792453718.6670494,
+    "seen": 1792642134.8060803,
+    "ast_hash": "6298f827654e502695449bb2cff388e0",
+    "semantic_hash": "6298f827654e502695449bb2cff388e0"
+  },
+  "Tweaks/Customize/Taskbar/HideSecurityIcon.ps1": {
+    "mtime": 1792453718.6680489,
+    "seen": 1792642134.806081,
+    "ast_hash": "de7aefbd8b1d92cbf0eb6c51aad89e9c",
+    "semantic_hash": "de7aefbd8b1d92cbf0eb6c51aad89e9c"
+  },
+  "Tweaks/Customize/Taskbar/HideTaskView.ps1": {
+    "mtime": 1792453718.6695495,
+    "seen": 1792642134.8060818,
+    "ast_hash": "ce6a4d94c9e0ea359acce283e44aec6e",
+    "semantic_hash": "ce6a4d94c9e0ea359acce283e44aec6e"
+  },
+  "Tweaks/Customize/Taskbar/NeverSmallIcons.ps1": {
+    "mtime": 1792453718.6705503,
+    "seen": 1792642134.8060827,
+    "ast_hash": "fe745fdb2f0faf76e1a5aaf7b084c1b2",
+    "semantic_hash": "fe745fdb2f0faf76e1a5aaf7b084c1b2"
+  },
+  "Tweaks/Customize/Taskbar/NoShareWindow.ps1": {
+    "mtime": 1792453718.6720517,
+    "seen": 1792642134.8060837,
+    "ast_hash": "d85638446aef69e67ea96b972a2427ba",
+    "semantic_hash": "d85638446aef69e67ea96b972a2427ba"
+  },
+  "Tweaks/Customize/Taskbar/ShowAllTrayIcons.ps1": {
+    "mtime": 1792453718.6735532,
+    "seen": 1792642134.8060846,
+    "ast_hash": "3b776df37f6a65313e224151a04f6839",
+    "semantic_hash": "3b776df37f6a65313e224151a04f6839"
+  },
+  "Tweaks/Customize/Taskbar/UnpinAll.ps1": {
+    "mtime": 1792453718.6745553,
+    "seen": 1792642134.806085,
+    "ast_hash": "b42bcc357ac98764a6f559409fa433a6",
+    "semantic_hash": "b42bcc357ac98764a6f559409fa433a6"
+  },
+  "Tweaks/Customize/Theme/AkariOSWallpaper.ps1": {
+    "mtime": 1792456626.538349,
+    "seen": 1792642134.8060858,
+    "ast_hash": "2805bf8f94d277e5df3da46adc5b1a70",
+    "semantic_hash": "2805bf8f94d277e5df3da46adc5b1a70"
+  },
+  "Tweaks/Customize/Theme/BlackAccent.ps1": {
+    "mtime": 1792456626.5388508,
+    "seen": 1792642134.806087,
+    "ast_hash": "1d899b478be69fdca35f9edb7d5ecdba",
+    "semantic_hash": "1d899b478be69fdca35f9edb7d5ecdba"
+  },
+  "Tweaks/Customize/Theme/BlackAccountPictures.ps1": {
+    "mtime": 1792456626.5393498,
+    "seen": 1792642134.8060877,
+    "ast_hash": "361d822ae18b3550b08b6d90eac91601",
+    "semantic_hash": "361d822ae18b3550b08b6d90eac91601"
+  },
+  "Tweaks/Customize/Theme/BlackLockScreen.ps1": {
+    "mtime": 1792456626.5418518,
+    "seen": 1792642134.8060884,
+    "ast_hash": "6fcce48d99a0822e3d4192e08bb4ca42",
+    "semantic_hash": "6fcce48d99a0822e3d4192e08bb4ca42"
+  },
+  "Tweaks/Customize/Theme/DarkMode.ps1": {
+    "mtime": 1792456626.5423522,
+    "seen": 1792642134.8060892,
+    "ast_hash": "f6afcf973d912adb0184f12a8a526fcf",
+    "semantic_hash": "f6afcf973d912adb0184f12a8a526fcf"
+  },
+  "Tweaks/Customize/Theme/NoSigninBlur.ps1": {
+    "mtime": 1792456626.5428526,
+    "seen": 1792642134.8060899,
+    "ast_hash": "52039b0e0d54bea2ac45fdd5fc1eb0b4",
+    "semantic_hash": "52039b0e0d54bea2ac45fdd5fc1eb0b4"
+  },
+  "Tweaks/Customize/Theme/NoTransparency.ps1": {
+    "mtime": 1792456626.5428526,
+    "seen": 1792642134.8060908,
+    "ast_hash": "10ad29ec19ed18ba2424e2cc55213790",
+    "semantic_hash": "10ad29ec19ed18ba2424e2cc55213790"
+  },
+  "Tweaks/Graphics.ps1": {
+    "mtime": 1792445263.8086462,
+    "seen": 1792642134.8060915,
+    "ast_hash": "5c873928fdc9ec11847aa50e54b21a91",
+    "semantic_hash": "5c873928fdc9ec11847aa50e54b21a91"
+  },
+  "Tweaks/Hardware.ps1": {
+    "mtime": 1792445263.8091464,
+    "seen": 1792642134.8060923,
+    "ast_hash": "d99197b1f02b11fb64320df3d90cc762",
+    "semantic_hash": "d99197b1f02b11fb64320df3d90cc762"
+  },
+  "Tweaks/Hardware/Graphics/AmdSettings.ps1": {
+    "mtime": 1792466143.0428724,
+    "seen": 1792642134.8060932,
+    "ast_hash": "ec65e64d7d2159d06967c2d33a9a5dce",
+    "semantic_hash": "ec65e64d7d2159d06967c2d33a9a5dce"
+  },
+  "Tweaks/Hardware/Graphics/AmdUlps.ps1": {
+    "mtime": 1792466076.4441586,
+    "seen": 1792642134.8060942,
+    "ast_hash": "47a68ddb673b0293e6830c1a3e3570e0",
+    "semantic_hash": "47a68ddb673b0293e6830c1a3e3570e0"
+  },
+  "Tweaks/Hardware/Graphics/Hdcp.ps1": {
+    "mtime": 1792466072.7374718,
+    "seen": 1792642134.806095,
+    "ast_hash": "4441bbf4da0940f549f322daba25cc18",
+    "semantic_hash": "4441bbf4da0940f549f322daba25cc18"
+  },
+  "Tweaks/Hardware/Graphics/IntelSettings.ps1": {
+    "mtime": 1792466055.5932374,
+    "seen": 1792642134.8060956,
+    "ast_hash": "08f02fa7afc75f76014a5af3a728c957",
+    "semantic_hash": "08f02fa7afc75f76014a5af3a728c957"
+  },
+  "Tweaks/Hardware/Graphics/MsiMode.ps1": {
+    "mtime": 1792466055.545195,
+    "seen": 1792642134.8060963,
+    "ast_hash": "20b7d760b92a80bf4cf5d471f7605636",
+    "semantic_hash": "20b7d760b92a80bf4cf5d471f7605636"
+  },
+  "Tweaks/Hardware/Graphics/NvidiaSettings.ps1": {
+    "mtime": 1792466115.5757914,
+    "seen": 1792642134.8060973,
+    "ast_hash": "0ea10e12b364c4574a24e4df10630bc8",
+    "semantic_hash": "0ea10e12b364c4574a24e4df10630bc8"
+  },
+  "Tweaks/Hardware/Graphics/P0State.ps1": {
+    "mtime": 1792466072.7389731,
+    "seen": 1792642134.806098,
+    "ast_hash": "a48e27e40da6cd5023b76add9197d6ca",
+    "semantic_hash": "a48e27e40da6cd5023b76add9197d6ca"
+  },
+  "Tweaks/Hardware/Input/BackgroundPolling.ps1": {
+    "mtime": 1792466143.0786707,
+    "seen": 1792642134.8060987,
+    "ast_hash": "997ff47ae7176f7a24ab2f721095b3bf",
+    "semantic_hash": "997ff47ae7176f7a24ab2f721095b3bf"
+  },
+  "Tweaks/OneClick/Drivers/DduClean.ps1": {
+    "mtime": 1792467475.329019,
+    "seen": 1792642134.8060997,
+    "ast_hash": "3fa05162f78ba636f97ba1a58ede6da3",
+    "semantic_hash": "3fa05162f78ba636f97ba1a58ede6da3"
+  },
+  "Tweaks/OneClick/Finish/AppActions.ps1": {
+    "mtime": 1792467475.3305204,
+    "seen": 1792642134.8061004,
+    "ast_hash": "aea026d9960e38d738917256a830aca8",
+    "semantic_hash": "aea026d9960e38d738917256a830aca8"
+  },
+  "Tweaks/OneClick/Finish/PerformanceCounters.ps1": {
+    "mtime": 1792467452.5903494,
+    "seen": 1792642134.8061013,
+    "ast_hash": "11d2c9a48d5a3c1756c37b0c50057515",
+    "semantic_hash": "11d2c9a48d5a3c1756c37b0c50057515"
+  },
+  "Tweaks/OneClick/Finish/PriorityNotifications.ps1": {
+    "mtime": 1792467475.3310213,
+    "seen": 1792642134.806102,
+    "ast_hash": "c1a3315bd8e694199acb8bb0019dcec4",
+    "semantic_hash": "c1a3315bd8e694199acb8bb0019dcec4"
+  },
+  "Tweaks/OneClick/Finish/Registry.ps1": {
+    "mtime": 1792467475.3315217,
+    "seen": 1792642134.8061028,
+    "ast_hash": "dbbfdd74f0f8810978818190247cbe53",
+    "semantic_hash": "dbbfdd74f0f8810978818190247cbe53"
+  },
+  "Tweaks/OneClick/Finish/RestorePoint.ps1": {
+    "mtime": 1792467475.3320222,
+    "seen": 1792642134.8061037,
+    "ast_hash": "6edf119e8b2b5f9407404e1331ec90c9",
+    "semantic_hash": "6edf119e8b2b5f9407404e1331ec90c9"
+  },
+  "Tweaks/OneClick/Finish/StartupCleanup.ps1": {
+    "mtime": 1792467977.5102396,
+    "seen": 1792642134.8061047,
+    "ast_hash": "2ff26ef476d497c731e9e35bd06f7729",
+    "semantic_hash": "2ff26ef476d497c731e9e35bd06f7729"
+  },
+  "Tweaks/OneClick/Prepare/AllowScripts.ps1": {
+    "mtime": 1792467475.333023,
+    "seen": 1792642134.8061054,
+    "ast_hash": "cbd58600ea6889ed2c0b3cb10c930bb6",
+    "semantic_hash": "cbd58600ea6889ed2c0b3cb10c930bb6"
+  },
+  "Tweaks/OneClick/Prepare/DduPrepare.ps1": {
+    "mtime": 1792467475.3335235,
+    "seen": 1792642134.806106,
+    "ast_hash": "fe2a0165180499b41be5a82880b31416",
+    "semantic_hash": "fe2a0165180499b41be5a82880b31416"
+  },
+  "Tweaks/Optimize/Gaming/CaptureOff.ps1": {
+    "mtime": 1792457337.949047,
+    "seen": 1792642134.8061068,
+    "ast_hash": "c806b3e59cf7d1f8eb9de22f5b7acb80",
+    "semantic_hash": "c806b3e59cf7d1f8eb9de22f5b7acb80"
+  },
+  "Tweaks/Optimize/Gaming/GameDvr.ps1": {
+    "mtime": 1792453718.696073,
+    "seen": 1792642134.8061078,
+    "ast_hash": "885d5f2dd654643d1914cfe483064e2e",
+    "semantic_hash": "885d5f2dd654643d1914cfe483064e2e"
+  },
+  "Tweaks/Optimize/Gaming/GameMode.ps1": {
+    "mtime": 1792457337.9383714,
+    "seen": 1792642134.8061085,
+    "ast_hash": "9fe5aba4cf8dba918e930d9082344fcd",
+    "semantic_hash": "9fe5aba4cf8dba918e930d9082344fcd"
+  },
+  "Tweaks/Optimize/Gaming/HardwareScheduling.ps1": {
+    "mtime": 1792457337.950064,
+    "seen": 1792642134.8061092,
+    "ast_hash": "06be8a6a426498e8ed247745fe1c741c",
+    "semantic_hash": "06be8a6a426498e8ed247745fe1c741c"
+  },
+  "Tweaks/Optimize/Gaming/PresenceWriter.ps1": {
+    "mtime": 1792457591.1938994,
+    "seen": 1792642134.8061101,
+    "ast_hash": "98f30d015abf03caac0825a67f9a7e91",
+    "semantic_hash": "98f30d015abf03caac0825a67f9a7e91"
+  },
+  "Tweaks/Optimize/Gaming/WindowedOptimizations.ps1": {
+    "mtime": 1792457337.9510725,
+    "seen": 1792642134.8061109,
+    "ast_hash": "037fbcc191a401183c3bd10d1ebf1a51",
+    "semantic_hash": "037fbcc191a401183c3bd10d1ebf1a51"
+  },
+  "Tweaks/Optimize/Gaming/XboxController.ps1": {
+    "mtime": 1792457723.8187587,
+    "seen": 1792642134.8061118,
+    "ast_hash": "2430e4a7bddce43eb56ec7886183a695",
+    "semantic_hash": "2430e4a7bddce43eb56ec7886183a695"
+  },
+  "Tweaks/Optimize/Network/IPv4Only.ps1": {
+    "mtime": 1792457591.197424,
+    "seen": 1792642134.8061125,
+    "ast_hash": "17b9a45fda3f816ced91f793b15df8e2",
+    "semantic_hash": "17b9a45fda3f816ced91f793b15df8e2"
+  },
+  "Tweaks/Optimize/Network/IcsControl.ps1": {
+    "mtime": 1792457337.9783332,
+    "seen": 1792642134.8061132,
+    "ast_hash": "99b43fa58fd262b49a74dd97c1c0cff4",
+    "semantic_hash": "99b43fa58fd262b49a74dd97c1c0cff4"
+  },
+  "Tweaks/Optimize/Performance/BackgroundApps.ps1": {
+    "mtime": 1792457337.9737997,
+    "seen": 1792642134.8061142,
+    "ast_hash": "4567bcfc72cab5b1e06fab4f6e2d7942",
+    "semantic_hash": "4567bcfc72cab5b1e06fab4f6e2d7942"
+  },
+  "Tweaks/Optimize/Performance/BitLocker.ps1": {
+    "mtime": 1792466465.153135,
+    "seen": 1792642134.8061152,
+    "ast_hash": "a2f7909b5450067eb88bcb7e0c2c561b",
+    "semantic_hash": "a2f7909b5450067eb88bcb7e0c2c561b"
+  },
+  "Tweaks/Optimize/Performance/CleanTemp.ps1": {
+    "mtime": 1792457591.1979258,
+    "seen": 1792642134.8061159,
+    "ast_hash": "d03f9841447d774dbc0dddcbe8e07454",
+    "semantic_hash": "d03f9841447d774dbc0dddcbe8e07454"
+  },
+  "Tweaks/Optimize/Performance/DefragSchedule.ps1": {
+    "mtime": 1792458703.1925485,
+    "seen": 1792642134.8061166,
+    "ast_hash": "5e97d511b74feb9b037585cc9df20703",
+    "semantic_hash": "5e97d511b74feb9b037585cc9df20703"
+  },
+  "Tweaks/Optimize/Performance/Maintenance.ps1": {
+    "mtime": 1792457337.969978,
+    "seen": 1792642134.8061173,
+    "ast_hash": "e8fcda8c93230a15a9632a0f9eec138b",
+    "semantic_hash": "e8fcda8c93230a15a9632a0f9eec138b"
+  },
+  "Tweaks/Optimize/Performance/MemoryCompression.ps1": {
+    "mtime": 1792453718.6985748,
+    "seen": 1792642134.8061185,
+    "ast_hash": "47864eeb733808fddc9be8befbbda0a2",
+    "semantic_hash": "47864eeb733808fddc9be8befbbda0a2"
+  },
+  "Tweaks/Optimize/Performance/StorageSense.ps1": {
+    "mtime": 1792457337.9689772,
+    "seen": 1792642134.8061192,
+    "ast_hash": "8d9b4fe212dd433df9e1b4a14f7919fb",
+    "semantic_hash": "8d9b4fe212dd433df9e1b4a14f7919fb"
+  },
+  "Tweaks/Optimize/Performance/TimerResolution.ps1": {
+    "mtime": 1792457591.1989365,
+    "seen": 1792642134.80612,
+    "ast_hash": "23a7fc111e648a4d1ae01e7d330955c1",
+    "semantic_hash": "23a7fc111e648a4d1ae01e7d330955c1"
+  },
+  "Tweaks/Optimize/Performance/VisualEffects.ps1": {
+    "mtime": 1792457337.965454,
+    "seen": 1792642134.8061206,
+    "ast_hash": "1bde2b7b6b6f203d3fc9aaf206a45f8e",
+    "semantic_hash": "1bde2b7b6b6f203d3fc9aaf206a45f8e"
+  },
+  "Tweaks/Optimize/Performance/WriteCacheFlushing.ps1": {
+    "mtime": 1792457874.2624743,
+    "seen": 1792642134.8061216,
+    "ast_hash": "d10f34d358db2854f64d5264fd1f0faf",
+    "semantic_hash": "d10f34d358db2854f64d5264fd1f0faf"
+  },
+  "Tweaks/Optimize/Power/DevicePowerSaving.ps1": {
+    "mtime": 1792457874.2321754,
+    "seen": 1792642134.8061225,
+    "ast_hash": "53efee6ac4637a302a60a7cdcb2b72ff",
+    "semantic_hash": "53efee6ac4637a302a60a7cdcb2b72ff"
+  },
+  "Tweaks/Optimize/Power/FastBoot.ps1": {
+    "mtime": 1792457591.2004597,
+    "seen": 1792642134.8061233,
+    "ast_hash": "f86bf510582d70ec14815fc89b33c8e3",
+    "semantic_hash": "f86bf510582d70ec14815fc89b33c8e3"
+  },
+  "Tweaks/Optimize/Power/Hibernate.ps1": {
+    "mtime": 1792457591.200963,
+    "seen": 1792642134.806124,
+    "ast_hash": "335c36fdcefa0cd52281797dd9f6ad60",
+    "semantic_hash": "335c36fdcefa0cd52281797dd9f6ad60"
+  },
+  "Tweaks/Optimize/Power/HideLockSleep.ps1": {
+    "mtime": 1792457337.9759119,
+    "seen": 1792642134.8061247,
+    "ast_hash": "4d35a6fdb5e83738b2b5c3cd54ed91bf",
+    "semantic_hash": "4d35a6fdb5e83738b2b5c3cd54ed91bf"
+  },
+  "Tweaks/Optimize/Power/NetworkAdapterPowerSaving.ps1": {
+    "mtime": 1792457938.007985,
+    "seen": 1792642134.8061256,
+    "ast_hash": "32de6cd3c8a5d3d1ff8c386b8efe99a5",
+    "semantic_hash": "32de6cd3c8a5d3d1ff8c386b8efe99a5"
+  },
+  "Tweaks/Optimize/Power/PowerThrottling.ps1": {
+    "mtime": 1792457591.201964,
+    "seen": 1792642134.8061264,
+    "ast_hash": "4b2dfba2f78d49192357058c8643f5a3",
+    "semantic_hash": "4b2dfba2f78d49192357058c8643f5a3"
+  },
+  "Tweaks/Optimize/Power/SignInAfterSleep.ps1": {
+    "mtime": 1792457591.202464,
+    "seen": 1792642134.806127,
+    "ast_hash": "924a00b291c524ef91a8c683ab1ceb6f",
+    "semantic_hash": "924a00b291c524ef91a8c683ab1ceb6f"
+  },
+  "Tweaks/Optimize/Power/UltimatePlan.ps1": {
+    "mtime": 1792458744.753373,
+    "seen": 1792642134.806128,
+    "ast_hash": "926995b6a749f4fc07379a6ed6e943c3",
+    "semantic_hash": "926995b6a749f4fc07379a6ed6e943c3"
+  },
+  "Tweaks/Optimize/Power/VideoOnBattery.ps1": {
+    "mtime": 1792457337.9772,
+    "seen": 1792642134.806129,
+    "ast_hash": "e50bddadef52ff1af5427746cf96da3e",
+    "semantic_hash": "e50bddadef52ff1af5427746cf96da3e"
+  },
+  "Tweaks/Optimize/Privacy/ActivityHistory.ps1": {
+    "mtime": 1792457337.914086,
+    "seen": 1792642134.8061297,
+    "ast_hash": "7f81af77f04b6ad236b056706cd9dca2",
+    "semantic_hash": "7f81af77f04b6ad236b056706cd9dca2"
+  },
+  "Tweaks/Optimize/Privacy/AdsSuggestions.ps1": {
+    "mtime": 1792457337.9240577,
+    "seen": 1792642134.8061304,
+    "ast_hash": "134e989b8dc137bd24bad1c2892aaa0e",
+    "semantic_hash": "134e989b8dc137bd24bad1c2892aaa0e"
+  },
+  "Tweaks/Optimize/Privacy/AppPermissions.ps1": {
+    "mtime": 1792457337.9054697,
+    "seen": 1792642134.8061311,
+    "ast_hash": "37c6c90a33b34e918e05376c8c485ad3",
+    "semantic_hash": "37c6c90a33b34e918e05376c8c485ad3"
+  },
+  "Tweaks/Optimize/Privacy/CopilotAI.ps1": {
+    "mtime": 1792457337.9286072,
+    "seen": 1792642134.806132,
+    "ast_hash": "3f11afd93ccbdfb5d3b466e949147b1d",
+    "semantic_hash": "3f11afd93ccbdfb5d3b466e949147b1d"
+  },
+  "Tweaks/Optimize/Privacy/FindMyDevice.ps1": {
+    "mtime": 1792457337.9090333,
+    "seen": 1792642134.806133,
+    "ast_hash": "354c98550c465e3c5137c5850e942928",
+    "semantic_hash": "354c98550c465e3c5137c5850e942928"
+  },
+  "Tweaks/Optimize/Privacy/InkingTyping.ps1": {
+    "mtime": 1792457337.9348688,
+    "seen": 1792642134.8061337,
+    "ast_hash": "3aeb08d2a438f4a19bb50b3cdb2a21c7",
+    "semantic_hash": "3aeb08d2a438f4a19bb50b3cdb2a21c7"
+  },
+  "Tweaks/Optimize/Privacy/Location.ps1": {
+    "mtime": 1792457337.907509,
+    "seen": 1792642134.8061345,
+    "ast_hash": "1d12e21714460dab3974726c71353423",
+    "semantic_hash": "1d12e21714460dab3974726c71353423"
+  },
+  "Tweaks/Optimize/Privacy/RemoteAssistance.ps1": {
+    "mtime": 1792457337.9373708,
+    "seen": 1792642134.8061352,
+    "ast_hash": "82aa0c82467bd25953c326e94e357ea4",
+    "semantic_hash": "82aa0c82467bd25953c326e94e357ea4"
+  },
+  "Tweaks/Optimize/Privacy/SearchHighlights.ps1": {
+    "mtime": 1792457337.9328673,
+    "seen": 1792642134.8061364,
+    "ast_hash": "a634d465252d4dd010277d97683a2f08",
+    "semantic_hash": "a634d465252d4dd010277d97683a2f08"
+  },
+  "Tweaks/Optimize/Privacy/Telemetry.ps1": {
+    "mtime": 1792457337.913072,
+    "seen": 1792642134.806137,
+    "ast_hash": "eaa22f2a1c711af03cc50d8957f3f71b",
+    "semantic_hash": "eaa22f2a1c711af03cc50d8957f3f71b"
+  },
+  "Tweaks/Optimize/Privacy/VoiceActivation.ps1": {
+    "mtime": 1792457337.93637,
+    "seen": 1792642134.8061378,
+    "ast_hash": "584d2d0e94f9c811d0d0c6e5fed34238",
+    "semantic_hash": "584d2d0e94f9c811d0d0c6e5fed34238"
+  },
+  "Tweaks/Optimize/Privacy/WebSearch.ps1": {
+    "mtime": 1792457337.9296532,
+    "seen": 1792642134.8061385,
+    "ast_hash": "ef6fd511d2076f72316fe806ba43cb15",
+    "semantic_hash": "ef6fd511d2076f72316fe806ba43cb15"
+  },
+  "Tweaks/Optimize/Update/AppArchiving.ps1": {
+    "mtime": 1792457337.9597962,
+    "seen": 1792642134.8061397,
+    "ast_hash": "51d33000aa46f2fc3df02503afe28c54",
+    "semantic_hash": "51d33000aa46f2fc3df02503afe28c54"
+  },
+  "Tweaks/Optimize/Update/DeliveryOptimization.ps1": {
+    "mtime": 1792457337.9541054,
+    "seen": 1792642134.8061404,
+    "ast_hash": "d0bf44019f095b30d44352dd0e76107a",
+    "semantic_hash": "d0bf44019f095b30d44352dd0e76107a"
+  },
+  "Tweaks/Optimize/Update/DriverUpdates.ps1": {
+    "mtime": 1792457337.9556258,
+    "seen": 1792642134.8061411,
+    "ast_hash": "c0104b5b3705c9793e0a42735f9380f0",
+    "semantic_hash": "c0104b5b3705c9793e0a42735f9380f0"
+  },
+  "Tweaks/Optimize/Update/MapsAutoUpdate.ps1": {
+    "mtime": 1792457337.958742,
+    "seen": 1792642134.806142,
+    "ast_hash": "2b754983c9a6bcaf76533913c38875b0",
+    "semantic_hash": "2b754983c9a6bcaf76533913c38875b0"
+  },
+  "Tweaks/Optimize/Update/PauseUpdates.ps1": {
+    "mtime": 1792466465.1536424,
+    "seen": 1792642134.806143,
+    "ast_hash": "4959df2fc051d2e46d31102ad9b5a667",
+    "semantic_hash": "4959df2fc051d2e46d31102ad9b5a667"
+  },
+  "Tweaks/Optimize/Update/StoreAutoUpdate.ps1": {
+    "mtime": 1792457337.9571702,
+    "seen": 1792642134.8061438,
+    "ast_hash": "8093d3261269feea5e3564071fe2e2fb",
+    "semantic_hash": "8093d3261269feea5e3564071fe2e2fb"
+  },
+  "Tweaks/Ported.psd1": {
+    "mtime": 1792468438.847093,
+    "seen": 1792642134.8061445,
+    "ast_hash": "4cea7ce4ca88a13d8d270f5b0dac860b",
+    "semantic_hash": "4cea7ce4ca88a13d8d270f5b0dac860b"
+  },
+  "Tweaks/Refresh.ps1": {
+    "mtime": 1792445263.810148,
+    "seen": 1792642134.8061454,
+    "ast_hash": "fabc48c3191c42ff2c45c3bfd26e8aa9",
+    "semantic_hash": "fabc48c3191c42ff2c45c3bfd26e8aa9"
+  },
+  "Tweaks/Setup.ps1": {
+    "mtime": 1792445263.810651,
+    "seen": 1792642134.8061464,
+    "ast_hash": "d0b75e5dd1d94626cc6aecca4140c64a",
+    "semantic_hash": "d0b75e5dd1d94626cc6aecca4140c64a"
+  },
+  "Tweaks/Windows.ps1": {
+    "mtime": 1792455352.9337041,
+    "seen": 1792642134.806147,
+    "ast_hash": "1db311d510027622b4d54a6414d7df17",
+    "semantic_hash": "1db311d510027622b4d54a6414d7df17"
+  },
+  "UI/About.ps1": {
+    "mtime": 1792499876.1214845,
+    "seen": 1792642134.806148,
+    "ast_hash": "c7339df710ff2432cb32b933d631284b",
+    "semantic_hash": "c7339df710ff2432cb32b933d631284b"
+  },
+  "UI/About.psd1": {
+    "mtime": 1792500114.1568348,
+    "seen": 1792642134.8061488,
+    "ast_hash": "920ad485221fe0786caee70f12442a31",
+    "semantic_hash": "920ad485221fe0786caee70f12442a31"
+  },
+  "UI/Apps.ps1": {
+    "mtime": 1792461960.5655744,
+    "seen": 1792642134.8061533,
+    "ast_hash": "e3a616262e61d3b23a37497e9800d5f8",
+    "semantic_hash": "e3a616262e61d3b23a37497e9800d5f8"
+  },
+  "UI/Cards.ps1": {
+    "mtime": 1792466481.988431,
+    "seen": 1792642134.806154,
+    "ast_hash": "a906c4dfe72d9fd60b4eb107ba3ef5c2",
+    "semantic_hash": "a906c4dfe72d9fd60b4eb107ba3ef5c2"
+  },
+  "UI/Controls.xaml": {
+    "mtime": 1792445263.812159,
+    "seen": 1792642134.8061547,
+    "ast_hash": "2db8103c92dcaa93bfac2af19515085d",
+    "semantic_hash": "2db8103c92dcaa93bfac2af19515085d"
+  },
+  "UI/MainWindow.xaml": {
+    "mtime": 1792499876.2097347,
+    "seen": 1792642134.8061554,
+    "ast_hash": "da6768dace7570faf448862d7f4d9e1c",
+    "semantic_hash": "da6768dace7570faf448862d7f4d9e1c"
+  },
+  "UI/Rows.ps1": {
+    "mtime": 1792445263.813162,
+    "seen": 1792642134.8061564,
+    "ast_hash": "7e69632ef174b0289ae9c8006d79a1ca",
+    "semantic_hash": "7e69632ef174b0289ae9c8006d79a1ca"
+  },
+  "UI/Selection.ps1": {
+    "mtime": 1792463322.0983145,
+    "seen": 1792642134.8061574,
+    "ast_hash": "1f962f2932ed19a2360b35f9309a10b5",
+    "semantic_hash": "1f962f2932ed19a2360b35f9309a10b5"
+  },
+  "UI/Shell.ps1": {
+    "mtime": 1792499876.2404807,
+    "seen": 1792642134.806158,
+    "ast_hash": "0a26f3976621eebaf23175830c8e6019",
+    "semantic_hash": "0a26f3976621eebaf23175830c8e6019"
+  },
+  "UI/Steps.ps1": {
+    "mtime": 1792499318.8301167,
+    "seen": 1792642134.8061588,
+    "ast_hash": "1e28c8b4c8a87bd7f657321eec99e764",
+    "semantic_hash": "1e28c8b4c8a87bd7f657321eec99e764"
+  },
+  ".github/workflows/release.yml": {
+    "mtime": 1792499418.061278,
+    "seen": 1792642134.8061597,
+    "ast_hash": "083e15f1fabbd5a573aaf0cc651268c5",
+    "semantic_hash": "083e15f1fabbd5a573aaf0cc651268c5"
+  },
+  "AGENTS.md": {
+    "mtime": 1792500038.695557,
+    "seen": 1792642134.8061604,
+    "ast_hash": "2cd5286908001700a69ed2db7bd74d2e",
+    "semantic_hash": "2cd5286908001700a69ed2db7bd74d2e"
+  },
+  "AkariOS-PLAN.md": {
+    "mtime": 1792499603.7127655,
+    "seen": 1792642134.8061614,
+    "ast_hash": "34c706486171222c90bdd8272b421e0c",
+    "semantic_hash": "34c706486171222c90bdd8272b421e0c"
+  },
+  "Assets/ascii.txt": {
+    "mtime": 1792464255.3434145,
+    "seen": 1792642134.806162,
+    "ast_hash": "567e69f20fa788fa6b517c5bfb75e23a",
+    "semantic_hash": "567e69f20fa788fa6b517c5bfb75e23a"
+  },
+  "CREDITS.md": {
+    "mtime": 1792468438.8926673,
+    "seen": 1792642134.8061628,
+    "ast_hash": "bfd255e5e9a8320f32319e208de15792",
+    "semantic_hash": "bfd255e5e9a8320f32319e208de15792"
+  },
+  "GLOSSARY.md": {
+    "mtime": 1792446877.0713863,
+    "seen": 1792642134.8061638,
+    "ast_hash": "9aa10e8049b5c4bad2301b64bd52d7e1",
+    "semantic_hash": "9aa10e8049b5c4bad2301b64bd52d7e1"
+  },
+  "New Text Document.txt": {
+    "mtime": 1792455143.526218,
+    "seen": 1792642134.8061645,
+    "ast_hash": "d56d7bc82c49ce9347120714135daa76",
+    "semantic_hash": "d56d7bc82c49ce9347120714135daa76"
+  },
+  "OneClick/start2.txt": {
+    "mtime": 1792455352.8721514,
+    "seen": 1792642134.8061655,
+    "ast_hash": "e68710efcc1a3cbfc441d41666d502d1",
+    "semantic_hash": "e68710efcc1a3cbfc441d41666d502d1"
+  },
+  "Tests/Fixtures/legacy-ids.txt": {
+    "mtime": 1792448707.6976929,
+    "seen": 1792642134.8061662,
+    "ast_hash": "4ef3e1dc766dce7e049582ed01966e9b",
+    "semantic_hash": "4ef3e1dc766dce7e049582ed01966e9b"
+  },
+  "Tweaks/Customize/Start/Files/start2.txt": {
+    "mtime": 1792455352.9091828,
+    "seen": 1792642134.8061671,
+    "ast_hash": "e68710efcc1a3cbfc441d41666d502d1",
+    "semantic_hash": "e68710efcc1a3cbfc441d41666d502d1"
+  },
+  "Tweaks/OneClick/Finish/Files/priority-notifications.txt": {
+    "mtime": 1792467452.5923588,
+    "seen": 1792642134.8061678,
+    "ast_hash": "c882db1f06946e10b19fda73e5ee21c5",
+    "semantic_hash": "c882db1f06946e10b19fda73e5ee21c5"
+  },
+  "docs/adr/0001-revert-to-windows-default.md": {
+    "mtime": 1792445263.8147323,
+    "seen": 1792642134.8061686,
+    "ast_hash": "c2fefc92969d03aa4895bd30fa56f1d3",
+    "semantic_hash": "c2fefc92969d03aa4895bd30fa56f1d3"
+  },
+  "docs/adr/0002-data-list-groups.md": {
+    "mtime": 1792445263.8152325,
+    "seen": 1792642134.8061695,
+    "ast_hash": "6e6c342589d23b37365b1fdfca8612cf",
+    "semantic_hash": "6e6c342589d23b37365b1fdfca8612cf"
+  },
+  "docs/adr/0003-one-click-or-manual.md": {
+    "mtime": 1792446876.917756,
+    "seen": 1792642134.8061705,
+    "ast_hash": "c34b61a056da2306746d187c4b3baa96",
+    "semantic_hash": "c34b61a056da2306746d187c4b3baa96"
+  },
+  "docs/adr/0004-legacy-frozen.md": {
+    "mtime": 1792455396.8119175,
+    "seen": 1792642134.8061714,
+    "ast_hash": "b2d22f50c5ebc6852d81314d54b59b64",
+    "semantic_hash": "b2d22f50c5ebc6852d81314d54b59b64"
+  },
+  "docs/plans/2026-10-17-m1-engine.md": {
+    "mtime": 1792445263.8157334,
+    "seen": 1792642134.8061724,
+    "ast_hash": "2ab6fd9e84e371a7c930e73f1c075013",
+    "semantic_hash": "2ab6fd9e84e371a7c930e73f1c075013"
+  },
+  "docs/plans/2026-10-19-m2a-manual-steps.md": {
+    "mtime": 1792445263.8157334,
+    "seen": 1792642134.806173,
+    "ast_hash": "0cdcc92ce43bf53e2466e2eca1f9b58f",
+    "semantic_hash": "0cdcc92ce43bf53e2466e2eca1f9b58f"
+  },
+  "docs/plans/2026-10-19-m3-port-windows.md": {
+    "mtime": 1792465354.0792828,
+    "seen": 1792642134.8061743,
+    "ast_hash": "5ebef6cca1f1bc27f06dfb8b1e78d369",
+    "semantic_hash": "5ebef6cca1f1bc27f06dfb8b1e78d369"
+  },
+  "next session.txt": {
+    "mtime": 1792500797.2224288,
+    "seen": 1792642134.806175,
+    "ast_hash": "9a8320b88c311b6796676da740e17457",
+    "semantic_hash": "9a8320b88c311b6796676da740e17457"
+  },
+  "Assets/AkariLogo.png": {
+    "mtime": 1792253180.2072752,
+    "seen": 1792642134.8061757,
+    "ast_hash": "d7ee303567dadccfe3b5adba81e84176",
+    "semantic_hash": "d7ee303567dadccfe3b5adba81e84176"
+  },
+  "OneClick/img.jpg": {
+    "mtime": 1787648280.240495,
+    "seen": 1792642134.8061764,
+    "ast_hash": "d72fd92e96bb0d221ddf6588e99751f9",
+    "semantic_hash": "d72fd92e96bb0d221ddf6588e99751f9"
+  }
+}
