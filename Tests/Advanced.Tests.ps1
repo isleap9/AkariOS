@@ -189,6 +189,65 @@ Describe 'Advanced tweaks' {
             }
         }
 
+        Context 'Defender off completely (in Safe Mode)' {
+            $t = Load 'Advanced\Security\DefenderOff.ps1'
+            # the services this test's "Windows" has (MDCoreSvc and the web threat ones are missing, like on Windows 10)
+            foreach ($s in 'WdNisSvc', 'WinDefend', 'wscsvc', 'Sense', 'SecurityHealthService', 'WdBoot', 'WdFilter', 'WdNisDrv') {
+                New-Item "$tk\HKLM\SYSTEM\CurrentControlSet\Services\$s" -Force | Out-Null
+            }
+            $env:SystemRoot = "$TestDrive\Windows"
+            New-Item "$TestDrive\Windows\System32\smartscreen.exe" -ItemType File -Force | Out-Null
+            # the mocked TrustedInstaller moves smartscreen.exe like cmd's move would
+            Mock Run-Trusted { if ($command -match 'move /y "([^"]+)" "([^"]+)"') { Move-Item -LiteralPath $Matches[1] -Destination $Matches[2] -Force } }
+            It 'is a SafeMode Tweak that asks first' {
+                $t.SafeMode | Should Be $true
+                $t.Confirm | Should Match 'no antivirus'
+            }
+            It 'turns off the services it finds as TrustedInstaller, removes the menu and tray entries, moves SmartScreen; Revert undoes it' {
+                Set-Reg 'HKLM:\SOFTWARE\Classes\*\shellex\ContextMenuHandlers\EPP' '(default)' '{09A47860-11B0-4DA5-AFA5-26D86198A780}' 'String'
+                (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+                Assert-MockCalled Run-Trusted -Scope It -ParameterFilter { $command.Contains("Services\WinDefend' -Name 'Start' -Value 4 -PropertyType DWord") }
+                Assert-MockCalled Run-Trusted -Exactly 0 -Scope It -ParameterFilter { $command.Contains('MDCoreSvc') -or $command.Contains('ContextMenuHandlers') }
+                Test-Path "$tk\HKLM\SYSTEM\CurrentControlSet\Services\MDCoreSvc" | Should Be $false
+                Get-AkariRegValue 'HKLM:\SYSTEM\CurrentControlSet\Services\WdFilter' 'Start' | Should Be 4
+                Get-AkariRegValue 'HKLM:\SOFTWARE\Classes\*\shellex\ContextMenuHandlers\EPP' '(default)' | Should Be $null
+                Test-Path "$TestDrive\Windows\smartscreen.exe" | Should Be $true
+                Get-AkariState $t | Should Be 'Optimized'
+                (Invoke-AkariTweak $t Revert).Outcome | Should Be 'Reverted'
+                Get-AkariRegValue 'HKLM:\SYSTEM\CurrentControlSet\Services\WdBoot' 'Start' | Should Be 0
+                Get-AkariRegValue 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' 'SecurityHealth' | Should Be ([Environment]::ExpandEnvironmentVariables('%windir%\system32\SecurityHealthSystray.exe'))
+                Test-Path "$TestDrive\Windows\System32\smartscreen.exe" | Should Be $true
+                Get-AkariState $t | Should Be 'Default'
+            }
+        }
+
+        Context 'Services off (in Safe Mode)' {
+            $t = Load 'Advanced\System\ServicesOff.ps1'
+            $list = @((Import-PowerShellDataFile "$Tw\Advanced\System\Files\services.psd1").Services)
+            # three of the services exist in this test's "Windows"
+            foreach ($s in 'WlanSvc', 'SysMain', 'StateRepository') { New-Item "$tk\HKLM\SYSTEM\CurrentControlSet\Services\$s" -Force | Out-Null }
+            It 'lists FR33THY''s 216 changed start types, none another Tweak owns' {
+                $list.Count | Should Be 216
+                @($list | Where-Object { $_.Name -in 'CDPUserSvc', 'hidserv', 'WSearch' -or $_.Off -eq $_.Default }).Count | Should Be 0
+                ($list | Where-Object { $_.Name -eq 'StateRepository' }).Off | Should Be 3
+            }
+            It 'is a SafeMode Tweak that asks first' {
+                $t.SafeMode | Should Be $true
+                $t.Confirm | Should Match 'Windows Update'
+            }
+            It 'sets the services it finds as TrustedInstaller and as admin, skips the rest; Revert puts Windows'' start types back' {
+                (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+                Assert-MockCalled Run-Trusted -Scope It -ParameterFilter { $command.Contains("Services\WlanSvc' -Name 'Start' -Value 4 -PropertyType DWord") }
+                Assert-MockCalled Run-Trusted -Exactly 0 -Scope It -ParameterFilter { $command.Contains('Services\BITS') }
+                Test-Path "$tk\HKLM\SYSTEM\CurrentControlSet\Services\BITS" | Should Be $false
+                Get-AkariRegValue 'HKLM:\SYSTEM\CurrentControlSet\Services\StateRepository' 'Start' | Should Be 3
+                Get-AkariState $t | Should Be 'Optimized'
+                (Invoke-AkariTweak $t Revert).Outcome | Should Be 'Reverted'
+                Get-AkariRegValue 'HKLM:\SYSTEM\CurrentControlSet\Services\SysMain' 'Start' | Should Be 2
+                Get-AkariState $t | Should Be 'Default'
+            }
+        }
+
         Context 'Invoke-AkariRegistryTrusted' {
             It 'batches the HKLM rows into a few Run-Trusted calls, skipping HKCU' {
                 $rows = @(1..30 | ForEach-Object { @{ Path = "HKLM:\SOFTWARE\AkariTest\Key$_"; Name = "V$_"; Type = 'DWord'; Value = $_; Default = $null } }) +

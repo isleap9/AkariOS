@@ -114,9 +114,11 @@ function Get-AkariRegistryState([hashtable[]]$Entries) {
     try {
         $cur = @(foreach ($e in $Entries) { if (Test-AkariKeyRow $e) { , (Get-AkariRegKey $e.Path) } else { , (Get-AkariRegValue $e.Path $e.Name) } })
         $opt = $true; $def = $true
+        # an ExpandString reads back expanded (%windir% -> C:\Windows): compare with the expected text expanded too
+        $x = { param($e, $v) if ($e.Type -eq 'ExpandString' -and $v -is [string]) { [Environment]::ExpandEnvironmentVariables($v) } else { $v } }
         for ($i = 0; $i -lt $Entries.Count; $i++) {
-            if (-not (Test-AkariRegMatch $cur[$i] $Entries[$i].Value)) { $opt = $false }
-            if (-not (Test-AkariRegMatch $cur[$i] (Resolve-AkariDefault $Entries[$i].Default))) { $def = $false }
+            if (-not (Test-AkariRegMatch $cur[$i] (& $x $Entries[$i] $Entries[$i].Value))) { $opt = $false }
+            if (-not (Test-AkariRegMatch $cur[$i] (& $x $Entries[$i] (Resolve-AkariDefault $Entries[$i].Default)))) { $def = $false }
         }
         if ($opt) { return 'Optimized' }
         if ($def) { return 'Default' }

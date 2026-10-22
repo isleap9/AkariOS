@@ -36,8 +36,10 @@
     # 3 Setup rows a 6 Windows port already covers (same values, same Defaults)
     'memory-compression' = @('disable-memory-compression')
     'background-apps'    = @('performance-background-apps-off')
-    # 8 Advanced. Not listed yet: adv-defender, services (Safe Mode, M4); rebar, smt-ht, core1-thread1, priority (per-game
-    # tools, not settings); ulps (Graphics).
+    # 8 Advanced. Not listed: rebar, smt-ht, core1-thread1, priority (per-game tools, not settings); ulps (Graphics).
+    # adv-defender's Default Definitions feature removal is feature/Windows-Defender-Default-Definitions on Apps > Remove.
+    'adv-defender'       = @('security-defender-settings', 'security-defender-tasks-off', 'security-defender-off')
+    'services'           = @('advanced-services-off')
     'firewall'           = @('security-firewall-off')
     'spectre-meltdown'   = @('security-spectre-meltdown-off')
     'dep'                = @('security-dep-off')
@@ -64,8 +66,8 @@
     'bitlocker'          = @('performance-bitlocker-off')
     'store-settings'     = @('apps-store-settings', 'update-store-auto-update')
     'updates-pause'      = @('update-pause-one-year')
-    # 6 Windows security parts and Notepad (M4: Safe Mode through Core\Phases.ps1). Not listed: adv-defender and services
-    # (8 Advanced), core-isolation (an Open button).
+    # 6 Windows security parts and Notepad (M4: Safe Mode through Core\Phases.ps1). Not listed: core-isolation (an Open
+    # button).
     'uac'                = @('security-uac-off')
     'defender'           = @('security-defender-settings', 'security-defender-tasks-off')
     'notepad'            = @('apps-notepad-settings')
