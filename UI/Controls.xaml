@@ -54,6 +54,48 @@
     </Setter>
   </Style>
 
+  <!-- Catalogue switch (Optimize › Advanced): the 40 x 20 pill alone, the card's State line says the rest. Null (State
+       Custom or Unknown) = thumb in the middle, dashed track. -->
+  <Style x:Key="CatSwitch" TargetType="ToggleButton">
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ToggleButton">
+          <Grid Width="40" Height="20" Background="Transparent" VerticalAlignment="Center">
+            <Rectangle x:Name="Track" RadiusX="10" RadiusY="10" StrokeThickness="1" Stroke="{DynamicResource Mu}" Fill="{DynamicResource Ctl}"/>
+            <Ellipse x:Name="Thumb" Width="12" Height="12" Margin="4,0" HorizontalAlignment="Left" VerticalAlignment="Center"
+                     Fill="{DynamicResource Mu}"/>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Thumb" Property="Width" Value="14"/>
+              <Setter TargetName="Thumb" Property="Height" Value="14"/>
+              <Setter TargetName="Thumb" Property="Margin" Value="3,0"/>
+              <Setter TargetName="Track" Property="Fill" Value="{DynamicResource CtlH}"/>
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Track" Property="Fill" Value="{DynamicResource Inv}"/>
+              <Setter TargetName="Track" Property="Stroke" Value="{DynamicResource Inv}"/>
+              <Setter TargetName="Thumb" Property="Fill" Value="{DynamicResource InvT}"/>
+              <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
+            </Trigger>
+            <Trigger Property="IsChecked" Value="{x:Null}">
+              <Setter TargetName="Track" Property="StrokeDashArray" Value="2 2"/>
+              <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Center"/>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Thumb" Property="Width" Value="17"/>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.4"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
   <!-- Checkbox ("Run this" on an Action card): 20 px rounded box, white fill and black tick when checked. -->
   <Style x:Key="Check" TargetType="CheckBox">
     <Setter Property="Foreground" Value="{DynamicResource Tx}"/>

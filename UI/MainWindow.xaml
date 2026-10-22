@@ -449,6 +449,8 @@
             <Button x:Name="StepNext" Style="{DynamicResource Accent}" Content="Next" HorizontalAlignment="Right"/>
           </Grid>
         </Border>
+        <!-- Optimize › Advanced: the Safe Mode and restart bars, pinned under the page (UI\CataloguePage.ps1) -->
+        <StackPanel x:Name="CatBars" DockPanel.Dock="Bottom" Visibility="Collapsed"/>
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel x:Name="Page" Margin="24,20,24,20">
 

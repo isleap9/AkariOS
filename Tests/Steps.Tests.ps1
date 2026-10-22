@@ -76,7 +76,7 @@ $script:Tweaks = @(
         Choices = @(@{ Value = 0x26; Label = 'A' }, @{ Value = 0x28; Label = 'B' }) } 'x' $false
     ConvertTo-AkariTweak @{ Id = 'leg'; Name = 'Leg'; Description = 'D'; Section = 'Windows'; Category = ''; Risk = 'Safe'; Apply = { }; Revert = { } } 'x' $true
 )
-foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps') { . "$Root\UI\$f.ps1" }
+foreach ($f in 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps') { . "$Root\UI\$f.ps1" }
 # no real AppX read in tests: no app installed, no data-list Group
 function Get-AkariAppxInstalled { @() }; function Start-AkariFeatureRead { }; $script:Groups = @()
 $res = [Windows.Controls.StackPanel]::new()
@@ -107,11 +107,13 @@ function Select-AkariPage($n) { $script:went = $n }
 Initialize-AkariSteps
 $StepBack.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
 "backTo=$script:went"
-# Optimize: the Legacy / Advanced chooser; Legacy opens Check, Back goes Home
+# Optimize: the Advanced / Legacy chooser; Advanced opens the Catalogue's first page, Legacy opens Check, Back goes Home
 $script:Cat = 'Optimize'; Show-AkariOptimizeChooser
 "optCards=$($StepBody.Children[0].Children.Count)"; "optEnabled=$($StepBody.Children[0].Children[0].IsEnabled),$($StepBody.Children[0].Children[1].IsEnabled)"
 "optHeading=$($Heading.Text)"; "optFooter=$($StepBack.Visibility),$($StepNext.Visibility)"
 $StepBody.Children[0].Children[0].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
+"advancedTo=$script:went"
+$StepBody.Children[0].Children[1].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
 "legacyTo=$script:went"
 $StepBack.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
 "optBack=$script:went"
@@ -166,13 +168,14 @@ $script:Step = 1; Show-AkariSteps
         $out.closed | Should Be 'True'
     }
     It 'Back on the chooser goes Home' { $out.backTo | Should Be 'Home' }
-    It 'Optimize opens on Legacy and a greyed Advanced, with only Back' {
+    It 'Optimize offers Advanced and Legacy, with only Back' {
         $out.optCards | Should Be '2'
-        $out.optEnabled | Should Be 'True,False'
+        $out.optEnabled | Should Be 'True,True'
         $out.optHeading | Should Be 'Optimize'
         $out.optFooter | Should Be 'Visible,Collapsed'
     }
-    It 'Legacy opens the first Legacy page, Back on the Optimize chooser goes Home' {
+    It 'Advanced opens the Catalogue''s first page; Legacy the first Legacy page; Back goes Home' {
+        $out.advancedTo | Should Be 'Catalogue:Optimize/Gaming'
         $out.legacyTo | Should Be 'Check'
         $out.optBack | Should Be 'Home'
     }

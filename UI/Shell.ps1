@@ -8,7 +8,7 @@ $window.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get
 foreach ($n in 'Nav', 'Search', 'Heading', 'Rows', 'Page', 'Logo', 'HomePanel',
                'Shell', 'Body', 'Main', 'PaneCol', 'PaneToggle', 'HomeTiles', 'HeaderIcon', 'HeaderSub', 'StatusDot', 'StatusRing', 'StatusText', 'StatusBar',
                'CapMin', 'CapMax', 'CapMaxGlyph', 'CapClose', 'StepsPanel', 'StepDots', 'StepBody', 'StepFooter', 'StepBack', 'StepNext',
-               'UpdateBar', 'UpdateText', 'UpdateOpen', 'AppVersion', 'AppVersionText', 'MenuBtn') { Set-Variable $n $window.FindName($n) }
+               'UpdateBar', 'UpdateText', 'UpdateOpen', 'AppVersion', 'AppVersionText', 'MenuBtn', 'CatBars') { Set-Variable $n $window.FindName($n) }
 $AppVersionText.Text = "AkariOS $AkariVersion"
 Initialize-AkariSteps
 
@@ -95,6 +95,8 @@ function Add-Log([string]$m) {
 function Set-AkariPane([bool]$Show) {
     $PaneCol.Width = [Windows.GridLength]::new($(if (-not $Show) { 0 } elseif ($script:PaneOpen) { 232 } else { 48 }))
     $Main.Margin = [Windows.Thickness]::new($(if ($Show) { 0 } else { 16 }), 0, 0, 0)
+    # the Catalogue's Section headings only fit the full sidebar
+    foreach ($h in @($Nav.Children | Where-Object { $_ -is [Windows.Controls.TextBlock] })) { $h.Visibility = if ($script:PaneOpen) { 'Visible' } else { 'Collapsed' } }
 }
 
 function Show-Page {
@@ -105,6 +107,9 @@ function Show-Page {
     $onChooser = (-not $q -and $script:Cat -eq 'Optimize')
     # About & Updates: full window like the chooser, Back leads home
     $onAbout = (-not $q -and $script:Cat -eq 'About')
+    $CatBars.Visibility = 'Collapsed'
+    # Optimize › Advanced (the Catalogue, UI\CataloguePage.ps1): its own sidebar, pages and search
+    if ($script:Cat -like "$AkariCataloguePrefix*") { Show-AkariCataloguePage $q; return }
     # full-window pages like Home: no sidebar (Back leads home)
     if ($onSteps -or $onChooser -or $onAbout) { Set-AkariPane $false }
     $StepsPanel.Visibility = if ($onSteps -or $onChooser -or $onAbout) { 'Visible' } else { 'Collapsed' }
@@ -122,6 +127,7 @@ function Show-Page {
         return
     }
     $onHome = (-not $q -and $script:Cat -eq 'Home')
+    Set-AkariNav 'Legacy'
     $Rows.Children.Clear()
     if ($q) {
         $Heading.Text = 'Search'
@@ -151,8 +157,9 @@ function Show-Page {
 }
 
 # ---- running actions in a background runspace
-function Set-Busy([bool]$b, [string]$label = '') {
-    $script:Busy = $b; $Page.IsEnabled = -not $b; $StepFooter.IsEnabled = -not $b
+# $Lock: the page can't be used meanwhile (the Catalogue keeps it usable: its changes queue up)
+function Set-Busy([bool]$b, [string]$label = '', [bool]$Lock = $true) {
+    $script:Busy = $b; $Page.IsEnabled = -not ($b -and $Lock); $StepFooter.IsEnabled = $Page.IsEnabled
     # status bar: green dot and Ready at rest, spinner + label + progress bar while running
     $StatusDot.Visibility = if ($b) { 'Collapsed' } else { 'Visible' }
     $StatusRing.Visibility = if ($b) { 'Visible' } else { 'Collapsed' }
@@ -185,7 +192,10 @@ $timer.Add_Tick({
         $script:Job = $null
         Set-Busy $false
         if ($j.Kind -eq 'Apply') { Complete-AkariApply $j.Shared }
-        Show-Page
+        # a Catalogue change updates its card only (the page stays as it is)
+        if ("$($j.Kind)" -like 'Catalogue*') { Complete-AkariCatalogueJob $j } else { Show-Page }
+        # Catalogue changes that queued up meanwhile
+        Start-AkariCatalogueNext
     }
 })
 $timer.Start()
@@ -195,29 +205,65 @@ function Confirm-Run([string]$text) {
     return (Confirm-AkariDialog $text 'Continue')
 }
 
-# ---- sidebar (Optimize › Legacy only): '← Optimize' back to the chooser, then the Legacy pages
-foreach ($c in @('Optimize') + $AkariLegacyPages) {
-    # icon in a 40 px column (it stays put when the pane collapses to 48 px), label after it
+# ---- sidebar: '← Optimize' back to the chooser, then the Legacy pages (Optimize › Legacy) or the Catalogue's Section
+# headings and Category pages (Optimize › Advanced)
+# one sidebar entry: icon in a 40 px column (it stays put when the pane collapses to 48 px), label after it
+function New-AkariNavButton([string]$Tag, [string]$Label, [string]$Glyph, [string]$Tip) {
     $g = [Windows.Controls.Grid]::new()
     $c0 = [Windows.Controls.ColumnDefinition]::new(); $c0.Width = [Windows.GridLength]::new(40)
     [void]$g.ColumnDefinitions.Add($c0); [void]$g.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new())
     $ic = [Windows.Controls.TextBlock]::new()
-    $ic.Text = if ($c -eq 'Optimize') { [string][char]0xE72B } else { [string]$Pages[$c].Glyph }
+    $ic.Text = $Glyph
     $ic.FontFamily = $window.FindResource('Icons')
     $ic.FontSize = 16
     $ic.HorizontalAlignment = 'Center'; $ic.VerticalAlignment = 'Center'
     $lb = [Windows.Controls.TextBlock]::new()
-    $lb.Text = $c; $lb.FontSize = 14; $lb.VerticalAlignment = 'Center'; $lb.Margin = [Windows.Thickness]::new(4, 0, 0, 1)
+    $lb.Text = $Label; $lb.FontSize = 14; $lb.VerticalAlignment = 'Center'; $lb.Margin = [Windows.Thickness]::new(4, 0, 0, 1)
     [Windows.Controls.Grid]::SetColumn($lb, 1)
     [void]$g.Children.Add($ic); [void]$g.Children.Add($lb)
     $rb = [Windows.Controls.RadioButton]::new()
-    $rb.Content = $g; $rb.Tag = $c; $rb.GroupName = 'nav'
-    $rb.ToolTip = if ($c -eq 'Optimize') { 'Back to Optimize' } else { $c }
+    $rb.Content = $g; $rb.Tag = $Tag; $rb.GroupName = 'nav'
+    $rb.ToolTip = $Tip
     $rb.Style = $window.FindResource('Nav')
-    # a gap between the way back and the pages
-    if ($c -eq 'Optimize') { $rb.Margin = [Windows.Thickness]::new(0, 0, 0, 12) }
-    [void]$Nav.Children.Add($rb)
+    $rb
 }
+
+# fills the sidebar for 'Legacy' or 'Catalogue' (kept while it is already showing that one)
+function Set-AkariNav([string]$Mode) {
+    if ($script:NavMode -eq $Mode) { return }
+    $script:NavMode = $Mode
+    $Nav.Children.Clear()
+    $back = New-AkariNavButton 'Optimize' 'Optimize' ([string][char]0xE72B) 'Back to Optimize'
+    # a gap between the way back and the pages
+    $back.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
+    [void]$Nav.Children.Add($back)
+    if ($Mode -eq 'Legacy') {
+        foreach ($c in $AkariLegacyPages) { [void]$Nav.Children.Add((New-AkariNavButton $c $c ([string]$Pages[$c].Glyph) $c)) }
+    } else {
+        foreach ($s in Get-AkariCataloguePages $script:Tweaks) {
+            $h = [Windows.Controls.TextBlock]::new()
+            $h.Text = $s.Header
+            $h.FontSize = 12; $h.FontWeight = 'SemiBold'
+            $h.Margin = [Windows.Thickness]::new(14, 10, 0, 4)
+            $h.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, 'Mu')
+            $h.Visibility = if ($script:PaneOpen) { 'Visible' } else { 'Collapsed' }
+            [void]$Nav.Children.Add($h)
+            foreach ($p in $s.Pages) {
+                $glyph = if ($AkariCategoryGlyphs.ContainsKey($p.Category)) { $AkariCategoryGlyphs[$p.Category] } else { 0xE713 }
+                [void]$Nav.Children.Add((New-AkariNavButton $p.Key $p.Category ([string][char]$glyph) "$($s.Header) › $($p.Category)"))
+            }
+        }
+    }
+}
+
+# marks the current page in the sidebar without opening it again
+function Sync-AkariNav {
+    $script:NavSync = $true
+    foreach ($rb in @($Nav.Children | Where-Object { $_ -is [Windows.Controls.RadioButton] })) { $rb.IsChecked = ([string]$rb.Tag -eq $script:Cat) }
+    $script:NavSync = $false
+}
+$script:NavMode = ''
+Set-AkariNav 'Legacy'
 # pane toggle: full 232 px sidebar or the 48 px icon strip
 $script:PaneOpen = $true
 $PaneToggle.Add_Click({
@@ -242,9 +288,11 @@ $Search.Add_TextChanged({ Show-Page })
 # any page, in the sidebar or not (Home, Install AkariOS, the Optimize chooser): the sidebar marks it when it lists it
 function Select-AkariPage([string]$Name) {
     $script:NavSync = $true
-    foreach ($rb in $Nav.Children) { $rb.IsChecked = ([string]$rb.Tag -eq $Name) }
+    foreach ($rb in @($Nav.Children | Where-Object { $_ -is [Windows.Controls.RadioButton] })) { $rb.IsChecked = ([string]$rb.Tag -eq $Name) }
     $script:NavSync = $false
     Open-AkariPage $Name $script:Cat
+    # the sidebar may have been filled again for the page (Legacy / Catalogue)
+    Sync-AkariNav
 }
 
 # ---- home tiles: Install AkariOS (One-click or Guided), Optimize (Manual mode), Downloads, Import / Export

@@ -21,6 +21,8 @@ $script:Sel = New-AkariSelection
 # Tweaks grid: one row entry per Tweak id, the category cards (@{ Card; Size }), the columns in use
 $script:TweakRows = [ordered]@{}
 $script:TweakCards = @()
+# the Sections of the grid: @{ Section; Header; Heading; Grid }
+$script:TweakSections = @()
 $script:GridCols = 0
 $script:TweaksView = $null
 # "Show current state": rows start on the State read from this PC (Win11Debloat's "Show currently applied tweaks")
@@ -34,8 +36,9 @@ $script:RestoreDone = $false
 # on Optimize > Legacy). Pure, no WPF.
 function Get-AkariStepGroups($Tweaks, [hashtable]$Ported = @{}) {
     if (-not $Ported) { $Ported = @{} }
-    # apps (Section Apps: removals and installs) have their own step; Section OneClick is One-click's own steps
-    $list = @($Tweaks | Where-Object { $_.Section -notin 'Apps', 'OneClick' -and -not $_.Group -and (($_.Legacy -and $_.Kind -eq 'Toggle' -and -not $Ported.ContainsKey($_.Id)) -or
+    # apps (Section Apps: removals and installs) have their own step; Section OneClick is One-click's own steps; Tools
+    # and a Tweak with Guided = $false are the Catalogue's only (Optimize › Advanced, ADR 0005)
+    $list = @($Tweaks | Where-Object { $_.Section -notin 'Apps', 'OneClick', 'Tools' -and $_.Guided -ne $false -and -not $_.Group -and (($_.Legacy -and $_.Kind -eq 'Toggle' -and -not $Ported.ContainsKey($_.Id)) -or
         (-not $_.Legacy -and $_.Kind -in 'Toggle', 'Choice', 'Action' -and (-not $_.Requires -or -not (Test-AkariRequirement $_)))) })
     $sections = @($list | ForEach-Object { $_.Section } | Select-Object -Unique)
     $ordered = @($AkariSectionOrder | Where-Object { $_ -in $sections }) + @($sections | Where-Object { $_ -notin $AkariSectionOrder } | Sort-Object)
@@ -291,30 +294,36 @@ function New-AkariTweaksToolbar {
     $bar
 }
 
-# places the category cards in $Cols columns (masonry); called again when the width crosses the threshold
+# places each Section's category cards in $Cols columns (masonry); called again when the width crosses the threshold
 function Set-AkariTweaksColumns([int]$Cols) {
     if ($Cols -eq $script:GridCols) { return }
     $script:GridCols = $Cols
-    $grid = $script:TweaksGrid
-    foreach ($p in @($grid.Children)) { $p.Children.Clear() }
-    $grid.Children.Clear(); $grid.ColumnDefinitions.Clear()
-    $panels = for ($i = 0; $i -lt $Cols; $i++) {
-        [void]$grid.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new())
-        $p = [Windows.Controls.StackPanel]::new()
-        $p.Margin = [Windows.Thickness]::new($(if ($i) { 6 } else { 0 }), 0, $(if ($i -lt $Cols - 1) { 6 } else { 0 }), 0)
-        [Windows.Controls.Grid]::SetColumn($p, $i)
-        [void]$grid.Children.Add($p)
-        $p
+    foreach ($sec in $script:TweakSections) {
+        $grid = $sec.Grid
+        $cards = @($script:TweakCards | Where-Object { $_.Section -eq $sec.Section })
+        foreach ($p in @($grid.Children)) { $p.Children.Clear() }
+        $grid.Children.Clear(); $grid.ColumnDefinitions.Clear()
+        $panels = for ($i = 0; $i -lt $Cols; $i++) {
+            [void]$grid.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new())
+            $p = [Windows.Controls.StackPanel]::new()
+            $p.Margin = [Windows.Thickness]::new($(if ($i) { 6 } else { 0 }), 0, $(if ($i -lt $Cols - 1) { 6 } else { 0 }), 0)
+            [Windows.Controls.Grid]::SetColumn($p, $i)
+            [void]$grid.Children.Add($p)
+            $p
+        }
+        $at = @(Get-AkariMasonry @($cards | ForEach-Object { $_.Size }) $Cols)
+        for ($i = 0; $i -lt $cards.Count; $i++) { [void]@($panels)[$at[$i]].Children.Add($cards[$i].Card) }
     }
-    $at = @(Get-AkariMasonry @($script:TweakCards | ForEach-Object { $_.Size }) $Cols)
-    for ($i = 0; $i -lt $script:TweakCards.Count; $i++) { [void]@($panels)[$at[$i]].Children.Add($script:TweakCards[$i].Card) }
 }
 
-# builds the Tweaks view once, after Win11Debloat's System Tweaks: toolbar, then a grid of category cards
+# builds the Tweaks view once, after Win11Debloat's System Tweaks: toolbar, then per Section a heading and a grid of
+# category cards
 function Get-AkariTweaksView {
     if ($script:TweaksView) { return $script:TweaksView }
     $script:TweakCards = @()
+    $script:TweakSections = @()
     foreach ($g in Get-AkariStepGroups $script:Tweaks $script:Ported) {
+        $script:TweakSections += @{ Section = $g.Section; Header = $g.Header }
         foreach ($c in $g.Categories) {
             # one-file tweaks: a card per Category; legacy tweaks: a card per old page, marked "Not yet ported"
             $legacy = ($c.Name -eq 'Not yet ported')
@@ -330,13 +339,19 @@ function Get-AkariTweaksView {
                 [void]$cc.Panel.Children.Add($e.Row)
                 $size += $(if ($t.Kind -eq 'Choice') { 2 } else { 1 })
             }
-            $script:TweakCards += @{ Card = $cc.Card; Size = $size }
+            $script:TweakCards += @{ Card = $cc.Card; Size = $size; Section = $g.Section }
         }
     }
     $view = [Windows.Controls.StackPanel]::new()
     [void]$view.Children.Add((New-AkariTweaksToolbar))
-    $script:TweaksGrid = [Windows.Controls.Grid]::new()
-    [void]$view.Children.Add($script:TweaksGrid)
+    foreach ($sec in $script:TweakSections) {
+        $sec.Heading = New-AkariText $sec.Header 18
+        $sec.Heading.FontWeight = 'SemiBold'
+        $sec.Heading.Margin = [Windows.Thickness]::new(2, $(if ($sec -eq $script:TweakSections[0]) { 0 } else { 12 }), 0, 10)
+        $sec.Grid = [Windows.Controls.Grid]::new()
+        [void]$view.Children.Add($sec.Heading)
+        [void]$view.Children.Add($sec.Grid)
+    }
     $script:GridCols = 0
     Set-AkariTweaksColumns 3
     # three columns from 900 px, two below (Win11Debloat folds its third column the same way)
@@ -356,6 +371,11 @@ function Set-AkariTweaksFilter([string]$q) {
     foreach ($c in $script:TweakCards) {
         $any = @($c.Card.Child.Children | Select-Object -Skip 1 | Where-Object { $_.Visibility -eq 'Visible' }).Count -gt 0
         $c.Card.Visibility = if ($any) { 'Visible' } else { 'Collapsed' }
+    }
+    # a Section with no card left loses its heading too
+    foreach ($sec in $script:TweakSections) {
+        $any = @($script:TweakCards | Where-Object { $_.Section -eq $sec.Section -and $_.Card.Visibility -eq 'Visible' }).Count -gt 0
+        $sec.Heading.Visibility = if ($any) { 'Visible' } else { 'Collapsed' }
     }
 }
 
@@ -453,12 +473,15 @@ function Show-AkariOptimizeChooser {
     $StepNext.Visibility = 'Collapsed'
     $g = [Windows.Controls.Primitives.UniformGrid]::new()
     $g.Columns = 2
-    $legacy = New-AkariModeCard ([string][char]0xE713) 'Legacy' 'The AkariOS-Ultimate pages. Every button acts right away.' $true
-    $legacy.Margin = [Windows.Thickness]::new(0, 0, 8, 0)
+    # Advanced: the Catalogue (ADR 0005), every one-file Tweak by Section › Category, each change acting right away
+    $first = @(Get-AkariCataloguePages $script:Tweaks | ForEach-Object { $_.Pages }) | Select-Object -First 1
+    $adv = New-AkariModeCard ([string][char]0xE9E9) 'Advanced' 'Every tweak AkariOS has, by category. Each change applies right away. More tweaks are on the way.' ([bool]$first)
+    $adv.Margin = [Windows.Thickness]::new(0, 0, 8, 0)
+    if ($first) { $adv.Tag = $first.Key; $adv.Add_Click({ param($s, $e) Select-AkariPage ([string]$s.Tag) }) }
+    $legacy = New-AkariModeCard ([string][char]0xE713) 'Legacy' 'The old AkariOS-Ultimate pages, being retired as Advanced takes them over. Every button acts right away.' $true
+    $legacy.Margin = [Windows.Thickness]::new(8, 0, 0, 0)
     $legacy.Add_Click({ Select-AkariPage $AkariLegacyPages[0] })
-    $adv = New-AkariModeCard ([string][char]0xE9E9) 'Advanced' 'Coming later.' $false
-    $adv.Margin = [Windows.Thickness]::new(8, 0, 0, 0)
-    [void]$g.Children.Add($legacy); [void]$g.Children.Add($adv)
+    [void]$g.Children.Add($adv); [void]$g.Children.Add($legacy)
     $StepBody.Children.Clear()
     [void]$StepBody.Children.Add($g)
 }
@@ -638,6 +661,7 @@ function Clear-AkariSteps {
     $script:Sel = New-AkariSelection
     $script:TweakRows = [ordered]@{}
     $script:TweakCards = @()
+    $script:TweakSections = @()
     $script:TweaksView = $null
     $script:AppRows = [ordered]@{}
     $script:AppsView = $null

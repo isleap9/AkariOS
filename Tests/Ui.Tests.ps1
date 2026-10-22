@@ -15,6 +15,17 @@ Describe 'UI files' {
         }
     }
 
+    # PowerShell 5.1 reads a file without a BOM as ANSI: "›" in a string would show as "â€º"
+    It 'UI scripts without a UTF-8 BOM keep non-ASCII text out of their code' {
+        $bad = foreach ($f in Get-ChildItem "$Root\UI\*.ps1") {
+            $b = [IO.File]::ReadAllBytes($f.FullName)
+            if ($b.Length -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF) { continue }
+            $n = 0
+            foreach ($l in [Text.Encoding]::UTF8.GetString($b) -split "`n") { $n++; if ($l -notmatch '^\s*#' -and $l -match '[^\x00-\x7F]') { "$($f.Name):$n" } }
+        }
+        @($bad) -join ', ' | Should Be ''
+    }
+
     It 'MainWindow.xaml parses' {
         $s = "Add-Type -AssemblyName PresentationFramework; [void][Windows.Markup.XamlReader]::Parse((Get-Content '$Root\UI\MainWindow.xaml' -Raw)); 'ok'"
         Test-XamlInChild $s | Should Be 'ok'
@@ -160,12 +171,15 @@ $AkariInstallDir = $Install
 function L($id, $page, $name) { ConvertTo-AkariTweak @{ Id = $id; Name = $name; Description = 'D'; Section = $page; Category = ''; Risk = 'Safe'; Kind = 'Action'; Button = 'Run'; Apply = { } } 'x' $true }
 $script:Tweaks = [System.Collections.Generic.List[object]]::new()
 foreach ($t in @((L 'dark' 'Windows' 'Dark theme'), (L 'bios' 'Check' 'BIOS check'), (L 'leg-adv' 'Advanced' 'Old advanced'),
-    (ConvertTo-AkariTweak @{ Id = 'tuning'; Name = 'Theme tuning'; Description = 'D'; Section = 'Advanced'; Category = 'Tuning'; Risk = 'Safe'; Kind = 'Action'; Button = 'Run'; Apply = { } } 'x' $false))) { $script:Tweaks.Add($t) }
+    (ConvertTo-AkariTweak @{ Id = 'tuning'; Name = 'Theme tuning'; Description = 'D'; Section = 'Advanced'; Category = 'Tuning'; Risk = 'Safe'; Kind = 'Action'; Button = 'Run'; Apply = { } } 'x' $false),
+    # the Catalogue (Optimize › Advanced): a Toggle that needs Explorer restarted, a Safe Mode Toggle
+    (ConvertTo-AkariTweak @{ Id = 'cat-tog'; Name = 'Cat toggle'; Description = 'D'; Section = 'Customize'; Category = 'Taskbar'; Risk = 'Safe'; Explorer = $true; Apply = { }; Revert = { } } 'x' $false),
+    (ConvertTo-AkariTweak @{ Id = 'cat-safe'; Name = 'Cat safe'; Description = 'D'; Section = 'Advanced'; Category = 'Security'; Risk = 'Safe'; SafeMode = $true; Reboot = $true; Apply = { }; Revert = { } } 'x' $false))) { $script:Tweaks.Add($t) }
 $script:Groups = @(); $script:RowCache = @{}; $script:Cat = 'Home'; $script:Busy = $false; $script:Job = $null
 $script:Queue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
 $loaded = @{ Problems = @() }
 function Get-AkariAppxInstalled { @() }; function Start-AkariFeatureRead { }
-foreach ($f in 'Dialog', 'Selection', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows', 'About') { . "$Root\UI\$f.ps1" }
+foreach ($f in 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows', 'CataloguePage', 'About') { . "$Root\UI\$f.ps1" }
 $timer.Stop()
 # the launch prompt is a dialog: record it instead
 function Show-AkariUpdatePrompt { $script:Prompted = $true }
@@ -174,7 +188,7 @@ function Rows { ($Rows.Children | ForEach-Object { if ($_ -is [Windows.Controls.
 "nav=$(($Nav.Children | ForEach-Object { $_.Tag }) -join ',')"
 Select-AkariPage 'Home'; "home=$($HomePanel.Visibility),$($PaneCol.Width.Value)"
 Click $HomeTiles.Children[1]; "optimize=$script:Cat,$($StepsPanel.Visibility),$($PaneCol.Width.Value),$($StepBody.Children[0].Children.Count)"
-Click $StepBody.Children[0].Children[0]; "legacy=$script:Cat,$($PaneCol.Width.Value),$(Rows)"
+Click $StepBody.Children[0].Children[1]; "legacy=$script:Cat,$($PaneCol.Width.Value),$(Rows)"
 Select-AkariPage 'Advanced'; "advanced=$(Rows)"
 Select-AkariPage 'Windows'; "windows=$(Rows),$(($Nav.Children | Where-Object { $_.IsChecked }).Tag)"
 ($Nav.Children | Where-Object { $_.Tag -eq 'Downloads' }).IsChecked = $true; "downloads=$script:Cat,$script:FlowExit,$($PaneCol.Width.Value)"
@@ -217,6 +231,47 @@ function Invoke-AkariDialog($Dialog) { $script:Shown = $Dialog; 'Update now' }
 function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My preset  '; 'Save' }
 "readText=$(Read-AkariText 'A name:' 'Save')|$($null -eq (Read-AkariText 'A name:' 'Keep'))"
 "overlay=$($window.FindName('ModalOverlay').Visibility)"
+# the Catalogue (Optimize › Advanced): no real job, restore point or dialog
+function Confirm-AkariDialog { $true }
+function Add-AkariRestoreFirst($Code, $Button) { $Code }
+function Test-AkariSafeMode { $false }
+$script:Jobs = @()
+function Start-AkariJob($Code, $Queue, $CoreDir, $Shared) { $script:Jobs += , @{ Code = $Code; Shared = $Shared }; @{ Handle = [pscustomobject]@{ IsCompleted = $false }; Shared = $Shared } }
+Select-AkariPage 'Optimize'; Click $StepBody.Children[0].Children[0]
+"catNav=$(($Nav.Children | ForEach-Object { if ($_ -is [Windows.Controls.TextBlock]) { '#' + $_.Text } else { $_.Tag } }) -join ',')"
+"catFirst=$script:Cat|$($Heading.Text)|$($PaneCol.Width.Value)|$(($Nav.Children | Where-Object { $_.IsChecked }).Tag)"
+$tog = $script:CatCards['cat-tog']
+"catReading=$($tog.StateText.Text -replace '[^ -~]', '.')|$($tog.Control.IsEnabled)|$($script:Jobs.Count)"
+Set-AkariCatalogueStates @{ 'cat-tog' = @{ State = 'Default'; Current = $null } }
+"catRead=$($tog.StateText.Text)|$($tog.Control.IsChecked)|$($tog.Control.IsEnabled)"
+$tog.Control.IsChecked = $true; Click $tog.Control
+"catRun=$($tog.StateText.Text -replace '[^ -~]', '.')|$($script:Job.Kind)|$($script:Jobs[-1].Code -match 'Invoke-AkariTweak')|$($script:Jobs[-1].Shared.Mode)"
+# a second change while the first runs: it queues
+[void](Get-AkariCatalogueCard ($script:Tweaks | Where-Object { $_.Id -eq 'tuning' }))
+Invoke-AkariCatalogueChange 'tuning' 'Apply' $null
+"catQueued=$($script:CatQueue.Count)|$($script:CatCards['tuning'].StateText.Text -replace '[^ -~]', '.')|$($script:Jobs.Count)"
+$j = $script:Job; $j.Shared.Outcome = [pscustomobject]@{ Outcome = 'Applied'; Message = '' }; $j.Shared.State = 'Optimized'; $script:Job = $null
+Complete-AkariCatalogueJob $j; Start-AkariCatalogueNext
+"catDone=$($tog.StateText.Text)|$($tog.Control.IsChecked)|$($script:RestartBar.Bar.Visibility)|$($script:RestartBar.Text.Text)|$($script:RestartBar.Explorer.Visibility)"
+"catNext=$($script:Job.Shared.Id)|$($script:CatQueue.Count)"
+$j = $script:Job; $j.Shared.Outcome = [pscustomobject]@{ Outcome = 'Failed'; Message = 'boom' }; $script:Job = $null; Complete-AkariCatalogueJob $j
+"catFailed=$($script:CatCards['tuning'].StateText.Text)"
+# a Safe Mode Toggle waits in the bar; switched back, it leaves it
+Select-AkariPage 'Catalogue:Advanced/Security'
+$safe = $script:CatCards['cat-safe']
+Set-AkariCatalogueStates @{ 'cat-safe' = @{ State = 'Default'; Current = $null } }
+$n = $script:Jobs.Count
+$safe.Control.IsChecked = $true; Click $safe.Control
+"catSafe=$($script:SafePending['cat-safe'])|$($safe.StateText.Text)|$($CatBars.Visibility)|$($script:SafeBar.Bar.Visibility)|$($script:Jobs.Count - $n)"
+$safe.Control.IsChecked = $false; Click $safe.Control
+"catSafeBack=$($script:SafePending.Count)|$($script:SafeBar.Bar.Visibility)|$($safe.Control.IsChecked)"
+# search: every Catalogue Tweak, a heading per Section › Category
+$Search.Text = 'Cat'
+"catSearch=$($Heading.Text)|$(($Rows.Children | Where-Object { $_ -is [Windows.Controls.TextBlock] } | ForEach-Object { $_.Text -replace '[^ -~]', '>' }) -join ',')|$(@($Rows.Children | Where-Object { $_ -is [Windows.Controls.Border] }).Count)"
+$Search.Text = ''
+# back to Optimize, then Legacy: the sidebar lists the Legacy pages again
+Select-AkariPage 'Optimize'; Click $StepBody.Children[0].Children[1]
+"catLeft=$script:Cat|$(($Nav.Children | ForEach-Object { $_.Tag }) -join ',')|$($CatBars.Visibility)"
 '@
     $out = @{}
     & powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -LogFile "$TestDrive\a.log" -Install "$TestDrive\inst" 2>&1 | ForEach-Object {
@@ -270,6 +325,31 @@ function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My
         $out.confirm | Should Be 'True,False,AkariOS'
         $out.readText | Should Be 'My preset|True'
         $out.overlay | Should Be 'Collapsed'
+    }
+    It 'Advanced opens the Catalogue: Section headings and Category pages in the sidebar, the first page open' {
+        $out.catNav | Should Be 'Optimize,#Customize,Catalogue:Customize/Taskbar,#Advanced,Catalogue:Advanced/Security,Catalogue:Advanced/Tuning'
+        $out.catFirst | Should Be 'Catalogue:Customize/Taskbar|Taskbar|232|Catalogue:Customize/Taskbar'
+    }
+    It 'reads States in the background: the switch waits for its State' {
+        $out.catReading | Should Be 'Reading.|False|1'
+        $out.catRead | Should Be 'Windows default|False|True'
+    }
+    It 'a switch applies right away in the job; a second change queues; Explorer changes go to the restart bar' {
+        $out.catRun | Should Be 'Applying.|Catalogue|True|Apply'
+        $out.catQueued | Should Be '1|Waiting.|2'
+        $out.catDone | Should Be 'Optimized|True|Visible|Explorer needs a restart to show 1 change.|Visible'
+        $out.catNext | Should Be 'tuning|0'
+        $out.catFailed | Should Be 'Failed: boom'
+    }
+    It 'a Safe Mode Tweak waits in the Safe Mode bar instead of running; switched back, it leaves it' {
+        $out.catSafe | Should Be 'Apply|Waiting for Safe Mode|Visible|Visible|0'
+        $out.catSafeBack | Should Be '0|Collapsed|False'
+    }
+    It 'search lists every Catalogue match under its Section › Category' {
+        $out.catSearch | Should Be 'Search|Customize > Taskbar,Advanced > Security|2'
+    }
+    It 'leaving for Legacy brings its sidebar back and hides the bars' {
+        $out.catLeft | Should Be 'Check|Optimize,Check,Refresh,Setup,Downloads,Graphics,Windows,Hardware,Advanced|Collapsed'
     }
     It 'the title bar says AkariOS' { $out.title | Should Be 'AkariOS' }
     It 'the options menu: settings files greyed out until M5, System Restore, the About links, Logs, About' {

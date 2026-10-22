@@ -3,7 +3,7 @@
 
 $AkariTweakFields = 'Id', 'Name', 'Description', 'Section', 'Category', 'Kind', 'Risk', 'Button', 'Confirm', 'Reboot', 'SafeMode',
     'Requires', 'Registry', 'Choices', 'Recommended', 'Default', 'Editable', 'Apply', 'Revert', 'Detect', 'Check', 'Actions', 'Source', 'Legacy',
-    'EntryKind', 'Entries', 'KeepNames', 'Group', 'Package', 'Keep', 'Winget', 'WingetSource', 'Before', 'After', 'AppType', 'StoreId', 'Explorer', 'AkariOS', 'Restarts'
+    'EntryKind', 'Entries', 'KeepNames', 'Group', 'Package', 'Keep', 'Winget', 'WingetSource', 'Before', 'After', 'AppType', 'StoreId', 'Explorer', 'AkariOS', 'Restarts', 'Guided'
 # Requires values the engine knows (Core\System.ps1 Test-AkariRequirement): unmet = hidden in Guided, Skipped in a Run
 $AkariRequirements = 'Win10', 'Win11', 'Laptop', 'Desktop', 'NVIDIA', 'AMD', 'Intel'
 # data-list Group handlers the engine knows (ADR 0002). Rows: the Entries are the data file's rows (every row is a
@@ -32,6 +32,8 @@ function ConvertTo-AkariTweak([hashtable]$h, [string]$Source, [bool]$Legacy) {
     $o.Explorer = [bool]$o.Explorer
     $o.AkariOS = [bool]$o.AkariOS
     $o.Restarts = [bool]$o.Restarts
+    # shown in Guided too unless the file says Guided = $false (Optimize › Advanced only, ADR 0005)
+    $o.Guided = ($h['Guided'] -ne $false)
     if ($null -ne $o.Requires) { $o.Requires = [string[]]@($o.Requires) }
     $o.Source = $Source
     $o.Legacy = $Legacy
