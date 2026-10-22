@@ -63,25 +63,23 @@ function Show-AkariAbout {
     $log.Add_Click({ Open-AkariLogFolder })
     [void]$p.Links.Children.Add($log)
     [void]$links.Body.Children.Add($p.Links)
-    # credits: name, what it gave AkariOS, a link
+    # credits: the name (a link to the project), what it gave AkariOS
     $credits = New-AkariAboutCard 'Credits'
     $p.Credits = [Windows.Controls.StackPanel]::new()
     foreach ($c in $d.Credits) {
         $row = [Windows.Controls.Grid]::new()
         $row.Margin = [Windows.Thickness]::new(0, 0, 0, 6)
-        foreach ($w in 220, -1, -2) {
+        foreach ($w in 220, -1) {
             $cd = [Windows.Controls.ColumnDefinition]::new()
-            $cd.Width = if ($w -eq -1) { [Windows.GridLength]::new(1, 'Star') } elseif ($w -eq -2) { [Windows.GridLength]::Auto } else { [Windows.GridLength]::new($w) }
+            $cd.Width = if ($w -eq -1) { [Windows.GridLength]::new(1, 'Star') } else { [Windows.GridLength]::new($w) }
             [void]$row.ColumnDefinitions.Add($cd)
         }
-        $n = New-AkariText $c.Name 13
+        $n = New-AkariLink $c.Name $c.Url
         $n.FontWeight = 'SemiBold'; $n.VerticalAlignment = 'Center'
         $t = New-AkariText $c.Text 13 'Mu'
         $t.VerticalAlignment = 'Center'
-        $b = New-AkariAboutButton 'Open' $c.Url
-        $b.Margin = [Windows.Thickness]::new(12, 0, 0, 0)
-        [Windows.Controls.Grid]::SetColumn($t, 1); [Windows.Controls.Grid]::SetColumn($b, 2)
-        foreach ($x in $n, $t, $b) { [void]$row.Children.Add($x) }
+        [Windows.Controls.Grid]::SetColumn($t, 1)
+        foreach ($x in $n, $t) { [void]$row.Children.Add($x) }
         [void]$p.Credits.Children.Add($row)
     }
     [void]$credits.Body.Children.Add($p.Credits)
@@ -89,20 +87,30 @@ function Show-AkariAbout {
     $full.HorizontalAlignment = 'Left'
     $full.Margin = [Windows.Thickness]::new(0, 6, 0, 0)
     [void]$credits.Body.Children.Add($full)
-    # license: one line and a link
+    # license: one line, "View license" right after it
     $lic = New-AkariAboutCard 'License'
-    $lp = [Windows.Controls.DockPanel]::new()
-    $view = New-AkariAboutButton 'View license' $d.License.Url
-    [Windows.Controls.DockPanel]::SetDock($view, 'Right')
+    $lp = [Windows.Controls.StackPanel]::new()
+    $lp.Orientation = 'Horizontal'
     $p.License = New-AkariText $d.License.Text 13 'Mu'
     $p.License.VerticalAlignment = 'Center'
-    [void]$lp.Children.Add($view); [void]$lp.Children.Add($p.License)
+    $view = New-AkariAboutButton 'View license' $d.License.Url
+    $view.Margin = [Windows.Thickness]::new(12, 0, 0, 0)
+    [void]$lp.Children.Add($p.License); [void]$lp.Children.Add($view)
     [void]$lic.Body.Children.Add($lp)
     $script:AboutParts = $p
     Update-AkariAboutUpdate
     $StepBody.Children.Clear()
     $card.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
-    foreach ($x in $card, $links.Card, $credits.Card, $lic.Card) { [void]$StepBody.Children.Add($x) }
+    # one readable column on the left: a grid column that fills the page up to 800 px, so every card has the same width
+    $p.Column = [Windows.Controls.Grid]::new()
+    $cd = [Windows.Controls.ColumnDefinition]::new()
+    $cd.Width = [Windows.GridLength]::new(1, 'Star')
+    $cd.MaxWidth = 800
+    [void]$p.Column.ColumnDefinitions.Add($cd)
+    $stack = [Windows.Controls.StackPanel]::new()
+    foreach ($x in $card, $links.Card, $credits.Card, $lic.Card) { [void]$stack.Children.Add($x) }
+    [void]$p.Column.Children.Add($stack)
+    [void]$StepBody.Children.Add($p.Column)
 }
 
 # the About page's data: links, credits, license (UI\About.psd1)
@@ -183,6 +191,21 @@ $MenuBtn.Add_Click({
     $MainMenu.VerticalOffset = -12 + 4
     $MainMenu.IsOpen = $true
 })
+
+# a text link that opens $Url in the browser (white, underlined on hover)
+function New-AkariLink([string]$Text, [string]$Url) {
+    $tb = New-AkariText '' 13
+    $h = [Windows.Documents.Hyperlink]::new([Windows.Documents.Run]::new($Text))
+    $h.NavigateUri = [Uri]$Url
+    $h.ToolTip = $Url
+    $h.SetResourceReference([Windows.Documents.TextElement]::ForegroundProperty, 'Tx')
+    $h.TextDecorations = $null
+    $h.Add_MouseEnter({ param($s, $e) $s.TextDecorations = [Windows.TextDecorations]::Underline })
+    $h.Add_MouseLeave({ param($s, $e) $s.TextDecorations = $null })
+    $h.Add_RequestNavigate({ param($s, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true })
+    [void]$tb.Inlines.Add($h)
+    $tb
+}
 
 # the About page's update part, from the last check
 function Update-AkariAboutUpdate {

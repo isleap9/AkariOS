@@ -186,8 +186,14 @@ Click $HomeTiles.Children[2]; "dlHome=$script:FlowExit"
 Select-AkariPage 'Home'; "aboutLink=$($null -eq $window.FindName('AboutLink'))"; Click $AppVersion; "about=$script:Cat,$($StepsPanel.Visibility),$($PaneCol.Width.Value),$($HomePanel.Visibility)"
 "aboutVersion=$($script:AboutParts.Version.Text)"
 "aboutLinks=$(($script:AboutParts.Links.Children | Where-Object { $_.Visibility -eq 'Visible' } | ForEach-Object { $_.Content }) -join ',')"
-"aboutCredits=$($script:AboutParts.Credits.Children.Count),$($script:AboutParts.Credits.Children[0].Children[0].Text)"
+"aboutCredits=$($script:AboutParts.Credits.Children.Count),$($script:AboutParts.Credits.Children[0].Children[0].Inlines.FirstInline.Inlines.FirstInline.Text)"
 "aboutLicense=$($script:AboutParts.License.Text -replace '[^ -~]', '?')"
+# the window is never shown here (no layout pass): check the column's definition
+$cd = $script:AboutParts.Column.ColumnDefinitions
+$cr = $script:AboutParts.Credits.Children[0]
+"aboutLayout=$($cd.Count),$($cd[0].Width.IsStar),$($cd[0].MaxWidth),$($script:AboutParts.Column.Children[0].Children.Count)"
+"aboutCreditLink=$($cr.Children[0].Inlines.FirstInline.NavigateUri),$(@($script:AboutParts.Credits.Children | ForEach-Object { $_.Children } | Where-Object { $_ -is [Windows.Controls.Button] }).Count)"
+"aboutLicenseLink=$($script:AboutParts.License.Parent.Orientation),$($script:AboutParts.License.Parent.Children[1].Content)"
 "appVersion=$($AppVersionText.Text)"
 Click $StepBack; "aboutBack=$script:Cat"
 "title=$($window.FindName('TitleText').Text)"
@@ -237,6 +243,12 @@ Complete-AkariUpdateCheck @{ Ok = $true; Version = [version]$AkariVersion } $fal
         $out.aboutLinks | Should Be 'GitHub,Report a bug,Discord,Open log folder'
         $out.aboutCredits | Should Match '^\d+,FR33THY Ultimate$'
         $out.aboutLicense | Should Be 'MIT License ? ? 2026 isleap9'
+    }
+    # a lone star column with a MaxWidth fills the page up to 800 px and leaves the rest empty on the right
+    It 'About is one column on the left, at most 800 px wide, holding the four cards' { $out.aboutLayout | Should Be '1,True,800,4' }
+    It 'credit names are links, with no Open buttons; View license sits next to the license text' {
+        $out.aboutCreditLink | Should Be 'https://github.com/FR33THYFR33THY/Ultimate,0'
+        $out.aboutLicenseLink | Should Be 'Horizontal,View license'
     }
     It 'the title bar says AkariOS' { $out.title | Should Be 'AkariOS' }
     It 'the options menu: settings files greyed out until M5, System Restore, the About links, Logs, About' {
