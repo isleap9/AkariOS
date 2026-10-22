@@ -8,8 +8,8 @@ $window.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get
 foreach ($n in 'Nav', 'Search', 'Heading', 'Rows', 'Page', 'Logo', 'HomePanel',
                'Shell', 'Body', 'Main', 'PaneCol', 'PaneToggle', 'HomeTiles', 'HeaderIcon', 'HeaderSub', 'StatusDot', 'StatusRing', 'StatusText', 'StatusBar',
                'CapMin', 'CapMax', 'CapMaxGlyph', 'CapClose', 'StepsPanel', 'StepDots', 'StepBody', 'StepFooter', 'StepBack', 'StepNext',
-               'UpdateBar', 'UpdateText', 'UpdateOpen', 'AboutLink', 'AppVersion') { Set-Variable $n $window.FindName($n) }
-$AppVersion.Text = "AkariOS $AkariVersion"
+               'UpdateBar', 'UpdateText', 'UpdateOpen', 'AppVersion', 'AppVersionText') { Set-Variable $n $window.FindName($n) }
+$AppVersionText.Text = "AkariOS $AkariVersion"
 Initialize-AkariSteps
 
 # every page: icon glyph (Segoe Fluent Icons) and the subtitle under the page title. Home, Install AkariOS,

@@ -7,7 +7,8 @@ $script:UpdateStatus = $null
 $script:UpdateChecking = $false
 
 $UpdateOpen.Add_Click({ Select-AkariPage 'About' })
-$AboutLink.Add_Click({ Select-AkariPage 'About' })
+# the status bar's "AkariOS <version>" opens About
+$AppVersion.Add_Click({ Select-AkariPage 'About' })
 
 function Show-AkariAbout {
     $StepDots.Children.Clear()

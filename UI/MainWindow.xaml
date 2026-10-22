@@ -401,10 +401,6 @@
                 </DockPanel>
               </Border>
               <UniformGrid x:Name="HomeTiles" Columns="4" Margin="0,8,0,0"/>
-              <Button x:Name="AboutLink" Style="{StaticResource Ghost}" HorizontalAlignment="Left" Margin="0,16,0,0" Padding="0"
-                      ToolTip="Version, updates and credits">
-                <TextBlock Text="About AkariOS" Margin="8,4" Foreground="{DynamicResource Mu}"/>
-              </Button>
             </StackPanel>
 
             <StackPanel x:Name="Rows"/>
@@ -455,8 +451,10 @@
           </Rectangle>
         </Border>
       </StackPanel>
-      <TextBlock x:Name="AppVersion" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="10.5" Text="AkariOS"
-                 Foreground="{DynamicResource Ter}"/>
+      <Button x:Name="AppVersion" Style="{StaticResource Ghost}" HorizontalAlignment="Right" VerticalAlignment="Center"
+              Cursor="Hand" ToolTip="About AkariOS: version, updates and credits">
+        <TextBlock x:Name="AppVersionText" Margin="6,1" FontSize="10.5" Text="AkariOS" Foreground="{DynamicResource Ter}"/>
+      </Button>
     </Grid>
   </Grid>
 </Window>

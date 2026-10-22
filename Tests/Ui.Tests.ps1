@@ -183,12 +183,12 @@ $Search.Text = 'theme'; "search=$(Rows)"; $Search.Text = ''
 $Nav.Children[0].IsChecked = $true; "backToChooser=$script:Cat,$($PaneCol.Width.Value)"
 Click $StepBack; "chooserBack=$script:Cat"
 Click $HomeTiles.Children[2]; "dlHome=$script:FlowExit"
-Select-AkariPage 'Home'; Click $AboutLink; "about=$script:Cat,$($StepsPanel.Visibility),$($PaneCol.Width.Value),$($HomePanel.Visibility)"
+Select-AkariPage 'Home'; "aboutLink=$($null -eq $window.FindName('AboutLink'))"; Click $AppVersion; "about=$script:Cat,$($StepsPanel.Visibility),$($PaneCol.Width.Value),$($HomePanel.Visibility)"
 "aboutVersion=$($script:AboutParts.Version.Text)"
 "aboutLinks=$(($script:AboutParts.Links.Children | Where-Object { $_.Visibility -eq 'Visible' } | ForEach-Object { $_.Content }) -join ',')"
 "aboutCredits=$($script:AboutParts.Credits.Children.Count),$($script:AboutParts.Credits.Children[0].Children[0].Text)"
 "aboutLicense=$($script:AboutParts.License.Text -replace '[^ -~]', '?')"
-"appVersion=$($AppVersion.Text)"
+"appVersion=$($AppVersionText.Text)"
 Click $StepBack; "aboutBack=$script:Cat"
 $rel = @{ Ok = $true; Version = [version]'9.0.0'; Notes = "## New`n- **fast**"; PageUrl = 'https://example.test/r'; AssetUrl = 'https://example.test/a.zip'; Digest = 'sha256:x' }
 $script:Prompted = $false; Complete-AkariUpdateCheck $rel $false; "launch=$script:Prompted,$($UpdateBar.Visibility),$($UpdateText.Text)"
@@ -223,7 +223,8 @@ Complete-AkariUpdateCheck @{ Ok = $true; Version = [version]$AkariVersion } $fal
         $out.chooserBack | Should Be 'Home'
     }
     It 'Downloads from Home exits to Home' { $out.dlHome | Should Be 'Home' }
-    It 'the About link on Home opens About, full window, and Back goes Home' {
+    It 'the status bar version opens About, full window, and Back goes Home; Home has no About link' {
+        $out.aboutLink | Should Be 'True'
         $out.about | Should Be 'About,Visible,0,Collapsed'
         $out.aboutVersion | Should Match '^AkariOS \d+\.\d+\.\d+$'
         $out.aboutBack | Should Be 'Home'
