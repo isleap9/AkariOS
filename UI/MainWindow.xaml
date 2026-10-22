@@ -525,5 +525,8 @@
         <TextBlock x:Name="AppVersionText" Margin="6,1" FontSize="10.5" Text="AkariOS" Foreground="{DynamicResource Ter}"/>
       </Button>
     </Grid>
+
+    <!-- Dims the whole window while an Akari dialog (UI\Dialog.ps1) is open. -->
+    <Border x:Name="ModalOverlay" Grid.RowSpan="3" Grid.ColumnSpan="2" Background="#99000000" Visibility="Collapsed"/>
   </Grid>
 </Window>

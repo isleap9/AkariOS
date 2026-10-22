@@ -265,8 +265,8 @@ function Show-AkariUpdatePrompt($Status) {
     $notes = ConvertTo-AkariNotesText $Status.Release.Notes
     if ($notes.Length -gt 600) { $notes = $notes.Substring(0, 600).TrimEnd() + [char]0x2026 }
     $q = "$($Status.Message)`n`n" + $(if ($notes) { "What's new:`n$notes`n`n" } else { '' }) +
-         "Update now? Akari closes, installs it and opens again. Your presets and settings are kept.`n`n(No = later)"
-    if ([Windows.MessageBox]::Show($q, 'AkariOS update', 'YesNo', 'Information') -eq 'Yes') { Start-AkariUpdateInstall }
+         "Update now? Akari closes, installs it and opens again. Your presets and settings are kept."
+    if (Confirm-AkariDialog $q 'Update now' 'Later' 'Info' 'AkariOS update') { Start-AkariUpdateInstall }
 }
 
 # downloads and checks the release in the background; when it is ready the helper is waiting and Akari closes
@@ -274,7 +274,7 @@ function Start-AkariUpdateInstall {
     if ($script:Busy -or -not $script:UpdateStatus) { return }
     # checked again: something may have started since the check
     $s = Get-AkariUpdateStatus $AkariVersion $script:UpdateStatus.Release $AkariInstallDir ([bool]$script:Job)
-    if ($s.Kind -ne 'Available') { [void][Windows.MessageBox]::Show($s.Message, 'AkariOS update'); return }
+    if ($s.Kind -ne 'Available') { Show-AkariMessage $s.Message 'Info' 'AkariOS update'; return }
     Set-Busy $true "Downloading AkariOS $($s.Release.Version)$([char]0x2026)"
     Add-Log "Update: downloading AkariOS $($s.Release.Version)"
     $rs = [runspacefactory]::CreateRunspace(); $rs.Open()
@@ -298,7 +298,7 @@ function Start-AkariUpdateInstall {
         Add-Log "Update: $($r.Message)"
         if ($r.Ok) { $window.Close(); return }
         Set-Busy $false
-        [void][Windows.MessageBox]::Show($r.Message, 'AkariOS update', 'OK', 'Warning')
+        Show-AkariMessage $r.Message 'Warning' 'AkariOS update'
     })
     $t.Start()
 }

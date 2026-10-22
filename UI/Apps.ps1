@@ -151,7 +151,7 @@ function Step-AkariAppCheck([string]$Id) {
     if ($e.Muted) { return }
     $next = if ($e.Control.IsChecked) { 'Optimized' } else { 'None' }
     $q = Get-AkariConfirmText $e.Tweak $next
-    if ($q -and [Windows.MessageBox]::Show($q, 'Akari', 'YesNo', 'Warning') -ne 'Yes') { Set-AkariAppChecked $e $false; return }
+    if ($q -and -not (Confirm-AkariDialog $q 'Continue')) { Set-AkariAppChecked $e $false; return }
     Set-AkariPending $script:Sel $e.Tweak 'Unknown' $next
     Update-AkariAppsStatus
 }

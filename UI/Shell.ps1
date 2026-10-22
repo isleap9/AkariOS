@@ -192,7 +192,7 @@ $timer.Start()
 
 function Confirm-Run([string]$text) {
     if (-not $text) { return $true }
-    return ([Windows.MessageBox]::Show($text, 'Akari', 'YesNo', 'Warning') -eq 'Yes')
+    return (Confirm-AkariDialog $text 'Continue')
 }
 
 # ---- sidebar (Optimize › Legacy only): '← Optimize' back to the chooser, then the Legacy pages

@@ -165,7 +165,7 @@ $script:Groups = @(); $script:RowCache = @{}; $script:Cat = 'Home'; $script:Busy
 $script:Queue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
 $loaded = @{ Problems = @() }
 function Get-AkariAppxInstalled { @() }; function Start-AkariFeatureRead { }
-foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows', 'About') { . "$Root\UI\$f.ps1" }
+foreach ($f in 'Dialog', 'Selection', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows', 'About') { . "$Root\UI\$f.ps1" }
 $timer.Stop()
 # the launch prompt is a dialog: record it instead
 function Show-AkariUpdatePrompt { $script:Prompted = $true }
@@ -206,6 +206,17 @@ Select-AkariPage 'Optimize'; $script:Prompted = $false; Complete-AkariUpdateChec
 Select-AkariPage 'About'; "aboutAvail=$($script:AboutParts.Status.Text)|$($script:AboutParts.Update.Visibility)|$($script:AboutParts.Notes.Text -replace "`n", '/' -replace [char]0x2022, '*')"
 Complete-AkariUpdateCheck @{ Ok = $false; Message = 'No releases yet.' } $true; "aboutError=$($script:AboutParts.Status.Text)|$($script:AboutParts.Update.Visibility)"
 Complete-AkariUpdateCheck @{ Ok = $true; Version = [version]$AkariVersion } $false; "latest=$($UpdateBar.Visibility)"
+# dialogs: built, never shown (ShowDialog would wait for a click)
+$d = New-AkariDialog 'Body text' 'AkariOS update' @('Later', 'Update now') 'Warning'
+$bs = @($d.FindName('DlgButtons').Children)
+"dlg=$($d.FindName('DlgTitle').Text)|$($d.FindName('DlgText').Text)|$(($bs | ForEach-Object { $_.Content }) -join ',')|$($bs[1].Style -eq $window.FindResource('BtnP')),$($bs[1].IsDefault),$($bs[0].IsCancel)|$($d.FindName('DlgIcon').Visibility)|$($d.FindName('DlgInput').Visibility)"
+$bs[1].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent)); "dlgClick=$($d.Tag.Result)"
+"dlgPlain=$((New-AkariDialog 'x' 'T' @('OK') 'None').FindName('DlgIcon').Visibility)"
+function Invoke-AkariDialog($Dialog) { $script:Shown = $Dialog; 'Update now' }
+"confirm=$(Confirm-AkariDialog 'q' 'Update now' 'Later'),$(Confirm-AkariDialog 'q' 'Start One-click'),$($script:Shown.FindName('DlgTitle').Text)"
+function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My preset  '; 'Save' }
+"readText=$(Read-AkariText 'A name:' 'Save')|$($null -eq (Read-AkariText 'A name:' 'Keep'))"
+"overlay=$($window.FindName('ModalOverlay').Visibility)"
 '@
     $out = @{}
     & powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -LogFile "$TestDrive\a.log" -Install "$TestDrive\inst" 2>&1 | ForEach-Object {
@@ -249,6 +260,16 @@ Complete-AkariUpdateCheck @{ Ok = $true; Version = [version]$AkariVersion } $fal
     It 'credit names are links, with no Open buttons; View license sits next to the license text' {
         $out.aboutCreditLink | Should Be 'https://github.com/FR33THYFR33THY/Ultimate,0'
         $out.aboutLicenseLink | Should Be 'Horizontal,View license'
+    }
+    It 'a dialog: title, text, buttons in order with the last one the white main action (Enter), the first Esc' {
+        $out.dlg | Should Be 'AkariOS update|Body text|Later,Update now|True,True,True|Visible|Collapsed'
+        $out.dlgClick | Should Be 'Update now'
+        $out.dlgPlain | Should Be 'Collapsed'
+    }
+    It 'Confirm-AkariDialog is $true only for its main action; Read-AkariText trims, and is $null when cancelled' {
+        $out.confirm | Should Be 'True,False,AkariOS'
+        $out.readText | Should Be 'My preset|True'
+        $out.overlay | Should Be 'Collapsed'
     }
     It 'the title bar says AkariOS' { $out.title | Should Be 'AkariOS' }
     It 'the options menu: settings files greyed out until M5, System Restore, the About links, Logs, About' {

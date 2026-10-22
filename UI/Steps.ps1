@@ -167,7 +167,7 @@ function Step-AkariCheck([string]$Id) {
     $t = $e.Tweak
     $next = Get-AkariCheckTarget ([bool]$e.Control.IsChecked) $e.Initial
     $q = Get-AkariConfirmText $t $next
-    if ($q -and [Windows.MessageBox]::Show($q, 'Akari', 'YesNo', 'Warning') -ne 'Yes') {
+    if ($q -and -not (Confirm-AkariDialog $q 'Continue')) {
         Set-AkariRowControl $e $(if ($e.Control.IsChecked) { 'None' } else { 'Optimized' })
         return
     }
@@ -182,7 +182,7 @@ function Set-AkariChoiceTarget([string]$Id, $Value) {
     if ("$Value" -eq 'None') { $same = ("$($e.Shown)" -eq 'None') } else { $same = ("$($e.Shown)" -ne 'None') -and (Test-AkariRegMatch $Value $e.Shown) }
     if ($same) { return }
     $q = if ("$Value" -eq 'None') { $null } else { Get-AkariConfirmText $e.Tweak $Value }
-    if ($q -and [Windows.MessageBox]::Show($q, 'Akari', 'YesNo', 'Warning') -ne 'Yes') { Set-AkariRowControl $e $e.Shown; return }
+    if ($q -and -not (Confirm-AkariDialog $q 'Continue')) { Set-AkariRowControl $e $e.Shown; return }
     $e.Shown = $Value
     Set-AkariPending $script:Sel $e.Tweak $e.State $Value $e.Current
     Update-AkariStepFooter
@@ -228,11 +228,10 @@ function Set-AkariQuickSelect($Preset) {
 
 # saves the current Selection as a user preset (asks for its name)
 function Save-AkariQuickSelect {
-    if (-not $script:Sel.Count) { [void][Windows.MessageBox]::Show('Pick some changes first, then save them as a preset.', 'Akari'); return }
-    Add-Type -AssemblyName Microsoft.VisualBasic
-    $name = [Microsoft.VisualBasic.Interaction]::InputBox('A name for this preset:', 'Akari', '')
-    if (-not $name -or -not $name.Trim()) { return }
-    $path = Save-AkariPreset $name.Trim() @(Get-AkariPlanItems $script:Sel) 'Saved from Install AkariOS'
+    if (-not $script:Sel.Count) { Show-AkariMessage 'Pick some changes first, then save them as a preset.'; return }
+    $name = Read-AkariText 'A name for this preset:' 'Save' 'Save as preset'
+    if (-not $name) { return }
+    $path = Save-AkariPreset $name @(Get-AkariPlanItems $script:Sel) 'Saved from Install AkariOS'
     Add-Log "Preset saved: $path"
 }
 
@@ -404,12 +403,12 @@ function Confirm-AkariOneClick {
          "- Graphics and audio drivers are removed. Install a fresh graphics driver afterwards.`n" +
          "- It is tuned for desktops: power saving is turned off.`n" +
          "- It needs an internet connection.`n`nStart AkariOS One-click now?"
-    [Windows.MessageBox]::Show($q, 'Akari', 'YesNo', 'Warning') -eq 'Yes'
+    Confirm-AkariDialog $q 'Start One-click' 'Cancel' 'Warning' 'AkariOS One-click'
 }
 
 function Start-AkariOneClick {
     $path = "$Root\Presets\AkariOS.json"
-    if (-not (Test-Path $path)) { [void][Windows.MessageBox]::Show("Missing: $path", 'Akari'); return }
+    if (-not (Test-Path $path)) { Show-AkariMessage "Missing: $path" 'Error'; return }
     if ($script:Busy -or -not (Confirm-AkariOneClick)) { return }
     # asked here, in the window; Akari.ps1 makes it in the console before phase 1
     $script:OneClickRestore = Get-AkariRestoreChoice 'OneClick'
@@ -537,14 +536,14 @@ function Get-AkariRunSummary($Outcomes) {
 
 function Confirm-AkariNoRestore([string]$Message) {
     $q = "Akari could not create a restore point:`n`n$Message`n`nApply the changes without a restore point?"
-    [Windows.MessageBox]::Show($q, 'Akari', 'YesNo', 'Warning') -eq 'Yes'
+    Confirm-AkariDialog $q 'Apply anyway' 'Cancel' 'Warning' 'Restore point'
 }
 
 # an AkariOS restore point exists already (from an earlier session): make another one?
 function Confirm-AkariAnotherRestore($Point) {
     $when = if ($Point.Date) { " on $($Point.Date.ToString('g'))" } else { '' }
     $q = "AkariOS already made a restore point$when.`n`nCreate another restore point before these changes?"
-    [Windows.MessageBox]::Show($q, 'Akari', 'YesNo', 'Question') -eq 'Yes'
+    Confirm-AkariDialog $q 'Create one' 'Skip' 'Question' 'Restore point'
 }
 
 # whether the changes about to run get a restore point first. Downloads (app installs only) never; Install AkariOS
