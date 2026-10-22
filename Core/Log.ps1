@@ -22,7 +22,7 @@ function Write-AkariProblems($Problems, [scriptblock]$Show) {
 }
 
 # Akari.ps1's trap: the error goes to akari.log, then to a message box when WPF is loaded (the GUI), else to the
-# console (CLI, -Resume, -OneClick: no WPF there). -Wait keeps a console that RunOnce opened up until Enter.
+# console (CLI, -Resume: no WPF there). -Wait keeps a console that RunOnce opened up until Enter.
 function Write-AkariCrash($ErrorRecord, [switch]$Wait) {
     $m = "$($ErrorRecord.Exception.Message) $($ErrorRecord.InvocationInfo.PositionMessage)"
     Write-ErrLog $m

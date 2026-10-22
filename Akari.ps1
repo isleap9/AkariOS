@@ -1,9 +1,7 @@
 ﻿#requires -Version 5.1
-param([ValidateRange(1, 3)][int]$OneClick, [switch]$List, [string[]]$Apply, [string[]]$Revert, [string]$Preset, [string]$RevertPreset, [switch]$Resume)
+param([switch]$List, [string[]]$Apply, [string[]]$Revert, [string]$Preset, [string]$RevertPreset, [switch]$Resume)
 # Akari. GUI:  powershell -ExecutionPolicy Bypass -File Akari.ps1
-# A Run in phases, after a restart (RunOnce; Core\Phases.ps1):  Akari.ps1 -Resume
-# The old imported One-click bodies (OneClick\*.ps1, until the VM check of M4):  Akari.ps1 -OneClick 2|3
-# CLI:  Akari.ps1 -List  |  -Apply id,id  |  -Revert id,id  |  -Preset <name|file.json>  |  -RevertPreset <name|file.json>
+# A Run in phases, after a restart (RunOnce; Core\Phases.ps1):  Akari.ps1 -Resume# CLI:  Akari.ps1 -List  |  -Apply id,id  |  -Revert id,id  |  -Preset <name|file.json>  |  -RevertPreset <name|file.json>
 #       (all but -List need an elevated shell; -RevertPreset reverts in reverse order and skips Actions)
 
 # ---- CLI: no relaunch, no WPF
@@ -63,20 +61,6 @@ if ($Resume) {
     exit
 }
 
-# ---- One-click phases 2 and 3 of the old imported bodies: started by RunOnce after a restart (OneClick\OneClick.ps1)
-if ($OneClick) {
-    $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]'Administrator')
-    if (-not $admin) {
-        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Maximized -File `"$PSCommandPath`" -OneClick $OneClick" -Verb RunAs
-        exit
-    }
-    foreach ($f in 'Log', 'Registry', 'Phases') { . "$PSScriptRoot\Core\$f.ps1" }
-    . "$PSScriptRoot\OneClick\OneClick.ps1"
-    Write-AkariBanner 'AkariOS One-click is running...'
-    [void](Invoke-AkariOneClick $OneClick $PSScriptRoot)
-    exit
-}
-
 # ---- elevate once, and make sure we are STA (WPF needs it)
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]'Administrator')
 $isSta = [Threading.Thread]::CurrentThread.GetApartmentState() -eq 'STA'
@@ -110,8 +94,8 @@ foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legac
 $AkariInstallDir = if ($PSScriptRoot) { $Root } else { '' }
 # after an update: the previous copy (<folder>.old) and the download folder go
 Remove-AkariUpdateLeftover $AkariInstallDir
-# covers the whole script, the CLI / -Resume / -OneClick branches above too (a trap applies to its entire scope)
-trap { Write-AkariCrash $_ -Wait:($Resume -or $OneClick); exit 1 }
+# covers the whole script, the CLI / -Resume branches above too (a trap applies to its entire scope)
+trap { Write-AkariCrash $_ -Wait:$Resume; exit 1 }
 # remove 'downloaded from the internet' marks so Windows never nags about these files
 Get-ChildItem $Root -Filter *.ps1 -File -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
 foreach ($sub in 'Tweaks', 'UI', 'OneClick') { Get-ChildItem "$Root\$sub" -Recurse -File -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue }

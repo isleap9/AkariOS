@@ -1,4 +1,4 @@
-# The AkariOS wallpaper, as One-click sets it (OneClick\steptwo.ps1): OneClick\img.jpg copied to
+# The AkariOS wallpaper, as the old One-click set it (isleap9/Akari-OS steptwo.ps1): OneClick\img.jpg copied to
 # C:\Windows\Web\AkariOS\img.jpg, Fill. It replaces FR33THY's black wallpaper (6 Windows\6 Signout Lockscreen
 # Wallpaper Black) and solid-colour background (22 Control Panel Settings): they all set the same value. The image
 # stays in OneClick\ (17 MB, one copy) until M4 retires that folder. Revert = Windows' own wallpaper (img0.jpg).

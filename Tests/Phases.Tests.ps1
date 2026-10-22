@@ -7,8 +7,8 @@ Describe 'Phases' {
 
     try {
         It 'builds the resume command for Akari.ps1' {
-            Get-AkariResumeCommand 'C:\My Tools\AkariOS\Akari.ps1' '-OneClick 2' |
-                Should Be 'powershell.exe -nop -ep bypass -WindowStyle Maximized -File "C:\My Tools\AkariOS\Akari.ps1" -OneClick 2'
+            Get-AkariResumeCommand 'C:\My Tools\AkariOS\Akari.ps1' '-Resume' |
+                Should Be 'powershell.exe -nop -ep bypass -WindowStyle Maximized -File "C:\My Tools\AkariOS\Akari.ps1" -Resume'
         }
 
         It 'registers a RunOnce value' {

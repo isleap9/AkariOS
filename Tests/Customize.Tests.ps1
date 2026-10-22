@@ -52,15 +52,16 @@ Describe 'AkariOS marks match OneClick\reg.reg' {
     }
 
     It 'reads reg.reg' { $reg.Count | Should BeGreaterThan 400 }
-    # registry tweaks One-click sets in a script instead of reg.reg (checked by hand against OneClick\steptwo.ps1)
+    # registry tweaks the old One-click (isleap9/Akari-OS akarios.ps1, stepone.ps1, steptwo.ps1) set in a script instead
+    # of reg.reg; checked by hand against those scripts before they were deleted (M4, 2026-10-22), so the reason is here
     $byScript = @(
-        'explorer-trim-context-menu'   # steptwo.ps1 "remove context menu items", lines ~797-829
-        'system-no-windows-backup'     # its CDPUserSvc Start = 4 row: steptwo.ps1 line ~410
-        'power-fast-startup-off'       # steptwo.ps1 power plan part, line ~1004
-        'power-throttling-off'         # steptwo.ps1 power plan part, line ~1007
-        'system-terminal-not-default'  # akarios.ps1 "disable open terminal by default"
-        'security-uac-off'             # stepone.ps1 "disable uac"
-        'security-defender-tasks-off'  # steptwo.ps1 SmartScreen for Edge / Store apps and the Defender tasks, lines ~440-452
+        'explorer-trim-context-menu'   # steptwo.ps1 "remove context menu items": CLSID overrides and Explorer policy values (reg add)
+        'system-no-windows-backup'     # steptwo.ps1 sets its CDPUserSvc Start = 4 row with the services, not in reg.reg
+        'power-fast-startup-off'       # steptwo.ps1 power plan part: HiberbootEnabled = 0
+        'power-throttling-off'         # steptwo.ps1 power plan part: PowerThrottlingOff = 1
+        'system-terminal-not-default'  # akarios.ps1 "disable open terminal by default": the console delegation values
+        'security-uac-off'             # stepone.ps1 "disable uac" (in Safe Mode)
+        'security-defender-tasks-off'  # steptwo.ps1: SmartScreen for Edge / Store apps off and Defender's scheduled tasks
     )
 
     It 'marks only tweaks whose every value reg.reg sets the same way' {
