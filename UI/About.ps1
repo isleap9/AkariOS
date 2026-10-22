@@ -60,7 +60,7 @@ function Show-AkariAbout {
         [void]$p.Links.Children.Add($b)
     }
     $log = New-AkariAboutButton 'Open log folder' ''
-    $log.Add_Click({ $f = Split-Path $AkariLogFile; if (Test-Path $f) { Start-Process explorer.exe $f } })
+    $log.Add_Click({ Open-AkariLogFolder })
     [void]$p.Links.Children.Add($log)
     [void]$links.Body.Children.Add($p.Links)
     # credits: name, what it gave AkariOS, a link
@@ -131,6 +131,58 @@ function New-AkariAboutButton([string]$Text, [string]$Url) {
     if ($Url) { $b.Tag = $Url; $b.Add_Click({ param($s, $e) Start-Process ([string]$s.Tag) }) }
     $b
 }
+
+function Open-AkariLogFolder { $f = Split-Path $AkariLogFile; if (Test-Path $f) { Start-Process explorer.exe $f } }
+
+# a title bar menu row: a Segoe Fluent glyph (hex) and a label; no $Click = greyed out, "coming in a later version"
+function New-AkariMenuItem([string]$Header, [string]$Glyph, [scriptblock]$Click) {
+    $it = [Windows.Controls.MenuItem]::new()
+    $it.Header = $Header
+    $ic = [Windows.Controls.TextBlock]::new()
+    $ic.Text = [string][char][Convert]::ToInt32($Glyph, 16)
+    $ic.SetResourceReference([Windows.Controls.TextBlock]::FontFamilyProperty, 'Icons')
+    $ic.FontSize = 14
+    $it.Icon = $ic
+    if ($Click) { $it.Add_Click($Click) }
+    else {
+        $it.IsEnabled = $false
+        $it.ToolTip = 'Coming in a later version'
+        [Windows.Controls.ToolTipService]::SetShowOnDisabled($it, $true)
+    }
+    $it
+}
+
+# the title bar's options menu (after Win11Debloat's): settings files (M5), System Restore, then the About links,
+# the log folder and About
+# (links with no Url are left out, as on About)
+$MainMenu = [Windows.Controls.ContextMenu]::new()
+# 220 px wide plus the 12 px shadow margin on each side (MainWindow.xaml), so it can be right-aligned when it opens
+$MainMenu.Width = 244
+$MenuBtn.ContextMenu = $MainMenu
+$items = [Collections.Generic.List[object]]::new()
+$items.Add((New-AkariMenuItem 'Import settings' 'E8B5' $null))
+$items.Add((New-AkariMenuItem 'Export settings' 'EDE1' $null))
+$items.Add((New-AkariMenuItem 'System Restore' 'E81C' { Start-Process "$env:SystemRoot\System32\rstrui.exe" }))
+$items.Add([Windows.Controls.Separator]::new())
+$glyphs = @{ 'GitHub' = 'E774'; 'Report a bug' = 'EBE8'; 'Discord' = 'E8BD' }
+foreach ($l in @($script:AboutData.Links | Where-Object { $_.Url })) {
+    $g = if ($glyphs[$l.Name]) { $glyphs[$l.Name] } else { 'E71B' }
+    $it = New-AkariMenuItem $l.Name $g { param($s, $e) Start-Process ([string]$s.Tag) }
+    $it.Tag = $l.Url
+    $items.Add($it)
+}
+$items.Add((New-AkariMenuItem 'Logs' 'E838' { Open-AkariLogFolder }))
+$items.Add((New-AkariMenuItem 'About' 'E946' { Select-AkariPage 'About' }))
+foreach ($it in $items) { [void]$MainMenu.Items.Add($it) }
+# opens under the caption buttons, its right edge 4 px in from the window's
+$MenuBtn.Add_Click({
+    $caps = $MenuBtn.Parent
+    $MainMenu.PlacementTarget = $caps
+    $MainMenu.Placement = 'Bottom'
+    $MainMenu.HorizontalOffset = $caps.ActualWidth - $MainMenu.Width + 12 - 4
+    $MainMenu.VerticalOffset = -12 + 4
+    $MainMenu.IsOpen = $true
+})
 
 # the About page's update part, from the last check
 function Update-AkariAboutUpdate {

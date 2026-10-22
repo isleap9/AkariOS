@@ -190,6 +190,10 @@ Select-AkariPage 'Home'; "aboutLink=$($null -eq $window.FindName('AboutLink'))";
 "aboutLicense=$($script:AboutParts.License.Text -replace '[^ -~]', '?')"
 "appVersion=$($AppVersionText.Text)"
 Click $StepBack; "aboutBack=$script:Cat"
+"title=$($window.FindName('TitleText').Text)"
+"menu=$(($MainMenu.Items | ForEach-Object { if ($_ -is [Windows.Controls.Separator]) { '-' } elseif ($_.IsEnabled) { $_.Header } else { "($($_.Header))" } }) -join ',')"
+$MainMenu.Items[$MainMenu.Items.Count - 1].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent)); "menuAbout=$script:Cat"
+Click $StepBack
 $rel = @{ Ok = $true; Version = [version]'9.0.0'; Notes = "## New`n- **fast**"; PageUrl = 'https://example.test/r'; AssetUrl = 'https://example.test/a.zip'; Digest = 'sha256:x' }
 $script:Prompted = $false; Complete-AkariUpdateCheck $rel $false; "launch=$script:Prompted,$($UpdateBar.Visibility),$($UpdateText.Text)"
 Select-AkariPage 'Optimize'; $script:Prompted = $false; Complete-AkariUpdateCheck $rel $false; "launchAway=$script:Prompted"
@@ -233,6 +237,11 @@ Complete-AkariUpdateCheck @{ Ok = $true; Version = [version]$AkariVersion } $fal
         $out.aboutLinks | Should Be 'GitHub,Report a bug,Discord,Open log folder'
         $out.aboutCredits | Should Match '^\d+,FR33THY Ultimate$'
         $out.aboutLicense | Should Be 'MIT License ? ? 2026 isleap9'
+    }
+    It 'the title bar says AkariOS' { $out.title | Should Be 'AkariOS' }
+    It 'the options menu: settings files greyed out until M5, System Restore, the About links, Logs, About' {
+        $out.menu | Should Be '(Import settings),(Export settings),System Restore,-,GitHub,Report a bug,Discord,Logs,About'
+        $out.menuAbout | Should Be 'About'
     }
     It 'the status bar shows the version' { $out.appVersion | Should Match '^AkariOS \d+\.\d+\.\d+$' }
     It 'a launch check that finds an update asks on Home and shows the Home bar' {

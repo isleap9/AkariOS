@@ -119,6 +119,74 @@
       </Setter>
     </Style>
 
+    <!-- Menus (the title bar menu, Quick select): a dark rounded panel with a shadow, rows with an icon column,
+         after Win11Debloat's options menu. -->
+    <Style TargetType="ContextMenu">
+      <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="HasDropShadow" Value="False"/>
+      <Setter Property="HorizontalOffset" Value="-12"/>
+      <Setter Property="VerticalOffset" Value="-8"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ContextMenu">
+            <!-- the outer margin leaves room for the shadow inside the popup -->
+            <Border Margin="12">
+              <Border Background="{DynamicResource S2}" BorderBrush="{DynamicResource Bd}" BorderThickness="1"
+                      CornerRadius="6" Padding="4" MinWidth="200">
+                <Border.Effect>
+                  <DropShadowEffect BlurRadius="14" Opacity="0.4" ShadowDepth="4" Direction="270"/>
+                </Border.Effect>
+                <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+              </Border>
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style TargetType="MenuItem">
+      <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Height" Value="32"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="MenuItem">
+            <Border x:Name="B" Background="{TemplateBinding Background}" CornerRadius="4" Padding="8,0,16,0">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="20"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <ContentPresenter ContentSource="Icon" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" Margin="10,0,0,1"/>
+              </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsHighlighted" Value="True">
+                <Setter TargetName="B" Property="Background" Value="{DynamicResource Ctl}"/>
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="B" Property="Background" Value="{DynamicResource CtlP}"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.4"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="{x:Static MenuItem.SeparatorStyleKey}" TargetType="Separator">
+      <Setter Property="Margin" Value="4,4"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Separator">
+            <Border Height="1" Background="{DynamicResource Bd}"/>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
     <!-- Title bar caption button (46 x 32, clickable inside the drag region). -->
     <Style x:Key="Cap" TargetType="Button">
       <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
@@ -293,19 +361,20 @@
          Mica when it is on (set in code). -->
     <Border x:Name="Body" Grid.RowSpan="3" Grid.ColumnSpan="2" Background="{DynamicResource Bg}"/>
 
-    <!-- Title bar (drag region): icon, white dot, wordmark. -->
+    <!-- Title bar (drag region): icon and name. -->
     <StackPanel Grid.ColumnSpan="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
-      <Image x:Name="Logo" Width="16" Height="16" Margin="0,0,8,0">
+      <Image x:Name="Logo" Width="16" Height="16" Margin="0,0,10,0">
         <Image.Clip><EllipseGeometry Center="8,8" RadiusX="8" RadiusY="8"/></Image.Clip>
       </Image>
-      <Ellipse Width="5" Height="5" Margin="0,0,10,0" VerticalAlignment="Center" Fill="{DynamicResource Inv}"/>
-      <TextBlock FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center">
-        <Run Text="AKARIOS"/>
-      </TextBlock>
+      <TextBlock x:Name="TitleText" Text="AkariOS" FontSize="12" VerticalAlignment="Center"/>
     </StackPanel>
 
-    <!-- Caption buttons, drawn like Windows 11's: minimize, maximize / restore, close (red on hover). -->
+    <!-- Caption buttons, drawn like Windows 11's: the options menu (UI\About.ps1), minimize, maximize / restore,
+         close (red on hover). -->
     <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+      <Button x:Name="MenuBtn" Style="{StaticResource Cap}" ToolTip="Options">
+        <TextBlock Text="&#xE700;" FontFamily="{StaticResource Icons}" FontSize="13"/>
+      </Button>
       <Button x:Name="CapMin" Style="{StaticResource Cap}" ToolTip="Minimize">
         <TextBlock Text="&#xE921;" FontFamily="{StaticResource Icons}" FontSize="10"/>
       </Button>

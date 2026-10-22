@@ -8,7 +8,7 @@ $window.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get
 foreach ($n in 'Nav', 'Search', 'Heading', 'Rows', 'Page', 'Logo', 'HomePanel',
                'Shell', 'Body', 'Main', 'PaneCol', 'PaneToggle', 'HomeTiles', 'HeaderIcon', 'HeaderSub', 'StatusDot', 'StatusRing', 'StatusText', 'StatusBar',
                'CapMin', 'CapMax', 'CapMaxGlyph', 'CapClose', 'StepsPanel', 'StepDots', 'StepBody', 'StepFooter', 'StepBack', 'StepNext',
-               'UpdateBar', 'UpdateText', 'UpdateOpen', 'AppVersion', 'AppVersionText') { Set-Variable $n $window.FindName($n) }
+               'UpdateBar', 'UpdateText', 'UpdateOpen', 'AppVersion', 'AppVersionText', 'MenuBtn') { Set-Variable $n $window.FindName($n) }
 $AppVersionText.Text = "AkariOS $AkariVersion"
 Initialize-AkariSteps
 
