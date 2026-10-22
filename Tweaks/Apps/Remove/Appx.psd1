@@ -15,6 +15,7 @@
         @{ Name = 'Microsoft.BingTravel'; Display = 'Bing Travel'; Description = 'Travel planning and news via Bing (discontinued)'; Risk = 'Safe' }
         @{ Name = 'Microsoft.BingWeather'; Display = 'Bing Weather'; Description = 'Weather forecast via Bing'; Risk = 'Safe' }
         @{ Name = 'Microsoft.Windows.AIHub'; Display = 'Copilot+ AI Hub'; Description = 'Copilot+ AI Hub app (Windows 11 24H2+)'; Risk = 'Safe' }
+        @{ Name = 'Microsoft.Copilot'; Display = 'Microsoft Copilot'; Description = 'AI assistant integrated into Windows'; Risk = 'Safe' }
         @{ Name = 'Microsoft.PCManager'; Display = 'Microsoft PC Manager'; Description = 'Microsoft PC Manager system cleanup and optimization tool (often preinstalled)'; Risk = 'Safe' }
         @{ Name = 'Microsoft.Getstarted'; Display = 'Get Started'; Description = 'Tips and introductory guide for Windows (Cannot be uninstalled in Windows 11)'; Risk = 'Safe' }
         @{ Name = 'Microsoft.Messaging'; Display = 'Messaging'; Description = 'Messaging app, often integrates with Skype (Largely discontinued)'; Risk = 'Safe' }

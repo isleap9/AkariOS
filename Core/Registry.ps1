@@ -70,6 +70,11 @@ function Remove-Reg($Path, $Name) {
     Remove-ItemProperty -LiteralPath $p -Name $Name -ErrorAction SilentlyContinue
 }
 
+# 'ab,01,ff' -> [byte[]] (a data .psd1 can't hold [byte[]], so binary values are kept as .reg-style hex text). Pure.
+function ConvertFrom-AkariHex([string]$Hex) {
+    , [byte[]]@(if ($Hex) { $Hex.Split(',') | ForEach-Object { [Convert]::ToByte($_.Trim(), 16) } })
+}
+
 # a Default may be a per-OS map: @{ Win10 = 1; Win11 = 0 }
 function Resolve-AkariDefault($Default) {
     if ($Default -is [hashtable] -and ($Default.ContainsKey('Win10') -or $Default.ContainsKey('Win11'))) {

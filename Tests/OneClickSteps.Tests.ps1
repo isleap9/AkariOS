@@ -37,7 +37,8 @@ Describe 'One-click steps' {
 
         It 'loads the One-click steps (Section OneClick: the Tweaks step never shows it, Tests\Steps.Tests.ps1)' {
             $loaded = Get-AkariTweaks $Tw
-            @($loaded.Tweaks | Where-Object { $_.Section -eq 'OneClick' }).Count | Should BeGreaterThan 8
+            # priority notifications and app actions moved to Customize (Optimize › Advanced batch 1)
+            @($loaded.Tweaks | Where-Object { $_.Section -eq 'OneClick' }).Count | Should BeGreaterThan 6
         }
 
         Context 'Get DDU ready' {
@@ -94,7 +95,7 @@ Describe 'One-click steps' {
         Context 'Priority notifications' {
             $cur = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\CloudStore\Store\DefaultAccount\Current'
             New-Item (Resolve-AkariRegPath "$cur\{1b019365-25a5-4ff1-b50a-c155229afc8f}`$windows.data.x") -Force | Out-Null
-            $t = Load 'OneClick\Finish\PriorityNotifications.ps1'
+            $t = Load 'Customize\Notifications\PriorityNotifications.ps1'
             It 'writes the empty priority list for each account' {
                 (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
                 Assert-MockCalled Import-AkariRegText -Exactly 1 -Scope It -ParameterFilter {
@@ -103,11 +104,22 @@ Describe 'One-click steps' {
             }
         }
 
-        Context 'App actions and Notepad' {
-            It 'writes the shell''s app actions hive' {
-                [void](Invoke-AkariTweak (Load 'OneClick\Finish\AppActions.ps1') Apply)
-                Assert-MockCalled Import-AkariAppSettings -Exactly 1 -Scope It -ParameterFilter { $Family -eq 'MicrosoftWindows.Client.CBS_cw5n1h2txyewy' -and $RegText.Contains('[HKEY_LOCAL_MACHINE\AkariAppHive\LocalState\DisabledApps]') }
+        Context 'App actions (a Toggle over the shell''s settings hive)' {
+            $t = Load 'Customize\Apps\AppActions.ps1'
+            # Detect reads nothing real: Unknown, so Apply and Revert both run
+            Mock Read-AkariAppSettings { $null }
+            It 'turns the actions off (first byte 1) and on again (0) in the shell''s hive' {
+                New-Item "$TestDrive\User\Local AppData\Packages\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\Settings\settings.dat" -ItemType File -Force | Out-Null
+                (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+                Assert-MockCalled Import-AkariAppSettings -Exactly 1 -Scope It -ParameterFilter { $Family -eq 'MicrosoftWindows.Client.CBS_cw5n1h2txyewy' -and $RegText.Contains('[HKEY_LOCAL_MACHINE\AkariAppHive\LocalState\DisabledApps]') -and $RegText.Contains('"Microsoft.Paint_8wekyb3d8bbwe"=hex(5f5e10b):01,') }
+                (Invoke-AkariTweak $t Revert).Outcome | Should Be 'Reverted'
+                Assert-MockCalled Import-AkariAppSettings -Exactly 1 -Scope It -ParameterFilter { $RegText.Contains('"Microsoft.Windows.Photos_8wekyb3d8bbwe"=hex(5f5e10b):00,') }
             }
+        }
+        Context 'App actions Detect' {
+            $t = Load 'Customize\Apps\AppActions.ps1'
+            Mock Read-AkariAppSettings { @{ 'LocalState\DisabledApps\Microsoft.Paint_8wekyb3d8bbwe' = [byte[]](1, 9); 'LocalState\DisabledApps\Microsoft.Windows.Photos_8wekyb3d8bbwe' = [byte[]](1, 9); 'LocalState\DisabledApps\MicrosoftWindows.Client.CBS_cw5n1h2txyewy' = [byte[]](1, 9) } }
+            It 'is Optimized when all three are off' { Get-AkariState $t | Should Be 'Optimized' }
         }
 
         Context 'Startup entries and tasks' {

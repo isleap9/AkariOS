@@ -1,14 +1,15 @@
-# One-click's steptwo.ps1 (isleap9/Akari-OS): "disable set priority notifications" (Do not disturb's priority list:
-# no apps allowed). The value is a blob per account in the CloudStore (Files\priority-notifications.txt).
-# Action: the
-# blob holds the account's own list, so there is no single Default.
+# From AkariOS-Ultimate (FR33THY Ultimate) 6 Windows\22 Control Panel Settings and One-click's steptwo.ps1
+# (isleap9/Akari-OS): "disable set priority notifications" (Do not disturb's priority list: no apps allowed). The
+# value is a blob per account in the CloudStore (Files\priority-notifications.txt).
+# Action: the blob holds the account's own list, so there is no single Default.
 @{
-    Id          = 'oneclick-priority-notifications'
+    Id          = 'notifications-priority-list-empty'
     Name        = 'Empty the priority notifications list'
-    Section     = 'OneClick'
-    Category    = 'Finish'
+    Section     = 'Customize'
+    Category    = 'Notifications'
     Kind        = 'Action'
     Risk        = 'Safe'
+    AkariOS     = $true
     Description = 'Do not disturb lets no app''s notifications through (Settings > Notifications > Set priority notifications).'
     Apply       = {
         $cur = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\CloudStore\Store\DefaultAccount\Current'

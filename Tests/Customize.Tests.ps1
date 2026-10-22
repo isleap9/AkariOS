@@ -74,7 +74,7 @@ Describe 'AkariOS marks match OneClick\reg.reg' {
 
 Describe 'Customize: tweaks with script blocks' {
     $AkariStatePath = "$TestDrive\state.json"
-    foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'System') { . "$Core\$f.ps1" }
+    foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'System', 'AppSetup') { . "$Core\$f.ps1" }
     $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
     $k = "HKCU:\Software\AkariTest\$([guid]::NewGuid())"
     function Load($rel) { Import-AkariTweakFile (Join-Path $Tw $rel) $Tw }
@@ -281,6 +281,47 @@ Describe 'Customize: tweaks with script blocks' {
                 Get-AkariState $t | Should Be 'Optimized'
                 (Invoke-AkariTweak $t Revert).Outcome | Should Be 'Reverted'
                 Get-AkariState $t | Should Be 'Default'
+            }
+        }
+
+        Context 'Do not disturb never turns on by itself (CloudStore blobs, the real "$" key names)' {
+            $t = Load 'Customize\Notifications\AutoDoNotDisturb.ps1'
+            $cur = "$k\Software\Microsoft\Windows\CurrentVersion\CloudStore\Store\DefaultAccount\Current"
+            # one account with its own rules list
+            $acct = '{11111111-2222-3333-4444-555555555555}'
+            New-Item "$cur\$acct`$windows.data.donotdisturb.quietmoment`$quietmomentlist" -Force | Out-Null
+            $game = 'windows.data.donotdisturb.quietmoment$quietmomentlist\windows.data.donotdisturb.quietmoment$quietmomentgame'
+            It 'writes the rules for "default" and each account, the cache and the focus theme; Revert puts the Defaults back and drops the theme' {
+                (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+                (Get-ItemProperty -LiteralPath "$cur\default`$$game").Data.Length | Should BeGreaterThan 13
+                (Get-ItemProperty -LiteralPath "$cur\$acct`$$game").Data.Length | Should BeGreaterThan 13
+                Test-Path -LiteralPath "$k\Software\Microsoft\Windows\CurrentVersion\CloudStore\Store\Cache\DefaultAccount\`$`$windows.data.notifications.quiethourssettings\Current" | Should Be $true
+                @(Get-ChildItem -LiteralPath "$k\Software\Microsoft\Windows\CurrentVersion\CloudStore\Store" -Recurse | Where-Object { $_.PSChildName -like '*`?*' }).Count | Should Be 0
+                Get-AkariState $t | Should Be 'Optimized'
+                (Invoke-AkariTweak $t Revert).Outcome | Should Be 'Reverted'
+                ((Get-ItemProperty -LiteralPath "$cur\$acct`$$game").Data | ForEach-Object { '{0:x2}' -f $_ }) -join ',' | Should Be '43,42,01,00,0a,02,01,00,2a,2a,00,00,00'
+                Test-Path -LiteralPath "$cur\default`$windows.data.shell.focussessionactivetheme\windows.data.shell.focussessionactivetheme`${1b019365-25a5-4ff1-b50a-c155229afc8f}" | Should Be $false
+                Get-AkariState $t | Should Be 'Default'
+            }
+        }
+
+        Context 'Open buttons and the gaming repair tool (Actions, Optimize › Advanced only)' {
+            Mock Start-Process { }
+            Mock Save-AkariFile { $OutFile }
+            It 'open their page and change nothing' {
+                foreach ($f in 'Optimize\Gaming\OpenGameMode.ps1', 'Customize\Input\OpenPointerOptions.ps1', 'Customize\System\OpenDisplayScaling.ps1',
+                               'Customize\Sound\OpenSoundPanel.ps1', 'Advanced\Security\OpenCoreIsolation.ps1') {
+                    $a = Load $f
+                    "$f $($a.Kind) $($a.Button) $($a.Guided)" | Should Be "$f Action Open False"
+                    (Invoke-AkariTweak $a Apply).Outcome | Should Be 'Applied'
+                }
+                Assert-MockCalled Start-Process -Scope It -ParameterFilter { $FilePath -eq 'ms-settings:gaming-gamemode' }
+                Assert-MockCalled Start-Process -Scope It -ParameterFilter { $FilePath -eq 'windowsdefender://coreisolation/' }
+            }
+            It 'downloads and starts the gaming repair tool' {
+                (Invoke-AkariTweak (Load 'Tools\Refresh\GamingRepair.ps1') Apply).Outcome | Should Be 'Applied'
+                Assert-MockCalled Save-AkariFile -Exactly 1 -Scope It -ParameterFilter { $Name -eq 'gamingrepairtool.exe' }
+                Assert-MockCalled Start-Process -Exactly 1 -Scope It -ParameterFilter { $FilePath -like '*gamingrepairtool.exe' }
             }
         }
     } finally {

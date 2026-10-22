@@ -150,7 +150,7 @@ function ConvertFrom-AkariRegExport([string]$Text, [string]$Root) {
         if ($null -eq $key -or $line -notmatch '^"((?:[^"\\]|\\.)*)"=hex(?:\([0-9a-fA-F]+\))?:([0-9a-fA-F,]*)\s*$') { continue }
         $name = $Matches[1] -replace '\\(.)', '$1'
         $hex = $Matches[2]
-        $bytes = [byte[]]@(if ($hex) { $hex.Split(',') | ForEach-Object { [Convert]::ToByte($_, 16) } })
+        $bytes = ConvertFrom-AkariHex $hex
         $values[$(if ($key) { "$key\$name" } else { $name })] = $bytes
     }
     $values

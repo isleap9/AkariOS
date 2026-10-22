@@ -22,9 +22,7 @@
     'signout-wallpaper' = @('theme-black-lock-screen', 'theme-no-signin-blur', 'theme-akarios-wallpaper')
     # 6 Windows\7 User Account Pictures Black
     'account-pictures'  = @('theme-black-account-pictures')
-    # 6 Windows\24-30, 35 (Task 6). Not listed yet: control-panel (focus / priority notification blobs, app actions and
-    # the Explorer "IsEnabled" value are not ported), copilot (no Copilot app removal), gamebar (its Revert reinstalls
-    # the Xbox apps), notepad (needs loading Notepad's settings hive).
+    # 6 Windows\24-30, 35 (Task 6)
     'power-plan'        = @('power-ultimate-plan', 'power-hibernate-off', 'power-fast-startup-off', 'power-throttling-off', 'power-hide-lock-sleep')
     'timer-resolution'  = @('performance-timer-resolution')
     'write-cache'       = @('performance-write-cache-flushing-off')
@@ -71,4 +69,42 @@
     'uac'                = @('security-uac-off')
     'defender'           = @('security-defender-settings', 'security-defender-tasks-off')
     'notepad'            = @('apps-notepad-settings')
+    # Optimize › Advanced batch 1 (2026-10-22): 6 Windows leftovers. The Open buttons became Actions (Advanced only).
+    'gamemode'           = @('gaming-open-game-mode')
+    'pointer-precision'  = @('input-open-pointer-options')
+    'scaling'            = @('system-open-display-scaling')
+    'sound'              = @('sound-open-classic-panel')
+    'core-isolation'     = @('security-open-core-isolation')
+    'copilot'            = @('privacy-copilot-ai', 'appx/Microsoft.Copilot')
+    # gamebar's Default reinstalls the Xbox apps (Downloads › Restore removed apps), WebView2 and Gaming Services
+    'gamebar'            = @('disable-game-dvr', 'gaming-capture-off', 'gaming-xbox-controller-no-game-bar', 'gaming-presence-writer-off',
+                             'appx/Microsoft.GamingApp', 'appx/Microsoft.XboxGamingOverlay', 'appx/Microsoft.XboxGameOverlay',
+                             'appx/Microsoft.XboxIdentityProvider', 'appx/Microsoft.XboxSpeechToTextOverlay', 'appx/Microsoft.Xbox.TCUI',
+                             'remove-gameinput', 'store/Microsoft.GamingApp', 'store/Microsoft.XboxGamingOverlay', 'install-webview2-runtime',
+                             'tools-gaming-repair')
+    # 6 Windows\22 Control Panel Settings: every one-file Tweak ported from it (their header names it), the last ones
+    # in batch 1 (Resume on the taskbar, do not disturb rules, priority list, app actions)
+    'control-panel'      = @('accessibility-shortcuts-off', 'apps-app-actions-off', 'explorer-desktop-recycle-bin', 'explorer-folder-options',
+                             'explorer-hide-3d-objects', 'explorer-hide-frequent-folders', 'explorer-hide-gallery', 'explorer-hide-home',
+                             'explorer-hide-network', 'explorer-hide-office-files', 'explorer-open-this-pc', 'explorer-show-extensions',
+                             'explorer-show-hidden-files', 'gaming-capture-off', 'gaming-game-mode', 'gaming-hags', 'gaming-presence-writer-off',
+                             'gaming-windowed-optimizations', 'gaming-xbox-controller-no-game-bar', 'input-language-bar', 'input-no-cursor-scheme',
+                             'input-no-print-screen-snipping', 'input-pointer-precision-off', 'input-touch-keyboard', 'input-typing',
+                             'network-no-ics-control', 'notifications-no-auto-dnd', 'notifications-no-suggestions', 'notifications-off',
+                             'notifications-priority-list-empty', 'notifications-quiet', 'performance-background-apps-off',
+                             'performance-defrag-schedule-off', 'performance-maintenance-off', 'performance-storage-sense-off',
+                             'performance-visual-effects', 'power-hide-lock-sleep', 'power-no-sign-in-after-sleep', 'power-video-on-battery',
+                             'privacy-activity-history', 'privacy-ads', 'privacy-app-permissions', 'privacy-copilot-ai', 'privacy-find-my-device',
+                             'privacy-inking-typing', 'privacy-location', 'privacy-remote-assistance', 'privacy-search-highlights',
+                             'privacy-telemetry', 'privacy-voice-activation', 'privacy-web-search', 'sound-communications-do-nothing',
+                             'sound-no-scheme', 'sound-no-startup-sound', 'start-compact-layout', 'start-hide-account-notifications',
+                             'start-hide-browsing-sites', 'start-hide-most-used', 'start-hide-pinned-section', 'start-hide-recent-items',
+                             'start-hide-recently-added', 'start-hide-suggestions', 'start-more-pins', 'system-100-percent-scaling',
+                             'system-alt-tab-windows-only', 'system-black-console', 'system-bsod-details', 'system-default-printer',
+                             'system-long-paths', 'system-menu-show-delay', 'system-no-autoplay', 'system-no-cross-device',
+                             'system-no-dynamic-lighting', 'system-no-troubleshooters', 'system-no-web-services', 'system-no-windows-backup',
+                             'system-no-wpbt', 'system-password-sign-in', 'system-settings-hide-home', 'system-snap', 'system-terminal-not-default',
+                             'taskbar-end-task', 'taskbar-far-corner-desktop', 'taskbar-hide-resume', 'taskbar-never-small-icons',
+                             'taskbar-no-share-window', 'theme-akarios-wallpaper', 'update-delivery-optimization', 'update-maps-auto-update',
+                             'update-no-app-archiving', 'update-no-driver-updates', 'update-store-auto-update', 'win32-priority-separation')
 }
