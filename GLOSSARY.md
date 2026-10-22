@@ -16,7 +16,7 @@ _Avoid_: command, task
 **Entry**: a Tweak that lives inside a Group, addressed as `<group-id>/<name>` so a Preset can target it on its own. It can be any kind except Group.
 _Avoid_: sub-action, item, child
 
-**Apply**: perform a Tweak's change. In the GUI, turning a Toggle's switch On (or picking a Choice value) selects Apply; nothing happens until Review & Apply.
+**Apply**: perform a Tweak's change. In Guided, ticking a Toggle (or picking a Choice value) selects Apply and nothing happens until Review & Apply; on Optimize › Advanced, turning its switch On applies it right away (ADR 0005).
 _Avoid_: optimize (as a verb in code or docs), enable, run
 
 **Revert**: put a Toggle back to its Default. In the GUI, turning the switch Off (or picking the Windows default value) selects Revert.
@@ -36,13 +36,16 @@ _Avoid_: tuner, dropdown, picker
 
 ## Organisation
 
-**Section**: a top-level grouping of Tweaks: Optimize, Customize, Hardware (shown as "Graphics & Hardware") and Advanced. The Tweaks step shows one heading per Section, with its Categories under it.
+**Section**: a top-level grouping of Tweaks: Optimize, Customize, Hardware (shown as "Graphics & Hardware"), Advanced and Tools (checks, Refresh, drivers, cleanup: Optimize › Advanced only). The Tweaks step shows one heading per Section, with its Categories under it.
 _Avoid_: page, tab, category
 
 **Category**: a group heading within a Section, such as Gaming under Optimize.
 
 **Legacy**: the frozen AkariOS-Ultimate tweaks (the generated `Tweaks/*.ps1` files), shown on Optimize › Legacy with buttons that act right away. The port never edits or deletes them; `Tweaks/Ported.psd1` names the one-file Tweaks that replace each one (ADR 0004).
 _Avoid_: old tweaks, Ultimate tweaks
+
+**Catalogue**: Optimize › Advanced, every one-file Tweak on Section › Category pages, each change acting right away (ADR 0005). A Tweak with `Guided = $false` shows only there.
+_Avoid_: manual page, all tweaks
 
 **Requirement**: a condition a Tweak needs to make sense on a machine, such as Win11, NVIDIA or Desktop.
 
@@ -57,6 +60,8 @@ _Avoid_: pending list, cart
 _Avoid_: config, profile
 
 **Phase**: one part of a Preset that runs in a specific boot mode (Normal or Safe Mode), with a reboot between Phases.
+
+**Waiting for Safe Mode**: on the Catalogue, a SafeMode Tweak the user switched; it waits in a bar until "Restart and apply" starts one Run in phases for every waiting change.
 
 **Outcome**: what happened to one Tweak in a Run: **Applied** or **Reverted** (done), **Already** (State already matched, nothing done), **Skipped** (a Requirement was not met) or **Failed** (an error occurred).
 
