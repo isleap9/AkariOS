@@ -113,6 +113,16 @@ Describe 'The real app list' {
         (Resolve-AkariEntry $r.Groups 'feature/Some-Unknown-Feature').Risk | Should Be 'Caution'
     }
 
+    It 'keeps Defender for Endpoint (Windows 11 won''t remove it: 0x800f0825)' {
+        (Resolve-AkariEntry $r.Groups 'capability/Microsoft.Windows.Sense.Client~~~~').Keep | Should Be $true
+    }
+
+    It 'names each WCF feature on its own (no two Entries called "WCF Services")' {
+        (Resolve-AkariEntry $r.Groups 'feature/WCF-Services45').Name | Should Be 'WCF Services'
+        (Resolve-AkariEntry $r.Groups 'feature/WCF-TCP-PortSharing45').Name | Should Be 'WCF TCP Port Sharing'
+        (Resolve-AkariEntry $r.Groups 'feature/WCF-HTTP-Activation45').Name | Should Be 'WCF-HTTP-Activation45'
+    }
+
     It 'does not load the feature catalogues as Tweaks of their own' {
         @($r.Tweaks | Where-Object { $_.Group -in 'capability', 'feature' }).Count | Should Be 0
     }

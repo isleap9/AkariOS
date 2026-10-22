@@ -37,6 +37,25 @@ Describe 'Import-AkariAppSettings' {
     }
 }
 
+Describe 'Native tools inside a tweak block (real reg.exe / powercfg.exe, read only)' {
+    # the Runner gives every cmdlet and advanced function -ErrorAction Stop; a native tool's stderr (reg.exe prints
+    # "The operation completed successfully." there) must not fail the tweak. Read-only commands on a missing key / plan.
+    $AkariStatePath = "$TestDrive\state.json"
+    foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'System', 'AppSetup') { . "$Core\$f.ps1" }
+    $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
+    $missing = "HKCU\Software\AkariTest\$([guid]::NewGuid())"
+    It 'reg.exe: the exit code comes back, the tweak is Applied' {
+        $t = ConvertTo-AkariTweak @{ Id = 'reg-probe'; Name = 'reg probe'; Description = 'D'; Section = 'Optimize'; Category = 'X'; Risk = 'Safe'; Kind = 'Action'
+            Apply = [scriptblock]::Create("if ((Invoke-AkariRegExe query '$missing') -ne 1) { throw 'wrong exit code' }") } 'x' $false
+        (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+    }
+    It 'powercfg.exe: its error text comes back as output, the tweak is Applied' {
+        $t = ConvertTo-AkariTweak @{ Id = 'pcfg-probe'; Name = 'powercfg probe'; Description = 'D'; Section = 'Optimize'; Category = 'X'; Risk = 'Safe'; Kind = 'Action'
+            Apply = { if (-not (Invoke-AkariPowerCfg '/query' '00000000-0000-0000-0000-00000000a1a1')) { throw 'no output' } } } 'x' $false
+        (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+    }
+}
+
 Describe 'Read-AkariAppSettings (Detect: a copy of the hive, read only)' {
     foreach ($f in 'Log', 'Registry', 'AppSetup') { . "$Core\$f.ps1" }
     Mock Get-AkariUserFolder { "$TestDrive\User\Local" }

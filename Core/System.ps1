@@ -97,8 +97,10 @@ function Invoke-AkariExe([string]$Path, [string[]]$Arguments) {
     $LASTEXITCODE
 }
 
-# the only powercfg call: returns its output lines (stderr included as text)
+# the only powercfg call: returns its output lines (stderr included as text). Continue: as an advanced function it
+# takes the Runner's -ErrorAction Stop, which would throw on powercfg's stderr (a setting this PC doesn't have).
 function Invoke-AkariPowerCfg {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
+    $ErrorActionPreference = 'Continue'
     & "$env:SystemRoot\System32\powercfg.exe" @Arguments 2>&1 | ForEach-Object { "$_" }
 }

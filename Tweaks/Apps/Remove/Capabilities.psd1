@@ -18,7 +18,7 @@
         @{ Name = 'App.WirelessDisplay.Connect'; Display = 'Wireless Display'; Description = 'Project another device to this PC'; Risk = 'Safe' }
         @{ Name = 'Hello.Face.*'; Display = 'Windows Hello Face'; Description = 'Face sign-in with an IR camera'; Risk = 'Caution' }
         @{ Name = 'DirectX.Configuration.Database'; Display = 'DirectX Configuration Database'; Description = 'Compatibility fixes some older games use'; Risk = 'Caution' }
-        @{ Name = 'Microsoft.Windows.Sense.Client'; Display = 'Microsoft Defender for Endpoint'; Description = 'Business Defender sensor (Sense), not the antivirus'; Risk = 'Safe' }
+        @{ Name = 'Microsoft.Windows.Sense.Client'; Display = 'Microsoft Defender for Endpoint'; Description = 'Business Defender sensor (Sense), not the antivirus. Windows 11 won''t remove it (a permanent package, 0x800f0825)'; Keep = $true }
         @{ Name = 'OpenSSH.Client'; Display = 'OpenSSH Client'; Description = 'The ssh command'; Risk = 'Caution' }
         @{ Name = 'Language.Basic'; Display = 'Language: typing'; Description = 'Spell checking and text prediction for a language'; Risk = 'Caution' }
         @{ Name = 'Language.Handwriting'; Display = 'Language: handwriting'; Description = 'Pen handwriting recognition for a language'; Risk = 'Safe' }

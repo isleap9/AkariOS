@@ -94,8 +94,11 @@ function Get-AkariWingetExe([string]$Id, [string]$Filter) {
 
 # reg.exe, for what PowerShell can't do (load / unload a hive, import a .reg file with an app's own value types);
 # returns the exit code. Tests mock this.
+# An advanced function ([Parameter]) takes the Runner's -ErrorAction Stop, and in 5.1 that turns reg.exe's stderr
+# (it prints "The operation completed successfully." there) into a thrown error: Continue here.
 function Invoke-AkariRegExe {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
+    $ErrorActionPreference = 'Continue'
     & "$env:SystemRoot\System32\reg.exe" @Arguments 2>&1 | Out-Null
     $LASTEXITCODE
 }

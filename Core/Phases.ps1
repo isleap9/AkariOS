@@ -92,8 +92,9 @@ function Start-AkariPhases($Run, $Tweaks, [string]$AkariPath = "$AkariRoot\Akari
     $count = @($Run.Phases).Count
     $find = { param($id) $Tweaks | Where-Object { $_.Id -eq $id } | Select-Object -First 1 }
     $lastOut = @()
-    # restarts and stops also go to akari.log: the console that shows them is gone after the restart
-    $note = { param($m) Write-Log $m; Write-ErrLog $m }
+    # restarts and stops also go to akari.log: the console that shows them is gone after the restart. With a LogQueue
+    # (the GUI's job) the GUI's Add-Log already writes every line there, so only the console (-Resume) writes it here.
+    $note = { param($m) Write-Log $m; if ($null -eq (Get-Variable LogQueue -ValueOnly -ErrorAction SilentlyContinue)) { Write-ErrLog $m } }
     $restartsPC = { param($item) $t = & $find $item.Id; [bool]($t -and (Test-AkariRestarts $t $item.Mode)) }
     for ($i = [int]$Run.Next; $i -lt $count; $i++) {
         $ph = $Run.Phases[$i]

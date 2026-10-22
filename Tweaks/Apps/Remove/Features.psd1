@@ -14,7 +14,10 @@
         @{ Name = 'SmbDirect'; Display = 'SMB Direct'; Description = 'File sharing over RDMA network cards'; Risk = 'Safe' }
         @{ Name = 'SMB1Protocol*'; Display = 'SMB 1.0/CIFS File Sharing'; Description = 'Old, insecure file sharing'; Risk = 'Safe' }
         @{ Name = 'MSRDC-Infrastructure'; Display = 'Remote Differential Compression'; Description = 'Delta file sync for a few network apps'; Risk = 'Safe' }
-        @{ Name = 'WCF-*'; Display = 'WCF Services'; Description = '.NET 4.8 networking services for business apps'; Risk = 'Caution' }
+        @{ Name = 'WCF-Services45'; Display = 'WCF Services'; Description = '.NET 4.8 networking services for business apps'; Risk = 'Caution' }
+        @{ Name = 'WCF-TCP-PortSharing45'; Display = 'WCF TCP Port Sharing'; Description = 'Lets .NET business apps share a network port'; Risk = 'Caution' }
+        # any other WCF feature (Windows 10's activation features): shown under its own name
+        @{ Name = 'WCF-*'; Description = 'A .NET networking service for business apps'; Risk = 'Caution' }
         @{ Name = 'Internet-Explorer-Optional-*'; Display = 'Internet Explorer 11'; Description = 'Windows 10''s Internet Explorer'; Risk = 'Safe' }
         @{ Name = 'Microsoft-RemoteDesktopConnection'; Display = 'Remote Desktop Connection'; Description = 'Connect to other PCs with Remote Desktop'; Risk = 'Caution' }
         @{ Name = 'Recall'; Display = 'Recall'; Description = 'Windows Recall snapshots (Copilot+ PCs)'; Risk = 'Safe' }
