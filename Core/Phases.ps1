@@ -96,9 +96,21 @@ function Start-AkariPhases($Run, $Tweaks, [string]$AkariPath = "$AkariRoot\Akari
     # (the GUI's job) the GUI's Add-Log already writes every line there, so only the console (-Resume) writes it here.
     $note = { param($m) Write-Log $m; if ($null -eq (Get-Variable LogQueue -ValueOnly -ErrorAction SilentlyContinue)) { Write-ErrLog $m } }
     $restartsPC = { param($item) $t = & $find $item.Id; [bool]($t -and (Test-AkariRestarts $t $item.Mode)) }
+    # a Safe Mode phase's Prepare blocks, in normal mode before the restart into it (Safe Mode has no network); an item
+    # whose Prepare failed leaves the phase with a Failed Outcome
+    $prepare = {
+        param($p)
+        if (-not $p -or $p.Boot -ne 'SafeMode' -or (Test-AkariSafeMode)) { return }
+        foreach ($it in @($p.Items)) {
+            $t = & $find $it.Id
+            $f = if ($t) { Invoke-AkariPrepare $t $it } else { $null }
+            if ($f) { $p.Items = @($p.Items | Where-Object { -not [object]::ReferenceEquals($_, $it) }); $Run.Outcomes = @($Run.Outcomes) + $f; $f }
+        }
+    }
     for ($i = [int]$Run.Next; $i -lt $count; $i++) {
         $ph = $Run.Phases[$i]
         $safe = Test-AkariSafeMode
+        & $prepare $ph
         if (($ph.Boot -eq 'SafeMode') -ne $safe) {
             $Run.Next = $i; Save-AkariRun $Run
             Set-AkariNextBoot $ph.Boot $AkariPath
@@ -109,6 +121,7 @@ function Start-AkariPhases($Run, $Tweaks, [string]$AkariPath = "$AkariRoot\Akari
         Write-Log "Phase $($i + 1) of ${count}: $($ph.Name)"
         Write-ErrLog "$($Run.Name): phase $($i + 1) of ${count}: $($ph.Name)"
         $next = if ($i + 1 -lt $count) { $Run.Phases[$i + 1] } else { $null }
+        & $prepare $next
         $restarts = @($ph.Items | Where-Object { & $restartsPC $_ }).Count -gt 0
         $Run.Next = $i + 1; Save-AkariRun $Run
         # a phase that restarts the PC itself (DDU) sets up the next boot first; otherwise that waits until the phase is done

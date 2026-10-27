@@ -3,9 +3,9 @@
 
 $AkariTweakFields = 'Id', 'Name', 'Description', 'Section', 'Category', 'Kind', 'Risk', 'Button', 'Confirm', 'Reboot', 'SafeMode',
     'Requires', 'Registry', 'Choices', 'Recommended', 'Default', 'Editable', 'Apply', 'Revert', 'Detect', 'Check', 'Actions', 'Source', 'Legacy',
-    'EntryKind', 'Entries', 'KeepNames', 'Group', 'Package', 'Keep', 'Winget', 'WingetSource', 'Before', 'After', 'AppType', 'StoreId', 'Explorer', 'AkariOS', 'Restarts', 'Guided'
+    'EntryKind', 'Entries', 'KeepNames', 'Group', 'Package', 'Keep', 'Winget', 'WingetSource', 'Before', 'After', 'AppType', 'StoreId', 'Explorer', 'AkariOS', 'Restarts', 'Guided', 'Prepare'
 # Requires values the engine knows (Core\System.ps1 Test-AkariRequirement): unmet = hidden in Guided, Skipped in a Run
-$AkariRequirements = 'Win10', 'Win11', 'Laptop', 'Desktop', 'Home', 'NVIDIA', 'AMD', 'Intel'
+$AkariRequirements = 'Win10', 'Win11', 'Laptop', 'Desktop', 'Home', 'Pro', 'NVIDIA', 'AMD', 'Intel'
 # data-list Group handlers the engine knows (ADR 0002). Rows: the Entries are the data file's rows (every row is a
 # Tweak); otherwise the Entries are what is on this PC (read live by the GUI), the rows only name and rate them.
 # Apply / Detect: script text, {0} = the quoted Entry name, {1} = the quoted row StoreId (engine functions in
@@ -110,6 +110,8 @@ function Import-AkariTweakFile([string]$Path, [string]$TweaksRoot) {
         throw "${rel}: Section/Category '$($h.Section)/$($h.Category)' must match the folder '$secDir/$catDir'"
     }
     $t = ConvertTo-AkariTweak $h $Path $false
+    # Prepare: runs in normal mode before the restart into Safe Mode (Core\Runner.ps1 Invoke-AkariPrepare)
+    if ($t.Prepare -and -not $t.SafeMode) { throw "${rel}: Prepare is only for a SafeMode Tweak (it runs before the restart into Safe Mode)" }
     switch ($t.Kind) {
         'Toggle' {
             if (-not $t.Registry -and -not ($t.Apply -and $t.Revert)) { throw "${rel}: a Toggle needs Registry, or both Apply and Revert" }

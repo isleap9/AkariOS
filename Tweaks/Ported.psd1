@@ -133,4 +133,14 @@
     'hags-windowed'           = @('gaming-hags', 'gaming-windowed-optimizations')
     'cpp'                     = @('install-vcredist')
     'directx'                 = @('install-directx')
+    # batch 2b (2026-10-27): drivers and the update blocks. "Install & Settings" = the install plus the settings Tweaks;
+    # the "(Bootable USB)" block variants are dropped (they only put a restart script on the stick)
+    'driver-clean'            = @('tools-ddu-clean', 'tools-ddu-manual')
+    'driver-install'          = @('tools-driver-nvidia', 'tools-driver-amd', 'tools-driver-intel')
+    'driver-install-settings' = @('tools-driver-nvidia-debloat', 'tools-driver-amd', 'tools-driver-intel-debloat', 'graphics-nvidia-settings',
+                                  'graphics-amd-settings', 'graphics-intel-settings', 'graphics-hdcp-off', 'graphics-p0-state')
+    'driver-debloat'          = @('tools-driver-nvidia-debloat', 'tools-driver-amd-debloat', 'tools-driver-intel-debloat', 'graphics-nvidia-settings',
+                                  'graphics-amd-settings', 'graphics-intel-settings', 'graphics-hdcp-off', 'graphics-p0-state')
+    'controller-oc'           = @('tools-controller-overclock')
+    'updates-drivers-block'   = @('update-block-driver-updates-policy', 'update-block-windows-update')
 }

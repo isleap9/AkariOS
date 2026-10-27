@@ -31,12 +31,23 @@ Describe 'Test-AkariRequirement' {
 
     Context 'Windows Home' {
         Mock Get-AkariEdition { 'CoreSingleLanguage' }
-        It 'meets Home' { Test-AkariRequirement (& $t 'Home') | Should BeNullOrEmpty }
+        It 'meets Home, not Pro' {
+            Test-AkariRequirement (& $t 'Home') | Should BeNullOrEmpty
+            Test-AkariRequirement (& $t 'Pro') | Should Be 'needs Pro'
+        }
     }
 
     Context 'Windows Pro' {
         Mock Get-AkariEdition { 'Professional' }
-        It 'does not meet Home' { Test-AkariRequirement (& $t 'Home') | Should Be 'needs Home' }
+        It 'meets Pro, not Home' {
+            Test-AkariRequirement (& $t 'Home') | Should Be 'needs Home'
+            Test-AkariRequirement (& $t 'Pro') | Should BeNullOrEmpty
+        }
+    }
+
+    Context 'Windows Enterprise' {
+        Mock Get-AkariEdition { 'Enterprise' }
+        It 'meets Pro (Pro or higher)' { Test-AkariRequirement (& $t 'Pro') | Should BeNullOrEmpty }
     }
 
     It 'has nothing to meet without Requires' { Test-AkariRequirement ([pscustomobject]@{ Requires = $null }) | Should BeNullOrEmpty }

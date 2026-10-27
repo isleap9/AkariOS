@@ -41,6 +41,8 @@ function Test-AkariRequirement($Tweak) {
             'Laptop' { (Get-AkariChassis) -eq 'Laptop' }
             'Desktop' { (Get-AkariChassis) -eq 'Desktop' }
             'Home' { (Get-AkariEdition) -like 'Core*' }
+            # Pro or higher (Enterprise, Education, IoT, Server): group policies apply there, Home ignores them
+            'Pro' { $e = Get-AkariEdition; [bool]$e -and $e -notlike 'Core*' }
             { $_ -in 'NVIDIA', 'AMD', 'Intel' } { [bool](@(Get-AkariGpus) | Where-Object { $_.Vendor -eq $r }) }
             default { $false }
         }

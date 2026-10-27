@@ -67,6 +67,12 @@ batches, and Legacy is retired.
    were already Downloads apps, the HAGS / windowed page already two Toggles. Dropped (listed in the Legacy ADR): PC
    build guide (a third party's list), Keys (an activation workaround), "Install all UWP apps", and the per-game
    process priority, SMT / HT and core 1 thread 1 tools (Task Manager's Set priority / affinity; Process Lasso).
+   2b as built: DDU clean / manual are SafeMode Actions with a new `Prepare` field (DDU is downloaded in normal mode,
+   before the restart: Safe Mode has no network); per vendor "install latest driver" and "... debloated" (AMD and
+   Intel take the newest full package from Downloads, no file picker); hidusbf; the updates and drivers block = two
+   group-policy Toggles in Optimize › Update (a new `Pro` Requirement), its USB variants dropped. **Autounattend left
+   batch 2**: it becomes AkariOS's own tool, a Home card, designed in its own session after 2c; the Legacy retirement
+   follows it, then the ZOICWARE batches (Advanced keeps growing).
 4. **Retire Legacy** (a new ADR replacing 0004): delete the 7 generated files, `Core/Legacy.ps1`, `Core/Compat.ps1`,
    `Tweaks/Ported.psd1` and the Legacy card; Optimize opens Advanced directly.
 5. **Batch 3, ZOICWARE registry and group policy tweaks** (`registrytweaks.md`, `src/RegTweaks.txt`).

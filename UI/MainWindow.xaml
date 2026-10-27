@@ -392,7 +392,10 @@
               HorizontalAlignment="Left" Margin="4,0,0,4" ToolTip="Collapse or expand the sidebar">
         <TextBlock Text="&#xE700;" FontFamily="{StaticResource Icons}" FontSize="16"/>
       </Button>
-      <StackPanel x:Name="Nav"/>
+      <!-- scrolls when the pages don't fit (the Catalogue's Section › Category list is long) -->
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <StackPanel x:Name="Nav"/>
+      </ScrollViewer>
     </DockPanel>
 
     <!-- Main -->

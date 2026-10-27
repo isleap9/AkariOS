@@ -25,9 +25,11 @@ function Resolve-AkariRegPath([string]$Path) {
 }
 
 # a folder of the real logged-in user (rule 6: not the elevated account's), e.g. 'AppData', 'Local AppData', 'Desktop',
-# 'Programs' (their Start menu programs): read from their Shell Folders, else built from their profile path
+# 'Programs' (their Start menu programs), 'Downloads': read from their Shell Folders, else built from their profile path
 function Get-AkariUserFolder([string]$Name) {
-    $p = Get-AkariRegValue 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' $Name
+    # Shell Folders names Downloads by its known-folder GUID
+    $value = if ($Name -eq 'Downloads') { '{374DE290-123F-4565-9164-39C4925E467B}' } else { $Name }
+    $p = Get-AkariRegValue 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' $value
     if ($p) { return $p }
     $profile = Get-AkariRegValue "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$(Get-AkariUserSid)" 'ProfileImagePath'
     if (-not $profile) { $profile = $env:USERPROFILE }

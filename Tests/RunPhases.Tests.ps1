@@ -25,7 +25,10 @@ Describe 'Runs in phases' {
     $sm = & $mk @{ Id = 'sm'; SafeMode = $true }
     $bad = & $mk @{ Id = 'bad'; Apply = { throw 'boom' } }
     $ddu = & $mk @{ Id = 'ddu'; Kind = 'Action'; Restarts = $true; Apply = { $order.Add('ddu') } }
-    $all = @($a, $b, $sm, $bad, $ddu)
+    # Safe Mode Actions with a Prepare (a download before the restart: Safe Mode has no network)
+    $prep = & $mk @{ Id = 'prep'; Kind = 'Action'; SafeMode = $true; Prepare = { $order.Add('prep-ready') } }
+    $prepBad = & $mk @{ Id = 'prep-bad'; Kind = 'Action'; SafeMode = $true; Prepare = { throw 'no network' } }
+    $all = @($a, $b, $sm, $bad, $ddu, $prep, $prepBad)
     # read back through the mocked Resolve-AkariRegPath
     $ro = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce'
     function Phase($name, $boot, [string[]]$ids) { @{ Name = $name; Boot = $boot; Items = @($ids | Where-Object { $_ } | ForEach-Object { @{ Id = $_; Mode = 'Apply' } }) } }
@@ -150,6 +153,46 @@ Describe 'Runs in phases' {
                 $saved.Phases[0].Items[0].Id | Should Be 'sm'
                 Assert-MockCalled Invoke-AkariBcdEdit -Exactly 1 -Scope It -ParameterFilter { $Arguments -eq '/set {current} safeboot minimal' }
                 Assert-MockCalled Restart-AkariPC -Exactly 1 -Scope It
+                Clear-AkariRun
+            }
+        }
+
+        Context 'Invoke-AkariPlan with a Safe Mode Tweak that prepares' {
+            Mock Test-AkariSafeMode { $false }
+            It 'runs its Prepare once, in normal mode, before the restart into Safe Mode' {
+                $order.Clear()
+                $o = @(Invoke-AkariPlan @(@{ Id = 'prep'; Mode = 'Apply' }) $all)
+                ($order -join ',') | Should Be 'prep-ready'
+                ($o | ForEach-Object { "$($_.Id):$($_.Outcome)" }) -join ' ' | Should Be 'prep:Applied'
+                (Get-AkariRun).Phases[0].Items[0].Id | Should Be 'prep'
+                Assert-MockCalled Restart-AkariPC -Exactly 1 -Scope It
+                Clear-AkariRun
+            }
+        }
+
+        Context 'Invoke-AkariPlan with a Safe Mode Tweak whose Prepare fails' {
+            Mock Test-AkariSafeMode { $false }
+            It 'fails it and does not restart for it' {
+                $order.Clear()
+                $o = @(Invoke-AkariPlan @(@{ Id = 'prep-bad'; Mode = 'Apply' }, @{ Id = 'a'; Mode = 'Apply' }) $all)
+                ($o | ForEach-Object { "$($_.Id):$($_.Outcome)" }) -join ' ' | Should Be 'a:Applied prep-bad:Failed'
+                ($o | Where-Object { $_.Id -eq 'prep-bad' }).Message | Should Match 'no network'
+                Test-Path $AkariRunPath | Should Be $false
+                Assert-MockCalled Restart-AkariPC -Exactly 0 -Scope It
+            }
+        }
+
+        Context 'a preset Run with a Safe Mode phase that prepares' {
+            Mock Test-AkariSafeMode { $false }
+            It 'prepares the Safe Mode phase in normal mode, before restarting into it' {
+                $order.Clear()
+                $res = @(Start-AkariPhases (New-AkariRun 'T' @((Phase 'one' 'Normal' 'a'), (Phase 'two' 'SafeMode' 'prep', 'prep-bad'))) $all 'C:\A\Akari.ps1')
+                $res[-1] | Should Be 'Restarting'
+                ($order -join ',') | Should Be 'prep-ready,a'
+                ($res | Where-Object { $_.Outcome -eq 'Failed' }).Id | Should Be 'prep-bad'
+                $saved = Get-AkariRun
+                ($saved.Phases[1].Items | ForEach-Object { $_.Id }) -join ',' | Should Be 'prep'
+                @($saved.Outcomes | Where-Object { $_.Outcome -eq 'Failed' }).Count | Should Be 1
                 Clear-AkariRun
             }
         }

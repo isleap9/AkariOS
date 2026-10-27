@@ -326,6 +326,7 @@ When every Entry has the same shape, the Group reads them from one data file. Se
 | `Reboot` | no | default `$false` |
 | `SafeMode` | no | `$true` if it must run in Safe Mode: a Run takes the PC there and back (Core/Phases.ps1, M4) |
 | `Restarts` | no | `$true` when its Apply restarts the PC itself (DDU): it runs last, after the next boot is set up |
+| `Prepare` | no | SafeMode only: a block run in normal mode before the restart into Safe Mode (a download: Safe Mode has no network); if it fails, the Tweak is Failed and stays out of Safe Mode |
 | `Registry` | one of | data-driven registry changes (Toggle / Choice). `Default` is a value, a per-OS map, or `$null` (delete). `Type = 'Binary'` takes a `[byte[]]`. A **key row** has no `Name`: `Value` / `Default` are `'Key'` (the key exists, created empty) or `$null` (the key is deleted with its contents). One owner per value: no two one-file tweaks set the same value or anything inside the same key row |
 | `Apply` / `Revert` / `Detect` | one of | script blocks for custom logic |
 | `Check` | no | extra "Check" button that only reports status |
@@ -333,7 +334,7 @@ When every Entry has the same shape, the Group reads them from one data file. Se
 | `Editable` | no | Choice only: also accept any typed number |
 | `Entries` | Group only | Tweaks inside the Group (any kind except Group), id `<group-id>/<Name>` |
 | `EntryKind` | no | Group only: engine-provided handler for data-list Entries (e.g. `ServiceStart`) |
-| `Requires` | no | `Win10`, `Win11`, `Laptop`, `Desktop`, `Home`, `NVIDIA`, `AMD`, `Intel`: unmet = hidden in Guided, `Skipped` in a Run |
+| `Requires` | no | `Win10`, `Win11`, `Laptop`, `Desktop`, `Home`, `Pro` (Pro or higher), `NVIDIA`, `AMD`, `Intel`: unmet = hidden in Guided, `Skipped` in a Run |
 | `AkariOS` | no | `$true` when the Tweak is part of the AkariOS setup (One-click sets the same thing, e.g. in `OneClick/reg.reg`): Guided shows "(AkariOS)" after its name. A test keeps registry tweaks in line with `reg.reg` both ways |
 | `Explorer` | no | `$true` when the change shows only after Explorer restarts: the Run restarts Explorer once at the end if such a Tweak was Applied or Reverted |
 | `Winget`, `Before`, `After` | no | Action only: winget package id(s) the engine installs, between the `Before` and `After` blocks; no `Apply` with them. On a registry Toggle, `After` is one more step after its rows, on Apply and on Revert (`$AkariMode`), e.g. a scheduled task |

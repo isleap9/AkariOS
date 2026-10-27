@@ -54,6 +54,194 @@ Describe 'Open-AkariWingetTool' {
     }
 }
 
+Describe 'Get-AkariUserFolder Downloads' {
+    foreach ($f in 'Log', 'Registry') { . "$Core\$f.ps1" }
+    Context 'Windows knows it' {
+        Mock Get-AkariRegValue { if ($Name -eq '{374DE290-123F-4565-9164-39C4925E467B}') { 'D:\Downloads' } }
+        It 'reads it under its GUID name' { Get-AkariUserFolder 'Downloads' | Should Be 'D:\Downloads' }
+    }
+    Context 'not set' {
+        Mock Get-AkariRegValue { if ($Name -eq 'ProfileImagePath') { 'C:\Users\me' } }
+        Mock Get-AkariUserSid { 'S-1-5-21-test' }
+        It 'falls back to the profile''s Downloads' { Get-AkariUserFolder 'Downloads' | Should Be 'C:\Users\me\Downloads' }
+    }
+}
+
+Describe 'Tools > Drivers' {
+    $AkariStatePath = "$TestDrive\state.json"
+    foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'System', 'Winget', 'AppSetup') { . "$Core\$f.ps1" }
+    $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
+    function Load($rel) { Import-AkariTweakFile (Join-Path $Tw $rel) $Tw }
+    New-Item "$TestDrive\PF\7-Zip", "$TestDrive\Windows\Temp", "$TestDrive\Downloads" -ItemType Directory -Force | Out-Null
+    Set-Content "$TestDrive\PF\7-Zip\7z.exe" 'x'
+    Mock Get-AkariUserFolder { "$TestDrive\Downloads" }
+    Mock Start-Process { }
+    Mock Save-AkariFile { $OutFile }
+    Mock New-AkariShortcut { }
+    Mock Install-AkariWingetPackage { }
+    Mock Add-AppxPackage { }
+    Mock Remove-AkariStartup { }
+    Mock Remove-AkariService { }
+    Mock Uninstall-AkariMsi { }
+    Mock Unregister-ScheduledTask { }
+    Mock Stop-Process { }
+    Mock Stop-Service { }
+    Mock Expand-Archive { }
+    Mock Get-AkariGpus { @([pscustomobject]@{ Vendor = 'NVIDIA' }, [pscustomobject]@{ Vendor = 'AMD' }, [pscustomobject]@{ Vendor = 'Intel' }) }
+    # 7-Zip "unpacks" by making the folder it was given
+    Mock Invoke-AkariExe { $o = @($Arguments | Where-Object { $_ -like '-o*' }); if ($o) { New-Item $o[0].Substring(2) -ItemType Directory -Force | Out-Null }; 0 }
+    Mock Invoke-WebRequest {
+        if ($Uri -like '*DriverManualLookup*') { [pscustomobject]@{ Content = '{"Success":"1","IDS":[{"downloadInfo":{"Success":"1","ID":"249315","Version":"581.29","Name":"GeForce Game Ready Driver"}}]}' } }
+        elseif ($Uri -like 'https://www.amd.com/*') { [pscustomobject]@{ Links = @([pscustomobject]@{ href = 'https://drivers.amd.com/drivers/installer/25.10/whql/amd-software-adrenalin-edition-25.10.1-minimalsetup-251001_web.exe' }) } }
+    }
+
+    # every Windows, Program Files and drive path goes to TestDrive: the driver files the Actions unpack, strip and
+    # delete are fakes there. Set after the mocks (they load their modules from the real Windows), restored in finally.
+    $real = @{ SystemRoot = $env:SystemRoot; SystemDrive = $env:SystemDrive; ProgramFiles = $env:ProgramFiles; PF86 = ${env:ProgramFiles(x86)} }
+    try {
+        $env:SystemRoot = "$TestDrive\Windows"; $env:SystemDrive = "$TestDrive"; $env:ProgramFiles = "$TestDrive\PF"; ${env:ProgramFiles(x86)} = "$TestDrive\PF86"
+        It 'are Actions in Tools > Drivers for their vendor' {
+            foreach ($p in @(@('DriverNvidia', 'NVIDIA'), @('DriverNvidiaDebloat', 'NVIDIA'), @('DriverAmd', 'AMD'), @('DriverAmdDebloat', 'AMD'),
+                             @('DriverIntel', 'Intel'), @('DriverIntelDebloat', 'Intel'))) {
+                $t = Load "Tools\Drivers\$($p[0]).ps1"
+                "$($p[0]) $($t.Kind) $($t.Requires)" | Should Be "$($p[0]) Action $($p[1])"
+            }
+        }
+
+        Context 'DDU' {
+            It 'clean: SafeMode, restarts itself, gets DDU ready first (Prepare), then removes GPU and audio drivers' {
+                $t = Load 'Tools\Drivers\DduClean.ps1'
+                "$($t.SafeMode) $($t.Restarts) $($t.Risk)" | Should Be 'True True Advanced'
+                $o = Invoke-AkariPrepare $t @{ Id = $t.Id; Mode = 'Apply' }
+                $o | Should BeNullOrEmpty
+                Assert-MockCalled Save-AkariFile -Exactly 1 -Scope It -ParameterFilter { $Name -eq 'ddu.exe' }
+                $cfg = "$TestDrive\Windows\Temp\ddu\Settings\Settings.xml"
+                Get-Content $cfg -Raw | Should Match '<CheckUpdates>False</CheckUpdates>'
+                (Get-Item $cfg).IsReadOnly | Should Be $true
+                Set-Content "$TestDrive\Windows\Temp\ddu\Display Driver Uninstaller.exe" 'x'
+                (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+                Assert-MockCalled Start-Process -Exactly 1 -Scope It -ParameterFilter { $FilePath -like '*\Display Driver Uninstaller.exe' -and "$ArgumentList" -match '-CleanAllGpus' -and "$ArgumentList" -match '-Restart' }
+            }
+            It 'manual: SafeMode, opens DDU and waits for it' {
+                $t = Load 'Tools\Drivers\DduManual.ps1'
+                "$($t.SafeMode) $($t.Restarts)" | Should Be 'True False'
+                $t.Prepare | Should Not BeNullOrEmpty
+                (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+                Assert-MockCalled Start-Process -Exactly 1 -Scope It -ParameterFilter { $FilePath -like '*\Display Driver Uninstaller.exe' -and -not $ArgumentList -and $Wait }
+            }
+        }
+
+        Context 'Install latest driver' {
+            It 'NVIDIA: downloads the latest WHQL driver NVIDIA''s lookup names and starts its installer' {
+                $o = Invoke-AkariTweak (Load 'Tools\Drivers\DriverNvidia.ps1') Apply
+                "$($o.Outcome) $($o.Message)".Trim() | Should Be 'Applied'
+                Assert-MockCalled Invoke-WebRequest -Exactly 1 -Scope It -ParameterFilter { $Uri -eq 'https://international.download.nvidia.com/Windows/581.29/581.29-desktop-win10-win11-64bit-international-dch-whql.exe' }
+                Assert-MockCalled Start-Process -Exactly 1 -Scope It -ParameterFilter { $FilePath -like '*\nvidiadriver.exe' }
+            }
+            It 'AMD: downloads the Adrenalin minimal setup from AMD''s page and starts it' {
+                (Invoke-AkariTweak (Load 'Tools\Drivers\DriverAmd.ps1') Apply).Outcome | Should Be 'Applied'
+                Assert-MockCalled Invoke-WebRequest -Exactly 1 -Scope It -ParameterFilter { $Uri -like '*minimalsetup*' -and $OutFile }
+                Assert-MockCalled Start-Process -Exactly 1 -Scope It -ParameterFilter { $FilePath -like '*\amddriver.exe' }
+            }
+            It 'Intel: opens Intel''s driver page' {
+                (Invoke-AkariTweak (Load 'Tools\Drivers\DriverIntel.ps1') Apply).Outcome | Should Be 'Applied'
+                Assert-MockCalled Start-Process -Exactly 1 -Scope It -ParameterFilter { $FilePath -like 'https://www.intel.com/*' }
+            }
+        }
+
+        Context 'Install latest driver, debloated: NVIDIA' {
+            It 'strips the latest driver, installs it silently and adds the NVIDIA Control Panel' {
+                $t = Load 'Tools\Drivers\DriverNvidiaDebloat.ps1'
+                $t.Reboot | Should Be $true
+                # 7-Zip "unpacks" a driver with a part to strip and one to keep
+                Mock Invoke-AkariExe { if ($Arguments -contains 'x') { New-Item "$TestDrive\Windows\Temp\nvidiadriver\NvTelemetry", "$TestDrive\Windows\Temp\nvidiadriver\Display.Driver" -ItemType Directory -Force | Out-Null }; 0 }
+                (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+                Test-Path "$TestDrive\Windows\Temp\nvidiadriver\NvTelemetry" | Should Be $false
+                Test-Path "$TestDrive\Windows\Temp\nvidiadriver\Display.Driver" | Should Be $true
+                Assert-MockCalled Invoke-AkariExe -Exactly 1 -Scope It -ParameterFilter { $Path -like '*\nvidiadriver\setup.exe' -and ($Arguments -join ' ') -eq '-s -noreboot -noeula -clean' }
+                Assert-MockCalled Save-AkariFile -Exactly 1 -Scope It -ParameterFilter { $Name -eq 'nvp.appx' }
+                Assert-MockCalled Add-AppxPackage -Exactly 1 -Scope It
+            }
+        }
+
+        Context 'Install latest driver, debloated: AMD and Intel with no download' {
+            It 'open the vendor''s page and fail, asking to download it first' {
+                foreach ($p in @(@('DriverAmdDebloat', 'https://www.amd.com/*'), @('DriverIntelDebloat', 'https://www.intel.com/*'))) {
+                    $o = Invoke-AkariTweak (Load "Tools\Drivers\$($p[0]).ps1") Apply
+                    $o.Outcome | Should Be 'Failed'
+                    $o.Message | Should Match 'Downloads'
+                    $u = $p[1]
+                    Assert-MockCalled Start-Process -Exactly 1 -Scope It -ParameterFilter { $FilePath -like $u }
+                }
+            }
+        }
+
+        Context 'Install latest driver, debloated: AMD' {
+            It 'takes the newest full package from Downloads, turns its extras off, installs it and removes AMD''s background parts' {
+                Set-Content "$TestDrive\Downloads\whql-amd-software-adrenalin-edition-25.10.1-win10-win11-oct.exe" 'x'
+                Set-Content "$TestDrive\Downloads\amd-software-adrenalin-edition-25.10.1-minimalsetup-251001_web.exe" 'x'
+                $cfg = "$TestDrive\Windows\Temp\amddriver\Config"
+                # 7-Zip "unpacks" two config files; when setup starts, what they say is kept (the Action deletes them after)
+                $script:atConfig = $null
+                Mock Invoke-AkariExe {
+                    if ($Arguments -contains 'x') { New-Item $cfg -ItemType Directory -Force | Out-Null; Set-Content "$cfg\AMDUpdater.xml" '<Enabled>true</Enabled><Hidden>true</Hidden>' -NoNewline; Set-Content "$cfg\InstallManifest.json" '"InstallByDefault" : "Yes"' -NoNewline }
+                    elseif ($Path -like '*ATISetup.exe') { $script:atConfig = (Get-Content "$cfg\AMDUpdater.xml" -Raw) + '|' + (Get-Content "$cfg\InstallManifest.json" -Raw) }
+                    0
+                }
+                (Invoke-AkariTweak (Load 'Tools\Drivers\DriverAmdDebloat.ps1') Apply).Outcome | Should Be 'Applied'
+                Assert-MockCalled Invoke-AkariExe -Exactly 1 -Scope It -ParameterFilter { ($Arguments -join ' ') -like 'x *whql-amd-software-adrenalin-edition*' }
+                $script:atConfig | Should Be '<Enabled>false</Enabled><Hidden>false</Hidden>|"InstallByDefault" : "No"'
+                Test-Path "$TestDrive\Downloads\whql-amd-software-adrenalin-edition-25.10.1-win10-win11-oct.exe" | Should Be $false
+                Assert-MockCalled Invoke-AkariExe -Exactly 1 -Scope It -ParameterFilter { $Path -like '*\amddriver\Bin64\ATISetup.exe' }
+                Assert-MockCalled Remove-AkariService -Scope It -ParameterFilter { $Name -eq 'amdfendr' }
+                Assert-MockCalled Uninstall-AkariMsi -Exactly 1 -Scope It -ParameterFilter { $Name -eq '*AMD Install Manager*' }
+            }
+        }
+
+        Context 'Install latest driver, debloated: Intel' {
+            It 'takes the newest package from Downloads, installs it with no extras and removes Intel''s background parts' {
+                Set-Content "$TestDrive\Downloads\gfx_win_101.6130.exe" 'x'
+                Mock Invoke-AkariExe { 0 }
+                (Invoke-AkariTweak (Load 'Tools\Drivers\DriverIntelDebloat.ps1') Apply).Outcome | Should Be 'Applied'
+                Assert-MockCalled Invoke-AkariExe -Exactly 1 -Scope It -ParameterFilter { $Path -like '*\inteldriver\Installer.exe' -and ($Arguments -join ' ') -eq '-f --noExtras --terminateProcesses -s' }
+                Assert-MockCalled Remove-AkariService -Scope It -ParameterFilter { $Name -eq 'IntelGFXFWupdateTool' }
+            }
+        }
+
+        Context 'Controller overclock' {
+            It 'installs hidusbf''s filter driver and opens its Setup' {
+                New-Item "$TestDrive\PF86\hidusbf\hidusbf (BB11.5.25)\DRIVER" -ItemType Directory -Force | Out-Null
+                Mock Invoke-AkariExe { 0 }
+                $t = Load 'Tools\Drivers\ControllerOverclock.ps1'
+                "$($t.Kind) $($t.Risk)" | Should Be 'Action Advanced'
+                (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+                Test-Path "$TestDrive\PF86\hidusbf\DRIVER" | Should Be $true
+                Assert-MockCalled Save-AkariFile -Exactly 1 -Scope It -ParameterFilter { $Name -eq 'hidusbf.zip' }
+                Assert-MockCalled Invoke-AkariExe -Exactly 1 -Scope It -ParameterFilter { $Path -eq 'rundll32.exe' -and ($Arguments -join ' ') -like '*InstallHinfSection DefaultInstall 132 *HIDUSBF_AS.INF' }
+                Assert-MockCalled Start-Process -Exactly 1 -Scope It -ParameterFilter { $FilePath -like '*\hidusbf\DRIVER\Setup.exe' }
+            }
+        }
+    } finally {
+        $env:SystemRoot = $real.SystemRoot; $env:SystemDrive = $real.SystemDrive; $env:ProgramFiles = $real.ProgramFiles; ${env:ProgramFiles(x86)} = $real.PF86
+    }
+}
+
+Describe 'Update blocks (group policy)' {
+    foreach ($f in 'Log', 'Registry', 'Loader') { . "$Core\$f.ps1" }
+    $u = Join-Path $Tw 'Optimize\Update'
+    It 'are Advanced-only Toggles for Pro and up that delete their policies on Revert' {
+        foreach ($p in @(@('BlockDriverUpdatesPolicy.ps1', 9), @('BlockWindowsUpdate.ps1', 7))) {
+            $t = Import-AkariTweakFile (Join-Path $u $p[0]) $Tw
+            "$($p[0]) $($t.Kind) $($t.Requires) $($t.Guided) $($t.Risk) $(@($t.Registry).Count)" | Should Be "$($p[0]) Toggle Pro False Advanced $($p[1])"
+            @($t.Registry | Where-Object { $null -ne $_.Default -or $_.Path -notlike 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\*' }).Count | Should Be 0
+        }
+    }
+    It 'points Windows Update at a dead local server' {
+        $t = Import-AkariTweakFile (Join-Path $u 'BlockWindowsUpdate.ps1') $Tw
+        @($t.Registry | Where-Object { $_.Name -in 'WUServer', 'WUStatusServer', 'UpdateServiceUrlAlternate' } | ForEach-Object { $_.Value } | Sort-Object -Unique) -join ',' | Should Be 'http://127.0.0.1'
+    }
+}
+
 Describe 'Tools tweaks' {
     $AkariStatePath = "$TestDrive\state.json"
     foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'System', 'Winget', 'AppSetup') { . "$Core\$f.ps1" }
@@ -73,7 +261,7 @@ Describe 'Tools tweaks' {
     Mock Get-Volume { [pscustomobject]@{ DriveLetter = 'C'; Size = 1000; SizeRemaining = 250 } }
 
     It 'are Actions in Section Tools with a reason for no Revert' {
-        foreach ($f in @(Get-ChildItem (Join-Path $Tw 'Tools') -Recurse -Filter *.ps1)) {
+        foreach ($f in @(Get-ChildItem (Join-Path $Tw 'Tools') -Recurse -Filter *.ps1 | Where-Object { $_.Directory.Name -ne 'Files' })) {
             $t = Load $f.FullName.Substring($Tw.Length + 1)
             "$($f.Name) $($t.Section) $($t.Kind)" | Should Be "$($f.Name) Tools Action"
             (Get-Content $f.FullName -Raw) -match '# Action: ' | Should Be $true

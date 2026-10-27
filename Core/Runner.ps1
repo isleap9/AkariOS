@@ -49,20 +49,9 @@ function Invoke-AkariTweak($Tweak, [ValidateSet('Apply', 'Revert')][string]$Mode
             Invoke-AkariRegistry $Tweak.Registry $Mode
             # a registry Toggle's After: one more step after the values, both ways ($AkariMode = Apply / Revert),
             # e.g. a scheduled task or a database the values need reset
-            if ($Tweak.After) {
-                $sb = [scriptblock]::Create($Tweak.After.ToString())
-                & { $ErrorActionPreference = 'Continue'; $PSDefaultParameterValues = @{ '*:ErrorAction' = 'Stop' }; $AkariMode = $Mode; & $sb } *>&1 |
-                    ForEach-Object { if ($_ -is [Management.Automation.ErrorRecord] -and "$($_.FullyQualifiedErrorId)" -like 'NativeCommandError*') { "$($_.Exception.Message)" } else { $_ } } |
-                    Out-String -Stream | ForEach-Object { Write-Log $_ }
-            }
+            if ($Tweak.After) { Invoke-AkariTweakBlock $Tweak.After $Mode }
         } else {
-            # rebuilt from text so a block loaded in another runspace never runs in that runspace's session state
-            $sb = [scriptblock]::Create($Tweak.$Mode.ToString())
-            # cmdlet errors stop the tweak (-ErrorAction Stop by default); a native tool's stderr (reg.exe, powercfg...)
-            # is only logged: 5.1 turns it into an error record, and $ErrorActionPreference = 'Stop' would abort on it
-            & { $ErrorActionPreference = 'Continue'; $PSDefaultParameterValues = @{ '*:ErrorAction' = 'Stop' }; & $sb } *>&1 |
-                ForEach-Object { if ($_ -is [Management.Automation.ErrorRecord] -and "$($_.FullyQualifiedErrorId)" -like 'NativeCommandError*') { "$($_.Exception.Message)" } else { $_ } } |
-                Out-String -Stream | ForEach-Object { Write-Log $_ }
+            Invoke-AkariTweakBlock $Tweak.$Mode $Mode
         }
     } catch {
         Write-Log "Failed: $($Tweak.Name): $($_.Exception.Message)"
@@ -72,6 +61,33 @@ function Invoke-AkariTweak($Tweak, [ValidateSet('Apply', 'Revert')][string]$Mode
     $done = if ($Mode -eq 'Apply') { 'Applied' } else { 'Reverted' }
     Write-Log "${done}: $($Tweak.Name)"
     New-AkariOutcome $Tweak.Id $Mode $done $Tweak.Reboot
+}
+
+# runs one of a tweak's blocks (Apply, Revert, After, Prepare), its output logged; it sees the caller's $AkariTweakDir
+# and $AkariMode. Rebuilt from text, so a block loaded in another runspace never runs in that runspace's session state.
+# Cmdlet errors stop it (-ErrorAction Stop by default) and throw to the caller; a native tool's stderr (reg.exe,
+# powercfg...) is only logged: 5.1 turns it into an error record, and $ErrorActionPreference = 'Stop' would abort on it.
+function Invoke-AkariTweakBlock($Block, [string]$Mode) {
+    $sb = [scriptblock]::Create($Block.ToString())
+    & { $ErrorActionPreference = 'Continue'; $PSDefaultParameterValues = @{ '*:ErrorAction' = 'Stop' }; $AkariMode = $Mode; & $sb } *>&1 |
+        ForEach-Object { if ($_ -is [Management.Automation.ErrorRecord] -and "$($_.FullyQualifiedErrorId)" -like 'NativeCommandError*') { "$($_.Exception.Message)" } else { $_ } } |
+        Out-String -Stream | ForEach-Object { Write-Log $_ }
+}
+
+# a SafeMode Tweak's Prepare: what it needs before the restart into Safe Mode (a download: Safe Mode has no network),
+# run in normal mode, once per Run item ($Item.Prepared). $null when it went well or there is none, else its Failed
+# Outcome (the item then stays out of Safe Mode).
+function Invoke-AkariPrepare($Tweak, $Item) {
+    if (-not $Tweak.Prepare -or $Item.Prepared) { return $null }
+    $AkariTweakDir = if ($Tweak.Source -and (Test-Path -LiteralPath $Tweak.Source)) { Split-Path $Tweak.Source } else { '' }
+    Write-Log "Getting ready for Safe Mode: $($Tweak.Name)"
+    try { Invoke-AkariTweakBlock $Tweak.Prepare $Item.Mode }
+    catch {
+        Write-Log "Failed: $($Tweak.Name): $($_.Exception.Message)"
+        return New-AkariOutcome $Tweak.Id $Item.Mode 'Failed' $false $_.Exception.Message
+    }
+    $Item.Prepared = $true
+    $null
 }
 
 # a block that restarts the PC or sets the next boot to Safe Mode (legacy bodies: shutdown /r, Restart-Computer,
@@ -113,6 +129,11 @@ function Invoke-AkariPlan([object[]]$Items, $Tweaks) {
         $o
     }
     if ($explorer) { Restart-AkariExplorer }
+    # what the Safe Mode Tweaks need first (normal mode, network up); one whose Prepare failed is not taken there
+    foreach ($x in @($safe)) {
+        $f = Invoke-AkariPrepare $x.Tweak $x.Item
+        if ($f) { $f; [void]$safe.Remove($x) }
+    }
     # Safe Mode next: it is the restart, so the restarting Tweaks wait for another Run
     if ($safe.Count) {
         foreach ($x in $last) {
