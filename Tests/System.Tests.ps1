@@ -29,6 +29,16 @@ Describe 'Test-AkariRequirement' {
         }
     }
 
+    Context 'Windows Home' {
+        Mock Get-AkariEdition { 'CoreSingleLanguage' }
+        It 'meets Home' { Test-AkariRequirement (& $t 'Home') | Should BeNullOrEmpty }
+    }
+
+    Context 'Windows Pro' {
+        Mock Get-AkariEdition { 'Professional' }
+        It 'does not meet Home' { Test-AkariRequirement (& $t 'Home') | Should Be 'needs Home' }
+    }
+
     It 'has nothing to meet without Requires' { Test-AkariRequirement ([pscustomobject]@{ Requires = $null }) | Should BeNullOrEmpty }
 }
 

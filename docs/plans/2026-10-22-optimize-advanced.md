@@ -58,6 +58,15 @@ batches, and Legacy is retired.
    debloat, install, install settings), runtimes (C++, DirectX), the Hardware tools (bufferbloat, controller and mouse
    tests, monitor, PC build, scaling), Setup's Open shortcuts; and the legacy Windows Actions (autoruns check,
    bloatware, restore point).
+   Decided 2026-10-27, in three commits: **2a** the simple tools (Check, Refresh, Setup's activation and Home to Pro,
+   a new `Home` Requirement; Settings shortcuts as Open buttons in their Category; Check programs from winget when
+   missing; Reinstall = Microsoft's own Media Creation Tool; BIOS check no longer restarts), **2b** DDU, the driver
+   installs, controller overclock, autounattend, the updates and drivers block, **2c** the Bloatware leftovers
+   (OneDrive, Remote Desktop Connection, Snipping Tool to Downloads; the checks to Tools › Check), autoruns check,
+   restore point, ReBar (a Choice in Hardware › Graphics) and scaling (a Choice in Hardware › Input). C++ and DirectX
+   were already Downloads apps, the HAGS / windowed page already two Toggles. Dropped (listed in the Legacy ADR): PC
+   build guide (a third party's list), Keys (an activation workaround), "Install all UWP apps", and the per-game
+   process priority, SMT / HT and core 1 thread 1 tools (Task Manager's Set priority / affinity; Process Lasso).
 4. **Retire Legacy** (a new ADR replacing 0004): delete the 7 generated files, `Core/Legacy.ps1`, `Core/Compat.ps1`,
    `Tweaks/Ported.psd1` and the Legacy card; Optimize opens Advanced directly.
 5. **Batch 3, ZOICWARE registry and group policy tweaks** (`registrytweaks.md`, `src/RegTweaks.txt`).

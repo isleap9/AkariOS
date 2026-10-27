@@ -107,4 +107,30 @@
                              'taskbar-end-task', 'taskbar-far-corner-desktop', 'taskbar-hide-resume', 'taskbar-never-small-icons',
                              'taskbar-no-share-window', 'theme-akarios-wallpaper', 'update-delivery-optimization', 'update-maps-auto-update',
                              'update-no-app-archiving', 'update-no-driver-updates', 'update-store-auto-update', 'win32-priority-separation')
+    # Optimize › Advanced batch 2a (2026-10-27): the simple Legacy tools, now Section Tools (Check, Refresh, Setup) and
+    # Open buttons in their Category. The runtimes and the HAGS / windowed page already had one-file owners.
+    'bios-check'              = @('tools-bios-check')
+    'storage-check'           = @('tools-storage-check')
+    'ram-check'               = @('tools-ram-check')
+    'gpu-check'               = @('tools-gpu-check')
+    'occt'                    = @('tools-occt')
+    'furmark'                 = @('tools-furmark')
+    'mouse-polling-test'      = @('tools-mouse-polling-test')
+    'controller-polling-test' = @('tools-controller-polling-test')
+    'monitor-opt'             = @('tools-monitor-test')
+    'bufferbloat'             = @('tools-bufferbloat-test')
+    'factory-reset'           = @('tools-factory-reset')
+    'account-local'           = @('tools-local-account')
+    'reinstall'               = @('tools-reinstall-windows-10', 'tools-reinstall-windows-11')
+    'network-driver'          = @('tools-network-driver')
+    'to-bios'                 = @('tools-restart-to-bios')
+    'activation'              = @('tools-activation')
+    'home-to-pro'             = @('tools-home-to-pro')
+    'date-time'               = @('system-open-date-time')
+    'startup-apps-settings'   = @('performance-open-startup-apps')
+    'startup-apps-taskmgr'    = @('performance-open-startup-taskmgr')
+    'resolution'              = @('graphics-open-display')
+    'hags-windowed'           = @('gaming-hags', 'gaming-windowed-optimizations')
+    'cpp'                     = @('install-vcredist')
+    'directx'                 = @('install-directx')
 }

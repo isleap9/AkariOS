@@ -333,7 +333,7 @@ When every Entry has the same shape, the Group reads them from one data file. Se
 | `Editable` | no | Choice only: also accept any typed number |
 | `Entries` | Group only | Tweaks inside the Group (any kind except Group), id `<group-id>/<Name>` |
 | `EntryKind` | no | Group only: engine-provided handler for data-list Entries (e.g. `ServiceStart`) |
-| `Requires` | no | `Win10`, `Win11`, `Laptop`, `Desktop` (later e.g. `NVIDIA`, `SSD`): unmet = hidden in Guided, `Skipped` in a Run |
+| `Requires` | no | `Win10`, `Win11`, `Laptop`, `Desktop`, `Home`, `NVIDIA`, `AMD`, `Intel`: unmet = hidden in Guided, `Skipped` in a Run |
 | `AkariOS` | no | `$true` when the Tweak is part of the AkariOS setup (One-click sets the same thing, e.g. in `OneClick/reg.reg`): Guided shows "(AkariOS)" after its name. A test keeps registry tweaks in line with `reg.reg` both ways |
 | `Explorer` | no | `$true` when the change shows only after Explorer restarts: the Run restarts Explorer once at the end if such a Tweak was Applied or Reverted |
 | `Winget`, `Before`, `After` | no | Action only: winget package id(s) the engine installs, between the `Before` and `After` blocks; no `Apply` with them. On a registry Toggle, `After` is one more step after its rows, on Apply and on Revert (`$AkariMode`), e.g. a scheduled task |

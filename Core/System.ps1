@@ -4,6 +4,9 @@
 # the Windows build number (22000 and up = Windows 11)
 function Get-AkariOSBuild { [Environment]::OSVersion.Version.Build }
 
+# the Windows edition's EditionID (Core* = Home, Professional, Enterprise, ...). Read only; tests mock this.
+function Get-AkariEdition { "$((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction SilentlyContinue).EditionID)" }
+
 # 'Laptop' or 'Desktop', from the chassis type (portable, laptop, notebook, tablet, convertible, ...); read once
 function Get-AkariChassis {
     if (-not $script:AkariChassis) {
@@ -37,6 +40,7 @@ function Test-AkariRequirement($Tweak) {
             'Win11' { (Get-AkariOSBuild) -ge 22000 }
             'Laptop' { (Get-AkariChassis) -eq 'Laptop' }
             'Desktop' { (Get-AkariChassis) -eq 'Desktop' }
+            'Home' { (Get-AkariEdition) -like 'Core*' }
             { $_ -in 'NVIDIA', 'AMD', 'Intel' } { [bool](@(Get-AkariGpus) | Where-Object { $_.Vendor -eq $r }) }
             default { $false }
         }
@@ -53,6 +57,14 @@ function Restart-AkariExplorer {
     # not back after 5 seconds (shell restart turned off): start it, better elevated than no taskbar
     for ($i = 0; $i -lt 10 -and -not (Get-Process -Name explorer -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 }
     if (-not (Get-Process -Name explorer -ErrorAction SilentlyContinue)) { Start-Process "$env:SystemRoot\explorer.exe" }
+}
+
+# restarts the PC straight into its UEFI firmware settings (shutdown /r /fw); returns shutdown's exit code, not 0
+# on a PC without UEFI. The only firmware restart; tests mock this.
+function Restart-AkariFirmware {
+    $ErrorActionPreference = 'Continue'
+    & "$env:SystemRoot\System32\shutdown.exe" /r /fw /t 0 2>&1 | ForEach-Object { Write-Log "shutdown: $_" }
+    $LASTEXITCODE
 }
 
 # shows $Path as the desktop wallpaper now (the registry value is the tweak's job, in the real user's hive):

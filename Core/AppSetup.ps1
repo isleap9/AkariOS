@@ -92,6 +92,29 @@ function Get-AkariWingetExe([string]$Id, [string]$Filter) {
     $null
 }
 
+# where a program is: the portable winget copy of $Id, else the first $Exe (wildcards allowed) at most two folders
+# down in Program Files ($Roots: for tests); $null when it is not there
+function Find-AkariProgram([string]$Id, [string]$Exe, [string[]]$Roots = @($env:ProgramFiles, ${env:ProgramFiles(x86)})) {
+    $p = Get-AkariWingetExe $Id $Exe
+    if ($p) { return $p }
+    foreach ($root in @($Roots | Where-Object { $_ })) {
+        $f = Get-ChildItem -LiteralPath $root -Recurse -Depth 2 -Filter $Exe -File -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($f) { return $f.FullName }
+    }
+    $null
+}
+
+# opens a tool (a Tools check): installs winget package $Id first when its program $Exe is not on the PC
+function Open-AkariWingetTool([string]$Id, [string]$Exe) {
+    $path = Find-AkariProgram $Id $Exe
+    if (-not $path) {
+        Install-AkariWingetPackage $Id
+        $path = Find-AkariProgram $Id $Exe
+    }
+    if (-not $path) { throw "$Id is installed, but $Exe was not found" }
+    Start-Process -FilePath $path
+}
+
 # reg.exe, for what PowerShell can't do (load / unload a hive, import a .reg file with an app's own value types);
 # returns the exit code. Tests mock this.
 # An advanced function ([Parameter]) takes the Runner's -ErrorAction Stop, and in 5.1 that turns reg.exe's stderr
