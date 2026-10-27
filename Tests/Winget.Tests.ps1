@@ -185,10 +185,11 @@ Describe 'The real app installs' {
 
     It 'loads every install with no Errors' {
         @($r.Problems | Where-Object { $_.Level -eq 'Error' }).Count | Should Be 0
-        $apps.Count | Should Be 67
+        # + OneDrive, Remote Desktop Connection, Snipping Tool (Windows 10) in the restore card (batch 2c)
+        $apps.Count | Should Be 70
     }
 
-    It 'installs most apps with winget' { @($apps | Where-Object { $_.Winget }).Count | Should Be 60 }
+    It 'installs most apps with winget' { @($apps | Where-Object { $_.Winget }).Count | Should Be 61 }
 
     It 'ships the files the installs copy' {
         foreach ($p in 'NotepadPlusPlus\config.xml', 'Afterburner\MSI Afterburner\Profiles\MSIAfterburner.cfg',

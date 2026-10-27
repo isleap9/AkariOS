@@ -37,8 +37,11 @@ Describe 'One-click steps' {
 
         It 'loads the One-click steps (Section OneClick: the Tweaks step never shows it, Tests\Steps.Tests.ps1)' {
             $loaded = Get-AkariTweaks $Tw
-            # priority notifications and app actions moved to Customize (Optimize › Advanced batch 1)
-            @($loaded.Tweaks | Where-Object { $_.Section -eq 'OneClick' }).Count | Should BeGreaterThan 6
+            # priority notifications and app actions moved to Customize (Optimize › Advanced batch 1), the startup
+            # cleanup and the restore point to Tools (batch 2c, ids kept)
+            @($loaded.Tweaks | Where-Object { $_.Section -eq 'OneClick' }).Count | Should BeGreaterThan 4
+            @($loaded.Tweaks | Where-Object { $_.Id -in 'oneclick-startup-cleanup', 'oneclick-restore-point' } | ForEach-Object { "$($_.Id):$($_.Section)" } | Sort-Object) -join ' ' |
+                Should Be 'oneclick-restore-point:Tools oneclick-startup-cleanup:Tools'
         }
 
         Context 'Get DDU ready' {
@@ -129,7 +132,7 @@ Describe 'One-click steps' {
             New-Item "$TestDrive\Windows\System32\Tasks\Microsoft\keep" -ItemType File -Force | Out-Null
             New-Item "$TestDrive\Windows\System32\Tasks\OtherUpdater" -ItemType File -Force | Out-Null
             New-Item "$TestDrive\User\AppData\Microsoft\Windows\Start Menu\Programs\Startup\app.lnk" -ItemType File -Force | Out-Null
-            $t = Load 'OneClick\Finish\StartupCleanup.ps1'
+            $t = Load 'Tools\Cleanup\StartupCleanup.ps1'
             It 'empties Run, the Startup folders and the non-Microsoft tasks' {
                 (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
                 Get-AkariRegValue 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' 'Some App' | Should Be $null
@@ -147,7 +150,7 @@ Describe 'One-click steps' {
                 Assert-MockCalled Invoke-AkariExe -Exactly 2 -Scope It -ParameterFilter { $Path -like '*lodctr.exe' -and $Arguments -contains '/R' }
             }
             It 'makes an "AkariOS setup" restore point' {
-                (Invoke-AkariTweak (Load 'OneClick\Finish\RestorePoint.ps1') Apply).Outcome | Should Be 'Applied'
+                (Invoke-AkariTweak (Load 'Tools\Setup\RestorePoint.ps1') Apply).Outcome | Should Be 'Applied'
                 Assert-MockCalled New-AkariRestorePoint -Exactly 1 -Scope It -ParameterFilter { $Description -eq 'AkariOS setup' }
             }
         }

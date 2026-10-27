@@ -73,6 +73,11 @@ batches, and Legacy is retired.
    group-policy Toggles in Optimize › Update (a new `Pro` Requirement), its USB variants dropped. **Autounattend left
    batch 2**: it becomes AkariOS's own tool, a Home card, designed in its own session after 2c; the Legacy retirement
    follows it, then the ZOICWARE batches (Advanced keeps growing).
+   2c as built: ReBar = a Toggle (force on; Revert re-imports the matching Base Profile; Force Off dropped), scaling
+   with no mouse acceleration dropped (its curves do nothing with Enhance pointer precision off), One-click's
+   startup cleanup and restore point moved to Tools (ids kept), Autoruns and three Opens in Tools › Check, OneDrive,
+   Remote Desktop Connection and the old Snipping Tool in the restore card. **2d**: a "Remove apps" flow (the Remove
+   tab alone, like Downloads) opened from the Catalogue sidebar, with Downloads next to it, so Advanced can debloat.
 4. **Retire Legacy** (a new ADR replacing 0004): delete the 7 generated files, `Core/Legacy.ps1`, `Core/Compat.ps1`,
    `Tweaks/Ported.psd1` and the Legacy card; Optimize opens Advanced directly.
 5. **Batch 3, ZOICWARE registry and group policy tweaks** (`registrytweaks.md`, `src/RegTweaks.txt`).

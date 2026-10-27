@@ -242,6 +242,79 @@ Describe 'Update blocks (group policy)' {
     }
 }
 
+Describe 'Batch 2c' {
+    $AkariStatePath = "$TestDrive\state.json"
+    foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'System', 'Winget', 'AppSetup') { . "$Core\$f.ps1" }
+    $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
+    function Load($rel) { Import-AkariTweakFile (Join-Path $Tw $rel) $Tw }
+    Mock Start-Process { }
+    Mock Save-AkariFile { $OutFile }
+    Mock New-AkariShortcut { }
+    Mock Open-AkariWingetTool { }
+    Mock Get-AkariGpus { @([pscustomobject]@{ Vendor = 'NVIDIA' }) }
+    # Profile Inspector is "there", the DRS folder is not touched
+    Mock Test-Path { $true } -ParameterFilter { $LiteralPath -like '*Nvidia Profile Inspector.exe' }
+    Mock Unblock-File { }
+
+    It 'Autoruns and the three Opens' {
+        (Invoke-AkariTweak (Load 'Tools\Check\Autoruns.ps1') Apply).Outcome | Should Be 'Applied'
+        Assert-MockCalled Open-AkariWingetTool -Exactly 1 -Scope It -ParameterFilter { $Id -eq 'Microsoft.Sysinternals.Autoruns' -and $Exe -eq 'Autoruns64.exe' }
+        foreach ($p in @(@('InstalledPrograms', 'appwiz.cpl'), @('WindowsFeatures', 'optionalfeatures.exe'), @('OptionalFeatures', 'ms-settings:optionalfeatures'))) {
+            (Invoke-AkariTweak (Load "Tools\Check\$($p[0]).ps1") Apply).Outcome | Should Be 'Applied'
+            $u = $p[1]
+            Assert-MockCalled Start-Process -Exactly 1 -Scope It -ParameterFilter { $FilePath -eq $u }
+        }
+    }
+
+    It 'the startup cleanup and the restore point are Tools buttons now' {
+        "$((Load 'Tools\Cleanup\StartupCleanup.ps1').Section)/$((Load 'Tools\Cleanup\StartupCleanup.ps1').Category)" | Should Be 'Tools/Cleanup'
+        "$((Load 'Tools\Setup\RestorePoint.ps1').Section)/$((Load 'Tools\Setup\RestorePoint.ps1').Category)" | Should Be 'Tools/Setup'
+    }
+
+    It 'the removed legacy apps come back in Downloads'' restore card' {
+        $o = Load 'Apps\Install\OneDrive.ps1'
+        "$($o.AppType) $($o.Winget)" | Should Be 'Restore removed apps Microsoft.OneDrive'
+        Mock Test-Path { $false } -ParameterFilter { $Path -like '*\mstsc.exe' -or $Path -like '*\SnippingTool.exe' }
+        foreach ($p in @(@('RemoteDesktopConnection', 'remotedesktopconnection.exe'), @('SnippingToolLegacy', 'snippingtool.exe'))) {
+            $t = Load "Apps\Install\$($p[0]).ps1"
+            $t.AppType | Should Be 'Restore removed apps'
+            (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+            $n = $p[1]
+            Assert-MockCalled Save-AkariFile -Exactly 1 -Scope It -ParameterFilter { $Name -eq $n }
+            Assert-MockCalled Start-Process -Exactly 1 -Scope It -ParameterFilter { $FilePath -like "*\$n" -and $Wait }
+        }
+    }
+
+    Context 'ReBar' {
+        It 'Apply merges rBAR on into the driver profile' {
+            $t = Load 'Hardware\Graphics\ReBarForce.ps1'
+            "$($t.Kind) $($t.Requires) $($t.Guided) $($t.Risk)" | Should Be 'Toggle NVIDIA False Advanced'
+            (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+            Assert-MockCalled Start-Process -Exactly 1 -Scope It -ParameterFilter { "$ArgumentList" -like '-silentImport -mergeImport -silent *nvidia-rebar-on.nip"' }
+            Get-AkariState $t | Should Be 'Optimized'
+        }
+    }
+
+    Context 'ReBar: Revert with FR33THY''s NVIDIA settings applied' {
+        Mock Get-AkariRegValue { if ($Name -eq 'NvCplPhysxAuto') { 0 } elseif ($Name -eq 'NvDevToolsVisible') { 1 } }
+        It 'imports FR33THY''s base profile again, without rBAR' {
+            Set-AkariRememberedState 'graphics-nvidia-rebar-force' $true
+            (Invoke-AkariTweak (Load 'Hardware\Graphics\ReBarForce.ps1') Revert).Outcome | Should Be 'Reverted'
+            Assert-MockCalled Start-Process -Exactly 1 -Scope It -ParameterFilter { "$ArgumentList" -like '-silentImport -silent *nvidia-base-profile.nip"' }
+        }
+    }
+
+    Context 'ReBar: Revert without them' {
+        Mock Get-AkariRegValue { $null }
+        It 'imports the empty profile (driver defaults)' {
+            Set-AkariRememberedState 'graphics-nvidia-rebar-force' $true
+            (Invoke-AkariTweak (Load 'Hardware\Graphics\ReBarForce.ps1') Revert).Outcome | Should Be 'Reverted'
+            Assert-MockCalled Start-Process -Exactly 1 -Scope It -ParameterFilter { "$ArgumentList" -like '-silentImport -silent *nvidia-default-profile.nip"' }
+            Get-AkariState (Load 'Hardware\Graphics\ReBarForce.ps1') | Should Be 'Default'
+        }
+    }
+}
+
 Describe 'Tools tweaks' {
     $AkariStatePath = "$TestDrive\state.json"
     foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'System', 'Winget', 'AppSetup') { . "$Core\$f.ps1" }

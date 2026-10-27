@@ -143,4 +143,15 @@
                                   'graphics-amd-settings', 'graphics-intel-settings', 'graphics-hdcp-off', 'graphics-p0-state')
     'controller-oc'           = @('tools-controller-overclock')
     'updates-drivers-block'   = @('update-block-driver-updates-policy', 'update-block-windows-update')
+    # batch 2c (2026-10-27): the Windows Actions and ReBar. Bloatware's Remove all = the Remove tab's appx, capability
+    # and feature Groups (not listed: only one-file ids go here) and the legacy app removals ("Install all UWP apps"
+    # dropped: Restore removed apps, one by one). Dropped, not listed here: scaling-no-accel (its curves do nothing
+    # with Enhance pointer precision off), rebar's Force Off, and the per-game priority, smt-ht and core1-thread1 tools.
+    'bloatware'               = @('remove-onedrive', 'remove-remote-desktop-connection',
+                                  'remove-snipping-tool-legacy', 'install-microsoft-store', 'install-onedrive',
+                                  'install-remote-desktop-connection', 'install-snipping-tool-legacy', 'tools-installed-programs',
+                                  'tools-windows-features', 'tools-optional-features', 'performance-open-startup-taskmgr')
+    'autoruns-check'          = @('oneclick-startup-cleanup', 'tools-autoruns')
+    'restore-point'           = @('oneclick-restore-point')
+    'rebar'                   = @('graphics-nvidia-rebar-force', 'tools-restart-to-bios')
 }
