@@ -112,6 +112,15 @@ Describe 'Optimize: tweaks that run code' {
             }
         }
 
+        Context 'No sign-in after sleep: a hidden setting' {
+            # Windows hides "Require a password on wakeup": /query prints nothing for it, /qh does (VM, 2026-10-27)
+            Mock Invoke-AkariPowerCfg { if ($Arguments[0] -eq '/qh') { 'Current AC Power Setting Index: 0x00000001'; 'Current DC Power Setting Index: 0x00000001' } }
+            $t = Load 'Optimize\Power\SignInAfterSleep.ps1'
+            It 'reads it with /qh, so a Revert shows Default' {
+                Get-AkariState $t | Should Be 'Default'
+            }
+        }
+
         Context 'Device power saving and wake' {
             $t = Load 'Optimize\Power\DevicePowerSaving.ps1'
             $usb = "$tk\HKLM\SYSTEM\ControlSet001\Enum\USB\VID_1\1"

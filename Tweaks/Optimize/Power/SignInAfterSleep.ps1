@@ -8,9 +8,9 @@
     Risk        = 'Caution'
     AkariOS     = $true
     Description = 'Waking the PC from sleep or the screen turning back on doesn''t ask for your password (current power plan).'
-    # the two indexes powercfg prints for the setting (AC, DC), whatever the language
+    # the two indexes powercfg prints for the setting (AC, DC), whatever the language; /qh, as Windows hides it
     Detect      = {
-        $v = @(Invoke-AkariPowerCfg '/query' 'scheme_current' 'sub_none' 'consolelock' | ForEach-Object { if ($_ -match ':\s*0x([0-9a-f]{8})\s*$') { [Convert]::ToInt32($Matches[1], 16) } } | Select-Object -Last 2)
+        $v = @(Invoke-AkariPowerCfg '/qh' 'scheme_current' 'sub_none' 'consolelock' | ForEach-Object { if ($_ -match ':\s*0x([0-9a-f]{8})\s*$') { [Convert]::ToInt32($Matches[1], 16) } } | Select-Object -Last 2)
         if ($v.Count -lt 2) { 'Unknown' } elseif (-not ($v -ne 0)) { 'Optimized' } elseif (-not ($v -ne 1)) { 'Default' } else { 'Custom' }
     }
     Apply       = {
