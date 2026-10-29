@@ -10,6 +10,7 @@
         @{ Name = 'FR33THY Ultimate'; Text = 'Most tweaks, the debloat and its keep-lists, the app installers'; Url = 'https://github.com/FR33THYFR33THY/Ultimate' }
         @{ Name = 'FR33THY WinSux'; Text = 'The base of the original One-click'; Url = 'https://github.com/FR33THYFR33THY/WinSux' }
         @{ Name = 'Raphire Win11Debloat'; Text = 'The app list (names, descriptions, risk levels) and the look of the Guided flow'; Url = 'https://github.com/Raphire/Win11Debloat' }
+        @{ Name = 'ZOICWARE'; Text = 'Registry and group policy tweaks in Optimize > Advanced (zoicware)'; Url = 'https://github.com/zoicware/ZOICWARE' }
         @{ Name = 'Schneegans unattend generator'; Text = 'Install USB: the answer file generator, ported (Christoph Schneegans)'; Url = 'https://github.com/cschneegans/unattend-generator' }
         @{ Name = 'isleap9/Akari-OS'; Text = 'One-click and the AkariOS wallpaper'; Url = 'https://github.com/isleap9/Akari-OS' }
         @{ Name = 'winget'; Text = 'App installs'; Url = 'https://github.com/microsoft/winget-cli' }

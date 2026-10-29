@@ -85,6 +85,14 @@ batches, and Legacy is retired.
 4. **Retire Legacy** (a new ADR replacing 0004): delete the 7 generated files, `Core/Legacy.ps1`, `Core/Compat.ps1`,
    `Tweaks/Ported.psd1` and the Legacy card; Optimize opens Advanced directly.
 5. **Batch 3, ZOICWARE registry and group policy tweaks** (`registrytweaks.md`, `src/RegTweaks.txt`).
+   Decided 2026-10-29: of its 196 entries 116 were already AkariOS Tweaks (same values); only the new values are ported,
+   a partial overlap's missing values becoming a new Tweak (the overlapped Tweaks are all in the AkariOS setup, which
+   stays as it is). Every port is `Guided = $false`, never AkariOS, Revert = the stock default (a policy value: deleted),
+   one Tweak per entry (the newer app permissions merged, the camera on its own). **3a** (done): privacy, system,
+   performance, security, update. Skipped: the user choice driver and the DataCollection CurrentVersion values (stock
+   defaults unknown), WPBT and hibernate (already Tweaks), "Remove logons" (Tools > Cleanup), a feedback value delete,
+   the drag tray feature flag. `Tests/Zoicware.Tests.ps1` round-trips every port. **3b**: Explorer, taskbar, Start,
+   notifications, input and appearance.
 6. **Batch 4, ZOICWARE services, scheduled tasks and power** (its "set services to manual" meets
    `advanced-services-off`: one owner, so a Choice or a note).
 7. **Batch 5, ZOICWARE optional tweaks and the Ultimate Context Menu**.
