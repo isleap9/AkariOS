@@ -167,8 +167,9 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework
 $AkariLogFile = $LogFile
 foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'Restore', 'Version', 'Update', 'Unattend') { . "$Root\Core\$f.ps1" }
-# the USB setup file page reads no drive here
+# the Install USB page reads no drive and no PC setting here
 function Get-AkariSetupDrives { }
+function Get-AkariUnattendDefaults { @{} }
 $AkariInstallDir = $Install
 function L($id, $page, $name) { ConvertTo-AkariTweak @{ Id = $id; Name = $name; Description = 'D'; Section = $page; Category = ''; Risk = 'Safe'; Kind = 'Action'; Button = 'Run'; Apply = { } } 'x' $true }
 $script:Tweaks = [System.Collections.Generic.List[object]]::new()
@@ -181,7 +182,7 @@ $script:Groups = @(); $script:RowCache = @{}; $script:Cat = 'Home'; $script:Busy
 $script:Queue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
 $loaded = @{ Problems = @() }
 function Get-AkariAppxInstalled { @() }; function Start-AkariFeatureRead { }
-foreach ($f in 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows', 'CataloguePage', 'About', 'Unattend') { . "$Root\UI\$f.ps1" }
+foreach ($f in 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows', 'CataloguePage', 'About', 'UnattendForm', 'Unattend') { . "$Root\UI\$f.ps1" }
 $timer.Stop()
 # the launch prompt is a dialog: record it instead
 function Show-AkariUpdatePrompt { $script:Prompted = $true }
@@ -212,9 +213,9 @@ $cr = $script:AboutParts.Credits.Children[0]
 "aboutLicenseLink=$($script:AboutParts.License.Parent.Orientation),$($script:AboutParts.License.Parent.Children[1].Content)"
 "appVersion=$($AppVersionText.Text)"
 Click $StepBack; "aboutBack=$script:Cat"
-# the USB setup file tile (fourth of five): full window, Back leads Home
+# the Install USB tile (fourth of five): full window, Back leads Home
 "tiles=$(($HomeTiles.Children | ForEach-Object { $_.Content.Children[1].Text }) -join ',')|$($HomeTiles.Columns)"
-Click $HomeTiles.Children[3]; "usbFile=$script:Cat|$($Heading.Text)|$($PaneCol.Width.Value)|$($StepNext.Visibility)|$($null -ne $script:UnattendParts.Account)"
+Click $HomeTiles.Children[3]; "usbFile=$script:Cat|$($Heading.Text)|$($PaneCol.Width.Value)|$($StepNext.Visibility)|$($null -ne $script:UnattendParts.Drive)"
 Click $StepBack; "usbFileBack=$script:Cat"
 "title=$($window.FindName('TitleText').Text)"
 "menu=$(($MainMenu.Items | ForEach-Object { if ($_ -is [Windows.Controls.Separator]) { '-' } elseif ($_.IsEnabled) { $_.Header } else { "($($_.Header))" } }) -join ',')"
@@ -320,9 +321,9 @@ Select-AkariPage 'Optimize'; Click $StepBody.Children[0].Children[1]
         $out.aboutVersion | Should Match '^AkariOS \d+\.\d+\.\d+$'
         $out.aboutBack | Should Be 'Home'
     }
-    It 'the USB setup file tile opens its form full window, and Back goes Home' {
-        $out.tiles | Should Be 'Install AkariOS,Optimize,Downloads,USB setup file,Import / Export settings|5'
-        $out.usbFile | Should Be 'USB setup file|USB setup file|0|Collapsed|True'
+    It 'the Install USB tile opens its form full window, and Back goes Home' {
+        $out.tiles | Should Be 'Install AkariOS,Optimize,Downloads,Install USB,Import / Export settings|5'
+        $out.usbFile | Should Be 'Install USB|Install USB|0|Collapsed|True'
         $out.usbFileBack | Should Be 'Home'
     }
     It 'About lists the links (a link without a URL is hidden), the credits and the license' {

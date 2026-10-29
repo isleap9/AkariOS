@@ -1,0 +1,289 @@
+<?xml version="1.0" encoding="utf-8"?>
+<unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+	<!--https://schneegans.de/windows/unattend-generator/?ProductKey=VK7JG-NPHTM-C97JM-9MPGT-3V66T&InstallFromIndex=1&TargetDiskMode=Generated&TargetDiskNoPartitions=true&TargetDiskInterfaceType=true&TargetDiskMediaType=true&TargetDiskSize=true&TargetDiskMinSize=100&TargetDiskMaxSize=4000&TargetDiskIndex=true&TargetDisk=0&PartitionLayout=Automatic&SystemSize=300&RecoveryMode=Partition&RecoverySize=1000&InitPagingFileSize=2000&MaxPagingFileSize=4000&ActivationKey=VK7JG-NPHTM-C97JM-9MPGT-3V66T&ComputerName=&AccountName0=Admin&AccountDisplayName0=&AccountPassword0=&AccountDisplayName1=&AccountPassword1=&AccountName2=&AccountDisplayName2=&AccountPassword2=&AccountName3=&AccountDisplayName3=&AccountPassword3=&AccountName4=&AccountDisplayName4=&AccountPassword4=&AccountName5=&AccountDisplayName5=&AccountPassword5=&AccountName6=&AccountDisplayName6=&AccountPassword6=&AccountName7=&AccountDisplayName7=&AccountPassword7=&AccountName8=&AccountDisplayName8=&AccountPassword8=&AccountName9=&AccountDisplayName9=&AccountPassword9=&AccountName10=&AccountDisplayName10=&AccountPassword10=&AccountName11=&AccountDisplayName11=&AccountPassword11=&AccountName12=&AccountDisplayName12=&AccountPassword12=&AccountName13=&AccountDisplayName13=&AccountPassword13=&AccountName14=&AccountDisplayName14=&AccountPassword14=&AutoLogonMode=Own&BuiltinAdministratorPassword=&PasswordMaxAge=42&LockoutThreshold=10&LockoutWindow=10&LockoutDuration=10&HideFiles=Hidden&TaskbarSearch=Box&TaskbarIconsMode=Default&StartTilesMode=Default&StartPinsMode=Default&EffectsMode=Default&DesktopIconsMode=Default&StartFoldersMode=Default&CoreIsolationMode=Enabled&WifiName=&WifiPassword=00000000&LockKeysMode=Skip&StickyKeysMode=Default&ColorMode=Default&AccentColor=%230078D4&WallpaperMode=Default&WallpaperColor=%23008080&LockScreenMode=Default&AppLockerMode=Skip&UILanguage=en-US&Locale=en-US&Keyboard=00140c00&Locale2=de-DE&Keyboard2=00140c00&Locale3=es-ES&Keyboard3=00140c00&GeoLocation=3&WindowsEdition=pro&InstallFromEdition=pro&TimeZone=UTC&AccountGroup0=Administrators&AccountGroup1=Users&AccountGroup2=Users&AccountGroup3=Users&AccountGroup4=Users&AccountGroup5=Users&AccountGroup6=Users&AccountGroup7=Users&AccountGroup8=Users&AccountGroup9=Users&AccountGroup10=Users&AccountGroup11=Users&AccountGroup12=Users&AccountGroup13=Users&AccountGroup14=Users&WifiAuthentication=Open&CapsLockInitial=Off&CapsLockBehavior=Toggle&NumLockInitial=Off&NumLockBehavior=Toggle&ScrollLockInitial=Off&ScrollLockBehavior=Toggle&SystemColorTheme=Light&AppsColorTheme=Light&SystemScriptType0=Cmd&SystemScriptType1=Cmd&SystemScriptType2=Cmd&SystemScriptType3=Cmd&SystemScriptType4=Cmd&SystemScriptType5=Cmd&SystemScriptType6=Cmd&SystemScriptType7=Cmd&SystemScriptType8=Cmd&SystemScriptType9=Cmd&SystemScriptType10=Cmd&SystemScriptType11=Cmd&SystemScriptType12=Cmd&SystemScriptType13=Cmd&SystemScriptType14=Cmd&DefaultUserScriptType0=Cmd&DefaultUserScriptType1=Cmd&DefaultUserScriptType2=Cmd&DefaultUserScriptType3=Cmd&DefaultUserScriptType4=Cmd&DefaultUserScriptType5=Cmd&DefaultUserScriptType6=Cmd&DefaultUserScriptType7=Cmd&DefaultUserScriptType8=Cmd&DefaultUserScriptType9=Cmd&DefaultUserScriptType10=Cmd&DefaultUserScriptType11=Cmd&DefaultUserScriptType12=Cmd&DefaultUserScriptType13=Cmd&DefaultUserScriptType14=Cmd&FirstLogonScriptType0=Cmd&FirstLogonScriptType1=Cmd&FirstLogonScriptType2=Cmd&FirstLogonScriptType3=Cmd&FirstLogonScriptType4=Cmd&FirstLogonScriptType5=Cmd&FirstLogonScriptType6=Cmd&FirstLogonScriptType7=Cmd&FirstLogonScriptType8=Cmd&FirstLogonScriptType9=Cmd&FirstLogonScriptType10=Cmd&FirstLogonScriptType11=Cmd&FirstLogonScriptType12=Cmd&FirstLogonScriptType13=Cmd&FirstLogonScriptType14=Cmd&UserOnceScriptType0=Cmd&UserOnceScriptType1=Cmd&UserOnceScriptType2=Cmd&UserOnceScriptType3=Cmd&UserOnceScriptType4=Cmd&UserOnceScriptType5=Cmd&UserOnceScriptType6=Cmd&UserOnceScriptType7=Cmd&UserOnceScriptType8=Cmd&UserOnceScriptType9=Cmd&UserOnceScriptType10=Cmd&UserOnceScriptType11=Cmd&UserOnceScriptType12=Cmd&UserOnceScriptType13=Cmd&UserOnceScriptType14=Cmd&Component0=&Component1=&Component2=&Component3=&Component4=&Component5=&Component6=&Component7=&Component8=&Component9=&Component10=&Component11=&Component12=&Component13=&Component14=&TargetDiskScript=Function+Fail(message)%0A++WScript.Echo+message%0A++WScript.Quit+1%0AEnd+Function%0A%0AOn+Error+Resume+Next%0ASet+wmi+%3D+GetObject(%22winmgmts%3A%5C%5C.%5Croot%5Ccimv2%22)%0ASet+drives+%3D+wmi.InstancesOf(%22Win32_DiskDrive%22)%0AIf+Err.Number+%3C%3E+0+Then%0A++Fail+%22Could+not+enumerate+disks%3A+%22+%26+Err.Description%0AEnd+If%0ASet+accepted+%3D+CreateObject(%22Scripting.Dictionary%22)%0A%0AFor+Each+drive+In+drives%0A++accept+%3D+True%0A%0A++actual+%3D+CInt(drive.Size+%2F+1024+%2F+1024+%2F+1024)%0A++expected+%3D+100%0A++If+actual+%3C+expected+Then%0A++++accept+%3D+False%0A++End+If%0A%0A++actual+%3D+CInt(drive.Size+%2F+1024+%2F+1024+%2F+1024)%0A++expected+%3D+4000%0A++If+actual+%3E+expected+Then%0A++++accept+%3D+False%0A++End+If%0A%0A++actual+%3D+drive.Index%0A++expected+%3D+0%0A++If+actual+%3C%3E+expected+Then%0A++++accept+%3D+False%0A++End+If%0A%0A++actual+%3D+drive.Partitions%0A++If+actual+%3E+0+Then%0A++++accept+%3D+False%0A++End+If%0A%0A++If+accept+Then%0A++++accepted.Add+drive.Index,+%22%22%0A++End+If%0ANext%0A%0AIf+accepted.Count+%3D+0+Then%0A++Fail+%22No+disk+satisfied+the+given+criteria.%22%0AElseIf+accepted.Count+%3E+1+Then%0A++Fail+%22Several+disks+(%22+%26+Join(accepted.Keys,+%22,+%22)+%26+%22)+satisfied+the+given+criteria.%22%0AElse%0A++WScript.Echo+Join(accepted.Keys)%0A++WScript.Quit+0%0AEnd+If&PEScript=@echo+off%0A%0Acall+%3Aprint+%22Setting+keyboard+layout+for+PE+session%22%0Awpeutil.exe+SetKeyboardLayout+0409%3A00000409%0A%0Afor+%25%25d+in+(C+D+E+F+G+H+I+J+K+L+M+N+O+P+Q+T+U+V+X+Y+Z)+do+(%0A++++if+exist+%25%25d%3A%5Csources%5Cinstall.wim+set+%22IMAGE_FILE%3D%25%25d%3A%5Csources%5Cinstall.wim%22%0A++++if+exist+%25%25d%3A%5Csources%5Cinstall.esd+set+%22IMAGE_FILE%3D%25%25d%3A%5Csources%5Cinstall.esd%22%0A++++if+exist+%25%25d%3A%5Csources%5Cinstall.swm+set+%22IMAGE_FILE%3D%25%25d%3A%5Csources%5Cinstall.swm%22+%26+set+%22SWM_PARAM%3D%2FSWMFile%3A%25%25d%3A%5Csources%5Cinstall*.swm%22%0A++++if+exist+%25%25d%3A%5Cautounattend.xml+set+%22XML_FILE%3D%25%25d%3A%5Cautounattend.xml%22%0A++++if+exist+%25%25d%3A%5C$OEM$+set+%22OEM_FOLDER%3D%25%25d%3A%5C$OEM$%22%0A++++if+exist+%25%25d%3A%5C$WinPEDriver$+set+%22PEDRIVERS_FOLDER%3D%25%25d%3A%5C$WinPEDriver$%22%0A)%0Afor+%2Ff+%22tokens%3D3%22+%25%25t+in+(%27reg.exe+query+HKLM%5CSystem%5CSetup+%2Fv+UnattendFile+2%5E%3Enul%27)+do+(+if+exist+%25%25t+set+%22XML_FILE%3D%25%25t%22+)%0Aif+not+defined+IMAGE_FILE+call+%3Afail+%22Could+not+locate+install.wim,+install.esd+or+install.swm.%22%0Aif+not+defined+XML_FILE+call+%3Afail+%22Could+not+locate+autounattend.xml.%22%0A%0Aset+%22OS_VERSION%3D11%22%0Afor+%2Ff+%22tokens%3D3+delims%3D.%22+%25%25v+in+(%27ver%27)+do+(%0A++++if+%25%25v+LSS+20000+set+%22OS_VERSION%3D10%22%0A)%0A%0Aif+defined+PEDRIVERS_FOLDER+(%0A++++call+%3Aprint+%22Loading+drivers+from+%25PEDRIVERS_FOLDER%25%22%0A++++for+%2FR+%25PEDRIVERS_FOLDER%25+%25%25f+IN+(*.inf)+do+drvload.exe+%22%25%25f%22%0A)%0A%0A%3EX%3A%5Ctarget.vbs+(%0A++++echo%3AFunction+Fail(message%5E)%0A++++echo%3AWScript.Echo+message%0A++++echo%3AWScript.Quit+1%0A++++echo%3AEnd+Function%0A++++echo%3AOn+Error+Resume+Next%0A++++echo%3ASet+wmi+%3D+GetObject(%5E%22winmgmts%3A%5C%5C.%5Croot%5Ccimv2%5E%22%5E)%0A++++echo%3ASet+drives+%3D+wmi.InstancesOf(%5E%22Win32_DiskDrive%5E%22%5E)%0A++++echo%3AIf+Err.Number+%5E%3C%5E%3E+0+Then%0A++++echo%3AFail+%5E%22Could+not+enumerate+disks%3A+%5E%22+%5E%26+Err.Description%0A++++echo%3AEnd+If%0A++++echo%3ASet+accepted+%3D+CreateObject(%5E%22Scripting.Dictionary%5E%22%5E)%0A++++echo%3AFor+Each+drive+In+drives%0A++++echo%3Aaccept+%3D+True%0A++++echo%3Aactual+%3D+CInt(drive.Size+%2F+1024+%2F+1024+%2F+1024%5E)%0A++++echo%3Aexpected+%3D+100%0A++++echo%3AIf+actual+%5E%3C+expected+Then%0A++++echo%3Aaccept+%3D+False%0A++++echo%3AEnd+If%0A++++echo%3Aactual+%3D+CInt(drive.Size+%2F+1024+%2F+1024+%2F+1024%5E)%0A++++echo%3Aexpected+%3D+4000%0A++++echo%3AIf+actual+%5E%3E+expected+Then%0A++++echo%3Aaccept+%3D+False%0A++++echo%3AEnd+If%0A++++echo%3Aactual+%3D+drive.Index%0A++++echo%3Aexpected+%3D+0%0A++++echo%3AIf+actual+%5E%3C%5E%3E+expected+Then%0A++++echo%3Aaccept+%3D+False%0A++++echo%3AEnd+If%0A++++echo%3Aactual+%3D+drive.Partitions%0A++++echo%3AIf+actual+%5E%3E+0+Then%0A++++echo%3Aaccept+%3D+False%0A++++echo%3AEnd+If%0A++++echo%3AIf+accept+Then%0A++++echo%3Aaccepted.Add+drive.Index,+%5E%22%5E%22%0A++++echo%3AEnd+If%0A++++echo%3ANext%0A++++echo%3AIf+accepted.Count+%3D+0+Then%0A++++echo%3AFail+%5E%22No+disk+satisfied+the+given+criteria.%5E%22%0A++++echo%3AElseIf+accepted.Count+%5E%3E+1+Then%0A++++echo%3AFail+%5E%22Several+disks+(%5E%22+%5E%26+Join(accepted.Keys,+%5E%22,+%5E%22%5E)+%5E%26+%5E%22%5E)+satisfied+the+given+criteria.%5E%22%0A++++echo%3AElse%0A++++echo%3AWScript.Echo+Join(accepted.Keys%5E)%0A++++echo%3AWScript.Quit+0%0A++++echo%3AEnd+If%0A)%0A%0Acall+%3Aprint+%22Determining+target+disk%22%0A(cscript.exe+%2F%2FE%3Avbscript+%22X%3A%5Ctarget.vbs%22+%2F%2FNologo+%3EX%3A%5Ctarget.out)+%7C%7C+(type+X%3A%5Ctarget.out+%26+call+%3Afail+%22Could+not+determine+target+disk.+Windows+Setup+will+halt+to+avoid+potential+data+loss.%22)%0Afor+%2Ff+%25%25t+in+(X%3A%5Ctarget.out)+do+set+%22TARGET_DISK%3D%25%25t%22%0A%0Awpeutil.exe+UpdateBootInfo%0Afor+%2Ff+%22tokens%3D3%22+%25%25t+in+(%27reg.exe+query+HKLM%5CSystem%5CCurrentControlSet%5CControl+%2Fv+PEFirmwareType%27)+do+(%0A++++if+%25%25t+%3D%3D+0x1+(%0A++++++++set+%22LAYOUT%3DMBR%22%0A++++++++set+%22FIRMWARE%3DBIOS%22%0A++++)+else+if+%25%25t+%3D%3D+0x2+(%0A++++++++set+%22LAYOUT%3DGPT%22%0A++++++++set+%22FIRMWARE%3DUEFI%22%0A++++)+else+(%0A++++++++call+%3Afail+%22Unexpected+PEFirmwareType+value+%25%25t.%22%0A++++)%0A)%0Acall+%3Aprint+%22The+computer+is+booted+in+%25FIRMWARE%25+mode,+hence+the+target+disk+must+be+configured+with+the+%25LAYOUT%25+partition+layout%22%0A%3EX%3A%5CGPT.txt+(%0A++++echo%3ASELECT+DISK%3D%25TARGET_DISK%25%0A++++echo%3ACLEAN%0A++++echo%3ACONVERT+GPT%0A++++echo%3ACREATE+PARTITION+EFI+SIZE%3D300%0A++++echo%3AFORMAT+QUICK+FS%3DFAT32+LABEL%3D%22System%22%0A++++echo%3AASSIGN+LETTER%3DS%0A++++echo%3ACREATE+PARTITION+MSR+SIZE%3D16%0A++++echo%3ACREATE+PARTITION+PRIMARY%0A++++echo%3ASHRINK+MINIMUM%3D1000%0A++++echo%3AFORMAT+QUICK+FS%3DNTFS+LABEL%3D%22Windows%22%0A++++echo%3AASSIGN+LETTER%3DW%0A++++echo%3ACREATE+PARTITION+PRIMARY%0A++++echo%3AFORMAT+QUICK+FS%3DNTFS+LABEL%3D%22Recovery%22%0A++++echo%3AASSIGN+LETTER%3DR%0A++++echo%3ASET+ID%3D%22de94bba4-06d1-4d40-a16a-bfd50179d6ac%22%0A++++echo%3AGPT+ATTRIBUTES%3D0x8000000000000001%0A)%0A%0A%3EX%3A%5CMBR.txt+(%0A++++echo%3ASELECT+DISK%3D%25TARGET_DISK%25%0A++++echo%3ACLEAN%0A++++echo%3ACREATE+PARTITION+PRIMARY+SIZE%3D300%0A++++echo%3AFORMAT+QUICK+FS%3DNTFS+LABEL%3D%22System%22%0A++++echo%3AASSIGN+LETTER%3DS%0A++++echo%3AACTIVE%0A++++echo%3ACREATE+PARTITION+PRIMARY%0A++++echo%3ASHRINK+MINIMUM%3D1000%0A++++echo%3AFORMAT+QUICK+FS%3DNTFS+LABEL%3D%22Windows%22%0A++++echo%3AASSIGN+LETTER%3DW%0A++++echo%3ACREATE+PARTITION+PRIMARY%0A++++echo%3AFORMAT+QUICK+FS%3DNTFS+LABEL%3D%22Recovery%22%0A++++echo%3AASSIGN+LETTER%3DR%0A++++echo%3ASET+ID%3D27%0A)%0A%0Acall+%3Aprint+%22diskpart+will+now+wipe,+partition+and+format+disk+%25TARGET_DISK%25%22%0Adiskpart.exe+%2Fs+X%3A%5C%25LAYOUT%25.txt+%7C%7C+call+%3Afail+%22diskpart.exe+encountered+an+error.%22%0A%0Aset+%22IMG_PARAM%3D%2FName%3A%22Windows+%25OS_VERSION%25+Pro%22%22%0Acall+%3Aprint+%22Applying+Windows+image+to+target+disk%22%0Adism.exe+%2FApply-Image+%2FImageFile%3A%25IMAGE_FILE%25+%25SWM_PARAM%25+%25IMG_PARAM%25+%2FApplyDir%3AW%3A%5C+%2FCheckIntegrity+%2FVerify+%7C%7C+call+%3Afail+%22dism.exe+encountered+an+error.%22%0A%0Acall+%3Aprint+%22Making+system+partition+bootable%22%0Abcdboot.exe+W%3A%5CWindows+%2Fs+S%3A+%7C%7C+call+%3Afail+%22bcdboot.exe+encountered+an+error.%22%0Aif+%25LAYOUT%25+%3D%3D+GPT+(%0A++++bcdedit.exe+%2Fset+%7Bfwbootmgr%7D+bootsequence+%7Bbootmgr%7D+%7C%7C+call+%3Afail+%22bcdedit.exe+encountered+an+error.%22%0A)%0A%0Acall+%3Aprint+%22Copying+answer+file+to+target+disk%22%0Amkdir+W%3A%5CWindows%5CPanther%0Acopy+%25XML_FILE%25+W%3A%5CWindows%5CPanther%5Cunattend.xml%0A%0Aif+defined+PEDRIVERS_FOLDER+(%0A++++call+%3Aprint+%22Adding+drivers+from+%25PEDRIVERS_FOLDER%25+to+new+installation%22%0A++++dism.exe+%2FAdd-Driver+%2FImage%3AW%3A%5C+%2FDriver%3A%22%25PEDRIVERS_FOLDER%25%22+%2FRecurse%0A)%0A%0Acall+%3Aprint+%22Disabling+8.3+file+names%22%0Afsutil.exe+8dot3name+set+W%3A+1%0Afsutil.exe+8dot3name+strip+%2Fs+%2Ff+W%3A%5C%0Areg.exe+LOAD+HKLM%5Cmount+W%3A%5CWindows%5CSystem32%5Cconfig%5CSYSTEM%0Areg.exe+ADD+HKLM%5Cmount%5CControlSet001%5CControl%5CFileSystem+%2Fv+NtfsDisable8dot3NameCreation+%2Ft+REG_DWORD+%2Fd+1+%2Ff%0Areg.exe+UNLOAD+HKLM%5Cmount%0A%0Acall+%3Aprint+%22Disabling+Windows+Defender%22%0Areg.exe+LOAD+HKLM%5Cmount+W%3A%5CWindows%5CSystem32%5Cconfig%5CSYSTEM%0Afor+%25%25s+in+(Sense+WdBoot+WdFilter+WdNisDrv+WdNisSvc+WinDefend)+do+reg.exe+ADD+HKLM%5Cmount%5CControlSet001%5CServices%5C%25%25s+%2Fv+Start+%2Ft+REG_DWORD+%2Fd+4+%2Ff%0Areg.exe+UNLOAD+HKLM%5Cmount%0A%0Acall+%3Aprint+%22Setting+device+setup+region+to+United+States+(GeoID+244)%22%0Areg.exe+LOAD+HKLM%5Cmount+W%3A%5CWindows%5CSystem32%5Cconfig%5CSOFTWARE%0Areg.exe+ADD+%22HKLM%5Cmount%5CMicrosoft%5CWindows%5CCurrentVersion%5CControl+Panel%5CDeviceRegion%22+%2Fv+DeviceRegion+%2Ft+REG_DWORD+%2Fd+244+%2Ff%0Areg.exe+UNLOAD+HKLM%5Cmount%0A%0Aset+%22ROBOCOPY_ARGS%3D%2FE+%2FXX+%2FCOPY%3ADAT+%2FDCOPY%3ADAT+%2FR%3A0%22%0Aif+defined+OEM_FOLDER+(%0A++++call+%3Aprint+%22Copying+contents+of+%25OEM_FOLDER%25%22%0A++++if+exist+%22%25OEM_FOLDER%25%5C$$%22+robocopy.exe+%22%25OEM_FOLDER%25%5C$$%22+W%3A%5CWindows+%25ROBOCOPY_ARGS%25%0A++++if+exist+%22%25OEM_FOLDER%25%5C$1%22+robocopy.exe+%22%25OEM_FOLDER%25%5C$1%22+W%3A%5C+%25ROBOCOPY_ARGS%25%0A++++for+%25%25d+in+(C+D+E+F+G+H+I+J+K+L+M+N+O+P+Q+R+S+T+U+V+W+X+Y+Z)+do+(%0A++++++++if+exist+%22%25OEM_FOLDER%25%5C%25%25d%22+robocopy.exe+%22%25OEM_FOLDER%25%5C%25%25d%22+%25%25d%3A%5C+%25ROBOCOPY_ARGS%25%0A++++)%0A)%0A%0Acall+%3Aprint+%22Computer+will+now+reboot%22%0Awpeutil.exe+reboot%0Agoto+%3Aeof%0A%0A%3Afail%0Aecho%3A%0Aecho%3AFatal+error%3A+%25~1%0Aecho%3A%0Apause%0Aexit+1%0A%0A%3Aprint%0Aecho%3A%0Aecho%3A***+%25~1+***%0Aecho%3A%0Agoto+%3Aeof&ComputerNameScript=return+%27DESKTOP-%7B0%3AD3%7D%27+-f+(+Get-Random+-Minimum+0+-Maximum+999+);&TaskbarIconsXml=%3CLayoutModificationTemplate+xmlns%3D%22http%3A%2F%2Fschemas.microsoft.com%2FStart%2F2014%2FLayoutModification%22+xmlns%3Adefaultlayout%3D%22http%3A%2F%2Fschemas.microsoft.com%2FStart%2F2014%2FFullDefaultLayout%22+xmlns%3Astart%3D%22http%3A%2F%2Fschemas.microsoft.com%2FStart%2F2014%2FStartLayout%22+xmlns%3Ataskbar%3D%22http%3A%2F%2Fschemas.microsoft.com%2FStart%2F2014%2FTaskbarLayout%22+Version%3D%221%22%3E%0A++%3CCustomTaskbarLayoutCollection+PinListPlacement%3D%22Replace%22%3E%0A++++%3Cdefaultlayout%3ATaskbarLayout%3E%0A++++++%3Ctaskbar%3ATaskbarPinList%3E%0A++++++++%3Ctaskbar%3ADesktopApp+DesktopApplicationID%3D%22Microsoft.Windows.Explorer%22+%2F%3E%0A++++++++%3Ctaskbar%3AUWA+AppUserModelID%3D%22windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel%22+%2F%3E%0A++++++++%3Ctaskbar%3ADesktopApp+DesktopApplicationLinkPath%3D%22%25APPDATA%25%5CMicrosoft%5CWindows%5CStart+Menu%5CPrograms%5CWindows+PowerShell%5CWindows+PowerShell.lnk%22+%2F%3E%0A++++++%3C%2Ftaskbar%3ATaskbarPinList%3E%0A++++%3C%2Fdefaultlayout%3ATaskbarLayout%3E%0A++%3C%2FCustomTaskbarLayoutCollection%3E%0A%3C%2FLayoutModificationTemplate%3E&StartTilesXml=%3CLayoutModificationTemplate+xmlns%3Adefaultlayout%3D%22http%3A%2F%2Fschemas.microsoft.com%2FStart%2F2014%2FFullDefaultLayout%22+xmlns%3Astart%3D%22http%3A%2F%2Fschemas.microsoft.com%2FStart%2F2014%2FStartLayout%22+Version%3D%221%22+xmlns%3D%22http%3A%2F%2Fschemas.microsoft.com%2FStart%2F2014%2FLayoutModification%22%3E%0A++%3CLayoutOptions+StartTileGroupCellWidth%3D%226%22+%2F%3E%0A++%3CDefaultLayoutOverride%3E%0A++++%3CStartLayoutCollection%3E%0A++++++%3Cdefaultlayout%3AStartLayout+GroupCellWidth%3D%226%22%3E%0A++++++++%3Cstart%3AGroup+Name%3D%22%22%3E%0A++++++++++%3Cstart%3ATile+Size%3D%222x2%22+Column%3D%224%22+Row%3D%220%22+AppUserModelID%3D%22windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel%22+%2F%3E%0A++++++++++%3Cstart%3ADesktopApplicationTile+Size%3D%222x2%22+Column%3D%220%22+Row%3D%220%22+DesktopApplicationLinkPath%3D%22%25ALLUSERSPROFILE%25%5CMicrosoft%5CWindows%5CStart+Menu%5CPrograms%5CMicrosoft+Edge.lnk%22+%2F%3E%0A++++++++++%3Cstart%3ADesktopApplicationTile+Size%3D%222x2%22+Column%3D%222%22+Row%3D%220%22+DesktopApplicationLinkPath%3D%22%25APPDATA%25%5CMicrosoft%5CWindows%5CStart+Menu%5CPrograms%5CSystem+Tools%5CFile+Explorer.lnk%22+%2F%3E%0A++++++++%3C%2Fstart%3AGroup%3E%0A++++++%3C%2Fdefaultlayout%3AStartLayout%3E%0A++++%3C%2FStartLayoutCollection%3E%0A++%3C%2FDefaultLayoutOverride%3E%0A%3C%2FLayoutModificationTemplate%3E&StartPinsJson=%7B%0A++%22pinnedList%22%3A+%5B%0A++++%7B%0A++++++%22desktopAppLink%22%3A+%22%25ALLUSERSPROFILE%25%5C%5CMicrosoft%5C%5CWindows%5C%5CStart+Menu%5C%5CPrograms%5C%5CMicrosoft+Edge.lnk%22%0A++++%7D,%0A++++%7B%0A++++++%22desktopAppLink%22%3A+%22%25APPDATA%25%5C%5CMicrosoft%5C%5CWindows%5C%5CStart+Menu%5C%5CPrograms%5C%5CFile+Explorer.lnk%22%0A++++%7D,%0A++++%7B%0A++++++%22packagedAppId%22%3A+%22windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel%22%0A++++%7D%0A++%5D%0A%7D&WifiProfileXml=%3CWLANProfile+xmlns%3D%22http%3A%2F%2Fwww.microsoft.com%2Fnetworking%2FWLAN%2Fprofile%2Fv1%22%3E%0A++%3Cname%3EWLAN-123456%3C%2Fname%3E%0A++%3CSSIDConfig%3E%0A++++%3CSSID%3E%0A++++++%3Chex%3E574C414E2D313233343536%3C%2Fhex%3E%0A++++++%3Cname%3EWLAN-123456%3C%2Fname%3E%0A++++%3C%2FSSID%3E%0A++++%3CnonBroadcast%3Etrue%3C%2FnonBroadcast%3E%0A++%3C%2FSSIDConfig%3E%0A++%3CconnectionType%3EESS%3C%2FconnectionType%3E%0A++%3CconnectionMode%3Eauto%3C%2FconnectionMode%3E%0A++%3CMSM%3E%0A++++%3Csecurity%3E%0A++++++%3CauthEncryption%3E%0A++++++++%3Cauthentication%3EWPA3SAE%3C%2Fauthentication%3E%0A++++++++%3Cencryption%3EAES%3C%2Fencryption%3E%0A++++++++%3CuseOneX%3Efalse%3C%2FuseOneX%3E%0A++++++++%3CtransitionMode+xmlns%3D%22http%3A%2F%2Fwww.microsoft.com%2Fnetworking%2FWLAN%2Fprofile%2Fv4%22%3Etrue%3C%2FtransitionMode%3E%0A++++++%3C%2FauthEncryption%3E%0A++++++%3CsharedKey%3E%0A++++++++%3CkeyType%3EpassPhrase%3C%2FkeyType%3E%0A++++++++%3Cprotected%3Efalse%3C%2Fprotected%3E%0A++++++++%3CkeyMaterial%3Epassword%3C%2FkeyMaterial%3E%0A++++++%3C%2FsharedKey%3E%0A++++%3C%2Fsecurity%3E%0A++%3C%2FMSM%3E%0A%3C%2FWLANProfile%3E&WallpaperScript=%23+Photo+by+Benjamin+Voros+on+Unsplash.+See+https%3A%2F%2Funsplash.com%2Fphotos%2Fsnow-mountain-under-stars-phIFdC6lA4E+for+more+info.%0A$url+%3D+%27https%3A%2F%2Fimages.unsplash.com%2Fphoto-1519681393784-d120267933ba%3Fw%3D2400%27;%0A%26+%7B%0A++++$ProgressPreference+%3D+%27SilentlyContinue%27;%0A++++(+Invoke-WebRequest+-Uri+$url+-UseBasicParsing+-TimeoutSec+30+).Content;%0A%7D;&LockScreenScript=foreach(+$drive+in+%5BSystem.IO.DriveInfo%5D%3A%3AGetDrives()+)+%7B%0A++++if(+$found+%3D+Join-Path+-Path+$drive.RootDirectory+-ChildPath+%27lockscreen.png%27+-Resolve+-ErrorAction+%27SilentlyContinue%27+)+%7B%0A++++++++return+%5BSystem.IO.File%5D%3A%3AReadAllBytes(+$found+);%0A++++%7D%0A%7D%0A%27Cannot+find+any+files+that+match+pattern.%27+%7C+Write-Warning;&SystemScript0=&SystemScript1=&SystemScript2=&SystemScript3=&SystemScript4=&SystemScript5=&SystemScript6=&SystemScript7=&SystemScript8=&SystemScript9=&SystemScript10=&SystemScript11=&SystemScript12=&SystemScript13=&SystemScript14=&DefaultUserScript0=&DefaultUserScript1=&DefaultUserScript2=&DefaultUserScript3=&DefaultUserScript4=&DefaultUserScript5=&DefaultUserScript6=&DefaultUserScript7=&DefaultUserScript8=&DefaultUserScript9=&DefaultUserScript10=&DefaultUserScript11=&DefaultUserScript12=&DefaultUserScript13=&DefaultUserScript14=&FirstLogonScript0=&FirstLogonScript1=&FirstLogonScript2=&FirstLogonScript3=&FirstLogonScript4=&FirstLogonScript5=&FirstLogonScript6=&FirstLogonScript7=&FirstLogonScript8=&FirstLogonScript9=&FirstLogonScript10=&FirstLogonScript11=&FirstLogonScript12=&FirstLogonScript13=&FirstLogonScript14=&UserOnceScript0=&UserOnceScript1=&UserOnceScript2=&UserOnceScript3=&UserOnceScript4=&UserOnceScript5=&UserOnceScript6=&UserOnceScript7=&UserOnceScript8=&UserOnceScript9=&UserOnceScript10=&UserOnceScript11=&UserOnceScript12=&UserOnceScript13=&UserOnceScript14=&AppLockerPolicyXml=%3CAppLockerPolicy+Version%3D%221%22%3E%0A++%3CRuleCollection+Type%3D%22Appx%22+EnforcementMode%3D%22Enabled%22%3E%0A++++%3CFilePublisherRule+Id%3D%2230591721-b29c-457d-b083-243f87b3527d%22+Name%3D%22All+signed+packaged+apps%22+Description%3D%22Allows+members+of+the+Everyone+group+to+run+packaged+apps+that+are+signed.%22+UserOrGroupSid%3D%22S-1-1-0%22+Action%3D%22Allow%22%3E%0A++++++%3CConditions%3E%0A++++++++%3CFilePublisherCondition+PublisherName%3D%22*%22+ProductName%3D%22*%22+BinaryName%3D%22*%22%3E%0A++++++++++%3CBinaryVersionRange+LowSection%3D%220.0.0.0%22+HighSection%3D%22*%22+%2F%3E%0A++++++++%3C%2FFilePublisherCondition%3E%0A++++++%3C%2FConditions%3E%0A++++%3C%2FFilePublisherRule%3E%0A++%3C%2FRuleCollection%3E%0A++%3CRuleCollection+Type%3D%22Dll%22+EnforcementMode%3D%22NotConfigured%22+%2F%3E%0A++%3CRuleCollection+Type%3D%22Exe%22+EnforcementMode%3D%22Enabled%22%3E%0A++++%3CFilePathRule+Id%3D%22921cc481-6e17-4653-8f75-050b80acca20%22+Name%3D%22(Default+Rule)+All+files+located+in+the+Program+Files+folder%22+Description%3D%22Allows+members+of+the+Everyone+group+to+run+applications+that+are+located+in+the+Program+Files+folder.%22+UserOrGroupSid%3D%22S-1-1-0%22+Action%3D%22Allow%22%3E%0A++++++%3CConditions%3E%0A++++++++%3CFilePathCondition+Path%3D%22%25PROGRAMFILES%25%5C*%22+%2F%3E%0A++++++%3C%2FConditions%3E%0A++++%3C%2FFilePathRule%3E%0A++++%3CFilePathRule+Id%3D%22a61c8b2c-a319-4cd0-9690-d2177cad7b51%22+Name%3D%22(Default+Rule)+All+files+located+in+the+Windows+folder%22+Description%3D%22Allows+members+of+the+Everyone+group+to+run+applications+that+are+located+in+the+Windows+folder.%22+UserOrGroupSid%3D%22S-1-1-0%22+Action%3D%22Allow%22%3E%0A++++++%3CConditions%3E%0A++++++++%3CFilePathCondition+Path%3D%22%25WINDIR%25%5C*%22+%2F%3E%0A++++++%3C%2FConditions%3E%0A++++%3C%2FFilePathRule%3E%0A++++%3CFilePathRule+Id%3D%22fd686d83-a829-4351-8ff4-27c7de5755d2%22+Name%3D%22(Default+Rule)+All+files%22+Description%3D%22Allows+members+of+the+local+Administrators+group+to+run+all+applications.%22+UserOrGroupSid%3D%22S-1-5-32-544%22+Action%3D%22Allow%22%3E%0A++++++%3CConditions%3E%0A++++++++%3CFilePathCondition+Path%3D%22*%22+%2F%3E%0A++++++%3C%2FConditions%3E%0A++++%3C%2FFilePathRule%3E%0A++%3C%2FRuleCollection%3E%0A++%3CRuleCollection+Type%3D%22Msi%22+EnforcementMode%3D%22Enabled%22%3E%0A++++%3CFilePathRule+Id%3D%225b290184-345a-4453-b184-45305f6d9a54%22+Name%3D%22(Default+Rule)+All+Windows+Installer+files+in+%25systemdrive%25%5CWindows%5CInstaller%22+Description%3D%22Allows+members+of+the+Everyone+group+to+run+all+Windows+Installer+files+located+in+%25systemdrive%25%5CWindows%5CInstaller.%22+UserOrGroupSid%3D%22S-1-1-0%22+Action%3D%22Allow%22%3E%0A++++++%3CConditions%3E%0A++++++++%3CFilePathCondition+Path%3D%22%25WINDIR%25%5CInstaller%5C*%22+%2F%3E%0A++++++%3C%2FConditions%3E%0A++++%3C%2FFilePathRule%3E%0A++++%3CFilePathRule+Id%3D%2264ad46ff-0d71-4fa0-a30b-3f3d30c5433d%22+Name%3D%22(Default+Rule)+All+Windows+Installer+files%22+Description%3D%22Allows+members+of+the+local+Administrators+group+to+run+all+Windows+Installer+files.%22+UserOrGroupSid%3D%22S-1-5-32-544%22+Action%3D%22Allow%22%3E%0A++++++%3CConditions%3E%0A++++++++%3CFilePathCondition+Path%3D%22*.*%22+%2F%3E%0A++++++%3C%2FConditions%3E%0A++++%3C%2FFilePathRule%3E%0A++%3C%2FRuleCollection%3E%0A++%3CRuleCollection+Type%3D%22Script%22+EnforcementMode%3D%22Enabled%22%3E%0A++++%3CFilePathRule+Id%3D%2206dce67b-934c-454f-a263-2515c8796a5d%22+Name%3D%22(Default+Rule)+All+scripts+located+in+the+Program+Files+folder%22+Description%3D%22Allows+members+of+the+Everyone+group+to+run+scripts+that+are+located+in+the+Program+Files+folder.%22+UserOrGroupSid%3D%22S-1-1-0%22+Action%3D%22Allow%22%3E%0A++++++%3CConditions%3E%0A++++++++%3CFilePathCondition+Path%3D%22%25PROGRAMFILES%25%5C*%22+%2F%3E%0A++++++%3C%2FConditions%3E%0A++++%3C%2FFilePathRule%3E%0A++++%3CFilePathRule+Id%3D%229428c672-5fc3-47f4-808a-a0011f36dd2c%22+Name%3D%22(Default+Rule)+All+scripts+located+in+the+Windows+folder%22+Description%3D%22Allows+members+of+the+Everyone+group+to+run+scripts+that+are+located+in+the+Windows+folder.%22+UserOrGroupSid%3D%22S-1-1-0%22+Action%3D%22Allow%22%3E%0A++++++%3CConditions%3E%0A++++++++%3CFilePathCondition+Path%3D%22%25WINDIR%25%5C*%22+%2F%3E%0A++++++%3C%2FConditions%3E%0A++++%3C%2FFilePathRule%3E%0A++++%3CFilePathRule+Id%3D%22ed97d0cb-15ff-430f-b82c-8d7832957725%22+Name%3D%22(Default+Rule)+All+scripts%22+Description%3D%22Allows+members+of+the+local+Administrators+group+to+run+all+scripts.%22+UserOrGroupSid%3D%22S-1-5-32-544%22+Action%3D%22Allow%22%3E%0A++++++%3CConditions%3E%0A++++++++%3CFilePathCondition+Path%3D%22*%22+%2F%3E%0A++++++%3C%2FConditions%3E%0A++++%3C%2FFilePathRule%3E%0A++%3C%2FRuleCollection%3E%0A%3C%2FAppLockerPolicy%3E&ComponentContent0=&ComponentContent1=&ComponentContent2=&ComponentContent3=&ComponentContent4=&ComponentContent5=&ComponentContent6=&ComponentContent7=&ComponentContent8=&ComponentContent9=&ComponentContent10=&ComponentContent11=&ComponentContent12=&ComponentContent13=&ComponentContent14=&ExpressSettings=Interactive&WindowsEditionMode=Interactive&WifiMode=Interactive&InstallFromName=Windows+11+Pro&ComputerNameMode=Random&PartitionMode=Custom&TimeZoneMode=Implicit&AccountName1=&UserAccountMode=Interactive&LockoutMode=Default&PagingFileMode=Automatic&DiskpartScript=SELECT+DISK%3D0%0D%0ACLEAN%0D%0ACONVERT+GPT%0D%0ACREATE+PARTITION+EFI+SIZE%3D300%0D%0AFORMAT+QUICK+FS%3DFAT32%0D%0AASSIGN+LETTER%3DS%0D%0ACREATE+PARTITION+MSR+SIZE%3D16%0D%0ACREATE+PARTITION+PRIMARY%0D%0AFORMAT+QUICK+FS%3DNTFS%0D%0AASSIGN+LETTER%3DW&ProcessorArchitecture=amd64&PEMode=Generated&LanguageMode=Interactive&PasswordExpirationMode=Default&InstallFromMode=Name&UseActivationKey=True-->
+	<settings pass="offlineServicing"></settings>
+	<settings pass="windowsPE">
+		<component name="Microsoft-Windows-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+			<RunSynchronous>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>1</Order>
+					<Path>cmd.exe /c &gt;&gt;X:\pe.cmd (echo:@echo off&amp;echo:for ^%^%d in (C D E F G H I J K L M N O P Q T U V X Y Z^) do (&amp;echo:if exist ^%^%d:\sources\install.wim set ^"IMAGE_FILE=^%^%d:\sources\install.wim^")</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>2</Order>
+					<Path>cmd.exe /c &gt;&gt;X:\pe.cmd (echo:if exist ^%^%d:\sources\install.esd set ^"IMAGE_FILE=^%^%d:\sources\install.esd^")</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>3</Order>
+					<Path>cmd.exe /c &gt;&gt;X:\pe.cmd (echo:if exist ^%^%d:\sources\install.swm set ^"IMAGE_FILE=^%^%d:\sources\install.swm^" ^&amp; set ^"SWM_PARAM=/SWMFile:^%^%d:\sources\install*.swm^"&amp;echo:if exist ^%^%d:\autounattend.xml set ^"XML_FILE=^%^%d:\autounattend.xml^")</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>4</Order>
+					<Path>cmd.exe /c &gt;&gt;X:\pe.cmd (echo:if exist ^%^%d:\$OEM$ set ^"OEM_FOLDER=^%^%d:\$OEM$^"&amp;echo:if exist ^%^%d:\$WinPEDriver$ set ^"PEDRIVERS_FOLDER=^%^%d:\$WinPEDriver$^"&amp;echo:^))</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>5</Order>
+					<Path>cmd.exe /c &gt;&gt;X:\pe.cmd (echo:for /f ^"tokens=3^" ^%^%t in ('reg.exe query HKLM\System\Setup /v UnattendFile 2^^^&gt;nul'^) do ( if exist ^%^%t set ^"XML_FILE=^%^%t^" ^))</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>6</Order>
+					<Path>cmd.exe /c &gt;&gt;X:\pe.cmd (echo:if not defined IMAGE_FILE call :fail ^"Could not locate install.wim, install.esd or install.swm.^"&amp;echo:if not defined XML_FILE call :fail ^"Could not locate autounattend.xml.^"&amp;echo:set ^"OS_VERSION=11^")</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>7</Order>
+					<Path>cmd.exe /c &gt;&gt;X:\pe.cmd (echo:for /f ^"tokens=3 delims=.^" ^%^%v in ('ver'^) do (&amp;echo:if ^%^%v LSS 20000 set ^"OS_VERSION=10^"&amp;echo:^)&amp;echo:if defined PEDRIVERS_FOLDER (&amp;echo:call :print ^"Loading drivers from ^%PEDRIVERS_FOLDER^%^")</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>8</Order>
+					<Path>cmd.exe /c &gt;&gt;X:\pe.cmd (echo:for /R ^%PEDRIVERS_FOLDER^% ^%^%f IN (*.inf^) do drvload.exe ^"^%^%f^"&amp;echo:^)&amp;echo:wpeutil.exe UpdateBootInfo&amp;echo:for /f ^"tokens=3^" ^%^%t in ('reg.exe query HKLM\System\CurrentControlSet\Control /v PEFirmwareType'^) do ()</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>9</Order>
+					<Path>cmd.exe /c &gt;&gt;X:\pe.cmd (echo:if ^%^%t == 0x1 (&amp;echo:set ^"LAYOUT=MBR^"&amp;echo:set ^"FIRMWARE=BIOS^"&amp;echo:^) else if ^%^%t == 0x2 (&amp;echo:set ^"LAYOUT=GPT^"&amp;echo:set ^"FIRMWARE=UEFI^"&amp;echo:^) else (&amp;echo:call :fail ^"Unexpected PEFirmwareType value ^%^%t.^")</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>10</Order>
+					<Path>cmd.exe /c &gt;&gt;X:\pe.cmd (echo:^)&amp;echo:^)&amp;echo:call :print ^"The computer is booted in ^%FIRMWARE^% mode, hence the target disk must be configured with the ^%LAYOUT^% partition layout^"&amp;echo:^&gt;X:\diskpart.txt (&amp;echo:echo:SELECT DISK=0&amp;echo:echo:CLEAN)</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>11</Order>
+					<Path>cmd.exe /c &gt;&gt;X:\pe.cmd (echo:echo:CONVERT GPT&amp;echo:echo:CREATE PARTITION EFI SIZE=300&amp;echo:echo:FORMAT QUICK FS=FAT32&amp;echo:echo:ASSIGN LETTER=S&amp;echo:echo:CREATE PARTITION MSR SIZE=16&amp;echo:echo:CREATE PARTITION PRIMARY&amp;echo:echo:FORMAT QUICK FS=NTFS)</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>12</Order>
+					<Path>cmd.exe /c &gt;&gt;X:\pe.cmd (echo:echo:ASSIGN LETTER=W&amp;echo:^)&amp;echo:call :print ^"diskpart will now execute your script^"&amp;echo:diskpart.exe /s X:\diskpart.txt ^|^| call :fail ^"diskpart.exe encountered an error.^")</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>13</Order>
+					<Path>cmd.exe /c &gt;&gt;X:\pe.cmd (echo:set ^"IMG_PARAM=/Name:^"Windows 11 Pro^"^"&amp;echo:call :print ^"Applying Windows image to target disk^")</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>14</Order>
+					<Path>cmd.exe /c &gt;&gt;X:\pe.cmd (echo:dism.exe /Apply-Image /ImageFile:^%IMAGE_FILE^% ^%SWM_PARAM^% ^%IMG_PARAM^% /ApplyDir:W:\ /CheckIntegrity /Verify ^|^| call :fail ^"dism.exe encountered an error.^"&amp;echo:call :print ^"Making system partition bootable^")</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>15</Order>
+					<Path>cmd.exe /c &gt;&gt;X:\pe.cmd (echo:bcdboot.exe W:\Windows /s S: ^|^| call :fail ^"bcdboot.exe encountered an error.^"&amp;echo:if ^%LAYOUT^% == GPT (&amp;echo:bcdedit.exe /set {fwbootmgr} bootsequence {bootmgr} ^|^| call :fail ^"bcdedit.exe encountered an error.^")</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>16</Order>
+					<Path>cmd.exe /c &gt;&gt;X:\pe.cmd (echo:^)&amp;echo:call :print ^"Deleting winre.wim file to avoid creation of recovery partition^"&amp;echo:del W:\Windows\System32\Recovery\winre.wim&amp;echo:call :print ^"Copying answer file to target disk^"&amp;echo:mkdir W:\Windows\Panther)</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>17</Order>
+					<Path>cmd.exe /c &gt;&gt;X:\pe.cmd (echo:copy ^%XML_FILE^% W:\Windows\Panther\unattend.xml&amp;echo:if defined PEDRIVERS_FOLDER (&amp;echo:call :print ^"Adding drivers from ^%PEDRIVERS_FOLDER^% to new installation^")</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>18</Order>
+					<Path>cmd.exe /c &gt;&gt;X:\pe.cmd (echo:dism.exe /Add-Driver /Image:W:\ /Driver:^"^%PEDRIVERS_FOLDER^%^" /Recurse&amp;echo:^)&amp;echo:set ^"ROBOCOPY_ARGS=/E /XX /COPY:DAT /DCOPY:DAT /R:0^"&amp;echo:if defined OEM_FOLDER ()</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>19</Order>
+					<Path>cmd.exe /c &gt;&gt;X:\pe.cmd (echo:call :print ^"Copying contents of ^%OEM_FOLDER^%^"&amp;echo:if exist ^"^%OEM_FOLDER^%\$$^" robocopy.exe ^"^%OEM_FOLDER^%\$$^" W:\Windows ^%ROBOCOPY_ARGS^%)</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>20</Order>
+					<Path>cmd.exe /c &gt;&gt;X:\pe.cmd (echo:if exist ^"^%OEM_FOLDER^%\$1^" robocopy.exe ^"^%OEM_FOLDER^%\$1^" W:\ ^%ROBOCOPY_ARGS^%&amp;echo:for ^%^%d in (C D E F G H I J K L M N O P Q R S T U V W X Y Z^) do ()</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>21</Order>
+					<Path>cmd.exe /c &gt;&gt;X:\pe.cmd (echo:if exist ^"^%OEM_FOLDER^%\^%^%d^" robocopy.exe ^"^%OEM_FOLDER^%\^%^%d^" ^%^%d:\ ^%ROBOCOPY_ARGS^%&amp;echo:^)&amp;echo:^)&amp;echo:call :print ^"Computer will now reboot^"&amp;echo:wpeutil.exe reboot&amp;echo:goto :eof&amp;echo::fail&amp;echo:echo:)</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>22</Order>
+					<Path>cmd.exe /c &gt;&gt;X:\pe.cmd (echo:echo:Fatal error: ^%~1&amp;echo:echo:&amp;echo:pause&amp;echo:exit 1&amp;echo::print&amp;echo:echo:&amp;echo:echo:*** ^%~1 ***&amp;echo:echo:&amp;echo:goto :eof)</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>23</Order>
+					<Path>cmd.exe /c "X:\pe.cmd"</Path>
+				</RunSynchronousCommand>
+			</RunSynchronous>
+		</component>
+	</settings>
+	<settings pass="generalize"></settings>
+	<settings pass="specialize">
+		<component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+			<ProductKey>VK7JG-NPHTM-C97JM-9MPGT-3V66T</ProductKey>
+		</component>
+		<component name="Microsoft-Windows-Deployment" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+			<RunSynchronous>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>1</Order>
+					<Path>powershell.exe -WindowStyle "Normal" -NoProfile -Command "$xml = [xml]::new(); $xml.Load('C:\Windows\Panther\unattend.xml'); $sb = [scriptblock]::Create( $xml.unattend.Extensions.ExtractScript ); Invoke-Command -ScriptBlock $sb -ArgumentList $xml;"</Path>
+				</RunSynchronousCommand>
+			</RunSynchronous>
+		</component>
+	</settings>
+	<settings pass="auditSystem"></settings>
+	<settings pass="auditUser"></settings>
+	<settings pass="oobeSystem">
+		<component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+			<OOBE>
+				<HideEULAPage>true</HideEULAPage>
+				<HideWirelessSetupInOOBE>false</HideWirelessSetupInOOBE>
+				<HideOnlineAccountScreens>false</HideOnlineAccountScreens>
+			</OOBE>
+			<FirstLogonCommands>
+				<SynchronousCommand wcm:action="add">
+					<Order>1</Order>
+					<CommandLine>powershell.exe -WindowStyle "Normal" -ExecutionPolicy "Unrestricted" -NoProfile -File "C:\Windows\Setup\Scripts\FirstLogon.ps1"</CommandLine>
+				</SynchronousCommand>
+			</FirstLogonCommands>
+		</component>
+	</settings>
+	<Extensions xmlns="https://schneegans.de/windows/unattend-generator/">
+		<Build>
+			<Commit>
+				<Hash>82d4ffdd11ea3266f8f3b29d4fcd80f66bfdbaf6</Hash>
+				<GitHubUrl>https://github.com/cschneegans/unattend-generator/commit/82d4ffdd11ea3266f8f3b29d4fcd80f66bfdbaf6</GitHubUrl>
+			</Commit>
+			<PEScriptCopy>
+@echo off
+
+for %%d in (C D E F G H I J K L M N O P Q T U V X Y Z) do (
+    if exist %%d:\sources\install.wim set "IMAGE_FILE=%%d:\sources\install.wim"
+    if exist %%d:\sources\install.esd set "IMAGE_FILE=%%d:\sources\install.esd"
+    if exist %%d:\sources\install.swm set "IMAGE_FILE=%%d:\sources\install.swm" &amp; set "SWM_PARAM=/SWMFile:%%d:\sources\install*.swm"
+    if exist %%d:\autounattend.xml set "XML_FILE=%%d:\autounattend.xml"
+    if exist %%d:\$OEM$ set "OEM_FOLDER=%%d:\$OEM$"
+    if exist %%d:\$WinPEDriver$ set "PEDRIVERS_FOLDER=%%d:\$WinPEDriver$"
+)
+for /f "tokens=3" %%t in ('reg.exe query HKLM\System\Setup /v UnattendFile 2^&gt;nul') do ( if exist %%t set "XML_FILE=%%t" )
+if not defined IMAGE_FILE call :fail "Could not locate install.wim, install.esd or install.swm."
+if not defined XML_FILE call :fail "Could not locate autounattend.xml."
+
+set "OS_VERSION=11"
+for /f "tokens=3 delims=." %%v in ('ver') do (
+    if %%v LSS 20000 set "OS_VERSION=10"
+)
+
+if defined PEDRIVERS_FOLDER (
+    call :print "Loading drivers from %PEDRIVERS_FOLDER%"
+    for /R %PEDRIVERS_FOLDER% %%f IN (*.inf) do drvload.exe "%%f"
+)
+
+wpeutil.exe UpdateBootInfo
+for /f "tokens=3" %%t in ('reg.exe query HKLM\System\CurrentControlSet\Control /v PEFirmwareType') do (
+    if %%t == 0x1 (
+        set "LAYOUT=MBR"
+        set "FIRMWARE=BIOS"
+    ) else if %%t == 0x2 (
+        set "LAYOUT=GPT"
+        set "FIRMWARE=UEFI"
+    ) else (
+        call :fail "Unexpected PEFirmwareType value %%t."
+    )
+)
+call :print "The computer is booted in %FIRMWARE% mode, hence the target disk must be configured with the %LAYOUT% partition layout"
+&gt;X:\diskpart.txt (
+    echo:SELECT DISK=0
+    echo:CLEAN
+    echo:CONVERT GPT
+    echo:CREATE PARTITION EFI SIZE=300
+    echo:FORMAT QUICK FS=FAT32
+    echo:ASSIGN LETTER=S
+    echo:CREATE PARTITION MSR SIZE=16
+    echo:CREATE PARTITION PRIMARY
+    echo:FORMAT QUICK FS=NTFS
+    echo:ASSIGN LETTER=W
+)
+
+call :print "diskpart will now execute your script"
+diskpart.exe /s X:\diskpart.txt || call :fail "diskpart.exe encountered an error."
+
+set "IMG_PARAM=/Name:"Windows 11 Pro""
+call :print "Applying Windows image to target disk"
+dism.exe /Apply-Image /ImageFile:%IMAGE_FILE% %SWM_PARAM% %IMG_PARAM% /ApplyDir:W:\ /CheckIntegrity /Verify || call :fail "dism.exe encountered an error."
+
+call :print "Making system partition bootable"
+bcdboot.exe W:\Windows /s S: || call :fail "bcdboot.exe encountered an error."
+if %LAYOUT% == GPT (
+    bcdedit.exe /set {fwbootmgr} bootsequence {bootmgr} || call :fail "bcdedit.exe encountered an error."
+)
+
+call :print "Deleting winre.wim file to avoid creation of recovery partition"
+del W:\Windows\System32\Recovery\winre.wim
+
+call :print "Copying answer file to target disk"
+mkdir W:\Windows\Panther
+copy %XML_FILE% W:\Windows\Panther\unattend.xml
+
+if defined PEDRIVERS_FOLDER (
+    call :print "Adding drivers from %PEDRIVERS_FOLDER% to new installation"
+    dism.exe /Add-Driver /Image:W:\ /Driver:"%PEDRIVERS_FOLDER%" /Recurse
+)
+
+set "ROBOCOPY_ARGS=/E /XX /COPY:DAT /DCOPY:DAT /R:0"
+if defined OEM_FOLDER (
+    call :print "Copying contents of %OEM_FOLDER%"
+    if exist "%OEM_FOLDER%\$$" robocopy.exe "%OEM_FOLDER%\$$" W:\Windows %ROBOCOPY_ARGS%
+    if exist "%OEM_FOLDER%\$1" robocopy.exe "%OEM_FOLDER%\$1" W:\ %ROBOCOPY_ARGS%
+    for %%d in (C D E F G H I J K L M N O P Q R S T U V W X Y Z) do (
+        if exist "%OEM_FOLDER%\%%d" robocopy.exe "%OEM_FOLDER%\%%d" %%d:\ %ROBOCOPY_ARGS%
+    )
+)
+
+call :print "Computer will now reboot"
+wpeutil.exe reboot
+goto :eof
+
+:fail
+echo:
+echo:Fatal error: %~1
+echo:
+pause
+exit 1
+
+:print
+echo:
+echo:*** %~1 ***
+echo:
+goto :eof
+			</PEScriptCopy>
+		</Build>
+		<ExtractScript>
+param(
+    [xml] $Document
+);
+
+foreach( $file in $Document.unattend.Extensions.File ) {
+    $path = [System.Environment]::ExpandEnvironmentVariables( $file.GetAttribute( 'path' ) );
+    mkdir -Path( $path | Split-Path -Parent ) -ErrorAction 'SilentlyContinue';
+    $encoding = switch( [System.IO.Path]::GetExtension( $path ) ) {
+        { $_ -in '.ps1', '.xml' } { [System.Text.Encoding]::UTF8; }
+        { $_ -in '.reg', '.vbs', '.js' } { [System.Text.UnicodeEncoding]::new( $false, $true ); }
+        default { [System.Text.Encoding]::Default; }
+    };
+    $bytes = $encoding.GetPreamble() + $encoding.GetBytes( $file.InnerText.Trim() );
+    [System.IO.File]::WriteAllBytes( $path, $bytes );
+}
+		</ExtractScript>
+		<File path="C:\Windows\Setup\Scripts\FirstLogon.ps1">
+$scripts = @(
+	{
+		Remove-Item -LiteralPath @(
+		  'C:\Windows\Panther\unattend.xml';
+		  'C:\Windows\Panther\unattend-original.xml';
+		  'C:\Windows\Setup\Scripts\Wifi.xml';
+		) -Force -ErrorAction 'SilentlyContinue' -Verbose;
+	};
+);
+
+&amp; {
+  [float] $complete = 0;
+  [float] $increment = 100 / $scripts.Count;
+  foreach( $script in $scripts ) {
+    Write-Progress -Id 0 -Activity 'Running scripts to finalize your Windows installation. Do not close this window.' -PercentComplete $complete;
+    '*** Will now execute command &#xAB;{0}&#xBB;.' -f $(
+      $script.ToString().Trim() -replace '\s+', ' ' -replace '^(.{99})(.+)$', '$1&#x2026;';
+    );
+    $start = [datetime]::Now;
+    &amp; $script;
+    '*** Finished executing command after {0:0} ms.' -f [datetime]::Now.Subtract( $start ).TotalMilliseconds;
+    "`r`n" * 3;
+    $complete += $increment;
+  }
+} *&gt;&amp;1 | Out-String -Width 1KB -Stream &gt;&gt; "C:\Windows\Setup\Scripts\FirstLogon.log";
+		</File>
+	</Extensions>
+</unattend>

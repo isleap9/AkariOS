@@ -1,95 +1,210 @@
-# USB setup file (UI\Unattend.ps1): the display languages Windows ships, each with its default keyboard (Microsoft's
-# default input profiles, as language:layout), and the keyboards the page lists (the defaults plus common layouts).
+# Install USB (UI\Unattend.ps1): the form, section by section in the order of Schneegans' generator
+# (https://schneegans.de/windows/unattend-generator/), with his field names. UI\UnattendForm.ps1 builds it.
+# Item kinds: Radio (Options: Value, Label, Items shown while it is picked), Check (Label, Items shown while ticked),
+# Input (Label, Kind Text | Number | Multi), Select (Label, List = a Core\Unattend\Data file, or Options: Id, Name),
+# Checks (several values of one field), Accounts (the account table), Note (a grey line).
+# Defaults: the form's starting values (this PC's language, keyboard, region and time zone are put over them).
 @{
-    Languages = @(
-        @{ Tag = 'ar-SA'; Name = 'Arabic (Saudi Arabia)'; Keyboard = '0401:00000401' }
-        @{ Tag = 'bg-BG'; Name = 'Bulgarian'; Keyboard = '0402:00030402' }
-        @{ Tag = 'cs-CZ'; Name = 'Czech'; Keyboard = '0405:00000405' }
-        @{ Tag = 'da-DK'; Name = 'Danish'; Keyboard = '0406:00000406' }
-        @{ Tag = 'de-DE'; Name = 'German (Germany)'; Keyboard = '0407:00000407' }
-        @{ Tag = 'el-GR'; Name = 'Greek'; Keyboard = '0408:00000408' }
-        @{ Tag = 'en-GB'; Name = 'English (United Kingdom)'; Keyboard = '0809:00000809' }
-        @{ Tag = 'en-US'; Name = 'English (United States)'; Keyboard = '0409:00000409' }
-        @{ Tag = 'es-ES'; Name = 'Spanish (Spain)'; Keyboard = '0C0A:0000040A' }
-        @{ Tag = 'es-MX'; Name = 'Spanish (Mexico)'; Keyboard = '080A:0000080A' }
-        @{ Tag = 'et-EE'; Name = 'Estonian'; Keyboard = '0425:00000425' }
-        @{ Tag = 'fi-FI'; Name = 'Finnish'; Keyboard = '040B:0000040B' }
-        @{ Tag = 'fr-CA'; Name = 'French (Canada)'; Keyboard = '0C0C:00001009' }
-        @{ Tag = 'fr-FR'; Name = 'French (France)'; Keyboard = '040C:0000040C' }
-        @{ Tag = 'he-IL'; Name = 'Hebrew'; Keyboard = '040D:0000040D' }
-        @{ Tag = 'hr-HR'; Name = 'Croatian'; Keyboard = '041A:0000041A' }
-        @{ Tag = 'hu-HU'; Name = 'Hungarian'; Keyboard = '040E:0000040E' }
-        @{ Tag = 'it-IT'; Name = 'Italian'; Keyboard = '0410:00000410' }
-        @{ Tag = 'ja-JP'; Name = 'Japanese'; Keyboard = '0411:00000411' }
-        @{ Tag = 'ko-KR'; Name = 'Korean'; Keyboard = '0412:00000412' }
-        @{ Tag = 'lt-LT'; Name = 'Lithuanian'; Keyboard = '0427:00010427' }
-        @{ Tag = 'lv-LV'; Name = 'Latvian'; Keyboard = '0426:00000426' }
-        @{ Tag = 'nb-NO'; Name = 'Norwegian (Bokmal)'; Keyboard = '0414:00000414' }
-        @{ Tag = 'nl-NL'; Name = 'Dutch (Netherlands)'; Keyboard = '0413:00020409' }
-        @{ Tag = 'pl-PL'; Name = 'Polish'; Keyboard = '0415:00000415' }
-        @{ Tag = 'pt-BR'; Name = 'Portuguese (Brazil)'; Keyboard = '0416:00000416' }
-        @{ Tag = 'pt-PT'; Name = 'Portuguese (Portugal)'; Keyboard = '0816:00000816' }
-        @{ Tag = 'ro-RO'; Name = 'Romanian'; Keyboard = '0418:00010418' }
-        @{ Tag = 'ru-RU'; Name = 'Russian'; Keyboard = '0419:00000419' }
-        @{ Tag = 'sk-SK'; Name = 'Slovak'; Keyboard = '041B:0000041B' }
-        @{ Tag = 'sl-SI'; Name = 'Slovenian'; Keyboard = '0424:00000424' }
-        @{ Tag = 'sr-Latn-RS'; Name = 'Serbian (Latin)'; Keyboard = '241A:0000081A' }
-        @{ Tag = 'sv-SE'; Name = 'Swedish'; Keyboard = '041D:0000041D' }
-        @{ Tag = 'th-TH'; Name = 'Thai'; Keyboard = '041E:0000041E' }
-        @{ Tag = 'tr-TR'; Name = 'Turkish'; Keyboard = '041F:0000041F' }
-        @{ Tag = 'uk-UA'; Name = 'Ukrainian'; Keyboard = '0422:00000422' }
-        @{ Tag = 'zh-CN'; Name = 'Chinese (Simplified)'; Keyboard = '0804:00000804' }
-        @{ Tag = 'zh-TW'; Name = 'Chinese (Traditional)'; Keyboard = '0404:00000404' }
+    Sections = @(
+        @{ Title = 'Region and language'; Items = @(
+            @{ Radio = 'LanguageMode'; Options = @(
+                @{ Value = 'Unattended'; Label = 'Install Windows using these language settings'; Items = @(
+                    @{ Select = 'UILanguage'; Label = 'Windows display language (must be a language your ISO has)'; List = 'ImageLanguage' }
+                    @{ Note = 'Language preferences and keyboard layouts' }
+                    @{ Select = 'Locale'; Label = 'First language'; List = 'UserLocale' }
+                    @{ Select = 'Keyboard'; Label = 'Keyboard layout or IME'; List = 'KeyboardIdentifier' }
+                    @{ Check = 'UseKeyboard2'; Label = 'Add a second language'; Items = @(
+                        @{ Select = 'Locale2'; Label = 'Second language'; List = 'UserLocale' }
+                        @{ Select = 'Keyboard2'; Label = 'Keyboard layout or IME'; List = 'KeyboardIdentifier' }
+                    ) }
+                    @{ Check = 'UseKeyboard3'; Label = 'Add a third language'; Items = @(
+                        @{ Select = 'Locale3'; Label = 'Third language'; List = 'UserLocale' }
+                        @{ Select = 'Keyboard3'; Label = 'Keyboard layout or IME'; List = 'KeyboardIdentifier' }
+                    ) }
+                    @{ Select = 'GeoLocation'; Label = 'Home location and device setup region'; List = 'GeoId' }
+                ) }
+                @{ Value = 'Interactive'; Label = 'Select language settings interactively during Windows Setup' }
+            ) }
+        ) }
+        @{ Title = 'Processor architectures'; Items = @(
+            @{ Checks = 'ProcessorArchitecture'; Label = 'Windows is installed for every architecture ticked (the file then fits several kinds of PC)'; Options = @(
+                @{ Id = 'x86'; Name = 'Intel/AMD 32-bit' }, @{ Id = 'amd64'; Name = 'Intel/AMD 64-bit' }, @{ Id = 'arm64'; Name = 'Windows on Arm64' }
+            ) }
+        ) }
+        @{ Title = 'Setup settings'; Items = @(
+            @{ Check = 'BypassRequirementsCheck'; Label = 'Bypass Windows 11 requirements check (TPM, Secure Boot, RAM)' }
+            @{ Check = 'BypassNetworkCheck'; Label = 'Allow Windows 11 to install without internet connection' }
+            @{ Check = 'HidePowerShellWindows'; Label = 'Hide PowerShell windows during Windows Setup' }
+            @{ Check = 'KeepSensitiveFiles'; Label = 'Keep sensitive files (unattend.xml and the Wi-Fi profile stay on the PC)' }
+            @{ Check = 'UseNarrator'; Label = 'Start Narrator automatically during Windows Setup' }
+        ) }
+        @{ Title = 'Windows PE stage'; Items = @(
+            @{ Radio = 'PEMode'; Options = @(
+                @{ Value = 'Default'; Label = 'Run the Windows PE stage interactively (you pick the disk)'; Items = @(
+                    @{ Radio = 'WindowsEditionMode'; Options = @(
+                        @{ Value = 'Interactive'; Label = 'Enter product key interactively' }
+                        @{ Value = 'Generic'; Label = 'Use a generic product key (picks the edition, does not activate)'; Items = @(
+                            @{ Select = 'WindowsEdition'; Label = 'Edition'; List = 'WindowsEdition' }
+                        ) }
+                        @{ Value = 'Custom'; Label = 'Enter another product key'; Items = @(
+                            @{ Input = 'ProductKey'; Label = 'Product key (XXXXX-XXXXX-XXXXX-XXXXX-XXXXX)' }
+                        ) }
+                        @{ Value = 'Firmware'; Label = 'Use the product key stored in the BIOS / UEFI firmware' }
+                    ) }
+                ) }
+                @{ Value = 'Generated'; Label = 'Generate a .cmd script to handle the Windows PE stage (can wipe a disk)'; Items = @(
+                    @{ Note = 'Partitioning and formatting' }
+                    @{ Radio = 'PartitionMode'; Options = @(
+                        @{ Value = 'Unattended'; Label = 'Let Windows Setup wipe, partition and format the disk'; Items = @(
+                            @{ Radio = 'TargetDiskMode'; Options = @(
+                                @{ Value = 'Generated'; Label = 'Install on the disk that meets all of these'; Items = @(
+                                    @{ Check = 'TargetDiskNoPartitions'; Label = 'Has no partitions yet' }
+                                    @{ Check = 'TargetDiskInterfaceType'; Label = 'Is connected through SATA, SCSI, SAS or NVMe' }
+                                    @{ Check = 'TargetDiskMediaType'; Label = 'Reports itself as a fixed hard disk' }
+                                    @{ Check = 'TargetDiskSize'; Label = 'Has a capacity in this range'; Items = @(
+                                        @{ Input = 'TargetDiskMinSize'; Label = 'At least (GiB)'; Kind = 'Number' }
+                                        @{ Input = 'TargetDiskMaxSize'; Label = 'At most (GiB)'; Kind = 'Number' }
+                                    ) }
+                                    @{ Check = 'TargetDiskIndex'; Label = 'Has this index number'; Items = @(
+                                        @{ Input = 'TargetDisk'; Label = 'Disk index (0 = the first disk)'; Kind = 'Number' }
+                                    ) }
+                                ) }
+                                @{ Value = 'Script'; Label = 'Determine the disk with my own VBScript'; Items = @(
+                                    @{ Input = 'TargetDiskScript'; Label = 'VBScript (writes the disk index)'; Kind = 'Multi' }
+                                ) }
+                                @{ Value = 'Interactive'; Label = 'Type the disk index during setup' }
+                            ) }
+                            @{ Radio = 'PartitionLayout'; Options = @(
+                                @{ Value = 'Automatic'; Label = 'Partition layout: automatic (GPT for UEFI, MBR for BIOS)' }
+                                @{ Value = 'GPT'; Label = 'GPT' }
+                                @{ Value = 'MBR'; Label = 'MBR' }
+                            ) }
+                            @{ Input = 'SystemSize'; Label = 'System partition size (MB)'; Kind = 'Number' }
+                            @{ Radio = 'RecoveryMode'; Options = @(
+                                @{ Value = 'Partition'; Label = 'Install Windows RE on a recovery partition'; Items = @(
+                                    @{ Input = 'RecoverySize'; Label = 'Recovery partition size (MB)'; Kind = 'Number' }
+                                ) }
+                                @{ Value = 'None'; Label = 'Remove Windows RE' }
+                            ) }
+                        ) }
+                        @{ Value = 'Custom'; Label = 'Use my own diskpart script'; Items = @(
+                            @{ Input = 'DiskpartScript'; Label = 'diskpart script (must assign W: to Windows and S: to the system partition)'; Kind = 'Multi' }
+                        ) }
+                        @{ Value = 'Interactive'; Label = 'Partition the disk myself during setup (Shift+F10, diskpart)' }
+                    ) }
+                    @{ Note = 'Windows image to install' }
+                    @{ Radio = 'InstallFromMode'; Options = @(
+                        @{ Value = 'Edition'; Label = 'Select the image by edition'; Items = @( @{ Select = 'InstallFromEdition'; Label = 'Edition'; List = 'WindowsEdition' } ) }
+                        @{ Value = 'Name'; Label = 'Select the image by name'; Items = @( @{ Input = 'InstallFromName'; Label = 'Image name' } ) }
+                        @{ Value = 'Index'; Label = 'Select the image by index'; Items = @( @{ Input = 'InstallFromIndex'; Label = 'Image index'; Kind = 'Number' } ) }
+                        @{ Value = 'Interactive'; Label = 'Select the image during setup' }
+                    ) }
+                    @{ Note = 'Paging file' }
+                    @{ Radio = 'PagingFileMode'; Options = @(
+                        @{ Value = 'Automatic'; Label = 'Let Windows manage the paging file' }
+                        @{ Value = 'Custom'; Label = 'Custom size'; Items = @(
+                            @{ Input = 'InitPagingFileSize'; Label = 'Initial size (MB)'; Kind = 'Number' }
+                            @{ Input = 'MaxPagingFileSize'; Label = 'Maximum size (MB)'; Kind = 'Number' }
+                        ) }
+                        @{ Value = 'None'; Label = 'No paging file' }
+                    ) }
+                    @{ Check = 'DisableDefender'; Label = 'Disable Windows Defender' }
+                    @{ Check = 'Disable8Dot3Names'; Label = 'Disable 8.3 file names' }
+                    @{ Check = 'CompactOs'; Label = 'Apply the Windows image in compact mode' }
+                    @{ Check = 'SkipIntegrityCheck'; Label = 'Skip the integrity check when applying the image' }
+                    @{ Check = 'PauseBeforeFormatting'; Label = 'Pause before the disk is partitioned and formatted' }
+                    @{ Check = 'PauseBeforeReboot'; Label = 'Pause before Windows Setup reboots at the end of the PE stage' }
+                ) }
+                @{ Value = 'Script'; Label = 'Provide my own .cmd script for the whole Windows PE stage'; Items = @(
+                    @{ Input = 'PEScript'; Label = '.cmd script'; Kind = 'Multi' }
+                ) }
+            ) }
+        ) }
+        @{ Title = 'Activation'; Items = @(
+            @{ Check = 'UseActivationKey'; Label = 'Use this product key to activate Windows'; Items = @( @{ Input = 'ActivationKey'; Label = 'Product key' } ) }
+        ) }
+        @{ Title = 'Computer name'; Items = @(
+            @{ Radio = 'ComputerNameMode'; Options = @(
+                @{ Value = 'Random'; Label = 'Let Windows pick a random name' }
+                @{ Value = 'Custom'; Label = 'Choose a name'; Items = @( @{ Input = 'ComputerName'; Label = 'Computer name (up to 15 characters)' } ) }
+                @{ Value = 'Prompt'; Label = 'Enter the name during setup' }
+                @{ Value = 'Script'; Label = 'Get the name from a PowerShell script'; Items = @( @{ Input = 'ComputerNameScript'; Label = 'PowerShell (returns the name)'; Kind = 'Multi' } ) }
+            ) }
+        ) }
+        @{ Title = 'Time zone'; Items = @(
+            @{ Radio = 'TimeZoneMode'; Options = @(
+                @{ Value = 'Implicit'; Label = 'Determine the time zone from the language and region' }
+                @{ Value = 'Explicit'; Label = 'Set the time zone'; Items = @( @{ Select = 'TimeZone'; Label = 'Time zone'; List = 'TimeOffset' } ) }
+            ) }
+        ) }
+        @{ Title = 'User accounts'; Items = @(
+            @{ Radio = 'UserAccountMode'; Options = @(
+                @{ Value = 'Unattended'; Label = 'Let Windows Setup create these local accounts'; Items = @(
+                    @{ Accounts = 'Account' }
+                    @{ Radio = 'AutoLogonMode'; Options = @(
+                        @{ Value = 'Own'; Label = 'First logon: sign in to the first administrator account' }
+                        @{ Value = 'Builtin'; Label = 'First logon: activate the built-in Administrator and sign in to it'; Items = @(
+                            @{ Input = 'BuiltinAdministratorPassword'; Label = 'Administrator password' }
+                        ) }
+                        @{ Value = 'None'; Label = 'Do not sign in' }
+                    ) }
+                    @{ Check = 'ObscurePasswords'; Label = 'Obscure the passwords with Base64 (not encryption: anyone with the file can read them)' }
+                ) }
+                @{ Value = 'Interactive'; Label = 'Add a Microsoft (online) account during setup' }
+                @{ Value = 'InteractiveLocal'; Label = 'Add a local (offline) account during setup' }
+            ) }
+        ) }
+        @{ Title = 'Password expiration'; Items = @(
+            @{ Radio = 'PasswordExpirationMode'; Options = @(
+                @{ Value = 'Unlimited'; Label = 'Passwords do not expire' }
+                @{ Value = 'Default'; Label = 'Use the Windows default (42 days)' }
+                @{ Value = 'Custom'; Label = 'Passwords expire after'; Items = @( @{ Input = 'PasswordMaxAge'; Label = 'Days'; Kind = 'Number' } ) }
+            ) }
+        ) }
+        @{ Title = 'Account lockout policy'; Items = @(
+            @{ Radio = 'LockoutMode'; Options = @(
+                @{ Value = 'Default'; Label = 'Use the Windows default' }
+                @{ Value = 'Disabled'; Label = 'Disable the account lockout policy' }
+                @{ Value = 'Custom'; Label = 'Custom policy'; Items = @(
+                    @{ Input = 'LockoutThreshold'; Label = 'Lock after this many failed attempts'; Kind = 'Number' }
+                    @{ Input = 'LockoutWindow'; Label = 'Reset the count after (minutes)'; Kind = 'Number' }
+                    @{ Input = 'LockoutDuration'; Label = 'Unlock after (minutes)'; Kind = 'Number' }
+                ) }
+            ) }
+        ) }
+        @{ Title = 'Wi-Fi setup'; Items = @(
+            @{ Radio = 'WifiMode'; Options = @(
+                @{ Value = 'Interactive'; Label = 'Configure Wi-Fi interactively during setup' }
+                @{ Value = 'Skip'; Label = 'Skip Wi-Fi configuration' }
+                @{ Value = 'Unattended'; Label = 'Connect to this network'; Items = @(
+                    @{ Input = 'WifiName'; Label = 'Network name (SSID)' }
+                    @{ Check = 'WifiNonBroadcast'; Label = 'Connect even if the network is not broadcasting its name' }
+                    @{ Select = 'WifiAuthentication'; Label = 'Authentication'; Options = @( @{ Id = 'Open'; Name = 'Open' }, @{ Id = 'WPA2PSK'; Name = 'WPA2-Personal AES' }, @{ Id = 'WPA3SAE'; Name = 'WPA3-Personal AES' } ) }
+                    @{ Input = 'WifiPassword'; Label = 'Password (stored in the file as plain text)' }
+                ) }
+                @{ Value = 'FromProfile'; Label = 'Use this Wi-Fi profile XML'; Items = @( @{ Input = 'WifiProfileXml'; Label = 'WLAN profile XML'; Kind = 'Multi' } ) }
+            ) }
+        ) }
+        @{ Title = 'Express settings'; Items = @(
+            @{ Radio = 'ExpressSettings'; Options = @(
+                @{ Value = 'DisableAll'; Label = 'Turn all express (privacy) settings off' }
+                @{ Value = 'EnableAll'; Label = 'Turn all express settings on' }
+                @{ Value = 'Interactive'; Label = 'Choose them during setup' }
+            ) }
+        ) }
     )
-    Keyboards = @(
-        @{ Id = '0401:00000401'; Name = 'Arabic (101)' }
-        @{ Id = '0402:00030402'; Name = 'Bulgarian' }
-        @{ Id = '0405:00000405'; Name = 'Czech' }
-        @{ Id = '0406:00000406'; Name = 'Danish' }
-        @{ Id = '0407:00000407'; Name = 'German' }
-        @{ Id = '0807:00000807'; Name = 'Swiss German' }
-        @{ Id = '0408:00000408'; Name = 'Greek' }
-        @{ Id = '0809:00000809'; Name = 'United Kingdom' }
-        @{ Id = '0809:00000452'; Name = 'United Kingdom Extended' }
-        @{ Id = '0409:00000409'; Name = 'US' }
-        @{ Id = '0409:00020409'; Name = 'United States-International' }
-        @{ Id = '0409:00010409'; Name = 'United States-Dvorak' }
-        @{ Id = '0409:00000809'; Name = 'English (US) with the United Kingdom layout' }
-        @{ Id = '0C0A:0000040A'; Name = 'Spanish' }
-        @{ Id = '080A:0000080A'; Name = 'Latin American' }
-        @{ Id = '0425:00000425'; Name = 'Estonian' }
-        @{ Id = '040B:0000040B'; Name = 'Finnish' }
-        @{ Id = '0C0C:00001009'; Name = 'Canadian French' }
-        @{ Id = '1009:00011009'; Name = 'Canadian Multilingual Standard' }
-        @{ Id = '040C:0000040C'; Name = 'French' }
-        @{ Id = '100C:0000100C'; Name = 'Swiss French' }
-        @{ Id = '080C:0000080C'; Name = 'Belgian French' }
-        @{ Id = '0813:00000813'; Name = 'Belgian (Period)' }
-        @{ Id = '040D:0000040D'; Name = 'Hebrew' }
-        @{ Id = '041A:0000041A'; Name = 'Croatian' }
-        @{ Id = '040E:0000040E'; Name = 'Hungarian' }
-        @{ Id = '0410:00000410'; Name = 'Italian' }
-        @{ Id = '0411:00000411'; Name = 'Japanese' }
-        @{ Id = '0412:00000412'; Name = 'Korean' }
-        @{ Id = '0427:00010427'; Name = 'Lithuanian' }
-        @{ Id = '0426:00000426'; Name = 'Latvian' }
-        @{ Id = '0414:00000414'; Name = 'Norwegian' }
-        @{ Id = '0413:00020409'; Name = 'Dutch (United States-International)' }
-        @{ Id = '0413:00000413'; Name = 'Dutch' }
-        @{ Id = '0415:00000415'; Name = 'Polish (Programmers)' }
-        @{ Id = '0416:00000416'; Name = 'Portuguese (Brazil ABNT)' }
-        @{ Id = '0416:00010416'; Name = 'Portuguese (Brazil ABNT2)' }
-        @{ Id = '0816:00000816'; Name = 'Portuguese' }
-        @{ Id = '0418:00010418'; Name = 'Romanian (Standard)' }
-        @{ Id = '0419:00000419'; Name = 'Russian' }
-        @{ Id = '041B:0000041B'; Name = 'Slovak' }
-        @{ Id = '0424:00000424'; Name = 'Slovenian' }
-        @{ Id = '241A:0000081A'; Name = 'Serbian (Latin)' }
-        @{ Id = '041D:0000041D'; Name = 'Swedish' }
-        @{ Id = '041E:0000041E'; Name = 'Thai Kedmanee' }
-        @{ Id = '041F:0000041F'; Name = 'Turkish Q' }
-        @{ Id = '0422:00000422'; Name = 'Ukrainian' }
-        @{ Id = '0804:00000804'; Name = 'Chinese (Simplified) - US' }
-        @{ Id = '0404:00000404'; Name = 'Chinese (Traditional) - US' }
-    )
+    Defaults = @{
+        LanguageMode = 'Unattended'; UILanguage = 'en-US'; Locale = 'en-US'; Keyboard = '00000409'; Locale2 = 'en-US'; Keyboard2 = '00000409'
+        Locale3 = 'en-US'; Keyboard3 = '00000409'; GeoLocation = '244'; ProcessorArchitecture = 'amd64'
+        BypassRequirementsCheck = 'true'; BypassNetworkCheck = 'true'
+        PEMode = 'Default'; WindowsEditionMode = 'Interactive'; WindowsEdition = 'pro'; ProductKey = ''
+        PartitionMode = 'Unattended'; TargetDiskMode = 'Generated'; TargetDiskNoPartitions = 'true'; TargetDiskSize = 'true'; TargetDiskMinSize = '100'
+        TargetDiskMaxSize = '4000'; TargetDisk = '0'; PartitionLayout = 'Automatic'; SystemSize = '300'; RecoveryMode = 'Partition'; RecoverySize = '1000'
+        InstallFromMode = 'Edition'; InstallFromEdition = 'pro'; InstallFromName = 'Windows 11 Pro'; InstallFromIndex = '1'
+        PagingFileMode = 'Automatic'; InitPagingFileSize = '2000'; MaxPagingFileSize = '4000'
+        ComputerNameMode = 'Random'; TimeZoneMode = 'Explicit'; TimeZone = 'UTC'
+        UserAccountMode = 'Unattended'; AccountName0 = 'Admin'; AccountGroup0 = 'Administrators'; AutoLogonMode = 'Own'; ObscurePasswords = 'true'
+        PasswordExpirationMode = 'Unlimited'; PasswordMaxAge = '42'; LockoutMode = 'Default'; LockoutThreshold = '10'; LockoutWindow = '10'; LockoutDuration = '10'
+        WifiMode = 'Interactive'; WifiAuthentication = 'WPA2PSK'; ExpressSettings = 'DisableAll'
+    }
 }

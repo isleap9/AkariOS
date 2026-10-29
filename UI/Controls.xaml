@@ -135,6 +135,47 @@
     </Setter>
   </Style>
 
+  <!-- Radio button, WinUI-style: a ring that fills white with a dark dot when picked; the label wraps -->
+  <Style x:Key="Radio" TargetType="RadioButton">
+    <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="RadioButton">
+          <Grid Background="Transparent">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid Width="20" Height="20" VerticalAlignment="Center">
+              <Ellipse x:Name="Ring" StrokeThickness="1" Stroke="{DynamicResource Mu}" Fill="{DynamicResource Ctl}"/>
+              <Ellipse x:Name="Dot" Width="8" Height="8" Fill="{DynamicResource InvT}" Visibility="Collapsed"/>
+            </Grid>
+            <ContentPresenter Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+              <ContentPresenter.Resources>
+                <Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/></Style>
+              </ContentPresenter.Resources>
+            </ContentPresenter>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Ring" Property="Fill" Value="{DynamicResource CtlH}"/>
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Ring" Property="Fill" Value="{DynamicResource Inv}"/>
+              <Setter TargetName="Ring" Property="Stroke" Value="{DynamicResource Inv}"/>
+              <Setter TargetName="Dot" Property="Visibility" Value="Visible"/>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.4"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
   <!-- Combobox: control fill, 4 px corners, chevron; the drop-down is a rounded S1 surface. Editable keeps the same look. -->
   <Style x:Key="ComboItem" TargetType="ComboBoxItem">
     <Setter Property="Foreground" Value="{DynamicResource Tx}"/>

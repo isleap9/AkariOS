@@ -1,0 +1,460 @@
+<?xml version="1.0" encoding="utf-8"?>
+<unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+	<!--https://schneegans.de/windows/unattend-generator/?ProductKey=VK7JG-NPHTM-C97JM-9MPGT-3V66T&InstallFromMode=Edition&InstallFromName=Windows%2011%20Pro&InstallFromIndex=1&TargetDiskMode=Generated&TargetDiskNoPartitions=true&TargetDiskInterfaceType=true&TargetDiskMediaType=true&TargetDiskSize=true&TargetDiskMinSize=100&TargetDiskMaxSize=4000&TargetDiskIndex=true&TargetDisk=0&PartitionLayout=Automatic&SystemSize=300&RecoveryMode=Partition&RecoverySize=1000&PagingFileMode=Automatic&InitPagingFileSize=2000&MaxPagingFileSize=4000&ActivationKey=&ComputerName=&AccountDisplayName0=&AccountPassword0=&AccountDisplayName1=&AccountPassword1=&AccountName2=&AccountDisplayName2=&AccountPassword2=&AccountName3=&AccountDisplayName3=&AccountPassword3=&AccountName4=&AccountDisplayName4=&AccountPassword4=&AccountName5=&AccountDisplayName5=&AccountPassword5=&AccountName6=&AccountDisplayName6=&AccountPassword6=&AccountName7=&AccountDisplayName7=&AccountPassword7=&AccountName8=&AccountDisplayName8=&AccountPassword8=&AccountName9=&AccountDisplayName9=&AccountPassword9=&AccountName10=&AccountDisplayName10=&AccountPassword10=&AccountName11=&AccountDisplayName11=&AccountPassword11=&AccountName12=&AccountDisplayName12=&AccountPassword12=&AccountName13=&AccountDisplayName13=&AccountPassword13=&AccountName14=&AccountDisplayName14=&AccountPassword14=&LockoutThreshold=10&LockoutWindow=10&LockoutDuration=10&HideFiles=Hidden&TaskbarSearch=Box&TaskbarIconsMode=Default&StartTilesMode=Default&StartPinsMode=Default&EffectsMode=Default&DesktopIconsMode=Default&StartFoldersMode=Default&CoreIsolationMode=Enabled&WifiName=&WifiPassword=00000000&LockKeysMode=Skip&StickyKeysMode=Default&ColorMode=Default&AccentColor=%230078D4&WallpaperMode=Default&WallpaperColor=%23008080&LockScreenMode=Default&AppLockerMode=Skip&Locale2=de-DE&Keyboard2=00140c00&Locale3=es-ES&Keyboard3=00140c00&WindowsEdition=pro&InstallFromEdition=pro&TimeZone=UTC&AccountGroup1=Users&AccountGroup2=Users&AccountGroup3=Users&AccountGroup4=Users&AccountGroup5=Users&AccountGroup6=Users&AccountGroup7=Users&AccountGroup8=Users&AccountGroup9=Users&AccountGroup10=Users&AccountGroup11=Users&AccountGroup12=Users&AccountGroup13=Users&AccountGroup14=Users&WifiAuthentication=Open&CapsLockInitial=Off&CapsLockBehavior=Toggle&NumLockInitial=Off&NumLockBehavior=Toggle&ScrollLockInitial=Off&ScrollLockBehavior=Toggle&SystemColorTheme=Light&AppsColorTheme=Light&SystemScriptType0=Cmd&SystemScriptType1=Cmd&SystemScriptType2=Cmd&SystemScriptType3=Cmd&SystemScriptType4=Cmd&SystemScriptType5=Cmd&SystemScriptType6=Cmd&SystemScriptType7=Cmd&SystemScriptType8=Cmd&SystemScriptType9=Cmd&SystemScriptType10=Cmd&SystemScriptType11=Cmd&SystemScriptType12=Cmd&SystemScriptType13=Cmd&SystemScriptType14=Cmd&DefaultUserScriptType0=Cmd&DefaultUserScriptType1=Cmd&DefaultUserScriptType2=Cmd&DefaultUserScriptType3=Cmd&DefaultUserScriptType4=Cmd&DefaultUserScriptType5=Cmd&DefaultUserScriptType6=Cmd&DefaultUserScriptType7=Cmd&DefaultUserScriptType8=Cmd&DefaultUserScriptType9=Cmd&DefaultUserScriptType10=Cmd&DefaultUserScriptType11=Cmd&DefaultUserScriptType12=Cmd&DefaultUserScriptType13=Cmd&DefaultUserScriptType14=Cmd&FirstLogonScriptType0=Cmd&FirstLogonScriptType1=Cmd&FirstLogonScriptType2=Cmd&FirstLogonScriptType3=Cmd&FirstLogonScriptType4=Cmd&FirstLogonScriptType5=Cmd&FirstLogonScriptType6=Cmd&FirstLogonScriptType7=Cmd&FirstLogonScriptType8=Cmd&FirstLogonScriptType9=Cmd&FirstLogonScriptType10=Cmd&FirstLogonScriptType11=Cmd&FirstLogonScriptType12=Cmd&FirstLogonScriptType13=Cmd&FirstLogonScriptType14=Cmd&UserOnceScriptType0=Cmd&UserOnceScriptType1=Cmd&UserOnceScriptType2=Cmd&UserOnceScriptType3=Cmd&UserOnceScriptType4=Cmd&UserOnceScriptType5=Cmd&UserOnceScriptType6=Cmd&UserOnceScriptType7=Cmd&UserOnceScriptType8=Cmd&UserOnceScriptType9=Cmd&UserOnceScriptType10=Cmd&UserOnceScriptType11=Cmd&UserOnceScriptType12=Cmd&UserOnceScriptType13=Cmd&UserOnceScriptType14=Cmd&Component0=&Component1=&Component2=&Component3=&Component4=&Component5=&Component6=&Component7=&Component8=&Component9=&Component10=&Component11=&Component12=&Component13=&Component14=&TargetDiskScript=Function%20Fail(message)%0A%20%20WScript.Echo%20message%0A%20%20WScript.Quit%201%0AEnd%20Function%0A%0AOn%20Error%20Resume%20Next%0ASet%20wmi%20%3D%20GetObject(%22winmgmts%3A%5C%5C.%5Croot%5Ccimv2%22)%0ASet%20drives%20%3D%20wmi.InstancesOf(%22Win32_DiskDrive%22)%0AIf%20Err.Number%20%3C%3E%200%20Then%0A%20%20Fail%20%22Could%20not%20enumerate%20disks%3A%20%22%20%26%20Err.Description%0AEnd%20If%0ASet%20accepted%20%3D%20CreateObject(%22Scripting.Dictionary%22)%0A%0AFor%20Each%20drive%20In%20drives%0A%20%20accept%20%3D%20True%0A%0A%20%20actual%20%3D%20CInt(drive.Size%20%2F%201024%20%2F%201024%20%2F%201024)%0A%20%20expected%20%3D%20100%0A%20%20If%20actual%20%3C%20expected%20Then%0A%20%20%20%20accept%20%3D%20False%0A%20%20End%20If%0A%0A%20%20actual%20%3D%20CInt(drive.Size%20%2F%201024%20%2F%201024%20%2F%201024)%0A%20%20expected%20%3D%204000%0A%20%20If%20actual%20%3E%20expected%20Then%0A%20%20%20%20accept%20%3D%20False%0A%20%20End%20If%0A%0A%20%20actual%20%3D%20drive.Index%0A%20%20expected%20%3D%200%0A%20%20If%20actual%20%3C%3E%20expected%20Then%0A%20%20%20%20accept%20%3D%20False%0A%20%20End%20If%0A%0A%20%20actual%20%3D%20drive.Partitions%0A%20%20If%20actual%20%3E%200%20Then%0A%20%20%20%20accept%20%3D%20False%0A%20%20End%20If%0A%0A%20%20If%20accept%20Then%0A%20%20%20%20accepted.Add%20drive.Index%2C%20%22%22%0A%20%20End%20If%0ANext%0A%0AIf%20accepted.Count%20%3D%200%20Then%0A%20%20Fail%20%22No%20disk%20satisfied%20the%20given%20criteria.%22%0AElseIf%20accepted.Count%20%3E%201%20Then%0A%20%20Fail%20%22Several%20disks%20(%22%20%26%20Join(accepted.Keys%2C%20%22%2C%20%22)%20%26%20%22)%20satisfied%20the%20given%20criteria.%22%0AElse%0A%20%20WScript.Echo%20Join(accepted.Keys)%0A%20%20WScript.Quit%200%0AEnd%20If&DiskpartScript=SELECT%20DISK%3D0%0ACLEAN%0ACONVERT%20GPT%0ACREATE%20PARTITION%20EFI%20SIZE%3D300%0AFORMAT%20QUICK%20FS%3DFAT32%20LABEL%3D%22System%22%0AASSIGN%20LETTER%3DS%0ACREATE%20PARTITION%20MSR%20SIZE%3D16%0ACREATE%20PARTITION%20PRIMARY%0ASHRINK%20MINIMUM%3D1000%0AFORMAT%20QUICK%20FS%3DNTFS%20LABEL%3D%22Windows%22%0AASSIGN%20LETTER%3DW%0ACREATE%20PARTITION%20PRIMARY%0AFORMAT%20QUICK%20FS%3DNTFS%20LABEL%3D%22Recovery%22%0AASSIGN%20LETTER%3DR%0ASET%20ID%3D%22de94bba4-06d1-4d40-a16a-bfd50179d6ac%22%0AGPT%20ATTRIBUTES%3D0x8000000000000001&PEScript=%40echo%20off%0A%0Acall%20%3Aprint%20%22Setting%20keyboard%20layout%20for%20PE%20session%22%0Awpeutil.exe%20SetKeyboardLayout%200409%3A00000409%0A%0Afor%20%25%25d%20in%20(C%20D%20E%20F%20G%20H%20I%20J%20K%20L%20M%20N%20O%20P%20Q%20T%20U%20V%20X%20Y%20Z)%20do%20(%0A%20%20%20%20if%20exist%20%25%25d%3A%5Csources%5Cinstall.wim%20set%20%22IMAGE_FILE%3D%25%25d%3A%5Csources%5Cinstall.wim%22%0A%20%20%20%20if%20exist%20%25%25d%3A%5Csources%5Cinstall.esd%20set%20%22IMAGE_FILE%3D%25%25d%3A%5Csources%5Cinstall.esd%22%0A%20%20%20%20if%20exist%20%25%25d%3A%5Csources%5Cinstall.swm%20set%20%22IMAGE_FILE%3D%25%25d%3A%5Csources%5Cinstall.swm%22%20%26%20set%20%22SWM_PARAM%3D%2FSWMFile%3A%25%25d%3A%5Csources%5Cinstall*.swm%22%0A%20%20%20%20if%20exist%20%25%25d%3A%5Cautounattend.xml%20set%20%22XML_FILE%3D%25%25d%3A%5Cautounattend.xml%22%0A%20%20%20%20if%20exist%20%25%25d%3A%5C%24OEM%24%20set%20%22OEM_FOLDER%3D%25%25d%3A%5C%24OEM%24%22%0A%20%20%20%20if%20exist%20%25%25d%3A%5C%24WinPEDriver%24%20set%20%22PEDRIVERS_FOLDER%3D%25%25d%3A%5C%24WinPEDriver%24%22%0A)%0Afor%20%2Ff%20%22tokens%3D3%22%20%25%25t%20in%20('reg.exe%20query%20HKLM%5CSystem%5CSetup%20%2Fv%20UnattendFile%202%5E%3Enul')%20do%20(%20if%20exist%20%25%25t%20set%20%22XML_FILE%3D%25%25t%22%20)%0Aif%20not%20defined%20IMAGE_FILE%20call%20%3Afail%20%22Could%20not%20locate%20install.wim%2C%20install.esd%20or%20install.swm.%22%0Aif%20not%20defined%20XML_FILE%20call%20%3Afail%20%22Could%20not%20locate%20autounattend.xml.%22%0A%0Aset%20%22OS_VERSION%3D11%22%0Afor%20%2Ff%20%22tokens%3D3%20delims%3D.%22%20%25%25v%20in%20('ver')%20do%20(%0A%20%20%20%20if%20%25%25v%20LSS%2020000%20set%20%22OS_VERSION%3D10%22%0A)%0A%0Aif%20defined%20PEDRIVERS_FOLDER%20(%0A%20%20%20%20call%20%3Aprint%20%22Loading%20drivers%20from%20%25PEDRIVERS_FOLDER%25%22%0A%20%20%20%20for%20%2FR%20%25PEDRIVERS_FOLDER%25%20%25%25f%20IN%20(*.inf)%20do%20drvload.exe%20%22%25%25f%22%0A)%0A%0A%3EX%3A%5Ctarget.vbs%20(%0A%20%20%20%20echo%3AFunction%20Fail(message%5E)%0A%20%20%20%20echo%3AWScript.Echo%20message%0A%20%20%20%20echo%3AWScript.Quit%201%0A%20%20%20%20echo%3AEnd%20Function%0A%20%20%20%20echo%3AOn%20Error%20Resume%20Next%0A%20%20%20%20echo%3ASet%20wmi%20%3D%20GetObject(%5E%22winmgmts%3A%5C%5C.%5Croot%5Ccimv2%5E%22%5E)%0A%20%20%20%20echo%3ASet%20drives%20%3D%20wmi.InstancesOf(%5E%22Win32_DiskDrive%5E%22%5E)%0A%20%20%20%20echo%3AIf%20Err.Number%20%5E%3C%5E%3E%200%20Then%0A%20%20%20%20echo%3AFail%20%5E%22Could%20not%20enumerate%20disks%3A%20%5E%22%20%5E%26%20Err.Description%0A%20%20%20%20echo%3AEnd%20If%0A%20%20%20%20echo%3ASet%20accepted%20%3D%20CreateObject(%5E%22Scripting.Dictionary%5E%22%5E)%0A%20%20%20%20echo%3AFor%20Each%20drive%20In%20drives%0A%20%20%20%20echo%3Aaccept%20%3D%20True%0A%20%20%20%20echo%3Aactual%20%3D%20CInt(drive.Size%20%2F%201024%20%2F%201024%20%2F%201024%5E)%0A%20%20%20%20echo%3Aexpected%20%3D%20100%0A%20%20%20%20echo%3AIf%20actual%20%5E%3C%20expected%20Then%0A%20%20%20%20echo%3Aaccept%20%3D%20False%0A%20%20%20%20echo%3AEnd%20If%0A%20%20%20%20echo%3Aactual%20%3D%20CInt(drive.Size%20%2F%201024%20%2F%201024%20%2F%201024%5E)%0A%20%20%20%20echo%3Aexpected%20%3D%204000%0A%20%20%20%20echo%3AIf%20actual%20%5E%3E%20expected%20Then%0A%20%20%20%20echo%3Aaccept%20%3D%20False%0A%20%20%20%20echo%3AEnd%20If%0A%20%20%20%20echo%3Aactual%20%3D%20drive.Index%0A%20%20%20%20echo%3Aexpected%20%3D%200%0A%20%20%20%20echo%3AIf%20actual%20%5E%3C%5E%3E%20expected%20Then%0A%20%20%20%20echo%3Aaccept%20%3D%20False%0A%20%20%20%20echo%3AEnd%20If%0A%20%20%20%20echo%3Aactual%20%3D%20drive.Partitions%0A%20%20%20%20echo%3AIf%20actual%20%5E%3E%200%20Then%0A%20%20%20%20echo%3Aaccept%20%3D%20False%0A%20%20%20%20echo%3AEnd%20If%0A%20%20%20%20echo%3AIf%20accept%20Then%0A%20%20%20%20echo%3Aaccepted.Add%20drive.Index%2C%20%5E%22%5E%22%0A%20%20%20%20echo%3AEnd%20If%0A%20%20%20%20echo%3ANext%0A%20%20%20%20echo%3AIf%20accepted.Count%20%3D%200%20Then%0A%20%20%20%20echo%3AFail%20%5E%22No%20disk%20satisfied%20the%20given%20criteria.%5E%22%0A%20%20%20%20echo%3AElseIf%20accepted.Count%20%5E%3E%201%20Then%0A%20%20%20%20echo%3AFail%20%5E%22Several%20disks%20(%5E%22%20%5E%26%20Join(accepted.Keys%2C%20%5E%22%2C%20%5E%22%5E)%20%5E%26%20%5E%22%5E)%20satisfied%20the%20given%20criteria.%5E%22%0A%20%20%20%20echo%3AElse%0A%20%20%20%20echo%3AWScript.Echo%20Join(accepted.Keys%5E)%0A%20%20%20%20echo%3AWScript.Quit%200%0A%20%20%20%20echo%3AEnd%20If%0A)%0A%0Acall%20%3Aprint%20%22Determining%20target%20disk%22%0A(cscript.exe%20%2F%2FE%3Avbscript%20%22X%3A%5Ctarget.vbs%22%20%2F%2FNologo%20%3EX%3A%5Ctarget.out)%20%7C%7C%20(type%20X%3A%5Ctarget.out%20%26%20call%20%3Afail%20%22Could%20not%20determine%20target%20disk.%20Windows%20Setup%20will%20halt%20to%20avoid%20potential%20data%20loss.%22)%0Afor%20%2Ff%20%25%25t%20in%20(X%3A%5Ctarget.out)%20do%20set%20%22TARGET_DISK%3D%25%25t%22%0A%0Awpeutil.exe%20UpdateBootInfo%0Afor%20%2Ff%20%22tokens%3D3%22%20%25%25t%20in%20('reg.exe%20query%20HKLM%5CSystem%5CCurrentControlSet%5CControl%20%2Fv%20PEFirmwareType')%20do%20(%0A%20%20%20%20if%20%25%25t%20%3D%3D%200x1%20(%0A%20%20%20%20%20%20%20%20set%20%22LAYOUT%3DMBR%22%0A%20%20%20%20%20%20%20%20set%20%22FIRMWARE%3DBIOS%22%0A%20%20%20%20)%20else%20if%20%25%25t%20%3D%3D%200x2%20(%0A%20%20%20%20%20%20%20%20set%20%22LAYOUT%3DGPT%22%0A%20%20%20%20%20%20%20%20set%20%22FIRMWARE%3DUEFI%22%0A%20%20%20%20)%20else%20(%0A%20%20%20%20%20%20%20%20call%20%3Afail%20%22Unexpected%20PEFirmwareType%20value%20%25%25t.%22%0A%20%20%20%20)%0A)%0Acall%20%3Aprint%20%22The%20computer%20is%20booted%20in%20%25FIRMWARE%25%20mode%2C%20hence%20the%20target%20disk%20must%20be%20configured%20with%20the%20%25LAYOUT%25%20partition%20layout%22%0A%3EX%3A%5CGPT.txt%20(%0A%20%20%20%20echo%3ASELECT%20DISK%3D%25TARGET_DISK%25%0A%20%20%20%20echo%3ACLEAN%0A%20%20%20%20echo%3ACONVERT%20GPT%0A%20%20%20%20echo%3ACREATE%20PARTITION%20EFI%20SIZE%3D300%0A%20%20%20%20echo%3AFORMAT%20QUICK%20FS%3DFAT32%20LABEL%3D%22System%22%0A%20%20%20%20echo%3AASSIGN%20LETTER%3DS%0A%20%20%20%20echo%3ACREATE%20PARTITION%20MSR%20SIZE%3D16%0A%20%20%20%20echo%3ACREATE%20PARTITION%20PRIMARY%0A%20%20%20%20echo%3ASHRINK%20MINIMUM%3D1000%0A%20%20%20%20echo%3AFORMAT%20QUICK%20FS%3DNTFS%20LABEL%3D%22Windows%22%0A%20%20%20%20echo%3AASSIGN%20LETTER%3DW%0A%20%20%20%20echo%3ACREATE%20PARTITION%20PRIMARY%0A%20%20%20%20echo%3AFORMAT%20QUICK%20FS%3DNTFS%20LABEL%3D%22Recovery%22%0A%20%20%20%20echo%3AASSIGN%20LETTER%3DR%0A%20%20%20%20echo%3ASET%20ID%3D%22de94bba4-06d1-4d40-a16a-bfd50179d6ac%22%0A%20%20%20%20echo%3AGPT%20ATTRIBUTES%3D0x8000000000000001%0A)%0A%0A%3EX%3A%5CMBR.txt%20(%0A%20%20%20%20echo%3ASELECT%20DISK%3D%25TARGET_DISK%25%0A%20%20%20%20echo%3ACLEAN%0A%20%20%20%20echo%3ACREATE%20PARTITION%20PRIMARY%20SIZE%3D300%0A%20%20%20%20echo%3AFORMAT%20QUICK%20FS%3DNTFS%20LABEL%3D%22System%22%0A%20%20%20%20echo%3AASSIGN%20LETTER%3DS%0A%20%20%20%20echo%3AACTIVE%0A%20%20%20%20echo%3ACREATE%20PARTITION%20PRIMARY%0A%20%20%20%20echo%3ASHRINK%20MINIMUM%3D1000%0A%20%20%20%20echo%3AFORMAT%20QUICK%20FS%3DNTFS%20LABEL%3D%22Windows%22%0A%20%20%20%20echo%3AASSIGN%20LETTER%3DW%0A%20%20%20%20echo%3ACREATE%20PARTITION%20PRIMARY%0A%20%20%20%20echo%3AFORMAT%20QUICK%20FS%3DNTFS%20LABEL%3D%22Recovery%22%0A%20%20%20%20echo%3AASSIGN%20LETTER%3DR%0A%20%20%20%20echo%3ASET%20ID%3D27%0A)%0A%0Acall%20%3Aprint%20%22diskpart%20will%20now%20wipe%2C%20partition%20and%20format%20disk%20%25TARGET_DISK%25%22%0Adiskpart.exe%20%2Fs%20X%3A%5C%25LAYOUT%25.txt%20%7C%7C%20call%20%3Afail%20%22diskpart.exe%20encountered%20an%20error.%22%0A%0Aset%20%22IMG_PARAM%3D%2FName%3A%22Windows%20%25OS_VERSION%25%20Pro%22%22%0Acall%20%3Aprint%20%22Applying%20Windows%20image%20to%20target%20disk%22%0Adism.exe%20%2FApply-Image%20%2FImageFile%3A%25IMAGE_FILE%25%20%25SWM_PARAM%25%20%25IMG_PARAM%25%20%2FApplyDir%3AW%3A%5C%20%2FCheckIntegrity%20%2FVerify%20%7C%7C%20call%20%3Afail%20%22dism.exe%20encountered%20an%20error.%22%0A%0Acall%20%3Aprint%20%22Making%20system%20partition%20bootable%22%0Abcdboot.exe%20W%3A%5CWindows%20%2Fs%20S%3A%20%7C%7C%20call%20%3Afail%20%22bcdboot.exe%20encountered%20an%20error.%22%0Aif%20%25LAYOUT%25%20%3D%3D%20GPT%20(%0A%20%20%20%20bcdedit.exe%20%2Fset%20%7Bfwbootmgr%7D%20bootsequence%20%7Bbootmgr%7D%20%7C%7C%20call%20%3Afail%20%22bcdedit.exe%20encountered%20an%20error.%22%0A)%0A%0Acall%20%3Aprint%20%22Copying%20answer%20file%20to%20target%20disk%22%0Amkdir%20W%3A%5CWindows%5CPanther%0Acopy%20%25XML_FILE%25%20W%3A%5CWindows%5CPanther%5Cunattend.xml%0A%0Aif%20defined%20PEDRIVERS_FOLDER%20(%0A%20%20%20%20call%20%3Aprint%20%22Adding%20drivers%20from%20%25PEDRIVERS_FOLDER%25%20to%20new%20installation%22%0A%20%20%20%20dism.exe%20%2FAdd-Driver%20%2FImage%3AW%3A%5C%20%2FDriver%3A%22%25PEDRIVERS_FOLDER%25%22%20%2FRecurse%0A)%0A%0Acall%20%3Aprint%20%22Disabling%208.3%20file%20names%22%0Afsutil.exe%208dot3name%20set%20W%3A%201%0Afsutil.exe%208dot3name%20strip%20%2Fs%20%2Ff%20W%3A%5C%0Areg.exe%20LOAD%20HKLM%5Cmount%20W%3A%5CWindows%5CSystem32%5Cconfig%5CSYSTEM%0Areg.exe%20ADD%20HKLM%5Cmount%5CControlSet001%5CControl%5CFileSystem%20%2Fv%20NtfsDisable8dot3NameCreation%20%2Ft%20REG_DWORD%20%2Fd%201%20%2Ff%0Areg.exe%20UNLOAD%20HKLM%5Cmount%0A%0Acall%20%3Aprint%20%22Disabling%20Windows%20Defender%22%0Areg.exe%20LOAD%20HKLM%5Cmount%20W%3A%5CWindows%5CSystem32%5Cconfig%5CSYSTEM%0Afor%20%25%25s%20in%20(Sense%20WdBoot%20WdFilter%20WdNisDrv%20WdNisSvc%20WinDefend)%20do%20reg.exe%20ADD%20HKLM%5Cmount%5CControlSet001%5CServices%5C%25%25s%20%2Fv%20Start%20%2Ft%20REG_DWORD%20%2Fd%204%20%2Ff%0Areg.exe%20UNLOAD%20HKLM%5Cmount%0A%0Acall%20%3Aprint%20%22Setting%20device%20setup%20region%20to%20United%20States%20(GeoID%20244)%22%0Areg.exe%20LOAD%20HKLM%5Cmount%20W%3A%5CWindows%5CSystem32%5Cconfig%5CSOFTWARE%0Areg.exe%20ADD%20%22HKLM%5Cmount%5CMicrosoft%5CWindows%5CCurrentVersion%5CControl%20Panel%5CDeviceRegion%22%20%2Fv%20DeviceRegion%20%2Ft%20REG_DWORD%20%2Fd%20244%20%2Ff%0Areg.exe%20UNLOAD%20HKLM%5Cmount%0A%0Aset%20%22ROBOCOPY_ARGS%3D%2FE%20%2FXX%20%2FCOPY%3ADAT%20%2FDCOPY%3ADAT%20%2FR%3A0%22%0Aif%20defined%20OEM_FOLDER%20(%0A%20%20%20%20call%20%3Aprint%20%22Copying%20contents%20of%20%25OEM_FOLDER%25%22%0A%20%20%20%20if%20exist%20%22%25OEM_FOLDER%25%5C%24%24%22%20robocopy.exe%20%22%25OEM_FOLDER%25%5C%24%24%22%20W%3A%5CWindows%20%25ROBOCOPY_ARGS%25%0A%20%20%20%20if%20exist%20%22%25OEM_FOLDER%25%5C%241%22%20robocopy.exe%20%22%25OEM_FOLDER%25%5C%241%22%20W%3A%5C%20%25ROBOCOPY_ARGS%25%0A%20%20%20%20for%20%25%25d%20in%20(C%20D%20E%20F%20G%20H%20I%20J%20K%20L%20M%20N%20O%20P%20Q%20R%20S%20T%20U%20V%20W%20X%20Y%20Z)%20do%20(%0A%20%20%20%20%20%20%20%20if%20exist%20%22%25OEM_FOLDER%25%5C%25%25d%22%20robocopy.exe%20%22%25OEM_FOLDER%25%5C%25%25d%22%20%25%25d%3A%5C%20%25ROBOCOPY_ARGS%25%0A%20%20%20%20)%0A)%0A%0Acall%20%3Aprint%20%22Computer%20will%20now%20reboot%22%0Awpeutil.exe%20reboot%0Agoto%20%3Aeof%0A%0A%3Afail%0Aecho%3A%0Aecho%3AFatal%20error%3A%20%25~1%0Aecho%3A%0Apause%0Aexit%201%0A%0A%3Aprint%0Aecho%3A%0Aecho%3A***%20%25~1%20***%0Aecho%3A%0Agoto%20%3Aeof&ComputerNameScript=return%20'DESKTOP-%7B0%3AD3%7D'%20-f%20(%20Get-Random%20-Minimum%200%20-Maximum%20999%20)%3B&TaskbarIconsXml=%3CLayoutModificationTemplate%20xmlns%3D%22http%3A%2F%2Fschemas.microsoft.com%2FStart%2F2014%2FLayoutModification%22%20xmlns%3Adefaultlayout%3D%22http%3A%2F%2Fschemas.microsoft.com%2FStart%2F2014%2FFullDefaultLayout%22%20xmlns%3Astart%3D%22http%3A%2F%2Fschemas.microsoft.com%2FStart%2F2014%2FStartLayout%22%20xmlns%3Ataskbar%3D%22http%3A%2F%2Fschemas.microsoft.com%2FStart%2F2014%2FTaskbarLayout%22%20Version%3D%221%22%3E%0A%20%20%3CCustomTaskbarLayoutCollection%20PinListPlacement%3D%22Replace%22%3E%0A%20%20%20%20%3Cdefaultlayout%3ATaskbarLayout%3E%0A%20%20%20%20%20%20%3Ctaskbar%3ATaskbarPinList%3E%0A%20%20%20%20%20%20%20%20%3Ctaskbar%3ADesktopApp%20DesktopApplicationID%3D%22Microsoft.Windows.Explorer%22%20%2F%3E%0A%20%20%20%20%20%20%20%20%3Ctaskbar%3AUWA%20AppUserModelID%3D%22windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel%22%20%2F%3E%0A%20%20%20%20%20%20%20%20%3Ctaskbar%3ADesktopApp%20DesktopApplicationLinkPath%3D%22%25APPDATA%25%5CMicrosoft%5CWindows%5CStart%20Menu%5CPrograms%5CWindows%20PowerShell%5CWindows%20PowerShell.lnk%22%20%2F%3E%0A%20%20%20%20%20%20%3C%2Ftaskbar%3ATaskbarPinList%3E%0A%20%20%20%20%3C%2Fdefaultlayout%3ATaskbarLayout%3E%0A%20%20%3C%2FCustomTaskbarLayoutCollection%3E%0A%3C%2FLayoutModificationTemplate%3E&StartTilesXml=%3CLayoutModificationTemplate%20xmlns%3Adefaultlayout%3D%22http%3A%2F%2Fschemas.microsoft.com%2FStart%2F2014%2FFullDefaultLayout%22%20xmlns%3Astart%3D%22http%3A%2F%2Fschemas.microsoft.com%2FStart%2F2014%2FStartLayout%22%20Version%3D%221%22%20xmlns%3D%22http%3A%2F%2Fschemas.microsoft.com%2FStart%2F2014%2FLayoutModification%22%3E%0A%20%20%3CLayoutOptions%20StartTileGroupCellWidth%3D%226%22%20%2F%3E%0A%20%20%3CDefaultLayoutOverride%3E%0A%20%20%20%20%3CStartLayoutCollection%3E%0A%20%20%20%20%20%20%3Cdefaultlayout%3AStartLayout%20GroupCellWidth%3D%226%22%3E%0A%20%20%20%20%20%20%20%20%3Cstart%3AGroup%20Name%3D%22%22%3E%0A%20%20%20%20%20%20%20%20%20%20%3Cstart%3ATile%20Size%3D%222x2%22%20Column%3D%224%22%20Row%3D%220%22%20AppUserModelID%3D%22windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel%22%20%2F%3E%0A%20%20%20%20%20%20%20%20%20%20%3Cstart%3ADesktopApplicationTile%20Size%3D%222x2%22%20Column%3D%220%22%20Row%3D%220%22%20DesktopApplicationLinkPath%3D%22%25ALLUSERSPROFILE%25%5CMicrosoft%5CWindows%5CStart%20Menu%5CPrograms%5CMicrosoft%20Edge.lnk%22%20%2F%3E%0A%20%20%20%20%20%20%20%20%20%20%3Cstart%3ADesktopApplicationTile%20Size%3D%222x2%22%20Column%3D%222%22%20Row%3D%220%22%20DesktopApplicationLinkPath%3D%22%25APPDATA%25%5CMicrosoft%5CWindows%5CStart%20Menu%5CPrograms%5CSystem%20Tools%5CFile%20Explorer.lnk%22%20%2F%3E%0A%20%20%20%20%20%20%20%20%3C%2Fstart%3AGroup%3E%0A%20%20%20%20%20%20%3C%2Fdefaultlayout%3AStartLayout%3E%0A%20%20%20%20%3C%2FStartLayoutCollection%3E%0A%20%20%3C%2FDefaultLayoutOverride%3E%0A%3C%2FLayoutModificationTemplate%3E&StartPinsJson=%7B%0A%20%20%22pinnedList%22%3A%20%5B%0A%20%20%20%20%7B%0A%20%20%20%20%20%20%22desktopAppLink%22%3A%20%22%25ALLUSERSPROFILE%25%5C%5CMicrosoft%5C%5CWindows%5C%5CStart%20Menu%5C%5CPrograms%5C%5CMicrosoft%20Edge.lnk%22%0A%20%20%20%20%7D%2C%0A%20%20%20%20%7B%0A%20%20%20%20%20%20%22desktopAppLink%22%3A%20%22%25APPDATA%25%5C%5CMicrosoft%5C%5CWindows%5C%5CStart%20Menu%5C%5CPrograms%5C%5CFile%20Explorer.lnk%22%0A%20%20%20%20%7D%2C%0A%20%20%20%20%7B%0A%20%20%20%20%20%20%22packagedAppId%22%3A%20%22windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel%22%0A%20%20%20%20%7D%0A%20%20%5D%0A%7D&WifiProfileXml=%3CWLANProfile%20xmlns%3D%22http%3A%2F%2Fwww.microsoft.com%2Fnetworking%2FWLAN%2Fprofile%2Fv1%22%3E%0A%20%20%3Cname%3EWLAN-123456%3C%2Fname%3E%0A%20%20%3CSSIDConfig%3E%0A%20%20%20%20%3CSSID%3E%0A%20%20%20%20%20%20%3Chex%3E574C414E2D313233343536%3C%2Fhex%3E%0A%20%20%20%20%20%20%3Cname%3EWLAN-123456%3C%2Fname%3E%0A%20%20%20%20%3C%2FSSID%3E%0A%20%20%20%20%3CnonBroadcast%3Etrue%3C%2FnonBroadcast%3E%0A%20%20%3C%2FSSIDConfig%3E%0A%20%20%3CconnectionType%3EESS%3C%2FconnectionType%3E%0A%20%20%3CconnectionMode%3Eauto%3C%2FconnectionMode%3E%0A%20%20%3CMSM%3E%0A%20%20%20%20%3Csecurity%3E%0A%20%20%20%20%20%20%3CauthEncryption%3E%0A%20%20%20%20%20%20%20%20%3Cauthentication%3EWPA3SAE%3C%2Fauthentication%3E%0A%20%20%20%20%20%20%20%20%3Cencryption%3EAES%3C%2Fencryption%3E%0A%20%20%20%20%20%20%20%20%3CuseOneX%3Efalse%3C%2FuseOneX%3E%0A%20%20%20%20%20%20%20%20%3CtransitionMode%20xmlns%3D%22http%3A%2F%2Fwww.microsoft.com%2Fnetworking%2FWLAN%2Fprofile%2Fv4%22%3Etrue%3C%2FtransitionMode%3E%0A%20%20%20%20%20%20%3C%2FauthEncryption%3E%0A%20%20%20%20%20%20%3CsharedKey%3E%0A%20%20%20%20%20%20%20%20%3CkeyType%3EpassPhrase%3C%2FkeyType%3E%0A%20%20%20%20%20%20%20%20%3Cprotected%3Efalse%3C%2Fprotected%3E%0A%20%20%20%20%20%20%20%20%3CkeyMaterial%3Epassword%3C%2FkeyMaterial%3E%0A%20%20%20%20%20%20%3C%2FsharedKey%3E%0A%20%20%20%20%3C%2Fsecurity%3E%0A%20%20%3C%2FMSM%3E%0A%3C%2FWLANProfile%3E&WallpaperScript=%23%20Photo%20by%20Benjamin%20Voros%20on%20Unsplash.%20See%20https%3A%2F%2Funsplash.com%2Fphotos%2Fsnow-mountain-under-stars-phIFdC6lA4E%20for%20more%20info.%0A%24url%20%3D%20'https%3A%2F%2Fimages.unsplash.com%2Fphoto-1519681393784-d120267933ba%3Fw%3D2400'%3B%0A%26%20%7B%0A%20%20%20%20%24ProgressPreference%20%3D%20'SilentlyContinue'%3B%0A%20%20%20%20(%20Invoke-WebRequest%20-Uri%20%24url%20-UseBasicParsing%20-TimeoutSec%2030%20).Content%3B%0A%7D%3B&LockScreenScript=foreach(%20%24drive%20in%20%5BSystem.IO.DriveInfo%5D%3A%3AGetDrives()%20)%20%7B%0A%20%20%20%20if(%20%24found%20%3D%20Join-Path%20-Path%20%24drive.RootDirectory%20-ChildPath%20'lockscreen.png'%20-Resolve%20-ErrorAction%20'SilentlyContinue'%20)%20%7B%0A%20%20%20%20%20%20%20%20return%20%5BSystem.IO.File%5D%3A%3AReadAllBytes(%20%24found%20)%3B%0A%20%20%20%20%7D%0A%7D%0A'Cannot%20find%20any%20files%20that%20match%20pattern.'%20%7C%20Write-Warning%3B&SystemScript0=&SystemScript1=&SystemScript2=&SystemScript3=&SystemScript4=&SystemScript5=&SystemScript6=&SystemScript7=&SystemScript8=&SystemScript9=&SystemScript10=&SystemScript11=&SystemScript12=&SystemScript13=&SystemScript14=&DefaultUserScript0=&DefaultUserScript1=&DefaultUserScript2=&DefaultUserScript3=&DefaultUserScript4=&DefaultUserScript5=&DefaultUserScript6=&DefaultUserScript7=&DefaultUserScript8=&DefaultUserScript9=&DefaultUserScript10=&DefaultUserScript11=&DefaultUserScript12=&DefaultUserScript13=&DefaultUserScript14=&FirstLogonScript0=&FirstLogonScript1=&FirstLogonScript2=&FirstLogonScript3=&FirstLogonScript4=&FirstLogonScript5=&FirstLogonScript6=&FirstLogonScript7=&FirstLogonScript8=&FirstLogonScript9=&FirstLogonScript10=&FirstLogonScript11=&FirstLogonScript12=&FirstLogonScript13=&FirstLogonScript14=&UserOnceScript0=&UserOnceScript1=&UserOnceScript2=&UserOnceScript3=&UserOnceScript4=&UserOnceScript5=&UserOnceScript6=&UserOnceScript7=&UserOnceScript8=&UserOnceScript9=&UserOnceScript10=&UserOnceScript11=&UserOnceScript12=&UserOnceScript13=&UserOnceScript14=&AppLockerPolicyXml=%3CAppLockerPolicy%20Version%3D%221%22%3E%0A%20%20%3CRuleCollection%20Type%3D%22Appx%22%20EnforcementMode%3D%22Enabled%22%3E%0A%20%20%20%20%3CFilePublisherRule%20Id%3D%2230591721-b29c-457d-b083-243f87b3527d%22%20Name%3D%22All%20signed%20packaged%20apps%22%20Description%3D%22Allows%20members%20of%20the%20Everyone%20group%20to%20run%20packaged%20apps%20that%20are%20signed.%22%20UserOrGroupSid%3D%22S-1-1-0%22%20Action%3D%22Allow%22%3E%0A%20%20%20%20%20%20%3CConditions%3E%0A%20%20%20%20%20%20%20%20%3CFilePublisherCondition%20PublisherName%3D%22*%22%20ProductName%3D%22*%22%20BinaryName%3D%22*%22%3E%0A%20%20%20%20%20%20%20%20%20%20%3CBinaryVersionRange%20LowSection%3D%220.0.0.0%22%20HighSection%3D%22*%22%20%2F%3E%0A%20%20%20%20%20%20%20%20%3C%2FFilePublisherCondition%3E%0A%20%20%20%20%20%20%3C%2FConditions%3E%0A%20%20%20%20%3C%2FFilePublisherRule%3E%0A%20%20%3C%2FRuleCollection%3E%0A%20%20%3CRuleCollection%20Type%3D%22Dll%22%20EnforcementMode%3D%22NotConfigured%22%20%2F%3E%0A%20%20%3CRuleCollection%20Type%3D%22Exe%22%20EnforcementMode%3D%22Enabled%22%3E%0A%20%20%20%20%3CFilePathRule%20Id%3D%22921cc481-6e17-4653-8f75-050b80acca20%22%20Name%3D%22(Default%20Rule)%20All%20files%20located%20in%20the%20Program%20Files%20folder%22%20Description%3D%22Allows%20members%20of%20the%20Everyone%20group%20to%20run%20applications%20that%20are%20located%20in%20the%20Program%20Files%20folder.%22%20UserOrGroupSid%3D%22S-1-1-0%22%20Action%3D%22Allow%22%3E%0A%20%20%20%20%20%20%3CConditions%3E%0A%20%20%20%20%20%20%20%20%3CFilePathCondition%20Path%3D%22%25PROGRAMFILES%25%5C*%22%20%2F%3E%0A%20%20%20%20%20%20%3C%2FConditions%3E%0A%20%20%20%20%3C%2FFilePathRule%3E%0A%20%20%20%20%3CFilePathRule%20Id%3D%22a61c8b2c-a319-4cd0-9690-d2177cad7b51%22%20Name%3D%22(Default%20Rule)%20All%20files%20located%20in%20the%20Windows%20folder%22%20Description%3D%22Allows%20members%20of%20the%20Everyone%20group%20to%20run%20applications%20that%20are%20located%20in%20the%20Windows%20folder.%22%20UserOrGroupSid%3D%22S-1-1-0%22%20Action%3D%22Allow%22%3E%0A%20%20%20%20%20%20%3CConditions%3E%0A%20%20%20%20%20%20%20%20%3CFilePathCondition%20Path%3D%22%25WINDIR%25%5C*%22%20%2F%3E%0A%20%20%20%20%20%20%3C%2FConditions%3E%0A%20%20%20%20%3C%2FFilePathRule%3E%0A%20%20%20%20%3CFilePathRule%20Id%3D%22fd686d83-a829-4351-8ff4-27c7de5755d2%22%20Name%3D%22(Default%20Rule)%20All%20files%22%20Description%3D%22Allows%20members%20of%20the%20local%20Administrators%20group%20to%20run%20all%20applications.%22%20UserOrGroupSid%3D%22S-1-5-32-544%22%20Action%3D%22Allow%22%3E%0A%20%20%20%20%20%20%3CConditions%3E%0A%20%20%20%20%20%20%20%20%3CFilePathCondition%20Path%3D%22*%22%20%2F%3E%0A%20%20%20%20%20%20%3C%2FConditions%3E%0A%20%20%20%20%3C%2FFilePathRule%3E%0A%20%20%3C%2FRuleCollection%3E%0A%20%20%3CRuleCollection%20Type%3D%22Msi%22%20EnforcementMode%3D%22Enabled%22%3E%0A%20%20%20%20%3CFilePathRule%20Id%3D%225b290184-345a-4453-b184-45305f6d9a54%22%20Name%3D%22(Default%20Rule)%20All%20Windows%20Installer%20files%20in%20%25systemdrive%25%5CWindows%5CInstaller%22%20Description%3D%22Allows%20members%20of%20the%20Everyone%20group%20to%20run%20all%20Windows%20Installer%20files%20located%20in%20%25systemdrive%25%5CWindows%5CInstaller.%22%20UserOrGroupSid%3D%22S-1-1-0%22%20Action%3D%22Allow%22%3E%0A%20%20%20%20%20%20%3CConditions%3E%0A%20%20%20%20%20%20%20%20%3CFilePathCondition%20Path%3D%22%25WINDIR%25%5CInstaller%5C*%22%20%2F%3E%0A%20%20%20%20%20%20%3C%2FConditions%3E%0A%20%20%20%20%3C%2FFilePathRule%3E%0A%20%20%20%20%3CFilePathRule%20Id%3D%2264ad46ff-0d71-4fa0-a30b-3f3d30c5433d%22%20Name%3D%22(Default%20Rule)%20All%20Windows%20Installer%20files%22%20Description%3D%22Allows%20members%20of%20the%20local%20Administrators%20group%20to%20run%20all%20Windows%20Installer%20files.%22%20UserOrGroupSid%3D%22S-1-5-32-544%22%20Action%3D%22Allow%22%3E%0A%20%20%20%20%20%20%3CConditions%3E%0A%20%20%20%20%20%20%20%20%3CFilePathCondition%20Path%3D%22*.*%22%20%2F%3E%0A%20%20%20%20%20%20%3C%2FConditions%3E%0A%20%20%20%20%3C%2FFilePathRule%3E%0A%20%20%3C%2FRuleCollection%3E%0A%20%20%3CRuleCollection%20Type%3D%22Script%22%20EnforcementMode%3D%22Enabled%22%3E%0A%20%20%20%20%3CFilePathRule%20Id%3D%2206dce67b-934c-454f-a263-2515c8796a5d%22%20Name%3D%22(Default%20Rule)%20All%20scripts%20located%20in%20the%20Program%20Files%20folder%22%20Description%3D%22Allows%20members%20of%20the%20Everyone%20group%20to%20run%20scripts%20that%20are%20located%20in%20the%20Program%20Files%20folder.%22%20UserOrGroupSid%3D%22S-1-1-0%22%20Action%3D%22Allow%22%3E%0A%20%20%20%20%20%20%3CConditions%3E%0A%20%20%20%20%20%20%20%20%3CFilePathCondition%20Path%3D%22%25PROGRAMFILES%25%5C*%22%20%2F%3E%0A%20%20%20%20%20%20%3C%2FConditions%3E%0A%20%20%20%20%3C%2FFilePathRule%3E%0A%20%20%20%20%3CFilePathRule%20Id%3D%229428c672-5fc3-47f4-808a-a0011f36dd2c%22%20Name%3D%22(Default%20Rule)%20All%20scripts%20located%20in%20the%20Windows%20folder%22%20Description%3D%22Allows%20members%20of%20the%20Everyone%20group%20to%20run%20scripts%20that%20are%20located%20in%20the%20Windows%20folder.%22%20UserOrGroupSid%3D%22S-1-1-0%22%20Action%3D%22Allow%22%3E%0A%20%20%20%20%20%20%3CConditions%3E%0A%20%20%20%20%20%20%20%20%3CFilePathCondition%20Path%3D%22%25WINDIR%25%5C*%22%20%2F%3E%0A%20%20%20%20%20%20%3C%2FConditions%3E%0A%20%20%20%20%3C%2FFilePathRule%3E%0A%20%20%20%20%3CFilePathRule%20Id%3D%22ed97d0cb-15ff-430f-b82c-8d7832957725%22%20Name%3D%22(Default%20Rule)%20All%20scripts%22%20Description%3D%22Allows%20members%20of%20the%20local%20Administrators%20group%20to%20run%20all%20scripts.%22%20UserOrGroupSid%3D%22S-1-5-32-544%22%20Action%3D%22Allow%22%3E%0A%20%20%20%20%20%20%3CConditions%3E%0A%20%20%20%20%20%20%20%20%3CFilePathCondition%20Path%3D%22*%22%20%2F%3E%0A%20%20%20%20%20%20%3C%2FConditions%3E%0A%20%20%20%20%3C%2FFilePathRule%3E%0A%20%20%3C%2FRuleCollection%3E%0A%3C%2FAppLockerPolicy%3E&ComponentContent0=&ComponentContent1=&ComponentContent2=&ComponentContent3=&ComponentContent4=&ComponentContent5=&ComponentContent6=&ComponentContent7=&ComponentContent8=&ComponentContent9=&ComponentContent10=&ComponentContent11=&ComponentContent12=&ComponentContent13=&ComponentContent14=&AccountName0=Admin&ExpressSettings=DisableAll&UseNarrator=true&WindowsEditionMode=Firmware&WifiMode=FromProfile&AccountGroup0=Administrators&Locale=en-US&GeoLocation=244&ComputerNameMode=Prompt&BuiltinAdministratorPassword=adm1n&PartitionMode=Interactive&TimeZoneMode=Implicit&KeepSensitiveFiles=true&AutoLogonMode=Builtin&AccountName1=&UserAccountMode=Unattended&LockoutMode=Disabled&PEMode=Default&Keyboard=00000409&UILanguage=en-US&PasswordExpirationMode=Custom&LanguageMode=Unattended&ProcessorArchitecture=amd64&ProcessorArchitecture=arm64&PasswordMaxAge=90-->
+	<settings pass="offlineServicing"></settings>
+	<settings pass="windowsPE">
+		<component name="Microsoft-Windows-International-Core-WinPE" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+			<UILanguage>en-US</UILanguage>
+		</component>
+		<component name="Microsoft-Windows-International-Core-WinPE" processorArchitecture="arm64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+			<UILanguage>en-US</UILanguage>
+		</component>
+		<component name="Microsoft-Windows-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+			<UserData>
+				<ProductKey>
+					<WillShowUI>Never</WillShowUI>
+				</ProductKey>
+				<AcceptEula>true</AcceptEula>
+			</UserData>
+			<UseConfigurationSet>true</UseConfigurationSet>
+			<RunSynchronous>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>1</Order>
+					<Path>cmd.exe /c "start X:\Windows\System32\Narrator.exe"</Path>
+				</RunSynchronousCommand>
+			</RunSynchronous>
+		</component>
+		<component name="Microsoft-Windows-Setup" processorArchitecture="arm64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+			<UserData>
+				<ProductKey>
+					<WillShowUI>Never</WillShowUI>
+				</ProductKey>
+				<AcceptEula>true</AcceptEula>
+			</UserData>
+			<UseConfigurationSet>true</UseConfigurationSet>
+			<RunSynchronous>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>1</Order>
+					<Path>cmd.exe /c "start X:\Windows\System32\Narrator.exe"</Path>
+				</RunSynchronousCommand>
+			</RunSynchronous>
+		</component>
+	</settings>
+	<settings pass="generalize"></settings>
+	<settings pass="specialize">
+		<component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+			<ComputerName>TEMPNAME</ComputerName>
+		</component>
+		<component name="Microsoft-Windows-Shell-Setup" processorArchitecture="arm64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+			<ComputerName>TEMPNAME</ComputerName>
+		</component>
+		<component name="Microsoft-Windows-Deployment" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+			<RunSynchronous>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>1</Order>
+					<Path>powershell.exe -WindowStyle "Normal" -NoProfile -Command "$xml = [xml]::new(); $xml.Load('C:\Windows\Panther\unattend.xml'); $sb = [scriptblock]::Create( $xml.unattend.Extensions.ExtractScript ); Invoke-Command -ScriptBlock $sb -ArgumentList $xml;"</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>2</Order>
+					<Path>powershell.exe -WindowStyle "Normal" -ExecutionPolicy "Unrestricted" -NoProfile -File "C:\Windows\Setup\Scripts\Specialize.ps1"</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>3</Order>
+					<Path>reg.exe load "HKU\DefaultUser" "C:\Users\Default\NTUSER.DAT"</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>4</Order>
+					<Path>powershell.exe -WindowStyle "Normal" -ExecutionPolicy "Unrestricted" -NoProfile -File "C:\Windows\Setup\Scripts\DefaultUser.ps1"</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>5</Order>
+					<Path>reg.exe unload "HKU\DefaultUser"</Path>
+				</RunSynchronousCommand>
+			</RunSynchronous>
+		</component>
+		<component name="Microsoft-Windows-Deployment" processorArchitecture="arm64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+			<RunSynchronous>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>1</Order>
+					<Path>powershell.exe -WindowStyle "Normal" -NoProfile -Command "$xml = [xml]::new(); $xml.Load('C:\Windows\Panther\unattend.xml'); $sb = [scriptblock]::Create( $xml.unattend.Extensions.ExtractScript ); Invoke-Command -ScriptBlock $sb -ArgumentList $xml;"</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>2</Order>
+					<Path>powershell.exe -WindowStyle "Normal" -ExecutionPolicy "Unrestricted" -NoProfile -File "C:\Windows\Setup\Scripts\Specialize.ps1"</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>3</Order>
+					<Path>reg.exe load "HKU\DefaultUser" "C:\Users\Default\NTUSER.DAT"</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>4</Order>
+					<Path>powershell.exe -WindowStyle "Normal" -ExecutionPolicy "Unrestricted" -NoProfile -File "C:\Windows\Setup\Scripts\DefaultUser.ps1"</Path>
+				</RunSynchronousCommand>
+				<RunSynchronousCommand wcm:action="add">
+					<Order>5</Order>
+					<Path>reg.exe unload "HKU\DefaultUser"</Path>
+				</RunSynchronousCommand>
+			</RunSynchronous>
+		</component>
+	</settings>
+	<settings pass="auditSystem"></settings>
+	<settings pass="auditUser"></settings>
+	<settings pass="oobeSystem">
+		<component name="Microsoft-Windows-International-Core" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+			<InputLocale>0409:00000409</InputLocale>
+			<SystemLocale>en-US</SystemLocale>
+			<UILanguage>en-US</UILanguage>
+			<UserLocale>en-US</UserLocale>
+		</component>
+		<component name="Microsoft-Windows-International-Core" processorArchitecture="arm64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+			<InputLocale>0409:00000409</InputLocale>
+			<SystemLocale>en-US</SystemLocale>
+			<UILanguage>en-US</UILanguage>
+			<UserLocale>en-US</UserLocale>
+		</component>
+		<component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+			<UserAccounts>
+				<AdministratorPassword>
+					<Value>adm1n</Value>
+					<PlainText>true</PlainText>
+				</AdministratorPassword>
+				<LocalAccounts>
+					<LocalAccount wcm:action="add">
+						<Name>Admin</Name>
+						<DisplayName></DisplayName>
+						<Group>Administrators</Group>
+						<Password>
+							<Value></Value>
+							<PlainText>true</PlainText>
+						</Password>
+					</LocalAccount>
+				</LocalAccounts>
+			</UserAccounts>
+			<AutoLogon>
+				<Username>Administrator</Username>
+				<Enabled>true</Enabled>
+				<LogonCount>1</LogonCount>
+				<Password>
+					<Value>adm1n</Value>
+					<PlainText>true</PlainText>
+				</Password>
+			</AutoLogon>
+			<OOBE>
+				<ProtectYourPC>3</ProtectYourPC>
+				<HideEULAPage>true</HideEULAPage>
+				<HideOnlineAccountScreens>false</HideOnlineAccountScreens>
+			</OOBE>
+			<FirstLogonCommands>
+				<SynchronousCommand wcm:action="add">
+					<Order>1</Order>
+					<CommandLine>powershell.exe -WindowStyle "Normal" -ExecutionPolicy "Unrestricted" -NoProfile -File "C:\Windows\Setup\Scripts\FirstLogon.ps1"</CommandLine>
+				</SynchronousCommand>
+			</FirstLogonCommands>
+		</component>
+		<component name="Microsoft-Windows-Shell-Setup" processorArchitecture="arm64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+			<UserAccounts>
+				<AdministratorPassword>
+					<Value>adm1n</Value>
+					<PlainText>true</PlainText>
+				</AdministratorPassword>
+				<LocalAccounts>
+					<LocalAccount wcm:action="add">
+						<Name>Admin</Name>
+						<DisplayName></DisplayName>
+						<Group>Administrators</Group>
+						<Password>
+							<Value></Value>
+							<PlainText>true</PlainText>
+						</Password>
+					</LocalAccount>
+				</LocalAccounts>
+			</UserAccounts>
+			<AutoLogon>
+				<Username>Administrator</Username>
+				<Enabled>true</Enabled>
+				<LogonCount>1</LogonCount>
+				<Password>
+					<Value>adm1n</Value>
+					<PlainText>true</PlainText>
+				</Password>
+			</AutoLogon>
+			<OOBE>
+				<ProtectYourPC>3</ProtectYourPC>
+				<HideEULAPage>true</HideEULAPage>
+				<HideOnlineAccountScreens>false</HideOnlineAccountScreens>
+			</OOBE>
+			<FirstLogonCommands>
+				<SynchronousCommand wcm:action="add">
+					<Order>1</Order>
+					<CommandLine>powershell.exe -WindowStyle "Normal" -ExecutionPolicy "Unrestricted" -NoProfile -File "C:\Windows\Setup\Scripts\FirstLogon.ps1"</CommandLine>
+				</SynchronousCommand>
+			</FirstLogonCommands>
+		</component>
+	</settings>
+	<Extensions xmlns="https://schneegans.de/windows/unattend-generator/">
+		<Build>
+			<Commit>
+				<Hash>82d4ffdd11ea3266f8f3b29d4fcd80f66bfdbaf6</Hash>
+				<GitHubUrl>https://github.com/cschneegans/unattend-generator/commit/82d4ffdd11ea3266f8f3b29d4fcd80f66bfdbaf6</GitHubUrl>
+			</Commit>
+		</Build>
+		<ExtractScript>
+param(
+    [xml] $Document
+);
+
+foreach( $file in $Document.unattend.Extensions.File ) {
+    $path = [System.Environment]::ExpandEnvironmentVariables( $file.GetAttribute( 'path' ) );
+    mkdir -Path( $path | Split-Path -Parent ) -ErrorAction 'SilentlyContinue';
+    $encoding = switch( [System.IO.Path]::GetExtension( $path ) ) {
+        { $_ -in '.ps1', '.xml' } { [System.Text.Encoding]::UTF8; }
+        { $_ -in '.reg', '.vbs', '.js' } { [System.Text.UnicodeEncoding]::new( $false, $true ); }
+        default { [System.Text.Encoding]::Default; }
+    };
+    $bytes = $encoding.GetPreamble() + $encoding.GetBytes( $file.InnerText.Trim() );
+    [System.IO.File]::WriteAllBytes( $path, $bytes );
+}
+		</ExtractScript>
+		<File path="C:\Windows\Setup\Scripts\GetComputerName.ps1">
+Add-Type -AssemblyName 'Microsoft.VisualBasic';
+function Test-ComputerName {
+	[CmdletBinding()]
+	param(
+		[string]
+		$Value
+	);
+	
+	if( [string]::IsNullOrWhiteSpace( $Value ) ) {
+		return $false;
+	}
+	
+	if( $Value.Length -gt 15 ) {
+		return $false;
+	}
+	
+	if( $Value -match '\s' ) {
+		return $false;
+	}
+	
+	if( $Value -match '^\d+$' ) {
+		return $false;
+	}
+
+	if( $Value.IndexOfAny( '{|}~[\]^'':;&lt;=&gt;?@!"#$%`()+/.,*&amp;'.ToCharArray() ) -gt -1 ) {
+		return $false;
+	}
+	
+	return $true;
+}
+while( $true ) {
+	$title = 'Computer name';
+	$candidate = [Microsoft.VisualBasic.Interaction]::InputBox( 'Enter a valid computer name:', $title, $candidate );
+	if( Test-ComputerName -Value $candidate ) {
+		return $candidate;
+	} else {
+		[Microsoft.VisualBasic.Interaction]::MsgBox( "'${candidate}' is not a valid computer name.", 'Critical, OkOnly', $title ) | Out-Null;
+	}
+}
+		</File>
+		<File path="C:\Windows\Setup\Scripts\SetComputerName.ps1">
+$ErrorActionPreference = 'Stop';
+Set-StrictMode -Version 'Latest';
+&amp; {
+	$newName = ( Get-Content -LiteralPath 'C:\Windows\Setup\Scripts\ComputerName.txt' -Raw ).Trim();
+	if( [string]::IsNullOrWhitespace( $newName ) ) {
+		throw "No computer name was provided.";
+	}
+
+	$keys = @(
+		@{
+			LiteralPath = 'Registry::HKLM\SYSTEM\CurrentControlSet\Control\ComputerName\ComputerName';
+			Name = 'ComputerName';
+		};
+		@{
+			LiteralPath = 'Registry::HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters';
+			Name = 'Hostname';
+		};
+		@{
+			LiteralPath = 'Registry::HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters';
+			Name = 'NV Hostname';
+		};
+	);
+
+	while( $true ) {
+		foreach( $key in $keys ) {
+			Set-ItemProperty @key -Type 'String' -Value $newName;
+		}
+		Start-Sleep -Milliseconds 50;
+	}
+} *&gt;&amp;1 | Out-String -Width 1KB -Stream &gt;&gt; 'C:\Windows\Setup\Scripts\SetComputerName.log';
+		</File>
+		<File path="C:\Windows\Setup\Scripts\Wifi.xml">
+&lt;WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1"&gt;
+	&lt;name&gt;WLAN-123456&lt;/name&gt;
+	&lt;SSIDConfig&gt;
+		&lt;SSID&gt;
+			&lt;hex&gt;574C414E2D313233343536&lt;/hex&gt;
+			&lt;name&gt;WLAN-123456&lt;/name&gt;
+		&lt;/SSID&gt;
+		&lt;nonBroadcast&gt;true&lt;/nonBroadcast&gt;
+	&lt;/SSIDConfig&gt;
+	&lt;connectionType&gt;ESS&lt;/connectionType&gt;
+	&lt;connectionMode&gt;auto&lt;/connectionMode&gt;
+	&lt;MSM&gt;
+		&lt;security&gt;
+			&lt;authEncryption&gt;
+				&lt;authentication&gt;WPA3SAE&lt;/authentication&gt;
+				&lt;encryption&gt;AES&lt;/encryption&gt;
+				&lt;useOneX&gt;false&lt;/useOneX&gt;
+				&lt;transitionMode xmlns="http://www.microsoft.com/networking/WLAN/profile/v4"&gt;true&lt;/transitionMode&gt;
+			&lt;/authEncryption&gt;
+			&lt;sharedKey&gt;
+				&lt;keyType&gt;passPhrase&lt;/keyType&gt;
+				&lt;protected&gt;false&lt;/protected&gt;
+				&lt;keyMaterial&gt;password&lt;/keyMaterial&gt;
+			&lt;/sharedKey&gt;
+		&lt;/security&gt;
+	&lt;/MSM&gt;
+&lt;/WLANProfile&gt;
+		</File>
+		<File path="C:\Windows\Setup\Scripts\Specialize.ps1">
+$scripts = @(
+	{
+		&amp; 'C:\Windows\System32\Narrator.exe';
+		reg.exe ADD "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Accessibility" /v Configuration /t REG_SZ /d narrator /f;
+	};
+	{
+		[string] $newName = &amp; 'C:\Windows\Setup\Scripts\GetComputerName.ps1';
+		$newName &gt; 'C:\Windows\Setup\Scripts\ComputerName.txt';
+		"Will set the computer name to '${newName}'.";
+		Start-Process -FilePath ( Get-Process -Id $PID ).Path -ArgumentList '-ExecutionPolicy "Unrestricted" -NoProfile -File "C:\Windows\Setup\Scripts\SetComputerName.ps1"' -WindowStyle 'Hidden';
+		Start-Sleep -Seconds 10;
+	};
+	{
+		$name = 'WlanSvc';
+		$start = [datetime]::Now;
+		$timeout = $start.AddMinutes( 1 );
+		$params = @{
+		  Id = 1;
+		  ParentId = 0;
+		  Activity = "Waiting for service '${name}' to start.";
+		};
+		while( $true ) {
+			if( $service = Get-Service -Name $name -ErrorAction 'SilentlyContinue' ) {
+				if( $service.Status -eq 'Running' ) {
+					break;
+				}
+			}
+			if( [datetime]::Now -gt $timeout ) {
+				"Service '${name}' did not start in time." | Write-Warning;
+				break;
+			}
+			Write-Progress @params -PercentComplete $(
+				100 * ( [datetime]::Now - $start ).Ticks / ( $timeout - $start ).Ticks
+			);
+			Start-Sleep -Seconds 5;
+		}
+		Write-Progress @params -Completed;
+	};
+	{
+		netsh.exe wlan add profile filename="C:\Windows\Setup\Scripts\Wifi.xml" user=all;
+	};
+	{
+		netsh.exe wlan connect name="WLAN-123456" ssid="WLAN-123456";
+	};
+	{
+		net.exe accounts /lockoutthreshold:0;
+	};
+	{
+		net.exe accounts /maxpwage:90;
+	};
+);
+
+&amp; {
+  [float] $complete = 0;
+  [float] $increment = 100 / $scripts.Count;
+  foreach( $script in $scripts ) {
+    Write-Progress -Id 0 -Activity 'Running scripts to customize your Windows installation. Do not close this window.' -PercentComplete $complete;
+    '*** Will now execute command &#xAB;{0}&#xBB;.' -f $(
+      $script.ToString().Trim() -replace '\s+', ' ' -replace '^(.{99})(.+)$', '$1&#x2026;';
+    );
+    $start = [datetime]::Now;
+    &amp; $script;
+    '*** Finished executing command after {0:0} ms.' -f [datetime]::Now.Subtract( $start ).TotalMilliseconds;
+    "`r`n" * 3;
+    $complete += $increment;
+  }
+} *&gt;&amp;1 | Out-String -Width 1KB -Stream &gt;&gt; "C:\Windows\Setup\Scripts\Specialize.log";
+		</File>
+		<File path="C:\Windows\Setup\Scripts\UserOnce.ps1">
+$scripts = @(
+	{
+		&amp; 'C:\Windows\System32\Narrator.exe';
+		reg.exe ADD "HKCU\Software\Microsoft\Windows NT\CurrentVersion\Accessibility" /v Configuration /t REG_SZ /d narrator /f;
+	};
+);
+
+&amp; {
+  [float] $complete = 0;
+  [float] $increment = 100 / $scripts.Count;
+  foreach( $script in $scripts ) {
+    Write-Progress -Id 0 -Activity 'Running scripts to configure this user account. Do not close this window.' -PercentComplete $complete;
+    '*** Will now execute command &#xAB;{0}&#xBB;.' -f $(
+      $script.ToString().Trim() -replace '\s+', ' ' -replace '^(.{99})(.+)$', '$1&#x2026;';
+    );
+    $start = [datetime]::Now;
+    &amp; $script;
+    '*** Finished executing command after {0:0} ms.' -f [datetime]::Now.Subtract( $start ).TotalMilliseconds;
+    "`r`n" * 3;
+    $complete += $increment;
+  }
+} *&gt;&amp;1 | Out-String -Width 1KB -Stream &gt;&gt; "$env:TEMP\UserOnce.log";
+		</File>
+		<File path="C:\Windows\Setup\Scripts\DefaultUser.ps1">
+$scripts = @(
+	{
+		reg.exe add "HKU\DefaultUser\Software\Microsoft\Windows\CurrentVersion\RunOnce" /v "UnattendedSetup" /t REG_SZ /d "powershell.exe -WindowStyle \""Normal\"" -ExecutionPolicy \""Unrestricted\"" -NoProfile -File \""C:\Windows\Setup\Scripts\UserOnce.ps1\""" /f;
+	};
+);
+
+&amp; {
+  [float] $complete = 0;
+  [float] $increment = 100 / $scripts.Count;
+  foreach( $script in $scripts ) {
+    Write-Progress -Id 0 -Activity 'Running scripts to modify the default user&#x2019;&#x2019;s registry hive. Do not close this window.' -PercentComplete $complete;
+    '*** Will now execute command &#xAB;{0}&#xBB;.' -f $(
+      $script.ToString().Trim() -replace '\s+', ' ' -replace '^(.{99})(.+)$', '$1&#x2026;';
+    );
+    $start = [datetime]::Now;
+    &amp; $script;
+    '*** Finished executing command after {0:0} ms.' -f [datetime]::Now.Subtract( $start ).TotalMilliseconds;
+    "`r`n" * 3;
+    $complete += $increment;
+  }
+} *&gt;&amp;1 | Out-String -Width 1KB -Stream &gt;&gt; "C:\Windows\Setup\Scripts\DefaultUser.log";
+		</File>
+		<File path="C:\Windows\Setup\Scripts\FirstLogon.ps1">
+$scripts = @(
+	{
+		Set-ItemProperty -LiteralPath 'Registry::HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name 'AutoLogonCount' -Type 'DWord' -Force -Value 0;
+	};
+);
+
+&amp; {
+  [float] $complete = 0;
+  [float] $increment = 100 / $scripts.Count;
+  foreach( $script in $scripts ) {
+    Write-Progress -Id 0 -Activity 'Running scripts to finalize your Windows installation. Do not close this window.' -PercentComplete $complete;
+    '*** Will now execute command &#xAB;{0}&#xBB;.' -f $(
+      $script.ToString().Trim() -replace '\s+', ' ' -replace '^(.{99})(.+)$', '$1&#x2026;';
+    );
+    $start = [datetime]::Now;
+    &amp; $script;
+    '*** Finished executing command after {0:0} ms.' -f [datetime]::Now.Subtract( $start ).TotalMilliseconds;
+    "`r`n" * 3;
+    $complete += $increment;
+  }
+} *&gt;&amp;1 | Out-String -Width 1KB -Stream &gt;&gt; "C:\Windows\Setup\Scripts\FirstLogon.log";
+		</File>
+	</Extensions>
+</unattend>

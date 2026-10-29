@@ -1,64 +1,35 @@
-# Install USB: AkariOS's own Windows install USB builder
+# Install USB: Schneegans' unattend generator in AkariOS
 
-Decided 2026-10-29 in two design sessions, after Christoph Schneegans' unattend generator
-(https://schneegans.de/windows/unattend-generator/, MIT: ideas and XML know-how, credited). It replaces the Legacy
-"Autounattend" row (AkariOS-Ultimate `2 Refresh\4 Autounattend.ps1`: a fixed en-US / Central Standard Time file, the
-account name and drive letter typed in the console). The Legacy row stays until Legacy is retired, then goes with it.
-Not a Tweak: `Ported.psd1` doesn't list it.
+Decided 2026-10-29. The user asked for "something like" https://schneegans.de/windows/unattend-generator/; a first,
+narrower design (setup options plus an AkariOS Preset at the first sign-in) was dropped: the tool is a **full clone**
+of Christoph Schneegans' generator (https://github.com/cschneegans/unattend-generator, MIT, ported to PowerShell with
+his license and data files in `Core/Unattend/Data/`). It replaces the Legacy "Autounattend" row (AkariOS-Ultimate
+`2 Refresh\4 Autounattend.ps1`), which stays until Legacy is retired. Not a Tweak: `Ported.psd1` doesn't list it, and
+its Windows settings are his, not Akari's Tweaks (one owner per value applies to Tweaks only).
 
-## Scope
+## Shape
 
-The form covers what only an answer file can do, in depth. Everything Windows itself can change later (Explorer,
-taskbar, Start, UAC, Edge, visual effects, bloatware) comes from AkariOS's own Tweaks: the user picks a Preset that
-runs at the first sign-in. One owner per setting, no duplicated checkboxes. Not taken from Schneegans: custom
-scripts, AppLocker, VM guest tools, extra XML components, disk criteria and custom diskpart scripts.
+- A Home tile **Install USB**, fourth before Import / Export: one long full-window page of his sections in his order,
+  with his wording and choices; Back leads Home. "Open file…" reads a file made on his site or by Akari (the first
+  comment is his bookmark URL with every choice; Akari leaves the passwords out of it); "Reset to defaults".
+- The choices are his form's fields, with the same names and values, so files, URLs and tests line up with his site.
+  Like his page, a branch's fields count only while it is picked.
+- Save: a drive list (Windows setup USBs first) and Refresh, "Save to USB" (the root of the drive) and "Save to a
+  folder…". A file that wipes a disk (a generated PE stage that partitions), a drive without Windows setup, or an
+  existing file ask first. His own checks (names, keys, one administrator, diskpart letters…) show under Save.
+- Fidelity: `Tests/Fixtures/Unattend/*.xml` are files made on his site (commit 82d4ffd); the tests require Akari to
+  write the same XML for the same choices, and the form to write them again after opening them.
 
-## The flow
+## Batches (each: tests, diffstat, the user's go, commit)
 
-A Home tile **"Install USB"** ("Prepare a Windows install USB: your accounts, language, edition and AkariOS preset,
-no setup questions"), fourth before Import / Export. A full-window step flow with dots, Back / Next, like Guided:
-
-1. **Region**: display language (the 38 Windows ships, "must be a language your ISO has"); up to three input
-   languages, each with its keyboard (the first follows the display language); region format; home location (a
-   country); time zone, set explicitly. All prefilled from this PC. "Ask for these during setup instead".
-   An **Open…** button loads a file Akari made back into the form (the choices are a comment in the XML, never the
-   passwords).
-2. **Windows setup**: edition: ask during setup (default) / an edition by Microsoft's public generic install key
-   (Home, Pro, Pro for Workstations, Education, Enterprise: they pick the edition and never activate) / my own key /
-   the firmware's key. Skip Windows 11's hardware checks (on), allow setup without internet (on), hide PowerShell
-   windows during setup (on), express settings: all off (default) / all on / ask; compact mode (off).
-   **Disk**: "I choose the disk during setup" (default); Advanced: "Wipe disk N and install" (index, GPT or MBR,
-   Windows RE on a recovery partition or removed), a red warning, confirmed again on Save.
-3. **Accounts**: up to five local accounts (name, display name, password, Administrators / Users; at least one
-   administrator); PC name: random or a name; the first administrator signs in once by itself (with a password: a
-   one-time auto sign-in, LogonCount 1, so the preset starts unattended); password expiry: never (default) / the
-   Windows default; lockout: the Windows default / off. No Microsoft account, no built-in Administrator. Passwords
-   are base64-encoded, with the warning that anyone with the USB can recover them.
-4. **Network**: Wi-Fi: skip (default) / ask during setup / this network (name, hidden, WPA2 or WPA3, password: plain
-   text in the file, warned).
-5. **After install**: a Preset (None / built-in / the user's / Last used). At the first sign-in the copy of AkariOS
-   on the USB goes to `C:\ProgramData\Akari\app` and stays (a Run in phases comes back through `-Resume`; a Start
-   menu shortcut, updated from About as usual), then `Akari.ps1 -Preset <name>` runs in its console, Safe Mode
-   phases and restarts included. No restore point (Windows is new).
-6. **Save**: a summary of the choices; a drive list (Windows setup USBs first) and Refresh; "Save to USB" writes
-   `autounattend.xml` at the root and, with a Preset, `\AkariOS\` (this version: the release folders only) and the
-   preset file; a drive without Windows setup, existing files, or a disk wipe ask first; then it opens the drive.
-   "Save to a folder…" writes the same (Ventoy, Rufus, ahead of time). Run through iex (no install folder): the
-   AkariOS copy is the latest release, downloaded on Save.
-
-## Code
-
-- `Core\Unattend.ps1`: `New-AkariUnattend <options>` → the XML, assembled from one builder per section (region,
-  setup and disk, accounts, network, first logon), each tested on its own; `ConvertFrom-AkariUnattend <xml>` → the
-  options back (the comment); `Test-AkariUnattendName`; `Get-AkariUnattendDefaults`; `Get-AkariSetupDrives` (the only
-  drive read, mocked); `Save-AkariUnattend`; `Copy-AkariToUsb <target> <preset>` (the AkariOS copy and the preset).
-- `UI\Unattend.ps1` + `UI\Unattend.psd1` (languages and keyboards, home locations, generic keys): the flow.
-- Credits: Schneegans' generator in CREDITS.md and UI\About.psd1.
-
-## Tasks (one at a time: diffstat, then the user's go)
-
-1. The builders, test-first: region, setup (edition, bypasses, express settings, compact, disk), accounts (several,
-   auto sign-in, expiry, lockout), network, first logon (the preset run), the options comment and Open.
-2. The AkariOS copy and the preset on the USB (`Copy-AkariToUsb`, the first-logon script).
-3. The flow (six steps), the Home tile, credits, AGENTS.md.
-4. On the VM: a USB per option set (no password, password + Wi-Fi, a disk wipe, the AkariOS preset).
+1. **Engine and setup sections** (done 2026-10-29): template, command builder, PowerShell sequences, embedded files;
+   region and language, processor architectures, setup settings, the Windows PE stage (edition and keys, generated
+   .cmd with disk selection, partition layouts, Windows RE, image, paging file, Defender / 8.3 / compact / pauses, or a
+   custom script), activation, computer name, time zone, accounts and first logon, password expiration, lockout,
+   Wi-Fi, express settings. Nine fixtures.
+2. **His Windows tweak sections**: File Explorer, Start menu and taskbar, Start tiles and pins, system tweaks, visual
+   effects, desktop icons, Start folders, core isolation, VM guest tools, lock keys, sticky keys, personalization
+   (`Optimizations.cs`, `Personalization.cs`, `Accessibility` parts). New fixtures for them.
+3. **The rest**: bloatware (his list), custom scripts (System, DefaultUser, FirstLogon, UserOnce; Restart Explorer),
+   AppLocker, XML markup for more components.
+4. **The VM**: USBs made with Akari for a few option sets, including a disk wipe and Wi-Fi.

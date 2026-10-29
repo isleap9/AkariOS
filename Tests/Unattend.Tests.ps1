@@ -1,277 +1,80 @@
 $Root = Split-Path $PSScriptRoot
 . "$Root\Core\Unattend.ps1"
 
-# the XML read back: a node list by XPath (prefix u = the unattend namespace)
-function Get-Nodes([string]$Xml, [string]$Path) {
-    $doc = [xml]$Xml
-    $ns = [Xml.XmlNamespaceManager]::new($doc.NameTable)
-    $ns.AddNamespace('u', 'urn:schemas-microsoft-com:unattend')
-    @($doc.SelectNodes($Path, $ns))
+# a document compared without its comment (the bookmark URL) and his build stamp (s:Build/s:Commit)
+function Get-Canonical([string]$Xml) {
+    $d = [xml]::new(); $d.LoadXml($Xml)
+    $ns = [Xml.XmlNamespaceManager]::new($d.NameTable); $ns.AddNamespace('s', 'https://schneegans.de/windows/unattend-generator/')
+    foreach ($n in @($d.SelectNodes('//comment()'))) { [void]$n.ParentNode.RemoveChild($n) }
+    foreach ($n in @($d.SelectNodes('//s:Commit', $ns))) { [void]$n.ParentNode.RemoveChild($n) }
+    foreach ($n in @($d.SelectNodes('//s:Build', $ns))) { if (-not $n.HasChildNodes) { [void]$n.ParentNode.RemoveChild($n) } }
+    $d.OuterXml
 }
-function Get-Text([string]$Xml, [string]$Path) { @(Get-Nodes $Xml $Path | ForEach-Object { $_.InnerText }) -join '|' }
-function Count([string]$Xml, [string]$Path) { @(Get-Nodes $Xml $Path).Count }
-function Pass([string]$Name) { "//u:settings[@pass='$Name']" }
-function B64([string]$s) { [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($s)) }
-$pe = Pass 'windowsPE'; $sp = Pass 'specialize'; $oobe = Pass 'oobeSystem'
+function Get-Ours([hashtable]$Fields) { [Text.Encoding]::ASCII.GetString((New-AkariUnattend $Fields)) }
 
-# one admin with no password, Italian, everything else at its default
-function Opt([hashtable]$Change) {
-    $o = New-AkariUnattendOptions
-    $o.Language = 'it-IT'; $o.Inputs = @('0410:00000410'); $o.Region = 'it-IT'; $o.GeoId = 118; $o.TimeZone = 'W. Europe Standard Time'
-    $o.Accounts = @(@{ Name = 'Gamer'; DisplayName = ''; Password = ''; Group = 'Administrators' })
-    foreach ($k in $Change.Keys) { $o[$k] = $Change[$k] }
-    $o
-}
-
-Describe 'Test-AkariUnattendName' {
-    It 'takes a plain account name' { Test-AkariUnattendName 'Gamer_1' 'Account' | Should BeNullOrEmpty }
-    It 'refuses an empty, spaced, too long or reserved account name' {
-        Test-AkariUnattendName '' 'Account' | Should Be 'Enter an account name.'
-        Test-AkariUnattendName 'My Name' 'Account' | Should Be 'No spaces in the account name.'
-        Test-AkariUnattendName ('a' * 21) 'Account' | Should Be 'At most 20 characters.'
-        Test-AkariUnattendName 'a@b' 'Account' | Should Be 'These characters can''t be used: " / \ [ ] : ; | = , + * ? < > @'
-        Test-AkariUnattendName 'administrator' 'Account' | Should Be '''administrator'' is a name Windows uses itself.'
-        Test-AkariUnattendName '...' 'Account' | Should Be 'Use at least one letter or digit.'
-    }
-    It 'takes an empty or valid PC name' {
-        Test-AkariUnattendName '' 'Computer' | Should BeNullOrEmpty
-        Test-AkariUnattendName 'GAMING-PC2' 'Computer' | Should BeNullOrEmpty
-    }
-    It 'refuses a PC name that is too long, all digits, hyphen-ended or has other characters' {
-        Test-AkariUnattendName ('a' * 16) 'Computer' | Should Be 'At most 15 characters.'
-        Test-AkariUnattendName '1234' 'Computer' | Should Be 'Use at least one letter.'
-        Test-AkariUnattendName '-pc' 'Computer' | Should Be 'Letters, digits and hyphens only, no hyphen at either end.'
-        Test-AkariUnattendName 'my_pc' 'Computer' | Should Be 'Letters, digits and hyphens only, no hyphen at either end.'
-    }
-}
-
-Describe 'New-AkariUnattend: region' {
-    Context 'set in the file' {
-        $x = New-AkariUnattend (Opt @{ Inputs = @('0410:00000410', '0409:00000409', '0407:00000407') })
-        It 'is an unattend file' { Count $x '/u:unattend' | Should Be 1 }
-        It 'sets the display language, up to three keyboards and the region format, in setup and in Windows' {
-            Get-Text $x "$pe//u:SetupUILanguage/u:UILanguage" | Should Be 'it-IT'
-            foreach ($p in $pe, $oobe) {
-                Get-Text $x "$p//u:UILanguage[not(parent::u:SetupUILanguage)]" | Should Be 'it-IT'
-                Get-Text $x "$p//u:InputLocale" | Should Be '0410:00000410;0409:00000409;0407:00000407'
-                Get-Text $x "$p//u:SystemLocale" | Should Be 'it-IT'
-                Get-Text $x "$p//u:UserLocale" | Should Be 'it-IT'
-            }
-        }
-        It 'sets the time zone' { Get-Text $x "$sp//u:TimeZone" | Should Be 'W. Europe Standard Time' }
-        It 'sets the home location for the PC and new users' {
-            $c = Get-Text $x "$sp//u:RunSynchronousCommand/u:Path"
-            $c | Should Match ([regex]::Escape('reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Control Panel\DeviceRegion" /v DeviceRegion /t REG_DWORD /d 118 /f'))
-            $c | Should Match ([regex]::Escape('reg add "HKU\DefaultUser\Control Panel\International\Geo" /v Nation /t REG_SZ /d 118 /f'))
-        }
-    }
-    Context 'asked during setup' {
-        $x = New-AkariUnattend (Opt @{ AskRegion = $true })
-        It 'leaves language, keyboard, region and home location to setup' {
-            Count $x '//u:component[starts-with(@name, ''Microsoft-Windows-International-Core'')]' | Should Be 0
-            Get-Text $x "$sp//u:RunSynchronousCommand/u:Path" | Should Not Match 'DeviceRegion|Nation'
-        }
-        It 'still sets the time zone' { Get-Text $x "$sp//u:TimeZone" | Should Be 'W. Europe Standard Time' }
-    }
-}
-
-Describe 'New-AkariUnattend: Windows setup' {
-    Context 'the defaults' {
-        $x = New-AkariUnattend (Opt @{})
-        It 'asks for the edition (product key page)' {
-            Get-Text $x "$pe//u:ProductKey/u:Key" | Should Be '00000-00000-00000-00000-00000'
-            Get-Text $x "$pe//u:ProductKey/u:WillShowUI" | Should Be 'Always'
-        }
-        It 'skips the five Windows 11 hardware checks before setup' {
-            Get-Text $x "$pe//u:RunSynchronousCommand/u:Path" | Should Be (@('TPM', 'RAM', 'SecureBoot', 'CPU', 'Storage' | ForEach-Object { "reg add HKLM\SYSTEM\Setup\LabConfig /v Bypass$($_)Check /t REG_DWORD /d 1 /f" }) -join '|')
-            Get-Text $x "$pe//u:RunSynchronousCommand/u:Order" | Should Be '1|2|3|4|5'
-        }
-        It 'lets setup go on without internet' {
-            Get-Text $x "$sp//u:RunSynchronousCommand/u:Path" | Should Match ([regex]::Escape('reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE /v BypassNRO /t REG_DWORD /d 1 /f'))
-        }
-        It 'turns the express (privacy) settings off and skips the setup questions' {
-            Get-Text $x "$oobe//u:OOBE/u:ProtectYourPC" | Should Be '3'
-            foreach ($n in 'HideEULAPage', 'HideLocalAccountScreen', 'HideOnlineAccountScreens', 'AcceptEula') { Get-Text $x "//u:$n" | Should Be 'true' }
-            Get-Text $x '//u:DynamicUpdate/u:Enable' | Should Be 'false'
-            Get-Text $x '//u:Diagnostics/u:OptIn' | Should Be 'false'
-        }
-        It 'leaves the disk to the user, applies the image normally' {
-            Count $x '//u:DiskConfiguration' | Should Be 0
-            Count $x '//u:ImageInstall' | Should Be 0
-        }
-    }
-    Context 'an edition by generic key, express settings on, checks kept, internet needed, compact' {
-        $x = New-AkariUnattend (Opt @{ Edition = 'Generic'; EditionName = 'Pro'; SkipChecks = $false; NoInternet = $false; Express = 'On'; Compact = $true })
-        It 'installs Pro with Microsoft''s generic key (picks the edition, never activates)' {
-            Get-Text $x "$pe//u:ProductKey/u:Key" | Should Be 'VK7JG-NPHTM-C97JM-9MPGT-3V66T'
-            Get-Text $x "$pe//u:ProductKey/u:WillShowUI" | Should Be 'OnError'
-        }
-        It 'runs nothing before setup and keeps the internet requirement' {
-            Count $x "$pe//u:RunSynchronous" | Should Be 0
-            Get-Text $x "$sp//u:RunSynchronousCommand/u:Path" | Should Not Match 'BypassNRO'
-        }
-        It 'turns the express settings on' { Get-Text $x "$oobe//u:ProtectYourPC" | Should Be '1' }
-        It 'applies Windows in compact mode' { Get-Text $x "$pe//u:ImageInstall/u:OSImage/u:Compact" | Should Be 'true' }
-    }
-    Context 'my own key, express settings asked' {
-        $x = New-AkariUnattend (Opt @{ Edition = 'Key'; ProductKey = 'ABCDE-12345-ABCDE-12345-ABCDE'; Express = 'Ask' })
-        It 'uses the key' { Get-Text $x "$pe//u:ProductKey/u:Key" | Should Be 'ABCDE-12345-ABCDE-12345-ABCDE' }
-        It 'asks the express settings' { Count $x '//u:ProtectYourPC' | Should Be 0 }
-    }
-    Context 'the firmware''s key' {
-        $x = New-AkariUnattend (Opt @{ Edition = 'Firmware' })
-        It 'lets setup read the key from the firmware' {
-            Get-Text $x "$pe//u:ProductKey/u:Key" | Should Be '00000-00000-00000-00000-00000'
-            Get-Text $x "$pe//u:ProductKey/u:WillShowUI" | Should Be 'OnError'
-        }
-    }
-    Context 'wipe disk 1, GPT, Windows RE on its partition' {
-        $x = New-AkariUnattend (Opt @{ Disk = @{ Index = 1; Layout = 'GPT'; Recovery = $true } })
-        It 'wipes disk 1' {
-            Get-Text $x "$pe//u:DiskConfiguration/u:Disk/u:DiskID" | Should Be '1'
-            Get-Text $x "$pe//u:DiskConfiguration/u:Disk/u:WillWipeDisk" | Should Be 'true'
-        }
-        It 'makes recovery, EFI, MSR and Windows partitions' {
-            Get-Text $x "$pe//u:CreatePartition/u:Type" | Should Be 'Primary|EFI|MSR|Primary'
-            Get-Text $x "$pe//u:CreatePartition/u:Size" | Should Be '1000|300|16'
-            Get-Text $x "$pe//u:CreatePartition/u:Extend" | Should Be 'true'
-            Get-Text $x "$pe//u:ModifyPartition/u:Format" | Should Be 'NTFS|FAT32|NTFS'
-            Get-Text $x "$pe//u:ModifyPartition/u:TypeID" | Should Be 'DE94BBA4-06D1-4D40-A16A-BFD50179D6AC'
-            Get-Text $x "$pe//u:ModifyPartition/u:Letter" | Should Be 'C'
-        }
-        It 'installs Windows on the last partition' {
-            Get-Text $x "$pe//u:ImageInstall/u:OSImage/u:InstallTo/u:DiskID" | Should Be '1'
-            Get-Text $x "$pe//u:ImageInstall/u:OSImage/u:InstallTo/u:PartitionID" | Should Be '4'
-        }
-    }
-    Context 'wipe disk 0, MBR, Windows RE removed' {
-        $x = New-AkariUnattend (Opt @{ Disk = @{ Index = 0; Layout = 'MBR'; Recovery = $false } })
-        It 'makes an active system partition and the Windows partition' {
-            Get-Text $x "$pe//u:CreatePartition/u:Type" | Should Be 'Primary|Primary'
-            Get-Text $x "$pe//u:ModifyPartition/u:Active" | Should Be 'true'
-            Get-Text $x "$pe//u:ImageInstall/u:OSImage/u:InstallTo/u:PartitionID" | Should Be '2'
-        }
-        It 'removes Windows RE once Windows is installed' {
-            Get-Text $x "$sp//u:RunSynchronousCommand/u:Path" | Should Match ([regex]::Escape('reagentc.exe /disable'))
+# Tests\Fixtures\Unattend\*.xml: files made on schneegans.de (commit 82d4ffd), each with its choices as its first comment
+Describe 'New-AkariUnattend matches Schneegans'' generator' {
+    foreach ($f in Get-ChildItem "$Root\Tests\Fixtures\Unattend\*.xml") {
+        It "makes the same file as his site: $($f.BaseName)" {
+            $theirs = [IO.File]::ReadAllText($f.FullName)
+            $fields = ConvertFrom-AkariUnattend $theirs
+            # the site's comment has the passwords; Akari's never does
+            Get-Canonical (Get-Ours $fields) | Should Be (Get-Canonical $theirs)
         }
     }
 }
 
-Describe 'New-AkariUnattend: accounts' {
-    Context 'one administrator with no password, random PC name, defaults' {
-        $x = New-AkariUnattend (Opt @{})
-        It 'adds the administrator with an empty password' {
-            Get-Text $x "$oobe//u:LocalAccount/u:Name" | Should Be 'Gamer'
-            Get-Text $x "$oobe//u:LocalAccount/u:Group" | Should Be 'Administrators'
-            Get-Text $x "$oobe//u:LocalAccount/u:Password/u:Value" | Should Be ''
-        }
-        It 'signs in to it once by itself' {
-            Get-Text $x "$oobe//u:AutoLogon/u:Username" | Should Be 'Gamer'
-            Get-Text $x "$oobe//u:AutoLogon/u:Enabled" | Should Be 'true'
-            Get-Text $x "$oobe//u:AutoLogon/u:LogonCount" | Should Be '1'
-            Get-Text $x "$oobe//u:FirstLogonCommands/u:SynchronousCommand/u:CommandLine" | Should Match 'AutoLogonCount /t REG_DWORD /d 0'
-        }
-        It 'lets Windows pick the PC name' { Get-Text $x "$sp//u:ComputerName" | Should Be '*' }
-        It 'makes passwords never expire and keeps the lockout policy' {
-            $c = Get-Text $x "$sp//u:RunSynchronousCommand/u:Path"
-            $c | Should Match 'net accounts /maxpwage:unlimited'
-            $c | Should Not Match 'lockoutthreshold'
-        }
+Describe 'the choices in the file' {
+    $theirs = [IO.File]::ReadAllText("$Root\Tests\Fixtures\Unattend\2-unattended.xml")
+    $fields = ConvertFrom-AkariUnattend $theirs
+    $ours = Get-Ours $fields
+    It 'reads a file from his site' {
+        $fields.UILanguage | Should Be 'it-IT'
+        $fields.AccountName0 | Should Be 'Boss'
+        $fields.WifiName | Should Be 'Home & Co'
+        $fields.Keyboard3 | Should Be '0411:{03b5835f-f03c-411b-9ce2-aa23e1171e36}{a76c93d9-5523-4e90-aafa-4db112f9ac76}'
     }
-    Context 'two accounts with passwords, a PC name, expiry and lockout at the Windows default / off' {
-        $accounts = @(
-            @{ Name = 'Boss'; DisplayName = 'The Boss'; Password = 'p&ss<1'; Group = 'Administrators' }
-            @{ Name = 'Kid'; DisplayName = ''; Password = 'k1d'; Group = 'Users' }
-        )
-        $x = New-AkariUnattend (Opt @{ Accounts = $accounts; Computer = 'GAMING-PC'; PasswordExpiry = 'Default'; Lockout = 'Off' })
-        It 'adds both, each in its group, with its display name' {
-            Get-Text $x "$oobe//u:LocalAccount/u:Name" | Should Be 'Boss|Kid'
-            Get-Text $x "$oobe//u:LocalAccount/u:Group" | Should Be 'Administrators|Users'
-            Get-Text $x "$oobe//u:LocalAccount/u:DisplayName" | Should Be 'The Boss|Kid'
+    It 'writes them back as his bookmark URL, which reads back the same, without the passwords' {
+        $back = ConvertFrom-AkariUnattend $ours
+        foreach ($k in $fields.Keys) {
+            if ($k -in $AkariUaSecretFields) { $back.ContainsKey($k) | Should Be $false } else { "$k=$(@($back[$k]) -join ',')" | Should Be "$k=$(@($fields[$k]) -join ',')" }
         }
-        It 'writes the passwords base64-encoded (Windows'' PlainText=false form)' {
-            Get-Text $x "$oobe//u:LocalAccount/u:Password/u:Value" | Should Be "$(B64 'p&ss<1Password')|$(B64 'k1dPassword')"
-            Get-Text $x "$oobe//u:LocalAccount/u:Password/u:PlainText" | Should Be 'false|false'
-        }
-        It 'signs in once to the first administrator, with its password' {
-            Get-Text $x "$oobe//u:AutoLogon/u:Username" | Should Be 'Boss'
-            Get-Text $x "$oobe//u:AutoLogon/u:Password/u:Value" | Should Be (B64 'p&ss<1Password')
-        }
-        It 'names the PC' { Get-Text $x "$sp//u:ComputerName" | Should Be 'GAMING-PC' }
-        It 'keeps the expiry and turns the lockout off' {
-            $c = Get-Text $x "$sp//u:RunSynchronousCommand/u:Path"
-            $c | Should Not Match 'maxpwage'
-            $c | Should Match 'net accounts /lockoutthreshold:0'
-        }
+        [regex]::Match($ours, '<!--.*?-->').Value | Should Not Match 'secret123|p%26ss|Password0='
+    }
+    It 'keeps every value of a multi-select' {
+        $f3 = ConvertFrom-AkariUnattend ([IO.File]::ReadAllText("$Root\Tests\Fixtures\Unattend\3-builtin.xml"))
+        @($f3.ProcessorArchitecture) -join ',' | Should Be 'amd64,arm64'
+        @((ConvertFrom-AkariUnattend (Get-Ours $f3)).ProcessorArchitecture) -join ',' | Should Be 'amd64,arm64'
+    }
+    It 'is $null for a file made elsewhere' { ConvertFrom-AkariUnattend '<unattend xmlns="urn:schemas-microsoft-com:unattend"/>' | Should BeNullOrEmpty }
+    It 'is plain ASCII with a utf-8 declaration (setup reads ASCII only)' {
+        $bytes = New-AkariUnattend $fields
+        @($bytes | Where-Object { $_ -gt 127 }).Count | Should Be 0
+        [Text.Encoding]::ASCII.GetString($bytes, 0, 38) | Should Be '<?xml version="1.0" encoding="utf-8"?>'
     }
 }
 
-Describe 'New-AkariUnattend: network and first sign-in' {
-    It 'skips the Wi-Fi page by default and runs nothing from the USB' {
-        $x = New-AkariUnattend (Opt @{})
-        Get-Text $x "$oobe//u:HideWirelessSetupInOOBE" | Should Be 'true'
-        Get-Text $x "$oobe//u:FirstLogonCommands//u:CommandLine" | Should Not Match 'firstlogon'
+Describe 'his checks' {
+    $base = ConvertFrom-AkariUnattend ([IO.File]::ReadAllText("$Root\Tests\Fixtures\Unattend\2-unattended.xml"))
+    function With([hashtable]$Change) { $o = $base.Clone(); foreach ($k in $Change.Keys) { $o[$k] = $Change[$k] }; $o }
+    It 'refuses a bad computer name' { { New-AkariUnattend (With @{ ComputerName = '12345' }) } | Should Throw "Computer name '12345' is invalid." }
+    It 'refuses a bad user name' { { New-AkariUnattend (With @{ AccountName1 = 'guest' }) } | Should Throw "Username 'guest' is invalid." }
+    It 'wants an administrator' { { New-AkariUnattend (With @{ AccountGroup0 = 'Users' }) } | Should Throw 'Must have at least one administrator account.' }
+    It 'refuses an account named like the PC' { { New-AkariUnattend (With @{ AccountName1 = 'gaming-pc' }) } | Should Throw "Account name 'gaming-pc' must not be the same as the computer name." }
+    It 'refuses a twice-used account name' { { New-AkariUnattend (With @{ AccountName1 = 'BOSS' }) } | Should Throw "Account name(s) 'Boss' specified more than once." }
+    It 'refuses an ill-formed product key' { { New-AkariUnattend (With @{ WindowsEditionMode = 'Custom'; ProductKey = 'ABC' }) } | Should Throw "Product key 'ABC' is ill-formed." }
+    It 'wants an auto sign-in to delete the sensitive files' { { New-AkariUnattend (With @{ AutoLogonMode = 'None' }) } | Should Throw 'To delete sensitive files, you must let Windows log on to an administrator account.' }
+    It 'wants the Windows and system letters in a custom diskpart script' {
+        { New-AkariUnattend (With @{ PEMode = 'Generated'; PartitionMode = 'Custom'; DiskpartScript = "SELECT DISK=0`r`nASSIGN LETTER=S" }) } | Should Throw "Your diskpart script must contain a line such as 'ASSIGN LETTER=W'"
     }
-    It 'shows the Wi-Fi page when asked' {
-        Get-Text (New-AkariUnattend (Opt @{ Wifi = 'Ask' })) "$oobe//u:HideWirelessSetupInOOBE" | Should Be 'false'
-    }
-    It 'with a network or a preset, runs the USB''s first sign-in script (found on any drive)' {
-        foreach ($o in @{ Wifi = 'Join'; WifiName = 'Home' }, @{ Preset = 'AkariOS' }) {
-            $c = Get-Text (New-AkariUnattend (Opt $o)) "$oobe//u:FirstLogonCommands//u:CommandLine"
-            $c | Should Match ([regex]::Escape('if exist %d:\AkariOS\firstlogon.ps1 powershell.exe -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File %d:\AkariOS\firstlogon.ps1'))
-        }
-    }
-}
-
-Describe 'New-AkariWifiProfile' {
-    It 'writes a WPA2 profile' {
-        $p = [xml](New-AkariWifiProfile 'Home & Co' 'pa<ss' 'WPA2' $false)
-        $p.WLANProfile.name | Should Be 'Home & Co'
-        $p.WLANProfile.SSIDConfig.SSID.name | Should Be 'Home & Co'
-        $p.WLANProfile.SSIDConfig.nonBroadcast | Should Be 'false'
-        $p.WLANProfile.MSM.security.authEncryption.authentication | Should Be 'WPA2PSK'
-        $p.WLANProfile.MSM.security.sharedKey.keyMaterial | Should Be 'pa<ss'
-    }
-    It 'writes a hidden WPA3 profile' {
-        $p = [xml](New-AkariWifiProfile 'Lab' 'x' 'WPA3' $true)
-        $p.WLANProfile.SSIDConfig.nonBroadcast | Should Be 'true'
-        $p.WLANProfile.MSM.security.authEncryption.authentication | Should Be 'WPA3SAE'
-    }
-}
-
-Describe 'ConvertFrom-AkariUnattend' {
-    $o = Opt @{ Inputs = @('0410:00000410', '0409:00000409'); Edition = 'Generic'; EditionName = 'Home'; Computer = 'PC1'; Preset = 'AkariOS'
-        Accounts = @(@{ Name = 'Boss'; DisplayName = 'B'; Password = 'secret'; Group = 'Administrators' }); Wifi = 'Join'; WifiName = 'Home'; WifiPassword = 'wpass'
-        Disk = @{ Index = 2; Layout = 'MBR'; Recovery = $false } }
-    $xml = New-AkariUnattend $o
-    $back = ConvertFrom-AkariUnattend $xml
-    It 'reads the choices back' {
-        $back.Language | Should Be 'it-IT'
-        $back.Inputs -join ';' | Should Be '0410:00000410;0409:00000409'
-        $back.GeoId | Should Be 118
-        "$($back.Edition)/$($back.EditionName)" | Should Be 'Generic/Home'
-        $back.Computer | Should Be 'PC1'
-        $back.Preset | Should Be 'AkariOS'
-        "$($back.Accounts[0].Name)/$($back.Accounts[0].DisplayName)/$($back.Accounts[0].Group)" | Should Be 'Boss/B/Administrators'
-        "$($back.Disk.Index)/$($back.Disk.Layout)/$($back.Disk.Recovery)" | Should Be '2/MBR/False'
-        $back.WifiName | Should Be 'Home'
-        $back.SkipChecks | Should Be $true
-    }
-    It 'never keeps a password in the comment' {
-        $back.Accounts[0].Password | Should BeNullOrEmpty
-        $back.WifiPassword | Should BeNullOrEmpty
-        $xml | Should Not Match 'secret|wpass'
-    }
-    It 'is $null for a file Akari did not make' { ConvertFrom-AkariUnattend '<unattend xmlns="urn:schemas-microsoft-com:unattend"/>' | Should BeNullOrEmpty }
 }
 
 Describe 'Save-AkariUnattend' {
-    It 'writes autounattend.xml in the folder, UTF-8 without a BOM, and returns its path' {
-        $p = Save-AkariUnattend (New-AkariUnattend (Opt @{})) 'TestDrive:\usb'
+    It 'writes autounattend.xml in the folder and returns its path' {
+        $bytes = [Text.Encoding]::ASCII.GetBytes('<unattend/>')
+        $p = Save-AkariUnattend $bytes 'TestDrive:\usb'
         $p | Should Be (Join-Path (Resolve-Path 'TestDrive:\usb').ProviderPath 'autounattend.xml')
-        $bytes = [IO.File]::ReadAllBytes($p)
-        $bytes[0] | Should Be 0x3C
-        ([xml][IO.File]::ReadAllText($p)).unattend | Should Not BeNullOrEmpty
+        [IO.File]::ReadAllText($p) | Should Be '<unattend/>'
     }
 }
 
@@ -291,7 +94,7 @@ Describe 'Get-AkariSetupDrives' {
     It 'marks the drives with Windows setup' { ($d | ForEach-Object { "$($_.Label):$($_.Setup)" }) -join ',' | Should Be 'STICK:False,CCCOMA_X64:True,USB SSD:True' }
 }
 
-Describe 'USB setup file page (no window, fake drives in TestDrive)' {
+Describe 'Install USB page (no window, fake drives in TestDrive)' {
     $usb = "$TestDrive\usb"; $stick = "$TestDrive\stick"; $folder = "$TestDrive\folder"
     New-Item -ItemType Directory $usb, $stick | Out-Null
     $probe = "$TestDrive\unattend.ps1"
@@ -300,16 +103,26 @@ param($Root, $Usb, $Stick, $Folder)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework
 . "$Root\Core\Unattend.ps1"
-foreach ($f in 'Selection', 'Steps', 'Unattend') { . "$Root\UI\$f.ps1" }
-function Add-Log($m) { $script:log += , $m }
-function Get-AkariUnattendDefaults { @{ Language = 'it-IT'; Keyboard = '0409:0000FFFF'; Region = 'it-IT'; GeoId = 118; TimeZone = 'W. Europe Standard Time' } }
+foreach ($f in 'Selection', 'Steps', 'UnattendForm', 'Unattend') { . "$Root\UI\$f.ps1" }
+function Add-Log($m) { }
+function Get-AkariUnattendDefaults { @{ UILanguage = 'it-IT'; Locale = 'it-IT'; Keyboard = '00000410'; GeoLocation = '118'; TimeZone = 'W. Europe Standard Time' } }
 function Get-AkariSetupDrives { [pscustomobject]@{ Root = "$Stick\"; Label = 'STICK'; Setup = $false }; [pscustomobject]@{ Root = "$Usb\"; Label = 'WIN11'; Setup = $true } }
 $script:asked = @()
 function Confirm-AkariDialog($m) { $script:asked += , $m; $script:answer }
 function Show-AkariMessage($m) { $script:told = $m }
 function Open-AkariFolder($p) { $script:opened = $p }
 function Select-AkariFolder { $Folder }
-function Read-Back($p) { $o = ConvertFrom-AkariUnattend (Get-Content $p -Raw); "$($o.Accounts[0].Name)|$($o.Computer)|$($o.Inputs[0])" }
+function Select-AkariUnattendFile { $script:pick }
+function Canon([string]$Xml) {
+    $d = [xml]::new(); $d.LoadXml($Xml)
+    $ns = [Xml.XmlNamespaceManager]::new($d.NameTable); $ns.AddNamespace('s', 'https://schneegans.de/windows/unattend-generator/')
+    foreach ($n in @($d.SelectNodes('//comment()'))) { [void]$n.ParentNode.RemoveChild($n) }
+    foreach ($n in @($d.SelectNodes('//s:Commit', $ns))) { [void]$n.ParentNode.RemoveChild($n) }
+    foreach ($n in @($d.SelectNodes('//s:Build', $ns))) { if (-not $n.HasChildNodes) { [void]$n.ParentNode.RemoveChild($n) } }
+    $d.OuterXml
+}
+function Pick($field, $value) { @($script:UaBindings | Where-Object { $_.Field -eq $field })[0].Options[$value].IsChecked = $true }
+function Box($field) { @($script:UaBindings | Where-Object { $_.Field -eq $field })[0].Control }
 $res = [Windows.Controls.StackPanel]::new()
 $res.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Controls.xaml" -Raw)))
 $StepDots = [Windows.Controls.StackPanel]::new(); $StepBody = [Windows.Controls.StackPanel]::new()
@@ -317,67 +130,80 @@ $StepDots = [Windows.Controls.StackPanel]::new(); $StepBody = [Windows.Controls.
 $StepBack = [Windows.Controls.Button]::new(); $StepNext = [Windows.Controls.Button]::new()
 $Heading = [Windows.Controls.TextBlock]::new(); $HeaderSub = [Windows.Controls.TextBlock]::new()
 Show-AkariUnattend
-$u = $script:UnattendParts
-"page=$($Heading.Text)|$($StepNext.Visibility)|$($StepBack.Visibility)"
-"prefill=$($u.Language.SelectedItem.Tag)|$($u.Keyboard.SelectedItem.Tag)|$($u.Region.SelectedItem.Tag)|$($u.TimeZone.SelectedItem.Tag)|$($u.SkipChecks.IsChecked)"
-"languages=$($u.Language.Items.Count)"
-# a language change moves the keyboard to its default
-$u.Language.SelectedItem = @($u.Language.Items | Where-Object { $_.Tag -eq 'fr-FR' })[0]
-"kbFollows=$($u.Keyboard.SelectedItem.Tag)"
-# the drive with Windows setup comes first
-"drives=$(($u.Drive.Items | ForEach-Object { $_.Content }) -join ',')|$($u.Drive.SelectedIndex)"
-# no account name: nothing saved
-$script:answer = $true
+"page=$($Heading.Text)|$($StepNext.Visibility)|$($StepBack.Visibility)|$($script:UaBindings.Count -gt 100)"
+$f = Get-AkariUaFormFields
+"start=$($f.LanguageMode)|$($f.UILanguage)|$($f.Keyboard)|$($f.TimeZone)|$($f.AccountName0)|$($f.PEMode)|$($f.ContainsKey('PartitionMode'))|$($f.ContainsKey('Locale2'))"
+"samples=$($f.ContainsKey('PEScript'))|$((Box 'DiskpartScript').Text.Split("`n")[0].Trim())"
+"rows=$(@($script:UaAccountRows | Where-Object { $_.Visibility -eq 'Visible' }).Count)"
+# a picked branch shows its items and they count
+Pick 'PEMode' 'Generated'
+$g = @($script:UaBindings | Where-Object { $_.Field -eq 'PEMode' })[0].Options['Generated']
+"branch=$($g.Tag.Visibility)|$((Get-AkariUaFormFields).PartitionMode)"
+# it wipes a disk: asked first, No saves nothing
+$script:answer = $false
 Invoke-AkariUnattendUsb
-"noName=$($u.Error.Text)|$(Test-Path "$Usb\autounattend.xml")"
-$u.Account.Text = 'Gamer'; $u.Computer.Text = '-bad'
+"wipe=$(@($script:asked).Count)|$($script:asked[0].Substring(0, 33))|$(Test-Path "$Usb\autounattend.xml")"
+Pick 'PEMode' 'Default'
+"hidden=$($g.Tag.Visibility)|$((Get-AkariUaFormFields).ContainsKey('PartitionMode'))"
+# no administrator: the generator's check, shown under Save
+(Box 'AccountGroup0').SelectedValue = 'Users'
 Invoke-AkariUnattendUsb
-"badPc=$($u.Error.Text)"
-$u.Computer.Text = 'GAMING-PC'
-"warnHidden=$($u.PasswordWarn.Visibility)"
-$u.Password.Password = 'secret'
-"warnShown=$($u.PasswordWarn.Visibility)"
+"noAdmin=$($script:UnattendParts.Error.Text)|$(Test-Path "$Usb\autounattend.xml")"
+(Box 'AccountGroup0').SelectedValue = 'Administrators'
+# saved to the setup drive without asking, then opened; it reads back
+$script:asked = @(); $script:answer = $true
 Invoke-AkariUnattendUsb
-"saved=$($u.Error.Text)|$($script:opened)|$(@($script:asked).Count)"
-"content=$(Read-Back "$Usb\autounattend.xml")"
-# again: the file exists, so it asks; No leaves it alone
-$script:asked = @(); $script:answer = $false; $u.Account.Text = 'Other'
-Invoke-AkariUnattendUsb
-"replaceNo=$(@($script:asked).Count)|$(Read-Back "$Usb\autounattend.xml")"
-# a drive without Windows setup asks first; No saves nothing
-$script:asked = @(); $u.Drive.SelectedIndex = 1
+$back = ConvertFrom-AkariUnattend ([IO.File]::ReadAllText("$Usb\autounattend.xml"))
+"saved=$($script:UnattendParts.Error.Text)|$script:opened|$(@($script:asked).Count)|$($back.AccountName0)|$($back.UILanguage)"
+# a drive without Windows setup asks first
+$script:asked = @(); $script:answer = $false; $script:UnattendParts.Drive.SelectedIndex = 1
 Invoke-AkariUnattendUsb
 "noSetup=$(@($script:asked).Count)|$(Test-Path "$Stick\autounattend.xml")"
-# a folder of the user's choice
+# a folder
+$script:answer = $true
 Invoke-AkariUnattendFolder
 "folder=$(Test-Path "$Folder\autounattend.xml")|$script:opened"
+# his site's files open, and the form saves the very same files again
+foreach ($n in '4-pe-gpt', '3-builtin', '2-unattended') {
+    $script:pick = "$Root\Tests\Fixtures\Unattend\$n.xml"
+    Invoke-AkariUnattendOpen
+    $ours = [Text.Encoding]::ASCII.GetString((New-AkariUnattend (Get-AkariUaFormFields)))
+    "same-$n=$((Canon $ours) -eq (Canon ([IO.File]::ReadAllText($script:pick))))"
+}
+"opened=$((Box 'WifiName').Text)|$((Box 'UseKeyboard3').IsChecked)|$(@($script:UaAccountRows | Where-Object { $_.Visibility -eq 'Visible' }).Count)"
+$script:pick = "$Usb\..\unattend.ps1"
+Invoke-AkariUnattendOpen
+"notOurs=$($script:told.Substring(0, 31))"
+# reset
+$script:UnattendView = $null
+"reset=$((Get-AkariUaFormFields).WifiMode)"
 '@
     $out = @{}
     & powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -Usb $usb -Stick $stick -Folder $folder 2>&1 | ForEach-Object {
-        $l = "$_"; $i = $l.IndexOf('='); if ($i -gt 0) { $out[$l.Substring(0, $i)] = $l.Substring($i + 1) } else { $out['error'] += $l }
+        $l = "$_"; $i = $l.IndexOf('='); if ($i -gt 0 -and $l -match '^[a-z-0-9]+=') { $out[$l.Substring(0, $i)] = $l.Substring($i + 1) } else { $out['error'] += $l }
     }
 
     It 'runs without errors' { $out['error'] | Should BeNullOrEmpty }
-    It 'opens full window with Back only' { $out.page | Should Be 'USB setup file|Collapsed|Visible' }
-    It 'starts from this PC: language, keyboard (added when not listed), region, time zone; checks skipped' {
-        $out.prefill | Should Be 'it-IT|0409:0000FFFF|it-IT|W. Europe Standard Time|True'
-        $out.languages | Should Be '38'
+    It 'opens full window with Back only, his sections built' { $out.page | Should Be 'Install USB|Collapsed|Visible|True' }
+    It 'starts from the defaults and this PC; hidden branches are left out' {
+        $out.start | Should Be 'Unattended|it-IT|00000410|W. Europe Standard Time|Admin|Default|False|False'
+        $out.samples | Should Be 'False|SELECT DISK=0'
+        $out.rows | Should Be '2'
     }
-    It 'moves the keyboard to the language''s default' { $out.kbFollows | Should Be '040C:0000040C' }
-    It 'lists the drives, the one with Windows setup first and picked' { $out.drives | Should Be 'WIN11 (Windows setup),STICK|0' }
-    It 'saves nothing until the names are right' {
-        $out.noName | Should Be 'Enter an account name.|False'
-        $out.badPc | Should Be 'PC name: Letters, digits and hyphens only, no hyphen at either end.'
+    It 'shows a picked branch and counts its fields; hides it again' {
+        $out.branch | Should Be 'Visible|Unattended'
+        $out.hidden | Should Be 'Collapsed|False'
     }
-    It 'warns about the password only once there is one' {
-        $out.warnHidden | Should Be 'Collapsed'
-        $out.warnShown | Should Be 'Visible'
+    It 'asks before saving a file that wipes a disk' { $out.wipe | Should Be '1|This file wipes a disk without as|False' }
+    It 'shows the generator''s check and saves nothing' { $out.noAdmin | Should Be 'Must have at least one administrator account.|False' }
+    It 'saves to the setup drive without asking, opens it, and the file reads back' { $out.saved | Should Be "|$usb\|0|Admin|it-IT" }
+    It 'asks before a drive without Windows setup' { $out.noSetup | Should Be '1|False' }
+    It 'saves to a folder' { $out.folder | Should Be "True|$folder" }
+    It 'opens files from his site and saves the very same files' {
+        $out['same-2-unattended'] | Should Be 'True'
+        $out['same-4-pe-gpt'] | Should Be 'True'
+        $out['same-3-builtin'] | Should Be 'True'
     }
-    It 'saves to the setup drive without asking, then opens it' {
-        $out.saved | Should Be "|$usb\|0"
-        $out.content | Should Be 'Gamer|GAMING-PC|040C:0000040C'
-    }
-    It 'asks before replacing a file, and No keeps it' { $out.replaceNo | Should Be '1|Gamer|GAMING-PC|040C:0000040C' }
-    It 'asks before a drive without Windows setup, and No saves nothing' { $out.noSetup | Should Be '1|False' }
-    It 'saves to a folder of the user''s choice' { $out.folder | Should Be "True|$folder" }
+    It 'fills the form from the file: Wi-Fi, the third language, both accounts and an empty row' { $out.opened | Should Be 'Home & Co|True|3' }
+    It 'says so for a file it can''t read' { $out.notOurs | Should Be "This file wasn't made by Akari " }
 }

@@ -4,6 +4,7 @@ AkariOS builds on the work of these projects. Each ported Tweak is listed with i
 
 | Tweak | Source |
 |---|---|
+| Install USB (`Core/Unattend.ps1`, `Core/Unattend/`, `UI/Unattend*.ps1`) | A PowerShell port of [Christoph Schneegans' unattend generator](https://github.com/cschneegans/unattend-generator) ([schneegans.de](https://schneegans.de/windows/unattend-generator/); MIT, Copyright (c) 2024-2025 Christoph Schneegans; his license, data files and scripts in `Core/Unattend/Data/`); `Tests/Fixtures/Unattend/` are files made on his site |
 | `disable-game-dvr` | [FR33THY Ultimate](https://github.com/FR33THYFR33THY/Ultimate) (via AkariOS-Ultimate) |
 | `disable-memory-compression` | [FR33THY Ultimate](https://github.com/FR33THYFR33THY/Ultimate) (via AkariOS-Ultimate) |
 | `win32-priority-separation` | [FR33THY Ultimate](https://github.com/FR33THYFR33THY/Ultimate) (via AkariOS-Ultimate) |
