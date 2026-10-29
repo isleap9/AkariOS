@@ -223,13 +223,28 @@ Describe 'Advanced tweaks' {
 
         Context 'Services off (in Safe Mode)' {
             $t = Load 'Advanced\System\ServicesOff.ps1'
-            $list = @((Import-PowerShellDataFile "$Tw\Advanced\System\Files\services.psd1").Services)
-            # three of the services exist in this test's "Windows"
-            foreach ($s in 'WlanSvc', 'SysMain', 'StateRepository') { New-Item "$tk\HKLM\SYSTEM\CurrentControlSet\Services\$s" -Force | Out-Null }
+            $data = Import-PowerShellDataFile "$Tw\Advanced\System\Files\services.psd1"
+            $list = @($data.Services)
+            # four of the services exist in this test's "Windows"
+            foreach ($s in 'WlanSvc', 'SysMain', 'StateRepository', 'Spooler') { New-Item "$tk\HKLM\SYSTEM\CurrentControlSet\Services\$s" -Force | Out-Null }
             It 'lists FR33THY''s 216 changed start types, none another Tweak owns' {
-                $list.Count | Should Be 216
+                @($list | Where-Object { $null -ne $_.Off }).Count | Should Be 216
                 @($list | Where-Object { $_.Name -in 'CDPUserSvc', 'hidserv', 'WSearch' -or $_.Off -eq $_.Default }).Count | Should Be 0
                 ($list | Where-Object { $_.Name -eq 'StateRepository' }).Off | Should Be 3
+            }
+            It 'lists ZOICWARE''s Light (33 services, 31 not already off by default) and Manual (38) picks, every one a row' {
+                $data.Light.Count | Should Be 31
+                $data.Manual.Count | Should Be 38
+                @($data.Light + $data.Manual | Where-Object { $_ -notin $list.Name }).Count | Should Be 0
+                # ZOICWARE's keep-list and the services an admin can't change stay as they are
+                @($data.Manual | Where-Object { $_ -in 'Audiosrv', 'SysMain', 'WlanSvc', 'StateRepository', 'RpcSs', 'DcomLaunch', 'gpsvc' }).Count | Should Be 0
+                @($list | Where-Object { $_.Name -in $data.Manual -and $_.Default -ne 2 }).Count | Should Be 0
+            }
+            It 'is a Choice: Off (Recommended), Light, Manual, Windows default' {
+                $t.Kind | Should Be 'Choice'
+                $t.Recommended | Should Be 'Off'
+                $t.Default | Should Be 'Default'
+                @($t.Choices.Value) -join ',' | Should Be 'Off,Light,Manual,Default'
             }
             It 'is a SafeMode Tweak that asks first' {
                 $t.SafeMode | Should Be $true
@@ -245,6 +260,28 @@ Describe 'Advanced tweaks' {
                 (Invoke-AkariTweak $t Revert).Outcome | Should Be 'Reverted'
                 Get-AkariRegValue 'HKLM:\SYSTEM\CurrentControlSet\Services\SysMain' 'Start' | Should Be 2
                 Get-AkariState $t | Should Be 'Default'
+                Get-AkariChoiceValue $t | Should Be 'Default'
+            }
+            It 'applies Light and Manual: their services changed, every other one at its Windows default' {
+                (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+                (Invoke-AkariTweak $t Apply 'Light').Outcome | Should Be 'Applied'
+                Get-AkariRegValue 'HKLM:\SYSTEM\CurrentControlSet\Services\Spooler' 'Start' | Should Be 4
+                Get-AkariRegValue 'HKLM:\SYSTEM\CurrentControlSet\Services\WlanSvc' 'Start' | Should Be 3
+                Get-AkariChoiceValue $t | Should Be 'Light'
+                Get-AkariState $t | Should Be 'Custom'
+                (Invoke-AkariTweak $t Apply 'Manual').Outcome | Should Be 'Applied'
+                Get-AkariRegValue 'HKLM:\SYSTEM\CurrentControlSet\Services\Spooler' 'Start' | Should Be 3
+                Get-AkariRegValue 'HKLM:\SYSTEM\CurrentControlSet\Services\SysMain' 'Start' | Should Be 2
+                Get-AkariChoiceValue $t | Should Be 'Manual'
+                (Invoke-AkariTweak $t Revert).Outcome | Should Be 'Reverted'
+                Get-AkariRegValue 'HKLM:\SYSTEM\CurrentControlSet\Services\Spooler' 'Start' | Should Be 2
+                Get-AkariState $t | Should Be 'Default'
+            }
+            It 'reads a hand-changed start type as Custom' {
+                Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Services\SysMain' 'Start' 3
+                Get-AkariChoiceValue $t | Should Be $null
+                Get-AkariState $t | Should Be 'Custom'
+                Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Services\SysMain' 'Start' 2
             }
         }
 

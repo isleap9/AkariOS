@@ -26,8 +26,7 @@ function Invoke-AkariTweak($Tweak, [ValidateSet('Apply', 'Revert')][string]$Mode
     # Apply and Revert blocks all see it
     $AkariTweakDir = if ($Tweak.Source -and (Test-Path -LiteralPath $Tweak.Source)) { Split-Path $Tweak.Source } else { '' }
     if ($null -ne $Value -and $Mode -eq 'Apply') {
-        $e = $Tweak.Registry[0]
-        $cur = try { Get-AkariRegValue $e.Path $e.Name } catch { $null }
+        $cur = try { Get-AkariChoiceValue $Tweak } catch { $null }
         if ($null -ne $cur -and (Test-AkariRegMatch $cur $Value)) {
             Write-Log "Already: $($Tweak.Name)"
             return New-AkariOutcome $Tweak.Id $Mode 'Already'
@@ -42,9 +41,15 @@ function Invoke-AkariTweak($Tweak, [ValidateSet('Apply', 'Revert')][string]$Mode
     }
     try {
         if ($Tweak.Kind -eq 'Choice') {
-            $e = $Tweak.Registry[0]
             $v = if ($Mode -eq 'Revert') { Resolve-AkariDefault $Tweak.Default } elseif ($null -ne $Value) { $Value } else { $Tweak.Recommended }
-            if ($null -eq $v) { Remove-Reg $e.Path $e.Name } else { Set-Reg $e.Path $e.Name $v $e.Type }
+            if ($Tweak.Value) {
+                # a Choice with blocks: Apply sets $AkariValue (the picked value), Revert puts the Windows default back
+                $AkariValue = $v
+                Invoke-AkariTweakBlock $Tweak.$Mode $Mode
+            } else {
+                $e = $Tweak.Registry[0]
+                if ($null -eq $v) { Remove-Reg $e.Path $e.Name } else { Set-Reg $e.Path $e.Name $v $e.Type }
+            }
         } elseif ($Tweak.Registry) {
             Invoke-AkariRegistry $Tweak.Registry $Mode
             # a registry Toggle's After: one more step after the values, both ways ($AkariMode = Apply / Revert),
@@ -64,7 +69,7 @@ function Invoke-AkariTweak($Tweak, [ValidateSet('Apply', 'Revert')][string]$Mode
 }
 
 # runs one of a tweak's blocks (Apply, Revert, After, Prepare), its output logged; it sees the caller's $AkariTweakDir
-# and $AkariMode. Rebuilt from text, so a block loaded in another runspace never runs in that runspace's session state.
+# (and a block Choice's $AkariValue) and $AkariMode. Rebuilt from text, so a block loaded in another runspace never runs in that runspace's session state.
 # Cmdlet errors stop it (-ErrorAction Stop by default) and throw to the caller; a native tool's stderr (reg.exe,
 # powercfg...) is only logged: 5.1 turns it into an error record, and $ErrorActionPreference = 'Stop' would abort on it.
 function Invoke-AkariTweakBlock($Block, [string]$Mode) {

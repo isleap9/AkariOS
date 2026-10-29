@@ -101,6 +101,7 @@ Describe 'Get-AkariTweaks' {
         @{ File = 'NoRevert.ps1'; Says = 'Revert' }
         @{ File = 'RegNoDefault.ps1'; Says = 'Default' }
         @{ File = 'ChoiceBadRec.ps1'; Says = 'Recommended' }
+        @{ File = 'ChoiceValueRegistry.ps1'; Says = 'a Choice with Value needs Apply and Revert, and no Registry' }
         @{ File = 'ActionNoReason.ps1'; Says = '# Action:' }
         @{ File = 'Interactive.ps1'; Says = 'Pause' }
         @{ File = 'ZDup.ps1'; Says = 'good-registry' }

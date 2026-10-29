@@ -48,11 +48,20 @@ Describe 'Catalogue (Optimize > Advanced)' {
         $p = @{}
         $sec = $all | Where-Object { $_.Id -eq 'sec' }
         Set-AkariSafePending $p $sec 'Default' 'Apply'
-        $p['sec'] | Should Be 'Apply'
+        $p['sec'].Mode | Should Be 'Apply'
         Set-AkariSafePending $p $sec 'Default' 'Revert'
         $p.Count | Should Be 0
         Set-AkariSafePending $p $sec 'Optimized' 'Revert'
-        $p['sec'] | Should Be 'Revert'
+        $p['sec'].Mode | Should Be 'Revert'
+    }
+    It 'keeps a Choice value on the Safe Mode waiting list, and drops it once the Choice has it' {
+        $p = @{}
+        $ch = [pscustomobject]@{ Id = 'svc'; Kind = 'Choice' }
+        Set-AkariSafePending $p $ch 'Optimized' 'Apply' 'Light' 'Off'
+        $p['svc'].Mode | Should Be 'Apply'
+        $p['svc'].Value | Should Be 'Light'
+        Set-AkariSafePending $p $ch 'Custom' 'Apply' 'Light' 'Light'
+        $p.Count | Should Be 0
     }
     It 'words the restart bar by count' {
         (Get-AkariRestartBarText 1 0) -join '|' | Should Be 'Explorer needs a restart to show 1 change.'

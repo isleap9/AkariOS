@@ -2,6 +2,8 @@
 # Off = "Services: Off", Default = "Services: Default" (Windows 11's: 2 automatic, 3 manual, 4 disabled). Left out: the
 # 53 services both blocks set the same way, and CDPUserSvc, hidserv and WSearch (system-no-windows-backup's,
 # system-keyboard-shortcuts-off's and system-start-search-shell-off's). A service this Windows doesn't have is skipped.
+# Light and Manual (ZOICWARE, https://github.com/zoicware/ZOICWARE, MIT): the services each one changes; every other
+# row is at its Default then. A row without Off: Off leaves it at its Default.
 @{
     Services = @(
         @{ Name = 'ADPSvc'; Off = 4; Default = 3 }
@@ -220,5 +222,34 @@
         @{ Name = 'XboxGipSvc'; Off = 4; Default = 3 }
         @{ Name = 'XboxNetApiSvc'; Off = 4; Default = 3 }
         @{ Name = 'ZTHELPER'; Off = 4; Default = 3 }
+        # Automatic in both of FR33THY's blocks, so Off leaves them; ZOICWARE's Manual sets them to manual
+        @{ Name = 'CryptSvc'; Default = 2 }
+        @{ Name = 'DeviceInstall'; Default = 2 }
+        @{ Name = 'Dhcp'; Default = 2 }
+        @{ Name = 'DispBrokerDesktopSvc'; Default = 2 }
+        @{ Name = 'nsi'; Default = 2 }
+        @{ Name = 'Power'; Default = 2 }
+        @{ Name = 'ProfSvc'; Default = 2 }
+        @{ Name = 'SENS'; Default = 2 }
+        @{ Name = 'UserManager'; Default = 2 }
+        @{ Name = 'Wcmsvc'; Default = 2 }
+        @{ Name = 'Winmgmt'; Default = 2 }
+    )
+    # ZOICWARE "Disable Services": disabled (4). Left out: shpamsvc and RemoteRegistry, already disabled in Windows.
+    Light = @(
+        'AssignedAccessManagerSvc', 'BTAGService', 'BthAvctpSvc', 'bthserv', 'BluetoothUserService', 'defragsvc', 'diagsvc',
+        'DoSvc', 'DPS', 'Fax', 'lfsvc', 'MapsBroker', 'Netlogon', 'PhoneSvc', 'PrintNotify', 'PrintWorkflowUserSvc', 'RmSvc',
+        'SCardSvr', 'ScDeviceEnum', 'SCPolicySvc', 'Spooler', 'TabletInputService', 'WalletService', 'WbioSrvc',
+        'WdiServiceHost', 'WdiSystemHost', 'whesvc', 'wisvc', 'WpcMonSvc', 'WSAIFabricSvc', 'wuqisvc'
+    )
+    # ZOICWARE "Set all Services to Manual": manual (3). Its rule, as a fixed list: the services Windows 11 starts
+    # automatically, minus its keep-list (audio, event log, SysMain, themes, Wi-Fi, firewall, DNS, RPC mapper, task
+    # scheduler, StateRepository, text input, licensing...), the ones other Tweaks own (WSearch, hidserv, CDPUserSvc)
+    # and DcomLaunch, RpcSs and gpsvc, which an admin can't change (ZOICWARE's Set-Service and registry write fail there).
+    Manual = @(
+        'BITS', 'cbdhsvc', 'CDPSvc', 'CryptSvc', 'DeviceInstall', 'Dhcp', 'DiagTrack', 'DispBrokerDesktopSvc', 'DoSvc', 'DPS',
+        'DusmSvc', 'EventSystem', 'FontCache', 'iphlpsvc', 'LanmanServer', 'LanmanWorkstation', 'MapsBroker', 'NlaSvc', 'nsi',
+        'OneSyncSvc', 'PcaSvc', 'Power', 'ProfSvc', 'SamSs', 'SENS', 'SgrmBroker', 'ShellHWDetection', 'Spooler', 'StorSvc',
+        'TrkWks', 'UserManager', 'UsoSvc', 'Wcmsvc', 'whesvc', 'Winmgmt', 'WpnService', 'WpnUserService', 'WSAIFabricSvc'
     )
 }

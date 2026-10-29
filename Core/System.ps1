@@ -105,6 +105,16 @@ function Set-AkariScheduledTask([string]$TaskPath, [string]$TaskName, [bool]$Ena
     $true
 }
 
+# unregisters every scheduled task but the ones named in $Keep (protected ones Windows won't let go are skipped);
+# returns how many went. Tests mock this.
+function Remove-AkariScheduledTasks([string[]]$Keep) {
+    $n = 0
+    foreach ($t in @(Get-ScheduledTask -TaskPath '*' -ErrorAction SilentlyContinue | Where-Object { $_.TaskName -notin $Keep })) {
+        try { Unregister-ScheduledTask -InputObject $t -Confirm:$false -ErrorAction Stop; $n++ } catch { }
+    }
+    $n
+}
+
 # runs a program (a tool a tweak ships or installs: 7-Zip, lodctr, ...) and waits; returns its exit code. Tests mock this.
 function Invoke-AkariExe([string]$Path, [string[]]$Arguments) {
     & $Path @Arguments 2>&1 | ForEach-Object { "$_" } | Out-Null

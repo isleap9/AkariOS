@@ -269,7 +269,7 @@ $safe = $script:CatCards['cat-safe']
 Set-AkariCatalogueStates @{ 'cat-safe' = @{ State = 'Default'; Current = $null } }
 $n = $script:Jobs.Count
 $safe.Control.IsChecked = $true; Click $safe.Control
-"catSafe=$($script:SafePending['cat-safe'])|$($safe.StateText.Text)|$($CatBars.Visibility)|$($script:SafeBar.Bar.Visibility)|$($script:Jobs.Count - $n)"
+"catSafe=$($script:SafePending['cat-safe'].Mode)|$($safe.StateText.Text)|$($CatBars.Visibility)|$($script:SafeBar.Bar.Visibility)|$($script:Jobs.Count - $n)"
 $safe.Control.IsChecked = $false; Click $safe.Control
 "catSafeBack=$($script:SafePending.Count)|$($script:SafeBar.Bar.Visibility)|$($safe.Control.IsChecked)"
 # Remove apps and Downloads at the top of the sidebar: full window, Back returns to the Catalogue page

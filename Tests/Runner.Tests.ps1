@@ -77,6 +77,26 @@ Describe 'Invoke-AkariTweak' {
             Get-AkariRegValue $k 'P' | Should Be 2
         }
 
+        It 'runs a Choice with blocks: Value reads it, Apply gets $AkariValue, Revert = Default' {
+            $env:AKARI_TEST_FILE = "$TestDrive\choice.txt"
+            Set-Content $env:AKARI_TEST_FILE 'Std'
+            $b = ConvertTo-AkariTweak @{ Id = 'chb'; Name = 'ChB'; Kind = 'Choice'; Recommended = 'Off'; Default = 'Std'
+                Choices = @(@{ Value = 'Off' }, @{ Value = 'Light' }, @{ Value = 'Std' })
+                Value = { $v = Get-Content $env:AKARI_TEST_FILE; if ($v -in 'Off', 'Light', 'Std') { $v } else { $null } }
+                Apply = { Set-Content $env:AKARI_TEST_FILE $AkariValue }; Revert = { Set-Content $env:AKARI_TEST_FILE 'Std' } } 'x' $false
+            Get-AkariState $b | Should Be 'Default'
+            (Invoke-AkariTweak $b Apply).Outcome | Should Be 'Applied'
+            Get-AkariChoiceValue $b | Should Be 'Off'
+            Get-AkariState $b | Should Be 'Optimized'
+            (Invoke-AkariTweak $b Apply 'Light').Outcome | Should Be 'Applied'
+            Get-AkariState $b | Should Be 'Custom'
+            (Invoke-AkariTweak $b Apply 'Light').Outcome | Should Be 'Already'
+            (Invoke-AkariTweak $b Revert).Outcome | Should Be 'Reverted'
+            Get-AkariState $b | Should Be 'Default'
+            Set-Content $env:AKARI_TEST_FILE 'hand-edited'
+            Get-AkariState $b | Should Be 'Custom'
+        }
+
         $c3 = ConvertTo-AkariTweak @{ Id = 'ch3'; Name = 'Ch3'; Kind = 'Choice'; Recommended = 0x26; Default = 2
             Registry = @{ Path = $k; Name = 'V'; Type = 'DWord' }; Choices = @(@{ Value = 0x26 }, @{ Value = 3 }) } 'x' $false
 

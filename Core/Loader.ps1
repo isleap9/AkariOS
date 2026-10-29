@@ -3,7 +3,7 @@
 
 $AkariTweakFields = 'Id', 'Name', 'Description', 'Section', 'Category', 'Kind', 'Risk', 'Button', 'Confirm', 'Reboot', 'SafeMode',
     'Requires', 'Registry', 'Choices', 'Recommended', 'Default', 'Editable', 'Apply', 'Revert', 'Detect', 'Check', 'Actions', 'Source', 'Legacy',
-    'EntryKind', 'Entries', 'KeepNames', 'Group', 'Package', 'Keep', 'Winget', 'WingetSource', 'Before', 'After', 'AppType', 'StoreId', 'Explorer', 'AkariOS', 'Restarts', 'Guided', 'Prepare'
+    'EntryKind', 'Entries', 'KeepNames', 'Group', 'Package', 'Keep', 'Winget', 'WingetSource', 'Before', 'After', 'AppType', 'StoreId', 'Explorer', 'AkariOS', 'Restarts', 'Guided', 'Prepare', 'Value'
 # Requires values the engine knows (Core\System.ps1 Test-AkariRequirement): unmet = hidden in Guided, Skipped in a Run
 $AkariRequirements = 'Win10', 'Win11', 'Laptop', 'Desktop', 'Home', 'Pro', 'NVIDIA', 'AMD', 'Intel'
 # data-list Group handlers the engine knows (ADR 0002). Rows: the Entries are the data file's rows (every row is a
@@ -111,6 +111,7 @@ function Import-AkariTweakFile([string]$Path, [string]$TweaksRoot) {
     }
     $t = ConvertTo-AkariTweak $h $Path $false
     # Prepare: runs in normal mode before the restart into Safe Mode (Core\Runner.ps1 Invoke-AkariPrepare)
+    if ($t.Value -and $t.Kind -ne 'Choice') { throw "${rel}: Value is only for a Choice" }
     if ($t.Prepare -and -not $t.SafeMode) { throw "${rel}: Prepare is only for a SafeMode Tweak (it runs before the restart into Safe Mode)" }
     switch ($t.Kind) {
         'Toggle' {
@@ -135,8 +136,14 @@ function Import-AkariTweakFile([string]$Path, [string]$TweaksRoot) {
             }
         }
         'Choice' {
-            if (-not $t.Registry -or $t.Registry.Count -ne 1) { throw "${rel}: a Choice needs exactly one Registry entry" }
-            foreach ($k in 'Path', 'Name', 'Type') { if (-not $t.Registry[0].ContainsKey($k)) { throw "${rel}: Registry entry is missing $k" } }
+            if ($t.Value) {
+                # a Choice over many settings: Value returns the current value, Apply sets $AkariValue, Revert = Default
+                if ($t.Registry -or -not ($t.Apply -and $t.Revert)) { throw "${rel}: a Choice with Value needs Apply and Revert, and no Registry" }
+                if ($t.Editable) { throw "${rel}: a Choice with Value can't be Editable" }
+            } else {
+                if (-not $t.Registry -or $t.Registry.Count -ne 1) { throw "${rel}: a Choice needs exactly one Registry entry (or Value, Apply and Revert)" }
+                foreach ($k in 'Path', 'Name', 'Type') { if (-not $t.Registry[0].ContainsKey($k)) { throw "${rel}: Registry entry is missing $k" } }
+            }
             if (-not $t.Choices) { throw "${rel}: a Choice needs Choices" }
             foreach ($k in 'Recommended', 'Default') { if (-not $h.ContainsKey($k)) { throw "${rel}: a Choice needs $k" } }
             if (-not $t.Editable -and $t.Recommended -notin @($t.Choices | ForEach-Object { $_.Value })) {

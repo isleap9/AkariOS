@@ -24,6 +24,17 @@ function Set-AkariRememberedState([string]$Id, [bool]$Applied) {
     ($s | ConvertTo-Json) | Set-Content $AkariStatePath
 }
 
+# a Choice's current value: its registry value, or what its Value block returns (a Choice over many settings, e.g. a
+# list of service start types; $null = none of its values). Throws when it can't be read.
+function Get-AkariChoiceValue($Tweak) {
+    if ($Tweak.Value) {
+        $AkariTweakDir = if ($Tweak.Source -and (Test-Path -LiteralPath $Tweak.Source)) { Split-Path $Tweak.Source } else { '' }
+        return & ([scriptblock]::Create($Tweak.Value.ToString()))
+    }
+    $e = $Tweak.Registry[0]
+    Get-AkariRegValue $e.Path $e.Name
+}
+
 function Get-AkariState($Tweak) {
     if ($Tweak.Kind -eq 'Action') { return 'Unknown' }
     if ($Tweak.Detect) {
@@ -35,9 +46,10 @@ function Get-AkariState($Tweak) {
         return 'Unknown'
     }
     if ($Tweak.Kind -eq 'Choice') {
-        $e = $Tweak.Registry[0]
-        try { $cur = Get-AkariRegValue $e.Path $e.Name } catch { return 'Unknown' }
+        try { $cur = Get-AkariChoiceValue $Tweak } catch { return 'Unknown' }
         $def = Resolve-AkariDefault $Tweak.Default
+        # a Value block's $null: readable, but none of its values
+        if ($null -eq $cur -and $Tweak.Value) { return 'Custom' }
         if ($null -eq $cur) { if ($null -eq $def) { return 'Default' } else { return 'Unknown' } }
         if (Test-AkariRegMatch $cur $Tweak.Recommended) { return 'Optimized' }
         if (Test-AkariRegMatch $cur $def) { return 'Default' }

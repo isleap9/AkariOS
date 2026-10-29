@@ -129,11 +129,17 @@ function Set-AkariCatalogueCard($e) {
     try {
         switch ($t.Kind) {
             'Toggle' {
-                $e.Control.IsChecked = if ($pending) { $script:SafePending[$t.Id] -eq 'Apply' }
+                $e.Control.IsChecked = if ($pending) { $script:SafePending[$t.Id].Mode -eq 'Apply' }
                                        elseif ($e.State -eq 'Optimized') { $true } elseif ($e.State -eq 'Default') { $false } else { $null }
             }
             'Choice' {
-                $it = if ($null -ne $e.Current) { $e.Control.Items | Where-Object { Test-AkariRegMatch $_.Tag $e.Current } | Select-Object -First 1 }
+                # waiting for Safe Mode: the value it will get, else the current one
+                $show = $e.Current
+                if ($pending) {
+                    $p = $script:SafePending[$t.Id]
+                    $show = if ($null -ne $p.Value) { $p.Value } elseif ($p.Mode -eq 'Apply') { $t.Recommended } else { Resolve-AkariDefault $t.Default }
+                }
+                $it = if ($null -ne $show) { $e.Control.Items | Where-Object { Test-AkariRegMatch $_.Tag $show } | Select-Object -First 1 }
                 if ($it) { $e.Control.SelectedItem = $it } else { $e.Control.SelectedIndex = -1 }
             }
         }
@@ -215,7 +221,7 @@ function Start-AkariCatalogueStates($Tweaks) {
 foreach (`$i in `$AkariShared.Items) {
     try {
         `$t = Import-AkariTweakFile -Path `$i.Source -TweaksRoot $(& $q "$Root\Tweaks")
-        `$cur = if (`$t.Kind -eq 'Choice') { Get-AkariRegValue `$t.Registry[0].Path `$t.Registry[0].Name } else { `$null }
+        `$cur = if (`$t.Kind -eq 'Choice') { Get-AkariChoiceValue `$t } else { `$null }
         `$AkariShared.States[`$i.Id] = @{ State = (Get-AkariState `$t); Current = `$cur }
     } catch { `$AkariShared.States[`$i.Id] = @{ State = 'Unknown'; Current = `$null } }
 }
@@ -269,7 +275,7 @@ function Invoke-AkariCatalogueChange([string]$Id, [string]$Mode, $Value) {
     }
     $e.Error = ''
     if ($t.SafeMode -and -not (Test-AkariSafeMode)) {
-        Set-AkariSafePending $script:SafePending $t $e.State $Mode
+        Set-AkariSafePending $script:SafePending $t $e.State $Mode $Value $e.Current
         Set-AkariCatalogueCard $e
         Update-AkariCatalogueBars
         return
@@ -294,7 +300,7 @@ function Start-AkariCatalogueNext {
 `$t = Import-AkariTweakFile -Path $(& $q $t.Source) -TweaksRoot $(& $q "$Root\Tweaks")
 `$AkariShared.Outcome = Invoke-AkariTweak `$t `$AkariShared.Mode `$AkariShared.Value
 `$AkariShared.State = Get-AkariState `$t
-if (`$t.Kind -eq 'Choice') { `$AkariShared.Current = Get-AkariRegValue `$t.Registry[0].Path `$t.Registry[0].Name }
+if (`$t.Kind -eq 'Choice') { `$AkariShared.Current = Get-AkariChoiceValue `$t }
 "@
     # the first change of the session gets an AkariOS restore point first (not for Check / Open buttons)
     $code = Add-AkariRestoreFirst $code $(if ($t.Kind -eq 'Action') { $t.Button } else { '' })
@@ -409,7 +415,10 @@ function Start-AkariCatalogueRestart {
 # Core\Phases.ps1), with the session's restore point first
 function Start-AkariCatalogueSafeRun([bool]$SkipRestore = $false) {
     if ($script:Job -or -not $script:SafePending.Count) { return }
-    $plan = @($script:SafePending.Keys | ForEach-Object { @{ Id = $_; Mode = $script:SafePending[$_] } })
+    $plan = @($script:SafePending.Keys | ForEach-Object {
+        $p = $script:SafePending[$_]
+        if ($null -ne $p.Value) { @{ Id = $_; Mode = $p.Mode; Value = $p.Value } } else { @{ Id = $_; Mode = $p.Mode } }
+    })
     $skip = $SkipRestore -or -not (Get-AkariRestoreChoice 'Optimize')
     $shared = [hashtable]::Synchronized(@{ Plan = $plan; SkipRestore = $skip })
     $q = { param($s) "'" + ([string]$s -replace "'", "''") + "'" }

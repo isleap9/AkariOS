@@ -49,10 +49,12 @@ function Get-AkariCatalogueList($Tweaks, [string]$Key, [string]$Query) {
 }
 
 # a Safe Mode Tweak was switched to $Mode (Apply / Revert) while its State is $State: it waits for Safe Mode, or, when
-# that is where it already is (switched back before the restart), leaves the waiting list. $Pending: id -> Mode.
-function Set-AkariSafePending([hashtable]$Pending, $Tweak, [string]$State, [string]$Mode) {
-    $done = ($Mode -eq 'Apply' -and $State -eq 'Optimized') -or ($Mode -eq 'Revert' -and $State -eq 'Default')
-    if ($done) { $Pending.Remove($Tweak.Id) } else { $Pending[$Tweak.Id] = $Mode }
+# that is where it already is (switched back before the restart), leaves the waiting list. $Pending: id -> @{ Mode;
+# Value }. $Value: a Choice value other than Recommended, $Current: the Choice's value now.
+function Set-AkariSafePending([hashtable]$Pending, $Tweak, [string]$State, [string]$Mode, $Value = $null, $Current = $null) {
+    $done = if ($null -ne $Value) { $null -ne $Current -and (Test-AkariRegMatch $Current $Value) }
+            else { ($Mode -eq 'Apply' -and $State -eq 'Optimized') -or ($Mode -eq 'Revert' -and $State -eq 'Default') }
+    if ($done) { $Pending.Remove($Tweak.Id) } else { $Pending[$Tweak.Id] = @{ Mode = $Mode; Value = $Value } }
 }
 
 # the lines of the restart bar: Explorer changes and changes that need a PC restart, by count

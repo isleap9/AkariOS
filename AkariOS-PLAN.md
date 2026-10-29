@@ -229,7 +229,7 @@ The engine derives Apply / Revert / Detect from the `Registry` entries automatic
 ```
 
 ### Choice
-`Choices` lists the valid values; `Recommended` is what Optimize and Presets set. An `Editable` Choice also accepts any number typed in.
+`Choices` lists the valid values; `Recommended` is what Optimize and Presets set. An `Editable` Choice also accepts any number typed in. A Choice is one registry value, or (with a `Value` block instead of `Registry`) Apply / Revert blocks over many settings.
 
 ```powershell
 # Tweaks/Advanced/Tuning/Win32PrioritySeparation.ps1
@@ -333,6 +333,7 @@ When every Entry has the same shape, the Group reads them from one data file. Se
 | `Check` | no | extra "Check" button that only reports status |
 | `Choices`, `Recommended`, `Default` | Choice only | valid values (each may carry its own `Risk`), the Optimized value, the stock Windows value |
 | `Editable` | no | Choice only: also accept any typed number |
+| `Value` | no | Choice only, instead of `Registry`: a block returning the current Choice value (`$null` = none of them, Custom), for a Choice over many settings (`advanced-services-off`). `Apply` then runs with `$AkariValue` = the picked value, `Revert` puts the Default back; `Get-AkariChoiceValue` (Core/State.ps1) reads either kind |
 | `Entries` | Group only | Tweaks inside the Group (any kind except Group), id `<group-id>/<Name>` |
 | `EntryKind` | no | Group only: engine-provided handler for data-list Entries (e.g. `ServiceStart`) |
 | `Requires` | no | `Win10`, `Win11`, `Laptop`, `Desktop`, `Home`, `Pro` (Pro or higher), `NVIDIA`, `AMD`, `Intel`: unmet = hidden in Guided, `Skipped` in a Run |

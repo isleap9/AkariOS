@@ -135,7 +135,7 @@ function New-AkariText([string]$Text, [double]$Size = 13, [string]$Brush = 'Tx')
 function New-AkariRowEntry($t) {
     $state = Get-AkariState $t
     $cur = $null
-    if ($t.Kind -eq 'Choice') { try { $cur = Get-AkariRegValue $t.Registry[0].Path $t.Registry[0].Name } catch { } }
+    if ($t.Kind -eq 'Choice') { try { $cur = Get-AkariChoiceValue $t } catch { } }
     $e = New-AkariTweakRow $t $state $cur
     switch ($t.Kind) {
         'Choice' {

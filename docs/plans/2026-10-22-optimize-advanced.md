@@ -99,8 +99,16 @@ batches, and Legacy is retired.
    ZOICWARE sets to what Windows already has (thumbnails, font smoothing, thumbnail cache, action center, the widgets
    Dsh policies at 0, nearby sharing, the console FaceName); the scaling leftovers (AppliedDPI, PerMonitorSettings)
    depend on the display, so they have no single default.
-6. **Batch 4, ZOICWARE services, scheduled tasks and power** (its "set services to manual" meets
-   `advanced-services-off`: one owner, so a Choice or a note).
+6. **Batch 4, ZOICWARE services, scheduled tasks and power** (done). `advanced-services-off` became a Choice (a
+   Choice may now have a `Value` block instead of its one registry row): Off (FR33THY, Recommended), Light (ZOICWARE's
+   "Disable Services": its 33 minus shpamsvc and RemoteRegistry, already disabled in Windows), Manual (its "Set all
+   Services to Manual" as a fixed list: the 38 services Windows 11 starts automatically, minus its keep-list, the ones
+   other Tweaks own and DcomLaunch / RpcSs / gpsvc, which an admin can't change), Windows default. The Catalogue's
+   Safe Mode waiting list keeps a Choice value. New: `advanced-remove-scheduled-tasks` (an Action: deleted tasks can't
+   come back) and `power-mode-best-performance` (the power mode overlay). Skipped: ZOICWARE's own .pow plans (files
+   outside the repo), "Import your own plan" (a file picker), the Ultimate duplicate, plan removal and default plans
+   (`power-ultimate-plan`), hibernation (`power-hibernate-off`) and per-device USB power saving
+   (`power-device-power-saving`).
 7. **Batch 5, ZOICWARE optional tweaks and the Ultimate Context Menu**.
 8. **Batch 6, ZOICWARE Windows 11 tweaks** that need no outside tool.
 9. **Batch 7, the rest of ZOICWARE**: its debloat (rows on Apps › Remove), installers (Downloads), the stripped Nvidia
