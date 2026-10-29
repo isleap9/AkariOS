@@ -1,2 +1,2 @@
 # The AkariOS version. A release is tagged v<this> (the release Action checks they match).
-$AkariVersion = '0.1.1'
+$AkariVersion = '0.1.2'
