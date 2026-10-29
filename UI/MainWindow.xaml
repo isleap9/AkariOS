@@ -301,6 +301,40 @@
       </Setter>
     </Style>
 
+    <!-- Password box, the same look as the Flat text box (the USB setup file's password). -->
+    <Style x:Key="FlatPassword" TargetType="PasswordBox">
+      <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
+      <Setter Property="Background" Value="{DynamicResource Ctl}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource CtlBd}"/>
+      <Setter Property="CaretBrush" Value="{DynamicResource Tx}"/>
+      <Setter Property="SelectionBrush" Value="#FFFFFF"/>
+      <Setter Property="Padding" Value="10,5,10,6"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="PasswordBox">
+            <Grid>
+              <Border x:Name="B" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                      BorderThickness="1" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                <ScrollViewer x:Name="PART_ContentHost"/>
+              </Border>
+              <Border x:Name="Line" Height="1" VerticalAlignment="Bottom" Margin="1,0" CornerRadius="0,0,4,4"
+                      Background="#8BFFFFFF"/>
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="B" Property="Background" Value="{DynamicResource CtlH}"/>
+              </Trigger>
+              <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter TargetName="B" Property="Background" Value="#B31E1E1E"/>
+                <Setter TargetName="Line" Property="Background" Value="{DynamicResource Inv}"/>
+                <Setter TargetName="Line" Property="Height" Value="2"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
     <!-- Thin rounded scrollbar thumb, as WinUI's at rest. -->
     <Style TargetType="ScrollBar">
       <Setter Property="Width" Value="12"/>
@@ -474,7 +508,7 @@
                   <TextBlock x:Name="UpdateText" VerticalAlignment="Center" TextWrapping="Wrap"/>
                 </DockPanel>
               </Border>
-              <UniformGrid x:Name="HomeTiles" Columns="4" Margin="0,8,0,0"/>
+              <UniformGrid x:Name="HomeTiles" Columns="5" Margin="0,8,0,0"/>
             </StackPanel>
 
             <StackPanel x:Name="Rows"/>

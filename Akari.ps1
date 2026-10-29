@@ -89,7 +89,7 @@ foreach ($c in @($Root, (Split-Path -Parent $Root), "$Root\Tweaks")) {
     if ($c -and (Test-Path "$c\UI\MainWindow.xaml") -and (Test-Path "$c\Tweaks")) { $Root = $c; break }
 }
 # ---- Core: helpers, loader, state and runner (the background job loads the same files)
-foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Appx', 'Winget', 'AppSetup', 'Restore', 'System', 'Presets', 'Phases', 'Version', 'Update') { . "$Root\Core\$f.ps1" }
+foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Appx', 'Winget', 'AppSetup', 'Restore', 'System', 'Presets', 'Phases', 'Version', 'Update', 'Unattend') { . "$Root\Core\$f.ps1" }
 # the folder an update replaces (none when run from GitHub through iex: that is always the latest)
 $AkariInstallDir = if ($PSScriptRoot) { $Root } else { '' }
 # after an update: the previous copy (<folder>.old) and the download folder go
@@ -122,7 +122,7 @@ $script:Ported = $loaded.Ported
 foreach ($p in @(Test-AkariPorted $script:Ported $script:Tweaks)) { $loaded.Problems.Add($p) }
 
 # ---- GUI: Guided steps, shell, Legacy rows (UI\*.ps1), then show the window
-foreach ($f in 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows', 'CataloguePage', 'About') { . "$Root\UI\$f.ps1" }
+foreach ($f in 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows', 'CataloguePage', 'About', 'Unattend') { . "$Root\UI\$f.ps1" }
 [void]$window.ShowDialog()
 
 # ---- One-click: the window closed to hand this console to the AkariOS preset's Run (Core\Phases.ps1 restarts the PC

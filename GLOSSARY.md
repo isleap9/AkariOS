@@ -49,6 +49,9 @@ _Avoid_: manual page, all tweaks
 
 **Requirement**: a condition a Tweak needs to make sense on a machine, such as Win11, NVIDIA or Desktop.
 
+**USB setup file**: the `autounattend.xml` Akari writes for a Windows install USB (a Home tile): one local administrator, the chosen language and region, no setup questions. It is a tool, not a Tweak.
+_Avoid_: answer file, unattend (in UI text)
+
 ## Running
 
 **Run**: a single call to the engine with a list of Tweak ids, coming from the CLI, a Preset, or one Review & Apply in the GUI.

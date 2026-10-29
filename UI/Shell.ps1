@@ -24,6 +24,8 @@ $Pages = [ordered]@{
     Downloads  = @{ Glyph = [char]0xE896; Sub = 'Install apps, runtimes and tools, from winget where possible' }
     # Remove apps (the Catalogue sidebar): the Guided Remove tables on their own
     'Remove apps' = @{ Glyph = [char]0xE74D; Sub = 'Store apps, optional features, Windows features and legacy apps to remove' }
+    # USB setup file (UI\Unattend.ps1): the Home tile, a full window form
+    'USB setup file' = @{ Glyph = [char]0xE88E; Sub = 'Make an autounattend.xml for a Windows install USB' }
     # About & Updates (UI\About.ps1): the Home link and the update bar open it
     About      = @{ Glyph = [char]0xE946; Sub = 'Version, updates and credits' }
     # Legacy pages: the frozen AkariOS-Ultimate tweaks (ADR 0004)
@@ -110,7 +112,7 @@ function Show-Page {
     # the Optimize chooser; a search typed there lists Legacy matches instead
     $onChooser = (-not $q -and $script:Cat -eq 'Optimize')
     # About & Updates: full window like the chooser, Back leads home
-    $onAbout = (-not $q -and $script:Cat -eq 'About')
+    $onAbout = (-not $q -and $script:Cat -in 'About', 'USB setup file')
     $CatBars.Visibility = 'Collapsed'
     # Optimize › Advanced (the Catalogue, UI\CataloguePage.ps1): its own sidebar, pages and search
     if ($script:Cat -like "$AkariCataloguePrefix*") { Show-AkariCataloguePage $q; return }
@@ -125,7 +127,7 @@ function Show-Page {
         $HeaderSub.Text = $Pages[$script:Cat].Sub
         $HeaderIcon.Text = [string]$Pages[$script:Cat].Glyph
         if ($onChooser) { Show-AkariOptimizeChooser; return }
-        if ($onAbout) { Show-AkariAbout; return }
+        if ($onAbout) { if ($script:Cat -eq 'About') { Show-AkariAbout } else { Show-AkariUnattend }; return }
         Enter-AkariFlow $script:Cat
         Show-AkariSteps
         return
@@ -312,6 +314,10 @@ $tile.Add_Click({ Select-AkariPage 'Optimize' })
 # Downloads: the Guided Install cards on their own
 $tile = New-AkariModeCard ([string][char]0xE896) 'Downloads' 'Install apps, game launchers, runtimes and tools, or bring back Store apps the debloat removed.' $true
 $tile.Add_Click({ Select-AkariPage 'Downloads' })
+[void]$HomeTiles.Children.Add($tile)
+# USB setup file: an autounattend.xml for a Windows install USB (UI\Unattend.ps1)
+$tile = New-AkariModeCard ([string][char]0xE88E) 'USB setup file' 'Make an autounattend.xml for a Windows install USB: your account, language and region, no Microsoft account, no setup questions.' $true
+$tile.Add_Click({ Select-AkariPage 'USB setup file' })
 [void]$HomeTiles.Children.Add($tile)
 $tile = New-AkariModeCard ([string][char]0xE72D) 'Import / Export settings' 'Save your choices to a file, or load them on another PC. Coming in a later version.' $false
 [void]$HomeTiles.Children.Add($tile)
