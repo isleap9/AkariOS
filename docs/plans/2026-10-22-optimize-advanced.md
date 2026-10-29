@@ -91,8 +91,14 @@ batches, and Legacy is retired.
    one Tweak per entry (the newer app permissions merged, the camera on its own). **3a** (done): privacy, system,
    performance, security, update. Skipped: the user choice driver and the DataCollection CurrentVersion values (stock
    defaults unknown), WPBT and hibernate (already Tweaks), "Remove logons" (Tools > Cleanup), a feedback value delete,
-   the drag tray feature flag. `Tests/Zoicware.Tests.ps1` round-trips every port. **3b**: Explorer, taskbar, Start,
-   notifications, input and appearance.
+   the drag tray feature flag. `Tests/Zoicware.Tests.ps1` round-trips every port. **3b** (done): 23 Tweaks in Explorer,
+   Theme, Taskbar, Notifications, Start, System, Input, Accessibility and Gaming. Skipped: Gallery and Home (already
+   Tweaks through other values), the do not disturb blobs (`notifications-no-auto-dnd`), the solid background / no
+   wallpaper / black colour / JPEG quality (the values `theme-akarios-wallpaper` writes), `EnableAutoTray`
+   (`taskbar-show-all-tray-icons`), the sign-in screen's pointer values (`input-pointer-precision-off`), and the values
+   ZOICWARE sets to what Windows already has (thumbnails, font smoothing, thumbnail cache, action center, the widgets
+   Dsh policies at 0, nearby sharing, the console FaceName); the scaling leftovers (AppliedDPI, PerMonitorSettings)
+   depend on the display, so they have no single default.
 6. **Batch 4, ZOICWARE services, scheduled tasks and power** (its "set services to manual" meets
    `advanced-services-off`: one owner, so a Choice or a note).
 7. **Batch 5, ZOICWARE optional tweaks and the Ultimate Context Menu**.

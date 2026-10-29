@@ -14,16 +14,19 @@ Describe 'ZOICWARE ports' {
     $files = @(Get-ChildItem $Tw -Recurse -Filter *.ps1 | Where-Object { $_.DirectoryName -notmatch '\\Files$' -and (Get-Content $_.FullName -TotalCount 3) -match 'ZOICWARE' })
 
     try {
-        It 'finds the ports (guard)' { $files.Count -ge 21 | Should Be $true }
+        It 'finds the ports (guard)' { $files.Count -ge 45 | Should Be $true }
         It 'redirects both hives (guard)' { Resolve-AkariRegPath 'HKLM:\SOFTWARE\X' | Should Be "$tk\HKLM\SOFTWARE\X" }
         foreach ($f in $files) {
             $t = Import-AkariTweakFile $f.FullName $Tw
             It "$($t.Id): Advanced only, not in the AkariOS setup, a Default on every row" {
                 $t.Guided | Should Be $false
                 [bool]$t.AkariOS | Should Be $false
-                @($t.Registry | Where-Object { -not $_.ContainsKey('Default') }).Count | Should Be 0
+                @($t.Registry | Where-Object { $_ -and -not $_.ContainsKey('Default') }).Count | Should Be 0
             }
             It "$($t.Id): Apply makes it Optimized, Revert puts the Windows default back" {
+                # start from the Windows default (a deleted key is Optimized while the test hive lacks it)
+                Invoke-AkariTweak $t Revert | Out-Null
+                Get-AkariState $t | Should Be 'Default'
                 (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
                 Get-AkariState $t | Should Be 'Optimized'
                 (Invoke-AkariTweak $t Revert).Outcome | Should Be 'Reverted'
