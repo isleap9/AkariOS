@@ -91,6 +91,10 @@ Describe 'Restore point choice' {
         Get-AkariRestoreChoice 'Optimize' | Should Be $true
         $state.Asked | Should Be 0
     }
+    It 'makes one for Remove apps (the Catalogue''s debloat flow)' {
+        Reset $null $true
+        Get-AkariRestoreChoice 'Remove apps' | Should Be $true
+    }
     It 'asks when an AkariOS restore point exists: No skips it, and is not asked again this session' {
         Reset ([pscustomobject]@{ Description = 'AkariOS'; Date = (Get-Date) }) $false
         Get-AkariRestoreChoice 'Guided' | Should Be $false

@@ -393,7 +393,7 @@
         <TextBlock Text="&#xE700;" FontFamily="{StaticResource Icons}" FontSize="16"/>
       </Button>
       <!-- scrolls when the pages don't fit (the Catalogue's Section › Category list is long) -->
-      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+      <ScrollViewer x:Name="NavScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
         <StackPanel x:Name="Nav"/>
       </ScrollViewer>
     </DockPanel>

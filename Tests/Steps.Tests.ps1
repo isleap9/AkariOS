@@ -282,6 +282,14 @@ Show-AkariSteps
 function Select-AkariPage($n) { $script:went = $n }
 Reset-AkariSteps
 "afterDone=$script:went,$script:Mode,$script:Step"; "selCount=$($script:Sel.Count)"; "appsCache=$($null -eq $script:AppsView)"
+# Last used: only a Guided Run saves it (Remove apps and Downloads leave it alone)
+function Save-AkariLastUsed($plan) { $script:saved += ,$script:Mode }
+$script:saved = @()
+foreach ($m in 'Downloads', 'Remove apps', 'Guided') {
+    $script:Mode = $m
+    Complete-AkariApply ([hashtable]::Synchronized(@{ Plan = @(@{ Id = 'zz-fake-id'; Mode = 'Apply' }); Outcomes = @([pscustomobject]@{ Id = 'zz-fake-id'; Outcome = 'Applied' }) }))
+}
+"lastUsed=$($script:saved -join ',')"
 '@
     $out = @{}
     & powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root 2>&1 | ForEach-Object {
@@ -311,6 +319,7 @@ Reset-AkariSteps
         $out.selCount | Should Be '0'
         $out.appsCache | Should Be 'True'
     }
+    It 'saves Last used for a Guided Run only' { $out.lastUsed | Should Be 'Guided' }
 }
 
 Describe 'Get-AkariFlowStep' {
@@ -326,6 +335,11 @@ Describe 'Get-AkariFlowStep' {
         Get-AkariFlowStep 'Downloads' 0 1 | Should Be 2
         Get-AkariFlowStep 'Downloads' 2 -1 | Should Be 0
         Get-AkariFlowStep 'Downloads' 0 -1 | Should BeNullOrEmpty
+    }
+    It 'walks Remove apps from the apps straight to Review' {
+        Get-AkariFlowStep 'Remove apps' 0 1 | Should Be 2
+        Get-AkariFlowStep 'Remove apps' 2 -1 | Should Be 0
+        Get-AkariFlowStep 'Remove apps' 0 -1 | Should BeNullOrEmpty
     }
 }
 
@@ -352,6 +366,10 @@ Describe 'Optimize Legacy pages' {
         Set-AkariFlowExit 'Graphics'; $script:FlowExit | Should Be 'Graphics'
         Set-AkariFlowExit 'Home'; $script:FlowExit | Should Be 'Home'
         Set-AkariFlowExit 'Optimize'; $script:FlowExit | Should Be 'Home'
+    }
+    It 'an apps flow opened from a Catalogue page exits back to that page' {
+        Set-AkariFlowExit 'Catalogue:Tools/Check'; $script:FlowExit | Should Be 'Catalogue:Tools/Check'
+        Set-AkariFlowExit 'Remove apps'; $script:FlowExit | Should Be 'Home'
     }
 }
 
@@ -484,6 +502,24 @@ Set-AkariFlowExit 'Windows'; Enter-AkariFlow 'Downloads'; Show-AkariSteps
 Step-AkariBack; "dlLegacyBack=$script:went"
 $script:Step = 3; Reset-AkariSteps; "dlLegacyDone=$script:went,$script:Mode"
 Set-AkariFlowExit 'Home'; Enter-AkariFlow 'Downloads'; $script:Step = 3; Reset-AkariSteps; "dlHomeDone=$script:went"
+# Remove apps (the Catalogue sidebar): the Remove tables alone, no Quick select, then Review & Remove
+$Heading = [Windows.Controls.TextBlock]::new(); $HeaderSub = [Windows.Controls.TextBlock]::new()
+function Set-AkariStepHeader($t, $s) { $script:hdr = "$t|$s" }
+Set-AkariFlowExit 'Catalogue:Tools/Check'; Enter-AkariFlow 'Remove apps'
+"rmStart=$script:Mode,$script:Step,$($script:Sel.Count)"
+Show-AkariSteps
+"rmParts=$($script:AppsParts.Tabs.Visibility),$($script:AppsParts.RemoveTables.Visibility),$($script:AppsParts.InstallTables.Visibility),$($script:AppsParts.QuickSelect.Visibility)"
+"rmHeader=$script:hdr"; "rmDots=$($StepDots.Children.Count)"; "rmNext=$($StepNext.Content),$($StepNext.IsEnabled)"
+$e = $script:AppRows['appx/Akari.Test.Opt']; $e.Control.IsChecked = $true; Step-AkariAppCheck 'appx/Akari.Test.Opt'
+"rmPicked=$($StepNext.Content),$($StepNext.IsEnabled)"
+Step-AkariForward; "rmReview=$script:Step,$script:hdr"
+Step-AkariBack; Step-AkariBack; "rmBack=$script:went"
+$script:Step = 3; Reset-AkariSteps; "rmDone=$script:went,$script:Mode"
+# Downloads after Remove apps starts afresh, its tabs and Quick select as before
+Enter-AkariFlow 'Remove apps'; Show-AkariSteps; Enter-AkariFlow 'Downloads'; Show-AkariSteps
+"dlAfterRm=$script:Mode,$($script:AppsParts.RemoveTables.Visibility),$($script:AppsParts.InstallTables.Visibility)"
+Enter-AkariFlow 'Install AkariOS'; $script:Mode = 'Guided'; Show-AkariSteps
+"guidedParts=$($script:AppsParts.Tabs.Visibility),$($script:AppsParts.QuickSelect.Visibility)"
 '@
     $out = @{}
     & powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root 2>&1 | ForEach-Object {
@@ -540,6 +576,23 @@ Set-AkariFlowExit 'Home'; Enter-AkariFlow 'Downloads'; $script:Step = 3; Reset-A
         $out.dlLegacyBack | Should Be 'Windows'
         $out.dlLegacyDone | Should Be 'Windows,Choose'
         $out.dlHomeDone | Should Be 'Home'
+    }
+    It 'Remove apps starts afresh and shows the Remove tables alone, without Quick select, two steps' {
+        $out.rmStart | Should Be 'Remove apps,0,0'
+        $out.rmParts | Should Be 'Collapsed,Visible,Collapsed,Collapsed'
+        $out.rmHeader | Should Be 'Remove apps|Store apps, optional features, Windows features and legacy apps to remove'
+        $out.rmDots | Should Be '2'
+        $out.rmNext | Should Be 'Review (0),False'
+        $out.rmPicked | Should Be 'Review (1),True'
+    }
+    It 'Remove apps reviews as Review & Remove, and Back and Done lead to the Catalogue page it came from' {
+        $out.rmReview | Should Be '2,Review & Remove|These apps and features are removed in one go'
+        $out.rmBack | Should Be 'Catalogue:Tools/Check'
+        $out.rmDone | Should Be 'Catalogue:Tools/Check,Choose'
+    }
+    It 'Downloads after Remove apps starts afresh on the Install cards; Guided keeps both tabs and Quick select' {
+        $out.dlAfterRm | Should Be 'Downloads,Collapsed,Visible'
+        $out.guidedParts | Should Be 'Visible,Visible'
     }
     It 'gives the features that arrive late the last quick select (FR33THY: all but the keep-list)' {
         $out.lateSel | Should Be 'capability/App.StepsRecorder~~~~0.0.1.0,feature/WorkFolders-Client'

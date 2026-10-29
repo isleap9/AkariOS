@@ -78,6 +78,10 @@ batches, and Legacy is retired.
    startup cleanup and restore point moved to Tools (ids kept), Autoruns and three Opens in Tools › Check, OneDrive,
    Remote Desktop Connection and the old Snipping Tool in the restore card. **2d**: a "Remove apps" flow (the Remove
    tab alone, like Downloads) opened from the Catalogue sidebar, with Downloads next to it, so Advanced can debloat.
+   2d as built (2026-10-29): Remove apps = the Remove tables (Select recommended, AkariOS, Clear selection, Only
+   installed; no Quick select menu, since a preset holds Tweaks the flow never shows), then Review & Remove, with the
+   session's restore point. Remove apps and Downloads sit at the top of the Catalogue sidebar; Back on the first step
+   and Done return to the Catalogue page they were opened from. No Home tile. Only a Guided Run saves Last used now.
 4. **Retire Legacy** (a new ADR replacing 0004): delete the 7 generated files, `Core/Legacy.ps1`, `Core/Compat.ps1`,
    `Tweaks/Ported.psd1` and the Legacy card; Optimize opens Advanced directly.
 5. **Batch 3, ZOICWARE registry and group policy tweaks** (`registrytweaks.md`, `src/RegTweaks.txt`).

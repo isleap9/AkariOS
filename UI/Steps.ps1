@@ -58,9 +58,14 @@ function Get-AkariStepGroups($Tweaks, [hashtable]$Ported = @{}) {
     }
 }
 
-# the steps of each flow: Guided = Apps, Tweaks, Review & Apply; Downloads (Home tile) = the Install cards, Review & Apply.
-# Step 3 is the result screen of both.
-$AkariFlows = @{ Guided = @(0, 1, 2); Downloads = @(0, 2) }
+# the steps of each flow: Guided = Apps, Tweaks, Review & Apply; Downloads (Home tile) = the Install cards, Review & Apply;
+# Remove apps (the Catalogue sidebar) = the Remove tables, Review & Apply. Step 3 is the result screen of each.
+$AkariFlows = @{ Guided = @(0, 1, 2); Downloads = @(0, 2); 'Remove apps' = @(0, 2) }
+# the apps flows: one Apps tab alone (no tab buttons), their own headers, and an exit page ($script:FlowExit)
+$AkariAppFlows = @{
+    Downloads     = @{ Tab = 'Install'; Head = @('Downloads', 'Pick the apps to install, from winget where possible'); Review = @('Review & Install', 'These apps install in one go') }
+    'Remove apps' = @{ Tab = 'Remove'; Head = @('Remove apps', 'Store apps, optional features, Windows features and legacy apps to remove'); Review = @('Review & Remove', 'These apps and features are removed in one go') }
+}
 
 # the step before (-1) or after (+1) $Step in $Mode's flow, or $null at either end. Pure.
 function Get-AkariFlowStep([string]$Mode, [int]$Step, [int]$Dir) {
@@ -73,12 +78,12 @@ function Get-AkariFlowStep([string]$Mode, [int]$Step, [int]$Dir) {
 # Optimize › Legacy: the sidebar pages, in order (Downloads takes the old Installers slot). The Shell puts
 # '← Optimize' (back to the chooser) above them.
 $AkariLegacyPages = 'Check', 'Refresh', 'Setup', 'Downloads', 'Graphics', 'Windows', 'Hardware', 'Advanced'
-# where Downloads' Back (first step) and Done lead: the Legacy page it was opened from, else Home
+# where an apps flow's Back (first step) and Done lead: the Legacy or Catalogue page it was opened from, else Home
 $script:FlowExit = 'Home'
 
-# the Shell is opening Downloads from page $From
+# the Shell is opening an apps flow from page $From
 function Set-AkariFlowExit([string]$From) {
-    $script:FlowExit = if ($From -in $AkariLegacyPages -and $From -ne 'Downloads') { $From } else { 'Home' }
+    $script:FlowExit = if (($From -in $AkariLegacyPages -and $From -ne 'Downloads') -or $From -like 'Catalogue:*') { $From } else { 'Home' }
 }
 
 # the rows of a Legacy page: legacy tweaks only (ADR 0004), those of page $Page, or every match of $Query. Pure.
@@ -89,11 +94,11 @@ function Get-AkariLegacyList($Tweaks, [string]$Page, [string]$Query) {
 }
 
 function Step-AkariBack {
-    # the choosers' Back goes Home, Back on the first Downloads step to where Downloads was opened (no sidebar here)
+    # the choosers' Back goes Home, Back on an apps flow's first step to where it was opened (no sidebar here)
     if ($script:Cat -in 'Optimize', 'About' -or $script:Mode -eq 'Choose') { Select-AkariPage 'Home'; return }
     $prev = Get-AkariFlowStep $script:Mode $script:Step -1
     if ($null -ne $prev) { $script:Step = $prev }
-    elseif ($script:Mode -eq 'Downloads') { Select-AkariPage $script:FlowExit; return }
+    elseif ($AkariAppFlows.Contains($script:Mode)) { Select-AkariPage $script:FlowExit; return }
     else { $script:Mode = 'Choose' }
     Show-AkariSteps
 }
@@ -111,10 +116,10 @@ function Initialize-AkariSteps {
     $StepNext.Add_Click({ Step-AkariForward })
 }
 
-# the Shell opened Install AkariOS or Downloads: switching from one flow to the other starts it afresh
+# the Shell opened Install AkariOS or an apps flow: switching from one flow to another starts it afresh
 function Enter-AkariFlow([string]$Page) {
-    if ($Page -eq 'Downloads' -and $script:Mode -ne 'Downloads') { Clear-AkariSteps; $script:Mode = 'Downloads'; $script:Step = 0 }
-    elseif ($Page -eq 'Install AkariOS' -and $script:Mode -eq 'Downloads') { Clear-AkariSteps; $script:Mode = 'Choose'; $script:Step = 0 }
+    if ($AkariAppFlows.Contains($Page) -and $script:Mode -ne $Page) { Clear-AkariSteps; $script:Mode = $Page; $script:Step = 0 }
+    elseif ($Page -eq 'Install AkariOS' -and $AkariAppFlows.Contains($script:Mode)) { Clear-AkariSteps; $script:Mode = 'Choose'; $script:Step = 0 }
 }
 
 function New-AkariText([string]$Text, [double]$Size = 13, [string]$Brush = 'Tx') {
@@ -385,7 +390,7 @@ function Update-AkariStepFooter {
     $StepNext.Visibility = 'Visible'
     switch ($script:Step) {
         0 {
-            if ($script:Mode -eq 'Downloads') { $StepNext.Content = "Review ($n)"; $StepNext.IsEnabled = ($n -gt 0) }
+            if ($AkariAppFlows.Contains($script:Mode)) { $StepNext.Content = "Review ($n)"; $StepNext.IsEnabled = ($n -gt 0) }
             else { $StepNext.Content = 'Next'; $StepNext.IsEnabled = $true }
         }
         1 { $StepNext.Content = "Review ($n)"; $StepNext.IsEnabled = ($n -gt 0) }
@@ -494,24 +499,25 @@ function Show-AkariSteps {
     if ($StepFooter) { $StepFooter.Visibility = 'Visible' }
     # step dots, centred in the footer between Back and Next; each names its step
     $StepDots.Children.Clear()
-    $downloads = ($script:Mode -eq 'Downloads')
-    foreach ($i in $AkariFlows[$(if ($downloads) { 'Downloads' } else { 'Guided' })]) {
+    # an apps flow (Downloads, Remove apps): one Apps tab alone, with its own headers
+    $flow = $AkariAppFlows[$script:Mode]
+    foreach ($i in $AkariFlows[$(if ($flow) { $script:Mode } else { 'Guided' })]) {
         $d = [Windows.Shapes.Ellipse]::new()
         $d.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'StepDot')
-        $d.ToolTip = if ($downloads -and $i -eq 0) { 'Downloads' } else { $AkariStepNames[$i] }
+        $d.ToolTip = if ($flow -and $i -eq 0) { $script:Mode } else { $AkariStepNames[$i] }
         if ($i -eq [math]::Min($script:Step, 2)) { $d.Tag = 'Current' }
         [void]$StepDots.Children.Add($d)
     }
-    $h = if ($downloads -and $script:Step -eq 0) { @('Downloads', 'Pick the apps to install, from winget where possible') }
-         elseif ($downloads -and $script:Step -eq 2) { @('Review & Install', 'These apps install in one go') }
+    $h = if ($flow -and $script:Step -eq 0) { $flow.Head }
+         elseif ($flow -and $script:Step -eq 2) { $flow.Review }
          else { $AkariStepHeaders[$script:Step] }
     Set-AkariStepHeader $h[0] $h[1]
     $StepBody.Children.Clear()
     switch ($script:Step) {
         0 {
             [void]$StepBody.Children.Add((Get-AkariAppsView))
-            # Downloads: the Install cards alone, no tabs
-            Set-AkariAppsOnlyInstall $downloads
+            # an apps flow: its tab alone, no tab buttons; Guided: both tabs
+            Set-AkariAppsOnly $(if ($flow) { $flow.Tab } else { '' })
             Set-AkariAppsFilter $Search.Text.Trim()
         }
         1 {
@@ -616,8 +622,10 @@ function Complete-AkariApply($Shared) {
         return
     }
     $script:Outcomes = @($Shared.Outcomes)
-    # Last used (Quick select): what this Run was asked to do
-    try { Save-AkariLastUsed @($Shared.Plan) } catch { Add-Log "Warning: Last used not saved ($($_.Exception.Message))" }
+    # Last used (Quick select): what a Guided Run was asked to do (an apps flow's Run would replace it with apps only)
+    if ($script:Mode -eq 'Guided') {
+        try { Save-AkariLastUsed @($Shared.Plan) } catch { Add-Log "Warning: Last used not saved ($($_.Exception.Message))" }
+    }
     $script:Step = 3
 }
 
@@ -645,10 +653,10 @@ function Show-AkariResult {
     }
 }
 
-# Done: forget the Selection and the cached steps, back to Home (Downloads: back to where it was opened)
+# Done: forget the Selection and the cached steps, back to Home (an apps flow: back to where it was opened)
 function Reset-AkariSteps {
-    # Downloads goes back to where it was opened (a Legacy page or Home), Install AkariOS Home
-    $exit = if ($script:Mode -eq 'Downloads') { $script:FlowExit } else { 'Home' }
+    # an apps flow goes back to where it was opened (a Legacy or Catalogue page, or Home), Install AkariOS Home
+    $exit = if ($AkariAppFlows.Contains($script:Mode)) { $script:FlowExit } else { 'Home' }
     Clear-AkariSteps
     # Install AkariOS opens on its chooser again next time; every State and app is read again then
     $script:Mode = 'Choose'

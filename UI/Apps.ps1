@@ -298,10 +298,13 @@ function Show-AkariAppsTab([string]$Tab) {
     if ($Tab -eq 'Remove' -and -not $script:AppsFeatureRead) { $script:AppsFeatureRead = $true; Start-AkariFeatureRead }
 }
 
-# Downloads (Home tile): the Install cards alone, without the Remove / Install tab buttons
-function Set-AkariAppsOnlyInstall([bool]$On) {
-    $script:AppsParts.Tabs.Visibility = if ($On) { 'Collapsed' } else { 'Visible' }
-    if ($On) { Show-AkariAppsTab 'Install' }
+# an apps flow shows one tab alone, without the Remove / Install tab buttons: Downloads 'Install', Remove apps
+# 'Remove' (without Quick select: a preset holds Tweaks this flow never shows). '' = Guided, both tabs.
+function Set-AkariAppsOnly([string]$Tab) {
+    $p = $script:AppsParts
+    $p.Tabs.Visibility = if ($Tab) { 'Collapsed' } else { 'Visible' }
+    if ($p.QuickSelect) { $p.QuickSelect.Visibility = if ($Tab) { 'Collapsed' } else { 'Visible' } }
+    if ($Tab) { Show-AkariAppsTab $Tab }
 }
 
 # builds the Apps view once: Store apps and legacy apps now (on the UI thread), the features in the background
@@ -328,7 +331,7 @@ function Get-AkariAppsView {
     $p.RemoveBar.Orientation = 'Horizontal'
     $p.RemoveBar.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
     # Quick select (UI\Steps.ps1): a whole preset, Apps and Tweaks
-    if (Get-Command New-AkariQuickSelect -ErrorAction SilentlyContinue) { [void]$p.RemoveBar.Children.Add((New-AkariQuickSelect)) }
+    if (Get-Command New-AkariQuickSelect -ErrorAction SilentlyContinue) { $p.QuickSelect = New-AkariQuickSelect; [void]$p.RemoveBar.Children.Add($p.QuickSelect) }
     [void]$p.RemoveBar.Children.Add((New-AkariAppsButton 'Select recommended' 'Win11Debloat''s pick: what is on this PC and marked Recommended' { Select-AkariApps { param($t) $t.Risk -eq 'Safe' } }))
     [void]$p.RemoveBar.Children.Add((New-AkariAppsButton 'AkariOS' 'The AkariOS debloat (FR33THY''s): every Store app, optional feature, Windows feature and legacy app on this PC except its keep-list' { Select-AkariApps { param($t) -not $t.Keep } }))
     [void]$p.RemoveBar.Children.Add((New-AkariAppsButton 'Clear selection' 'Uncheck everything to remove' { Select-AkariApps { param($t) $false } }))
@@ -393,7 +396,7 @@ function Get-AkariAppsView {
     $script:AppsView = $view
     # the features are read when the Remove tab is first shown (Downloads opens on Install and never reads them)
     $script:AppsFeatureRead = $false
-    Show-AkariAppsTab $(if ($script:Mode -eq 'Downloads') { 'Install' } else { $script:AppTab })
+    Show-AkariAppsTab $(if ($AkariAppFlows -and $AkariAppFlows.Contains("$script:Mode")) { $AkariAppFlows["$script:Mode"].Tab } else { $script:AppTab })
     Update-AkariAppsStatus
     $view
 }

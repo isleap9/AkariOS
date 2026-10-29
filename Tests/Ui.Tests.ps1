@@ -265,6 +265,15 @@ $safe.Control.IsChecked = $true; Click $safe.Control
 "catSafe=$($script:SafePending['cat-safe'])|$($safe.StateText.Text)|$($CatBars.Visibility)|$($script:SafeBar.Bar.Visibility)|$($script:Jobs.Count - $n)"
 $safe.Control.IsChecked = $false; Click $safe.Control
 "catSafeBack=$($script:SafePending.Count)|$($script:SafeBar.Bar.Visibility)|$($safe.Control.IsChecked)"
+# Remove apps and Downloads at the top of the sidebar: full window, Back returns to the Catalogue page
+($Nav.Children | Where-Object { $_.Tag -eq 'Remove apps' }).IsChecked = $true
+"catRemove=$script:Cat|$script:Mode|$script:FlowExit|$($PaneCol.Width.Value)|$($Heading.Text)"
+Click $StepBack; "catRemoveBack=$script:Cat|$(($Nav.Children | Where-Object { $_.IsChecked }).Tag)|$($PaneCol.Width.Value)"
+($Nav.Children | Where-Object { $_.Tag -eq 'Downloads' }).IsChecked = $true; "catDownloads=$script:Cat|$script:Mode|$script:FlowExit"
+Click $StepBack; "catDownloadsBack=$script:Cat"
+# the 48 px icon strip has no room for a scrollbar: hidden there (the wheel still scrolls), back when the pane opens
+Click $PaneToggle; "paneCompact=$($PaneCol.Width.Value)|$($NavScroll.VerticalScrollBarVisibility)"
+Click $PaneToggle; "paneOpen=$($PaneCol.Width.Value)|$($NavScroll.VerticalScrollBarVisibility)"
 # search: every Catalogue Tweak, a heading per Section › Category
 $Search.Text = 'Cat'
 "catSearch=$($Heading.Text)|$(($Rows.Children | Where-Object { $_ -is [Windows.Controls.TextBlock] } | ForEach-Object { $_.Text -replace '[^ -~]', '>' }) -join ',')|$(@($Rows.Children | Where-Object { $_ -is [Windows.Controls.Border] }).Count)"
@@ -327,7 +336,7 @@ Select-AkariPage 'Optimize'; Click $StepBody.Children[0].Children[1]
         $out.overlay | Should Be 'Collapsed'
     }
     It 'Advanced opens the Catalogue: Section headings and Category pages in the sidebar, the first page open' {
-        $out.catNav | Should Be 'Optimize,#Customize,Catalogue:Customize/Taskbar,#Advanced,Catalogue:Advanced/Security,Catalogue:Advanced/Tuning'
+        $out.catNav | Should Be 'Optimize,Remove apps,Downloads,#Customize,Catalogue:Customize/Taskbar,#Advanced,Catalogue:Advanced/Security,Catalogue:Advanced/Tuning'
         $out.catFirst | Should Be 'Catalogue:Customize/Taskbar|Taskbar|232|Catalogue:Customize/Taskbar'
     }
     It 'reads States in the background: the switch waits for its State' {
@@ -344,6 +353,16 @@ Select-AkariPage 'Optimize'; Click $StepBody.Children[0].Children[1]
     It 'a Safe Mode Tweak waits in the Safe Mode bar instead of running; switched back, it leaves it' {
         $out.catSafe | Should Be 'Apply|Waiting for Safe Mode|Visible|Visible|0'
         $out.catSafeBack | Should Be '0|Collapsed|False'
+    }
+    It 'Remove apps and Downloads open full window from the Catalogue sidebar, and Back returns to its page' {
+        $out.catRemove | Should Be 'Remove apps|Remove apps|Catalogue:Advanced/Security|0|Remove apps'
+        $out.catRemoveBack | Should Be 'Catalogue:Advanced/Security|Catalogue:Advanced/Security|232'
+        $out.catDownloads | Should Be 'Downloads|Downloads|Catalogue:Advanced/Security'
+        $out.catDownloadsBack | Should Be 'Catalogue:Advanced/Security'
+    }
+    It 'the compact sidebar hides its scrollbar so the icons keep their 40 px column' {
+        $out.paneCompact | Should Be '48|Hidden'
+        $out.paneOpen | Should Be '232|Auto'
     }
     It 'search lists every Catalogue match under its Section › Category' {
         $out.catSearch | Should Be 'Search|Customize > Taskbar,Advanced > Security|2'

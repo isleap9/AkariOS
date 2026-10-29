@@ -8,7 +8,7 @@ $window.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get
 foreach ($n in 'Nav', 'Search', 'Heading', 'Rows', 'Page', 'Logo', 'HomePanel',
                'Shell', 'Body', 'Main', 'PaneCol', 'PaneToggle', 'HomeTiles', 'HeaderIcon', 'HeaderSub', 'StatusDot', 'StatusRing', 'StatusText', 'StatusBar',
                'CapMin', 'CapMax', 'CapMaxGlyph', 'CapClose', 'StepsPanel', 'StepDots', 'StepBody', 'StepFooter', 'StepBack', 'StepNext',
-               'UpdateBar', 'UpdateText', 'UpdateOpen', 'AppVersion', 'AppVersionText', 'MenuBtn', 'CatBars') { Set-Variable $n $window.FindName($n) }
+               'UpdateBar', 'UpdateText', 'UpdateOpen', 'AppVersion', 'AppVersionText', 'MenuBtn', 'CatBars', 'NavScroll') { Set-Variable $n $window.FindName($n) }
 $AppVersionText.Text = "AkariOS $AkariVersion"
 Initialize-AkariSteps
 
@@ -22,6 +22,8 @@ $Pages = [ordered]@{
     Optimize   = @{ Glyph = [char]0xE713; Sub = 'Manual, in-depth optimization for Windows' }
     # Downloads: the Guided Install cards on their own (apps, runtimes, tools; Store apps the debloat removed)
     Downloads  = @{ Glyph = [char]0xE896; Sub = 'Install apps, runtimes and tools, from winget where possible' }
+    # Remove apps (the Catalogue sidebar): the Guided Remove tables on their own
+    'Remove apps' = @{ Glyph = [char]0xE74D; Sub = 'Store apps, optional features, Windows features and legacy apps to remove' }
     # About & Updates (UI\About.ps1): the Home link and the update bar open it
     About      = @{ Glyph = [char]0xE946; Sub = 'Version, updates and credits' }
     # Legacy pages: the frozen AkariOS-Ultimate tweaks (ADR 0004)
@@ -95,14 +97,16 @@ function Add-Log([string]$m) {
 function Set-AkariPane([bool]$Show) {
     $PaneCol.Width = [Windows.GridLength]::new($(if (-not $Show) { 0 } elseif ($script:PaneOpen) { 232 } else { 48 }))
     $Main.Margin = [Windows.Thickness]::new($(if ($Show) { 0 } else { 16 }), 0, 0, 0)
+    # the 48 px icon strip has no room for a scrollbar (it would squeeze the 40 px icon column): the wheel still scrolls
+    $NavScroll.VerticalScrollBarVisibility = if ($script:PaneOpen) { 'Auto' } else { 'Hidden' }
     # the Catalogue's Section headings only fit the full sidebar
     foreach ($h in @($Nav.Children | Where-Object { $_ -is [Windows.Controls.TextBlock] })) { $h.Visibility = if ($script:PaneOpen) { 'Visible' } else { 'Collapsed' } }
 }
 
 function Show-Page {
     $q = $Search.Text.Trim()
-    # Install AkariOS and Downloads: the header search filters the current step instead of searching the Legacy pages
-    $onSteps = ($script:Cat -in 'Install AkariOS', 'Downloads')
+    # Install AkariOS and the apps flows: the header search filters the current step instead of searching the Legacy pages
+    $onSteps = ($script:Cat -eq 'Install AkariOS' -or $AkariAppFlows.Contains($script:Cat))
     # the Optimize chooser; a search typed there lists Legacy matches instead
     $onChooser = (-not $q -and $script:Cat -eq 'Optimize')
     # About & Updates: full window like the chooser, Back leads home
@@ -240,6 +244,8 @@ function Set-AkariNav([string]$Mode) {
     if ($Mode -eq 'Legacy') {
         foreach ($c in $AkariLegacyPages) { [void]$Nav.Children.Add((New-AkariNavButton $c $c ([string]$Pages[$c].Glyph) $c)) }
     } else {
+        # the apps flows first (full window; Back and Done return to the Catalogue page they were opened from)
+        foreach ($f in 'Remove apps', 'Downloads') { [void]$Nav.Children.Add((New-AkariNavButton $f $f ([string]$Pages[$f].Glyph) $Pages[$f].Sub)) }
         foreach ($s in Get-AkariCataloguePages $script:Tweaks) {
             $h = [Windows.Controls.TextBlock]::new()
             $h.Text = $s.Header
@@ -271,9 +277,9 @@ $PaneToggle.Add_Click({
     Set-AkariPane $true
 })
 
-# opens page $Name ($From = the page left); Downloads remembers where it was opened from
+# opens page $Name ($From = the page left); an apps flow remembers where it was opened from
 function Open-AkariPage([string]$Name, [string]$From) {
-    if ($Name -eq 'Downloads' -and $From -ne 'Downloads') { Set-AkariFlowExit $From }
+    if ($AkariAppFlows.Contains($Name) -and $From -ne $Name) { Set-AkariFlowExit $From }
     $script:Cat = $Name
     if ($Search.Text) { $Search.Text = '' }
     Show-Page
