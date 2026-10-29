@@ -164,7 +164,7 @@ $script:answer = $true
 Invoke-AkariUnattendFolder
 "folder=$(Test-Path "$Folder\autounattend.xml")|$script:opened"
 # his site's files open, and the form saves the very same files again
-foreach ($n in '4-pe-gpt', '3-builtin', '2-unattended') {
+foreach ($n in '4-pe-gpt', '3-builtin', '10-explorer', '11-system', '12-custom', '13-performance', '14-appearance', '2-unattended') {
     $script:pick = "$Root\Tests\Fixtures\Unattend\$n.xml"
     Invoke-AkariUnattendOpen
     $ours = [Text.Encoding]::ASCII.GetString((New-AkariUnattend (Get-AkariUaFormFields)))
@@ -203,6 +203,7 @@ $script:UnattendView = $null
         $out['same-2-unattended'] | Should Be 'True'
         $out['same-4-pe-gpt'] | Should Be 'True'
         $out['same-3-builtin'] | Should Be 'True'
+        foreach ($n in '10-explorer', '11-system', '12-custom', '13-performance', '14-appearance') { "$n=$($out["same-$n"])" | Should Be "$n=True" }
     }
     It 'fills the form from the file: Wi-Fi, the third language, both accounts and an empty row' { $out.opened | Should Be 'Home & Co|True|3' }
     It 'says so for a file it can''t read' { $out.notOurs | Should Be "This file wasn't made by Akari " }

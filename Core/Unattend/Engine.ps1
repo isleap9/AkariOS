@@ -71,7 +71,13 @@ function Add-AkariUaText($Element, [string]$Text) {
     $level = @($Element.SelectNodes('ancestor::*')).Count
     [void]$Element.AppendChild($Element.OwnerDocument.CreateTextNode("`r`n$($Text.Trim())`r`n$("`t" * $level)"))
 }
-function Split-AkariUaLines([string]$Text) { if ($null -eq $Text) { return @() }; @($Text -split "`r`n|`n|`r") }
+# SplitLines (TextReader.ReadLine): a final line break adds no empty line
+function Split-AkariUaLines([string]$Text) {
+    $r = [IO.StringReader]::new([string]$Text)
+    $lines = [Collections.Generic.List[string]]::new()
+    while ($null -ne ($l = $r.ReadLine())) { $lines.Add($l) }
+    $lines.ToArray()
+}
 
 # ---- commands (CommandConfig, CommandAppender, CommandBuilder)
 # $Where: WindowsPE (Microsoft-Windows-Setup RunSynchronous Path), Specialize (Microsoft-Windows-Deployment RunSynchronous
@@ -186,7 +192,12 @@ function Add-AkariUaFile($C, [string]$Name, [string]$Content) {
     $path
 }
 # EmbedTextFile: the content followed by a line break
-function Add-AkariUaTextFile($C, [string]$Name, [string]$Content) { Add-AkariUaFile $C $Name "$Content`r`n" }
+function Add-AkariUaTextFile($C, [string]$Name, [string]$Content, [string]$Before = '', [string]$After = '') { Add-AkariUaFile $C $Name "$Before$Content`r`n$After" }
+# EmbedTextFileFromResource / EmbedXmlFileFromResource
+function Add-AkariUaResourceFile($C, [string]$Name, [string]$Before = '', [string]$After = '') { Add-AkariUaTextFile $C $Name (Get-AkariUaResource $Name) $Before $After }
+function Add-AkariUaResourceXml($C, [string]$Name) { $d = [xml]::new(); $d.Load((Join-Path $AkariUaData $Name)); Add-AkariUaXmlFile $C $Name $d }
+# PowerShellSequence.InvokeFile
+function Add-AkariUaInvoke($Seq, [string]$File) { $Seq.Commands.Add("& '$File';") }
 # EmbedXmlFile: the document indented with tabs, no declaration
 function Add-AkariUaXmlFile($C, [string]$Name, [xml]$Xml) {
     $sw = [IO.StringWriter]::new()

@@ -96,7 +96,8 @@ for %%d in ({0}) do (
     if exist %%d:\$OEM$ set "OEM_FOLDER=%%d:\$OEM$"
     if exist %%d:\$WinPEDriver$ set "PEDRIVERS_FOLDER=%%d:\$WinPEDriver$"
 '@ -replace '\{0\}', $search)
-    if ($vio) { & $add '    if exist %%d:\virtio-win-guest-tools.exe set "VIRTIO_DRIVE=%%d:"' }
+    # (not indented: so it is in his code)
+    if ($vio) { & $add 'if exist %%d:\virtio-win-guest-tools.exe set "VIRTIO_DRIVE=%%d:"' }
     & $add @'
 )
 for /f "tokens=3" %%t in ('reg.exe query HKLM\System\Setup /v UnattendFile 2^>nul') do ( if exist %%t set "XML_FILE=%%t" )

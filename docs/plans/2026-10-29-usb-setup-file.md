@@ -27,9 +27,9 @@ its Windows settings are his, not Akari's Tweaks (one owner per value applies to
    .cmd with disk selection, partition layouts, Windows RE, image, paging file, Defender / 8.3 / compact / pauses, or a
    custom script), activation, computer name, time zone, accounts and first logon, password expiration, lockout,
    Wi-Fi, express settings. Nine fixtures.
-2. **His Windows tweak sections**: File Explorer, Start menu and taskbar, Start tiles and pins, system tweaks, visual
-   effects, desktop icons, Start folders, core isolation, VM guest tools, lock keys, sticky keys, personalization
-   (`Optimizations.cs`, `Personalization.cs`, `Accessibility` parts). New fixtures for them.
+2. **His Windows tweak sections** (done 2026-10-29): File Explorer, Start menu and taskbar, Start tiles and pins,
+   system tweaks, visual effects, desktop icons, Start folders, core isolation, VM guest tools, lock keys, sticky keys,
+   personalization (`Optimizations.cs`, `Personalization.cs` in `Core/Unattend/Windows.ps1`). Five more fixtures.
 3. **The rest**: bloatware (his list), custom scripts (System, DefaultUser, FirstLogon, UserOnce; Restart Explorer),
    AppLocker, XML markup for more components.
 4. **The VM**: USBs made with Akari for a few option sets, including a disk wipe and Wi-Fi.

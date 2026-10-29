@@ -2,7 +2,7 @@
 # (https://schneegans.de/windows/unattend-generator/, MIT), in Core\Unattend\ (Engine, Setup, Disk, ...; his data files
 # and license in Core\Unattend\Data\). The choices are his form's fields; a file carries them as its first comment (his
 # bookmark URL, without passwords), so a file from his site or from Akari opens again in the form.
-foreach ($f in 'Engine', 'Setup', 'Disk', 'Later') { . (Join-Path $PSScriptRoot "Unattend\$f.ps1") }
+foreach ($f in 'Engine', 'Setup', 'Disk', 'Windows', 'Later') { . (Join-Path $PSScriptRoot "Unattend\$f.ps1") }
 
 # the fields a password lives in: never written to the comment
 $AkariUaSecretFields = @('BuiltinAdministratorPassword', 'WifiPassword') + @(0..14 | ForEach-Object { "AccountPassword$_" })
@@ -54,6 +54,67 @@ function Get-AkariUnattendSamples {
         PEScript           = (Get-AkariUaPEScript $pe) -join "`r`n"
         ComputerNameScript = "return 'DESKTOP-{0:D3}' -f ( Get-Random -Minimum 0 -Maximum 999 );"
         WifiProfileXml     = Get-AkariUaResource 'WLANProfile.xml'
+        # his page's samples, as it fills them
+        TaskbarIconsXml    = @'
+<LayoutModificationTemplate xmlns="http://schemas.microsoft.com/Start/2014/LayoutModification" xmlns:defaultlayout="http://schemas.microsoft.com/Start/2014/FullDefaultLayout" xmlns:start="http://schemas.microsoft.com/Start/2014/StartLayout" xmlns:taskbar="http://schemas.microsoft.com/Start/2014/TaskbarLayout" Version="1">
+  <CustomTaskbarLayoutCollection PinListPlacement="Replace">
+    <defaultlayout:TaskbarLayout>
+      <taskbar:TaskbarPinList>
+        <taskbar:DesktopApp DesktopApplicationID="Microsoft.Windows.Explorer" />
+        <taskbar:UWA AppUserModelID="windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel" />
+        <taskbar:DesktopApp DesktopApplicationLinkPath="%APPDATA%\Microsoft\Windows\Start Menu\Programs\Windows PowerShell\Windows PowerShell.lnk" />
+      </taskbar:TaskbarPinList>
+    </defaultlayout:TaskbarLayout>
+  </CustomTaskbarLayoutCollection>
+</LayoutModificationTemplate>
+'@
+        StartTilesXml      = @'
+<LayoutModificationTemplate xmlns:defaultlayout="http://schemas.microsoft.com/Start/2014/FullDefaultLayout" xmlns:start="http://schemas.microsoft.com/Start/2014/StartLayout" Version="1" xmlns="http://schemas.microsoft.com/Start/2014/LayoutModification">
+  <LayoutOptions StartTileGroupCellWidth="6" />
+  <DefaultLayoutOverride>
+    <StartLayoutCollection>
+      <defaultlayout:StartLayout GroupCellWidth="6">
+        <start:Group Name="">
+          <start:Tile Size="2x2" Column="4" Row="0" AppUserModelID="windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel" />
+          <start:DesktopApplicationTile Size="2x2" Column="0" Row="0" DesktopApplicationLinkPath="%ALLUSERSPROFILE%\Microsoft\Windows\Start Menu\Programs\Microsoft Edge.lnk" />
+          <start:DesktopApplicationTile Size="2x2" Column="2" Row="0" DesktopApplicationLinkPath="%APPDATA%\Microsoft\Windows\Start Menu\Programs\System Tools\File Explorer.lnk" />
+        </start:Group>
+      </defaultlayout:StartLayout>
+    </StartLayoutCollection>
+  </DefaultLayoutOverride>
+</LayoutModificationTemplate>
+'@
+        StartPinsJson      = @'
+{
+  "pinnedList": [
+    {
+      "desktopAppLink": "%ALLUSERSPROFILE%\\Microsoft\\Windows\\Start Menu\\Programs\\Microsoft Edge.lnk"
+    },
+    {
+      "desktopAppLink": "%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\File Explorer.lnk"
+    },
+    {
+      "packagedAppId": "windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel"
+    }
+  ]
+}
+'@
+        WallpaperScript    = @'
+# Photo by Benjamin Voros on Unsplash. See https://unsplash.com/photos/snow-mountain-under-stars-phIFdC6lA4E for more info.
+$url = 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=2400';
+& {
+    $ProgressPreference = 'SilentlyContinue';
+    ( Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30 ).Content;
+};
+'@
+        LockScreenScript   = @'
+foreach( $drive in [System.IO.DriveInfo]::GetDrives() ) {
+    if( $found = Join-Path -Path $drive.RootDirectory -ChildPath 'lockscreen.png' -Resolve -ErrorAction 'SilentlyContinue' ) {
+        return [System.IO.File]::ReadAllBytes( $found );
+    }
+}
+'Cannot find any files that match pattern.' | Write-Warning;
+'@
     }
 }
 
