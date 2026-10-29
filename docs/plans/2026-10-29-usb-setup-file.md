@@ -30,6 +30,7 @@ its Windows settings are his, not Akari's Tweaks (one owner per value applies to
 2. **His Windows tweak sections** (done 2026-10-29): File Explorer, Start menu and taskbar, Start tiles and pins,
    system tweaks, visual effects, desktop icons, Start folders, core isolation, VM guest tools, lock keys, sticky keys,
    personalization (`Optimizations.cs`, `Personalization.cs` in `Core/Unattend/Windows.ps1`). Five more fixtures.
-3. **The rest**: bloatware (his list), custom scripts (System, DefaultUser, FirstLogon, UserOnce; Restart Explorer),
-   AppLocker, XML markup for more components.
+3. **The rest** (done 2026-10-29): bloatware (his list), custom scripts (System, DefaultUser, FirstLogon, UserOnce;
+   Restart Explorer), AppLocker, XML markup for more components (`Core/Unattend/Extras.ps1`). Three more fixtures:
+   all seventeen match his site, and the form saves each one back unchanged.
 4. **The VM**: USBs made with Akari for a few option sets, including a disk wipe and Wi-Fi.

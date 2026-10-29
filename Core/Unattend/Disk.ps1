@@ -349,6 +349,8 @@ goto :eof
 
 function Invoke-AkariUaDisk($C) {
     if ($C.PEMode -in 'Generated', 'Script') {
+        $pe = @(Get-AkariUaUserComponents $C | Where-Object { $_.Pass -eq 'windowsPE' } | ForEach-Object { "'$($_.Component)'" })
+        if ($pe.Count) { throw "Cannot create .cmd script with custom components ($($pe -join ', ')) for the 'windowsPE' pass. To load drivers in the PE stage, add them to the '`$WinPEDriver`$' folder or use a custom script to run the 'drvload.exe' command." }
         foreach ($n in @($C.Doc.SelectNodes("/u:unattend/u:settings[@pass='windowsPE']/*", $C.Ns))) { Remove-AkariUaNode $n }
         if (Test-AkariUaOn $C 'UseNarrator') { Add-AkariUaCommand $C 'WindowsPE' (Get-AkariUaShell 'start X:\Windows\System32\Narrator.exe') }
     }

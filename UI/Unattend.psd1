@@ -389,6 +389,27 @@
                 @{ Value = 'Script'; Label = 'Lock screen: an image from a PowerShell script'; Items = @( @{ Input = 'LockScreenScript'; Label = 'PowerShell (returns the image bytes)'; Kind = 'Multi' } ) }
             ) }
         ) }
+        @{ Title = 'Remove bloatware'; Items = @(
+            @{ Note = 'Removed apps can be hard to get back: some are not in the Microsoft Store.' }
+            @{ Bloatware = $true }
+        ) }
+        @{ Title = 'Run custom scripts'; Items = @(
+            @{ Scripts = 'System'; Label = 'Scripts that run in the system context, before user accounts are created' }
+            @{ Scripts = 'DefaultUser'; Label = 'Scripts that modify the default user''s registry hive (HKU\DefaultUser), for every new account' }
+            @{ Scripts = 'FirstLogon'; Label = 'Scripts that run when the first user signs in' }
+            @{ Scripts = 'UserOnce'; Label = 'Scripts that run once for each user, at their first sign-in' }
+            @{ Check = 'RestartExplorer'; Label = 'Restart File Explorer after the scripts have run' }
+        ) }
+        @{ Title = 'AppLocker'; Items = @(
+            @{ Radio = 'AppLockerMode'; Options = @(
+                @{ Value = 'Skip'; Label = 'Do not configure an AppLocker policy' }
+                @{ Value = 'Configure'; Label = 'Apply this AppLocker policy'; Items = @( @{ Input = 'AppLockerPolicyXml'; Label = 'AppLocker policy XML'; Kind = 'Multi' } ) }
+            ) }
+        ) }
+        @{ Title = 'XML markup for more components'; Items = @(
+            @{ Note = 'Each component''s XML replaces what the generator writes for it (no settings or component elements).' }
+            @{ Components = $true }
+        ) }
     )
     Defaults = @{
         LanguageMode = 'Unattended'; UILanguage = 'en-US'; Locale = 'en-US'; Keyboard = '00000409'; Locale2 = 'en-US'; Keyboard2 = '00000409'
@@ -412,6 +433,6 @@
         ScrollLockInitial = 'Off'; ScrollLockBehavior = 'Toggle'; StickyKeysMode = 'Default'; StickyKeysHotKeyActive = 'true'; StickyKeysHotKeySound = 'true'
         StickyKeysIndicator = 'true'; StickyKeysAudibleFeedback = 'true'; StickyKeysTriState = 'true'; StickyKeysTwoKeysOff = 'true'
         ColorMode = 'Default'; SystemColorTheme = 'Dark'; AppsColorTheme = 'Dark'; AccentColor = '#0078D4'; EnableTransparency = 'true'
-        WallpaperMode = 'Default'; WallpaperColor = '#008080'; LockScreenMode = 'Default'
+        WallpaperMode = 'Default'; WallpaperColor = '#008080'; LockScreenMode = 'Default'; AppLockerMode = 'Skip'
     }
 }

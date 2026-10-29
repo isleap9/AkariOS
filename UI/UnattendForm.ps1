@@ -107,6 +107,12 @@ function Add-AkariUaFormItems($Panel, $Items, $Gates) {
             $script:UaBindings.Add(@{ Field = $it.Checks; Kind = 'Checks'; Options = $opts; Gates = @($Gates) })
         } elseif ($it.Accounts) {
             [void]$Panel.Children.Add((New-AkariUaFormAccounts $Gates))
+        } elseif ($it.Bloatware) {
+            [void]$Panel.Children.Add((New-AkariUaFormBloatware $Gates))
+        } elseif ($it.Scripts) {
+            [void]$Panel.Children.Add((New-AkariUaFormScripts $it.Scripts $it.Label $Gates))
+        } elseif ($it.Components) {
+            [void]$Panel.Children.Add((New-AkariUaFormComponents $Gates))
         }
     }
 }
@@ -159,9 +165,117 @@ function Update-AkariUaFormAccounts {
     for ($r = 0; $r -lt $script:UaAccountRows.Count; $r++) { $script:UaAccountRows[$r].Visibility = if ($r -le $last + 1) { 'Visible' } else { 'Collapsed' } }
 }
 
+# rows that grow (scripts, components): @{ Rows; Filled = { param($row) is it used } }; the used rows and one empty shown
+$script:UaRowGroups = [Collections.Generic.List[object]]::new()
+function Update-AkariUaFormRows {
+    foreach ($g in $script:UaRowGroups) {
+        $last = -1
+        for ($r = 0; $r -lt $g.Rows.Count; $r++) { if (& $g.Filled $g.Rows[$r]) { $last = $r } }
+        for ($r = 0; $r -lt $g.Rows.Count; $r++) { $g.Rows[$r].Visibility = if ($r -le $last + 1) { 'Visible' } else { 'Collapsed' } }
+    }
+}
+function New-AkariUaFormAddButton([string]$Text, $Rows) {
+    $add = [Windows.Controls.Button]::new()
+    $add.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Btn')
+    $add.Content = $Text; $add.HorizontalAlignment = 'Left'; $add.Margin = [Windows.Thickness]::new(0, 4, 0, 8)
+    $add.Tag = $Rows
+    $add.Add_Click({ param($s, $e) $next = @($s.Tag | Where-Object { $_.Visibility -ne 'Visible' })[0]; if ($next) { $next.Visibility = 'Visible' } })
+    $add
+}
+function New-AkariUaFormCombo($Items, [string]$Selected) {
+    $cb = [Windows.Controls.ComboBox]::new()
+    $cb.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Combo')
+    $cb.ItemsSource = Get-AkariUaFormItems @{ Options = $Items }
+    $cb.DisplayMemberPath = 'Value'; $cb.SelectedValuePath = 'Key'; $cb.SelectedValue = $Selected
+    $cb
+}
+
+# his bloatware list: a checkbox per item (field = its Remove... id), Select all / Select none
+function New-AkariUaFormBloatware($Gates) {
+    $sp = [Windows.Controls.StackPanel]::new()
+    $bar = [Windows.Controls.StackPanel]::new(); $bar.Orientation = 'Horizontal'; $bar.Margin = [Windows.Thickness]::new(0, 0, 0, 6)
+    $wp = [Windows.Controls.WrapPanel]::new()
+    $boxes = [Collections.Generic.List[object]]::new()
+    foreach ($b in @(Get-AkariUaList 'Bloatware' | Sort-Object DisplayName)) {
+        $cb = [Windows.Controls.CheckBox]::new()
+        $cb.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Check')
+        $cb.Content = $b.DisplayName; $cb.Width = 250; $cb.Margin = [Windows.Thickness]::new(0, 3, 8, 3)
+        [void]$wp.Children.Add($cb)
+        $boxes.Add($cb)
+        $script:UaBindings.Add(@{ Field = (Get-AkariUaBloatwareId $b); Kind = 'Check'; Control = $cb; Gates = @($Gates) })
+    }
+    foreach ($p in @(@('Select all', $true), @('Select none', $false))) {
+        $btn = [Windows.Controls.Button]::new()
+        $btn.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Btn')
+        $btn.Content = $p[0]; $btn.Margin = [Windows.Thickness]::new(0, 0, 8, 0)
+        $btn.Tag = @{ Boxes = $boxes; On = $p[1] }
+        $btn.Add_Click({ param($s, $e) foreach ($x in $s.Tag.Boxes) { $x.IsChecked = $s.Tag.On } })
+        [void]$bar.Children.Add($btn)
+    }
+    [void]$sp.Children.Add($bar)
+    [void]$sp.Children.Add($wp)
+    $sp
+}
+
+# one phase's scripts: 15 rows of type + script (fields <Phase>ScriptType<i>, <Phase>Script<i>)
+function New-AkariUaFormScripts([string]$Phase, [string]$Label, $Gates) {
+    $sp = [Windows.Controls.StackPanel]::new()
+    [void]$sp.Children.Add((New-AkariUaFormLabel $Label))
+    $types = @(@{ Id = 'Cmd'; Name = '.cmd' }, @{ Id = 'Ps1'; Name = '.ps1' }, @{ Id = 'Reg'; Name = '.reg' })
+    if ($Phase -ne 'DefaultUser') { $types += @{ Id = 'Vbs'; Name = '.vbs' } }
+    $rows = [Collections.Generic.List[object]]::new()
+    foreach ($r in 0..14) {
+        $g = [Windows.Controls.Grid]::new()
+        $c0 = [Windows.Controls.ColumnDefinition]::new(); $c0.Width = [Windows.GridLength]::new(90)
+        [void]$g.ColumnDefinitions.Add($c0); [void]$g.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new())
+        $g.Margin = [Windows.Thickness]::new(0, 0, 0, 6)
+        $type = New-AkariUaFormCombo $types 'Cmd'
+        $type.VerticalAlignment = 'Top'; $type.Margin = [Windows.Thickness]::new(0, 0, 6, 0)
+        $tb = [Windows.Controls.TextBox]::new()
+        $tb.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Flat')
+        $tb.AcceptsReturn = $true; $tb.AcceptsTab = $true; $tb.Height = 90
+        $tb.FontFamily = [Windows.Media.FontFamily]::new('Consolas'); $tb.VerticalScrollBarVisibility = 'Auto'; $tb.HorizontalScrollBarVisibility = 'Auto'
+        [Windows.Controls.Grid]::SetColumn($tb, 1)
+        [void]$g.Children.Add($type); [void]$g.Children.Add($tb)
+        $script:UaBindings.Add(@{ Field = "$($Phase)ScriptType$r"; Kind = 'Select'; Control = $type; Gates = @($Gates) })
+        $script:UaBindings.Add(@{ Field = "$($Phase)Script$r"; Kind = 'Input'; Control = $tb; Gates = @($Gates) })
+        [void]$sp.Children.Add($g)
+        $rows.Add($g)
+    }
+    $script:UaRowGroups.Add(@{ Rows = $rows; Filled = { param($row) [bool]$row.Children[1].Text } })
+    [void]$sp.Children.Add((New-AkariUaFormAddButton 'Add script' $rows))
+    $sp
+}
+
+# extra components: 15 rows of component-and-pass + XML (fields Component<i>, ComponentContent<i>)
+function New-AkariUaFormComponents($Gates) {
+    $sp = [Windows.Controls.StackPanel]::new()
+    $items = @(@{ Id = ''; Name = '(none)' }) + @(foreach ($c in Get-AkariUaList 'Component') { foreach ($p in $c.Passes) { @{ Id = "$($c.Id)-$p"; Name = "$($c.Id) - $p" } } })
+    $rows = [Collections.Generic.List[object]]::new()
+    foreach ($r in 0..14) {
+        $row = [Windows.Controls.StackPanel]::new()
+        $row.Margin = [Windows.Thickness]::new(0, 0, 0, 10)
+        $cb = New-AkariUaFormCombo $items ''
+        $cb.IsTextSearchEnabled = $true
+        $tb = [Windows.Controls.TextBox]::new()
+        $tb.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Flat')
+        $tb.AcceptsReturn = $true; $tb.AcceptsTab = $true; $tb.Height = 90; $tb.Margin = [Windows.Thickness]::new(0, 4, 0, 0)
+        $tb.FontFamily = [Windows.Media.FontFamily]::new('Consolas'); $tb.VerticalScrollBarVisibility = 'Auto'; $tb.HorizontalScrollBarVisibility = 'Auto'
+        [void]$row.Children.Add($cb); [void]$row.Children.Add($tb)
+        $script:UaBindings.Add(@{ Field = "Component$r"; Kind = 'Select'; Control = $cb; Gates = @($Gates) })
+        $script:UaBindings.Add(@{ Field = "ComponentContent$r"; Kind = 'Input'; Control = $tb; Gates = @($Gates) })
+        [void]$sp.Children.Add($row)
+        $rows.Add($row)
+    }
+    $script:UaRowGroups.Add(@{ Rows = $rows; Filled = { param($row) [bool]$row.Children[0].SelectedValue } })
+    [void]$sp.Children.Add((New-AkariUaFormAddButton 'Add component' $rows))
+    $sp
+}
+
 # builds every section as a card into $Panel
 function New-AkariUaForm($Panel, $Sections) {
     $script:UaBindings.Clear()
+    $script:UaRowGroups.Clear()
     foreach ($s in $Sections) {
         $card = [Windows.Controls.Border]::new()
         $card.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
@@ -214,4 +328,5 @@ function Set-AkariUaFormFields([hashtable]$Fields) {
         }
     }
     if ($script:UaAccountRows) { Update-AkariUaFormAccounts }
+    Update-AkariUaFormRows
 }
