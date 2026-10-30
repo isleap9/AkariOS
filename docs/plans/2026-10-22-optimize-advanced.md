@@ -132,6 +132,16 @@ batches, and Legacy is retired.
    Game Bar popup, Mouse accel, Drivers in Windows Update, Pause 1 year (already owned), PowerShell logging (doesn't
    last), Classic Accents (three colours follow the accent: no single default), Remove Password (no Revert), the Start
    menu shortcut cleanup (deletes files) and the Start menu locations shortcut (not a setting).
-8. **Batch 6, ZOICWARE Windows 11 tweaks** that need no outside tool.
+8. **Batch 6, ZOICWARE Windows 11 tweaks** that need no outside tool (done, 2026-10-30). Two AkariOS Toggles became
+   Choices with a `Value` block (their AkariOS pick stays Recommended): `taskbar-never-small-icons` (+ Always small)
+   and `input-background-polling-uncapped` (+ 50 Hz). New: `taskbar-simple-quick-settings` (the policy only),
+   `privacy-no-account-state-content` (the policy only), `explorer-windows10-ribbon` (the two CLSID keys) and
+   `apps-notepad-no-new-badges`. Skipped: rounded edges, ExplorerPatcher, OpenShell (outside tools; maybe Downloads in
+   batch 7), the Windows 10 Recycle Bin icons, Snipping Tool, Task Manager, icons, sounds and Dark Winver (files outside
+   the repo), Set all Services to Manual (batch 4), Show all tray icons and New Start menu (owned), the Settings ads'
+   SettingsExtensions.json edit (a Windows file with no stock copy), its ValueBanner key (gone on 26H2) and
+   LastSuppressionTimes (no Default), the Quick Settings layout rewrite and logon task (no Default), the old Start menu
+   through NoStartMenuMorePrograms (that policy hides All apps; the old layout is a side effect), and the Windows 10
+   Notepad (Store Notepad removal and a capability install: batch 7's debloat).
 9. **Batch 7, the rest of ZOICWARE**: its debloat (rows on Apps › Remove), installers (Downloads), the stripped Nvidia
    driver install (Tools › Drivers), Ultimate Cleanup (Tools › Cleanup). Config import / export is M5's.

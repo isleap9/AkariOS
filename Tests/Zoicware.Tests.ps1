@@ -20,7 +20,7 @@ Describe 'ZOICWARE ports' {
     New-Item -Path "$tk\HKLM\SOFTWARE\Classes\batfile\shell\print" -Force | Out-Null
     Mock Get-AkariEdition { 'Professional' }
     # the boot store, w32tm and the Photos app's settings hive, faked: never the real ones
-    $fake = @{ BootUx = $false; Photos = $false }
+    $fake = @{ BootUx = $false; Apps = @{} }
     Mock Read-AkariBcd { if ($fake.BootUx) { 'bootuxdisabled          Yes' } }
     Mock Invoke-AkariBcdEdit {
         if ($Arguments -eq '/set {globalsettings} bootuxdisabled on') { $fake.BootUx = $true }
@@ -28,8 +28,17 @@ Describe 'ZOICWARE ports' {
         0
     }
     Mock Invoke-AkariW32tm { }
-    Mock Read-AkariAppSettings { if ($fake.Photos) { @{ 'LocalState\DeleteConfirmationDialogStatus' = [byte[]](1, 0x3c) } } else { @{} } }
-    Mock Import-AkariAppSettings { $fake.Photos = $RegText.Contains('"DeleteConfirmationDialogStatus"=hex(5f5e10b):01,'); $true }
+    # an app's settings hive: 'LocalState\<name>' = its bytes; the .reg text's values set ("=hex(...):") or deleted ("=-")
+    Mock Read-AkariAppSettings { if ($fake.Apps.ContainsKey($Family)) { $fake.Apps[$Family] } else { @{} } }
+    Mock Import-AkariAppSettings {
+        if (-not $fake.Apps.ContainsKey($Family)) { $fake.Apps[$Family] = @{} }
+        foreach ($m in [regex]::Matches($RegText, '"([^"]+)"=(-|hex\([0-9a-f]+\):([0-9a-f,]+))')) {
+            $n = "LocalState\$($m.Groups[1].Value)"
+            if ($m.Groups[2].Value -eq '-') { $fake.Apps[$Family].Remove($n) }
+            else { $fake.Apps[$Family][$n] = [byte[]]($m.Groups[3].Value.Split(',') | ForEach-Object { [Convert]::ToByte($_, 16) }) }
+        }
+        $true
+    }
     # a hosts file with a line of the user's, and the real user's Local AppData with Windows Terminal's settings
     $AkariHostsPath = "$TestDrive\hosts"
     [IO.File]::WriteAllLines($AkariHostsPath, [string[]]@('# a comment', '127.0.0.1 mine.test'))
@@ -41,7 +50,7 @@ Describe 'ZOICWARE ports' {
     $files = @(Get-ChildItem $Tw -Recurse -Filter *.ps1 | Where-Object { $_.DirectoryName -notmatch '\\Files$' -and (Get-Content $_.FullName -TotalCount 3) -match 'ZOICWARE' })
 
     try {
-        It 'finds the ports (guard)' { $files.Count -ge 80 | Should Be $true }
+        It 'finds the ports (guard)' { $files.Count -ge 84 | Should Be $true }
         It 'redirects both hives (guard)' { Resolve-AkariRegPath 'HKLM:\SOFTWARE\X' | Should Be "$tk\HKLM\SOFTWARE\X" }
         foreach ($f in $files) {
             $t = Import-AkariTweakFile $f.FullName $Tw
@@ -111,6 +120,33 @@ Describe 'ZOICWARE ports' {
             Assert-MockCalled Invoke-AkariBcdEdit -Scope It -Exactly 1 -ParameterFilter { $Arguments -eq '/set {globalsettings} bootuxdisabled on' }
             Invoke-AkariTweak (Import-AkariTweakFile "$Tw\Customize\Apps\PhotosDeleteWarning.ps1" $Tw) Apply | Out-Null
             Assert-MockCalled Import-AkariAppSettings -Scope It -Exactly 1 -ParameterFilter { $Family -eq 'Microsoft.Windows.Photos_8wekyb3d8bbwe' }
+        }
+        # ZOICWARE values of AkariOS Tweaks (Choices; their files name FR33THY first, so the loop above skips them)
+        It 'sets ZOICWARE''s always small taskbar icons, and the AkariOS pick' {
+            $t = Import-AkariTweakFile "$Tw\Customize\Taskbar\NeverSmallIcons.ps1" $Tw
+            Invoke-AkariTweak $t Revert | Out-Null
+            Get-AkariState $t | Should Be 'Default'
+            (Invoke-AkariTweak $t Apply 'Always').Outcome | Should Be 'Applied'
+            Get-AkariRegValue 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'IconSizePreference' | Should Be 0
+            Get-AkariChoiceValue $t | Should Be 'Always'
+            Get-AkariState $t | Should Be 'Custom'
+            Invoke-AkariTweak $t Apply | Out-Null
+            Get-AkariState $t | Should Be 'Optimized'
+            Invoke-AkariTweak $t Revert | Out-Null
+            Get-AkariRegValue 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'IconSizePreference' | Should Be $null
+        }
+        It 'sets ZOICWARE''s 50 Hz background mouse cap, and the AkariOS pick' {
+            $t = Import-AkariTweakFile "$Tw\Hardware\Input\BackgroundPolling.ps1" $Tw
+            Invoke-AkariTweak $t Revert | Out-Null
+            Get-AkariState $t | Should Be 'Default'
+            Invoke-AkariTweak $t Apply '50Hz' | Out-Null
+            Get-AkariRegValue 'HKCU:\Control Panel\Mouse' 'RawMouseThrottleDuration' | Should Be 20
+            Get-AkariChoiceValue $t | Should Be '50Hz'
+            Invoke-AkariTweak $t Apply | Out-Null
+            Get-AkariState $t | Should Be 'Optimized'
+            Get-AkariRegValue 'HKCU:\Control Panel\Mouse' 'RawMouseThrottleDuration' | Should Be $null
+            Invoke-AkariTweak $t Revert | Out-Null
+            Get-AkariState $t | Should Be 'Default'
         }
         It 'syncs the clock after setting the time servers' {
             $t = Import-AkariTweakFile "$Tw\Customize\System\TimeServer.ps1" $Tw
