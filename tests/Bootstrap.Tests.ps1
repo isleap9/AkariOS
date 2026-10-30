@@ -1,18 +1,25 @@
 $Root = Join-Path (Split-Path $PSScriptRoot) 'src'
 $Repo = Split-Path $PSScriptRoot
 
-# The one-liner's bootstrap (build\Bootstrap.ps1): never a real download (Save-AkariBootZip is mocked to build a zip
-# in TestDrive), never a real Akari start ($AkariBootNoRun).
+# The one-liner's bootstrap (build\Bootstrap.ps1) and the AkariOS.exe launcher (build\Launcher.cs). Never a real
+# download (Save-AkariBootZip builds a zip in TestDrive), never a real install, shortcut or Akari start
+# ($AkariBootNoRun; the install folder is in TestDrive). The launcher is compiled here, never run.
 Describe 'Bootstrap (the one-liner)' {
     $AkariBootNoRun = $true
     . "$Repo\build\Bootstrap.ps1"
-    # a release zip: one AkariOS\ folder with an Akari.ps1
-    New-Item "$TestDrive\src\AkariOS" -ItemType Directory -Force | Out-Null
-    Set-Content "$TestDrive\src\AkariOS\Akari.ps1" '# app'
-    Compress-Archive "$TestDrive\src\AkariOS" "$TestDrive\release.zip"
-    $sha = (Get-FileHash "$TestDrive\release.zip" -Algorithm SHA256).Hash
+    # a release zip: one AkariOS\ folder with Akari.ps1, its version and the launcher
+    function New-Release([string]$Version, [string]$Zip) {
+        $src = "$TestDrive\src-$Version\AkariOS"
+        New-Item "$src\Core" -ItemType Directory -Force | Out-Null
+        Set-Content "$src\Akari.ps1" '# app'
+        Set-Content "$src\AkariOS.exe" 'exe'
+        Set-Content "$src\Core\Version.ps1" "`$AkariVersion = '$Version'"
+        Compress-Archive $src $Zip -Force
+        (Get-FileHash $Zip -Algorithm SHA256).Hash
+    }
+    $sha = New-Release '1.1.0' "$TestDrive\release.zip"
     Mock Save-AkariBootZip { Copy-Item "$TestDrive\release.zip" $Out }
-    $base = "$TestDrive\app"
+    $dir = "$TestDrive\AkariOS"
 
     It 'is the source: placeholders for the workflow, ASCII only (iex reads it as text)' {
         $text = Get-Content "$Repo\build\Bootstrap.ps1" -Raw
@@ -30,25 +37,44 @@ Describe 'Bootstrap (the one-liner)' {
     It 'downloads the release''s own zip' {
         Get-AkariBootZipUrl '1.2.3' | Should Be 'https://github.com/isleap9/AkariOS/releases/download/v1.2.3/AkariOS-1.2.3.zip'
     }
-    It 'refuses a zip whose SHA-256 does not match, and leaves nothing behind' {
-        { Install-AkariBootApp '1.0.0' ('0' * 64) $base } | Should Throw 'checksum'
-        Test-Path "$base\1.0.0" | Should Be $false
-        Test-Path "$base\AkariOS-1.0.0.zip" | Should Be $false
+    It 'refuses a zip whose SHA-256 does not match, and installs nothing' {
+        { Install-AkariBootApp '1.1.0' ('0' * 64) $dir } | Should Throw 'checksum'
+        Test-Path $dir | Should Be $false
     }
-    It 'unpacks a matching zip, marks it, and removes older versions' {
-        New-Item "$base\0.9.0\AkariOS" -ItemType Directory -Force | Out-Null
-        $p = Install-AkariBootApp '1.0.0' $sha.ToLower() $base
-        $p | Should Be "$base\1.0.0\AkariOS\Akari.ps1"
-        Test-Path $p | Should Be $true
-        Get-Content "$base\1.0.0\AkariOS\.bootstrap" | Should Be '1.0.0'
-        Test-Path "$base\0.9.0" | Should Be $false
-        Test-Path "$base\AkariOS-1.0.0.zip" | Should Be $false
+    It 'installs a matching zip into the folder and returns its AkariOS.exe' {
+        $exe = Install-AkariBootApp '1.1.0' $sha.ToLower() $dir
+        $exe | Should Be "$dir\AkariOS.exe"
+        Test-Path "$dir\Akari.ps1" | Should Be $true
+        Get-AkariBootInstalled $dir | Should Be '1.1.0'
     }
-    It 'reuses the unpacked version without downloading again' {
-        Install-AkariBootApp '1.0.0' $sha $base | Should Be "$base\1.0.0\AkariOS\Akari.ps1"
+    It 'keeps the same version as it is, without downloading' {
+        Install-AkariBootApp '1.1.0' $sha $dir | Should Be "$dir\AkariOS.exe"
         Assert-MockCalled Save-AkariBootZip -Scope It -Exactly 0
     }
-    It 'Akari.ps1 offers no self-update from the bootstrap''s copy' {
-        (Get-Content "$Root\Akari.ps1" -Raw) | Should Match "Test-Path -LiteralPath \(Join-Path \`$Root '\.bootstrap'\)"
+    It 'replaces an older install, leaving no .old folder' {
+        Set-Content "$dir\Core\Version.ps1" "`$AkariVersion = '1.0.0'"
+        Set-Content "$dir\stale.txt" 'old'
+        Install-AkariBootApp '1.1.0' $sha $dir | Out-Null
+        Get-AkariBootInstalled $dir | Should Be '1.1.0'
+        Test-Path "$dir\stale.txt" | Should Be $false
+        Test-Path "$dir.old" | Should Be $false
+    }
+}
+
+Describe 'AkariOS.exe (build\Launcher.cs)' {
+    It 'compiles with the .NET Framework compiler, the icon and the administrator manifest, as the release does' {
+        $csc = "$env:SystemRoot\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+        $out = "$TestDrive\AkariOS.exe"
+        $log = & $csc -nologo -target:exe -platform:anycpu "-win32icon:$Root\Assets\AkariLogo.ico" "-win32manifest:$Repo\build\Launcher.manifest" "-out:$out" "$Repo\build\Launcher.cs" 2>&1
+        ($log -join "`n") | Should BeNullOrEmpty
+        Test-Path $out | Should Be $true
+        (Get-Content "$Repo\build\Launcher.manifest" -Raw) | Should Match 'requireAdministrator'
+        (Get-Content "$Repo\.github\workflows\release.yml" -Raw) | Should Match 'build/Launcher\.cs'
+    }
+    It 'starts Akari.ps1 from its own folder with the execution policy bypassed, and does not wait' {
+        $cs = Get-Content "$Repo\build\Launcher.cs" -Raw
+        $cs | Should Match 'Path\.Combine\(dir, "Akari\.ps1"\)'
+        $cs | Should Match '-ExecutionPolicy Bypass -STA -File'
+        $cs | Should Not Match 'WaitForExit'
     }
 }

@@ -29,6 +29,10 @@ jobs:
           # everything in src/ (Akari.ps1 and its folders) plus the license and credits, in one AkariOS\ folder
           Copy-Item src/* dist/AkariOS -Recurse
           Copy-Item LICENSE, CREDITS.md dist/AkariOS
+          # AkariOS.exe: the launcher (build/Launcher.cs), compiled with the .NET Framework's own compiler
+          $csc = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          & $csc -nologo -target:exe -platform:anycpu -win32icon:src/Assets/AkariLogo.ico -win32manifest:build/Launcher.manifest -out:dist/AkariOS/AkariOS.exe build/Launcher.cs
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path dist/AkariOS/AkariOS.exe)) { throw 'AkariOS.exe did not compile' }
           Compress-Archive dist/AkariOS "dist/AkariOS-$ver.zip"
           # the one-liner's Akari.ps1: build/Bootstrap.ps1 with this release's version and the zip's SHA-256
           $sha = (Get-FileHash "dist/AkariOS-$ver.zip" -Algorithm SHA256).Hash

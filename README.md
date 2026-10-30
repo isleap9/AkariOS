@@ -12,12 +12,18 @@ Open PowerShell and paste:
 iwr 'https://github.com/isleap9/AkariOS/releases/latest/download/Akari.ps1' -useb | iex
 ```
 
-This downloads the latest release, checks it against its SHA-256, unpacks it to `%LOCALAPPDATA%\Akari\app` and starts
-AkariOS. It asks for administrator rights.
+It asks for administrator rights, downloads the latest release, checks it against its SHA-256, installs it to
+`C:\AkariOS`, adds AkariOS to the Start menu and starts it. Run the line again any time to get the latest version.
 
-Or download `AkariOS-<version>.zip` from [Releases](https://github.com/isleap9/AkariOS/releases), unpack it and run
-`Akari.ps1` (right-click > Run with PowerShell; `AllowScripts.cmd` turns on running scripts if Windows blocks it).
-A folder install updates itself from the About page.
+Or download `AkariOS-<version>.zip` from [Releases](https://github.com/isleap9/AkariOS/releases), unpack it anywhere
+and run `AkariOS.exe`.
+
+Either way, AkariOS updates itself from its About page, and your settings and presets stay in `%LOCALAPPDATA%\Akari`.
+
+> [!NOTE]
+> `AkariOS.exe` is a small launcher that starts `Akari.ps1` as administrator. It isn't code-signed, so the first time
+> Windows SmartScreen may say "Windows protected your PC": click **More info**, then **Run anyway**. Some antivirus
+> tools flag tools that change Windows settings; the source of everything is in this repository.
 
 **Needs:** Windows 10 22H2 or Windows 11, Windows PowerShell 5.1 (built in), an administrator account. Run it on a
 PC you can reinstall, ideally a fresh install, the first time.
@@ -68,6 +74,7 @@ others: see [CREDITS.md](CREDITS.md) for each tweak's source. MIT license: [LICE
   release zip ships it as one `AkariOS\` folder.
 - `tests/`: Pester 3.4, `powershell -NoProfile -ExecutionPolicy Bypass -File tests\Run.ps1` (tests never change this
   PC: they use test registry keys, TestDrive and mocks).
-- `build/Bootstrap.ps1`: the one-liner's script; `.github/workflows/release.yml` publishes a release on a `v*` tag.
+- `build/Bootstrap.ps1`: the one-liner's script; `build/Launcher.cs`: `AkariOS.exe`; `.github/workflows/release.yml`
+  builds both and publishes a release on a `v*` tag.
 - `docs/`: the plan, the glossary, decisions (ADRs) and milestone plans. [AGENTS.md](AGENTS.md) is the guide for
   contributors and coding agents.
