@@ -3,12 +3,12 @@
 # Enter), the first closes like Esc. Falls back to the native box if the dialog can't open.
 # Dot-sourced by Akari.ps1 before the other UI files; called only once the window is up.
 
-# each Icon: a Lucide icon (UI\Icons.xaml) and its colour
+# each Icon: a Lucide icon (UI\Icons.xaml), its colour and its blob's
 $AkariDialogIcons = @{
-    Info = @{ Glyph = 'info'; Brush = 'Tx' }
-    Question = @{ Glyph = 'circle-help'; Brush = 'Tx' }
-    Warning = @{ Glyph = 'triangle-alert'; Brush = 'Warn' }
-    Error = @{ Glyph = 'circle-x'; Brush = 'Bad' }
+    Info = @{ Glyph = 'info'; Brush = 'AccText'; Fill = 'AccSoft' }
+    Question = @{ Glyph = 'circle-help'; Brush = 'AccText'; Fill = 'AccSoft' }
+    Warning = @{ Glyph = 'triangle-alert'; Brush = 'Warn'; Fill = 'WarnSoft' }
+    Error = @{ Glyph = 'circle-x'; Brush = 'Bad'; Fill = 'AccSoft' }
 }
 
 # builds the dialog without showing it: its window, Tag.Result = the pressed button's text ($null = closed with Esc)
@@ -25,6 +25,7 @@ function New-AkariDialog([string]$Message, [string]$Title = 'AkariOS', [string[]
         $p = $d.FindName('DlgIconPath')
         $p.SetResourceReference([Windows.Shapes.Path]::DataProperty, "Ic.$($i.Glyph)")
         $p.SetResourceReference([Windows.Shapes.Shape]::StrokeProperty, $i.Brush)
+        $ic.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, $i.Fill)
         $ic.Tag = $i.Glyph
     }
     else { $ic.Visibility = 'Collapsed' }
@@ -32,7 +33,9 @@ function New-AkariDialog([string]$Message, [string]$Title = 'AkariOS', [string[]
     $bar = $d.FindName('DlgButtons')
     for ($n = 0; $n -lt $Buttons.Count; $n++) {
         $b = [Windows.Controls.Button]::new()
+        # the main action crimson (BtnP), the others ghost: the secondary pill with no fill or stroke until hover
         $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, $(if ($n -eq $Buttons.Count - 1) { 'BtnP' } else { 'Btn' }))
+        if ($n -lt $Buttons.Count - 1) { $b.Background = [Windows.Media.Brushes]::Transparent; $b.BorderBrush = [Windows.Media.Brushes]::Transparent }
         $b.Content = $Buttons[$n]
         $b.Tag = $Buttons[$n]
         $b.MinWidth = 88

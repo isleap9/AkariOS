@@ -344,24 +344,26 @@
     </Setter>
   </Style>
 
-  <!-- Setting card: one line in Review and in the result screen (name, then the change or Outcome). -->
+  <!-- Setting card: a Review / result row (blob, name, the change or Outcome), a Catalogue TweakRow, an About or
+       Install USB section. 14 px corners. -->
   <Style x:Key="SettingCard" TargetType="Border">
     <Setter Property="Background" Value="{DynamicResource S1}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource Bd}"/>
     <Setter Property="BorderThickness" Value="1"/>
-    <Setter Property="CornerRadius" Value="4"/>
-    <Setter Property="Padding" Value="16,12"/>
-    <Setter Property="MinHeight" Value="68"/>
-    <Setter Property="Margin" Value="0,0,0,2"/>
+    <Setter Property="CornerRadius" Value="14"/>
+    <Setter Property="Padding" Value="18,14"/>
+    <Setter Property="MinHeight" Value="64"/>
+    <Setter Property="Margin" Value="0,0,0,6"/>
   </Style>
 
-  <!-- Category card: one Category in the Guided Tweaks grid (Win11Debloat-style): icon + title, then its rows. -->
+  <!-- Category card: one Category in the Guided Tweaks grid: icon blob, title and count pill, then its rows with
+       dashed rules between them (UI\Cards.ps1). -->
   <Style x:Key="CategoryCard" TargetType="Border">
     <Setter Property="Background" Value="{DynamicResource S1}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource Bd}"/>
     <Setter Property="BorderThickness" Value="1"/>
-    <Setter Property="CornerRadius" Value="8"/>
-    <Setter Property="Padding" Value="16,12,16,10"/>
+    <Setter Property="CornerRadius" Value="18"/>
+    <Setter Property="Padding" Value="20,16,20,12"/>
     <Setter Property="Margin" Value="0,0,0,12"/>
   </Style>
 
@@ -402,31 +404,52 @@
     </Setter>
   </Style>
 
-  <!-- Mode card (Install AkariOS: One-click / Guided): a big clickable card, lighter on hover. -->
+  <!-- Mode card (the Home tiles, Install AkariOS and Optimize choosers): a poster card, 20 px corners, an arrow
+       bottom right; lighter border and the arrow in crimson on hover. ModeCardHot = the recommended one: a crimson
+       border and the lamp glow. -->
   <Style x:Key="ModeCard" TargetType="Button">
     <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Bd}"/>
     <Setter Property="Cursor" Value="Hand"/>
     <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusBox}"/>
     <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
-          <Border x:Name="B" Background="{DynamicResource S1}" BorderBrush="{DynamicResource Bd}" BorderThickness="1"
-                  CornerRadius="8" Padding="24,20" MinHeight="180">
-            <ContentPresenter VerticalAlignment="Top"/>
+          <Border x:Name="B" Background="{DynamicResource S1}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"
+                  CornerRadius="20" Padding="28,24" MinHeight="200">
+            <Grid>
+              <ContentPresenter VerticalAlignment="Top"/>
+              <Viewbox x:Name="Arrow" Width="20" Height="20" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                <Canvas Width="24" Height="24">
+                  <Path x:Name="ArrowPath" Data="{DynamicResource Ic.arrow-right}" Stroke="{DynamicResource Mu}" StrokeThickness="2"
+                        StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                </Canvas>
+              </Viewbox>
+            </Grid>
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
               <Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource Mu}"/>
+              <Setter TargetName="ArrowPath" Property="Stroke" Value="{DynamicResource AccText}"/>
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
               <Setter TargetName="B" Property="Background" Value="{DynamicResource S2}"/>
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter TargetName="B" Property="Opacity" Value="0.5"/>
+              <Setter TargetName="Arrow" Property="Visibility" Value="Collapsed"/>
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+  <Style x:Key="ModeCardHot" TargetType="Button" BasedOn="{StaticResource ModeCard}">
+    <Setter Property="BorderBrush" Value="{DynamicResource Acc}"/>
+    <Setter Property="Effect">
+      <Setter.Value>
+        <DropShadowEffect Color="{DynamicResource AccC}" BlurRadius="32" ShadowDepth="10" Direction="270" Opacity="0.25"/>
       </Setter.Value>
     </Setter>
   </Style>

@@ -361,9 +361,12 @@ function Get-AkariTweaksView {
                 $e = New-AkariRowEntry $t
                 $e.Card = $cc.Card
                 $script:TweakRows[$id] = $e
+                # a dashed rule between rows (it hides with its row)
+                if ($cc.Panel.Children.Count -gt 1) { [void]$cc.Panel.Children.Add((New-AkariRule $e.Row)) }
                 [void]$cc.Panel.Children.Add($e.Row)
                 $size += $(if ($t.Kind -eq 'Choice') { 2 } else { 1 })
             }
+            $cc.Count.Text = "$(@($c.Ids).Count)"
             $script:TweakCards += @{ Card = $cc.Card; Size = $size; Section = $g.Section }
         }
     }
@@ -421,19 +424,21 @@ function Update-AkariStepFooter {
 }
 
 # the two ways to install: big cards, like Win11Debloat's start screen
-function New-AkariModeCard([string]$Icon, [string]$Title, [string]$Text, [bool]$Enabled) {
+# a poster card (the design system's): icon blob, Unbounded title, muted text. -Hot: the recommended one, crimson
+# border and glow (style ModeCardHot)
+function New-AkariModeCard([string]$Icon, [string]$Title, [string]$Text, [bool]$Enabled, [switch]$Hot) {
     $b = [Windows.Controls.Button]::new()
-    $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'ModeCard')
+    $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, $(if ($Hot) { 'ModeCardHot' } else { 'ModeCard' }))
     $b.IsEnabled = $Enabled
     $sp = [Windows.Controls.StackPanel]::new()
-    $ic = New-AkariIcon $Icon 28 'Acc'
+    $ic = New-AkariBlob $Icon 48
     $ic.HorizontalAlignment = 'Left'
-    $ic.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
+    $ic.Margin = [Windows.Thickness]::new(0, 0, 0, 16)
     $tt = New-AkariText $Title 20
     $tt.FontWeight = 'SemiBold'
     Set-AkariFont $tt 'Display'
-    $tx = New-AkariText $Text 13 'Mu'
-    $tx.Margin = [Windows.Thickness]::new(0, 6, 0, 0)
+    $tx = New-AkariText $Text 14 'Mu'
+    $tx.Margin = [Windows.Thickness]::new(0, 8, 0, 0)
     foreach ($x in $ic, $tt, $tx) { [void]$sp.Children.Add($x) }
     $b.Content = $sp
     $b
@@ -479,7 +484,7 @@ function Show-AkariChooser {
     $StepNext.Visibility = 'Collapsed'
     $g = [Windows.Controls.Primitives.UniformGrid]::new()
     $g.Columns = 2
-    $one = New-AkariModeCard 'zap' 'One-click' 'The full AkariOS setup in one go: apps, drivers, Safe Mode and tweaks, with restarts handled for you. For a fresh install.' $true
+    $one = New-AkariModeCard -Hot 'zap' 'One-click' 'The full AkariOS setup in one go: apps, drivers, Safe Mode and tweaks, with restarts handled for you. For a fresh install.' $true
     $one.Margin = [Windows.Thickness]::new(0, 0, 8, 0)
     $one.Add_Click({ Start-AkariOneClick })
     $guided = New-AkariModeCard 'list-checks' 'Guided' 'Pick the apps to remove and the Tweaks to apply, review the changes, then apply them in one go.' $true
@@ -502,7 +507,7 @@ function Show-AkariOptimizeChooser {
     $g.Columns = 2
     # Advanced: the Catalogue (ADR 0005), every one-file Tweak by Section › Category, each change acting right away
     $first = @(Get-AkariCataloguePages $script:Tweaks | ForEach-Object { $_.Pages }) | Select-Object -First 1
-    $adv = New-AkariModeCard 'sliders-horizontal' 'Advanced' 'Every tweak AkariOS has, by category. Each change applies right away. More tweaks are on the way.' ([bool]$first)
+    $adv = New-AkariModeCard -Hot 'sliders-horizontal' 'Advanced' 'Every tweak AkariOS has, by category. Each change applies right away. More tweaks are on the way.' ([bool]$first)
     $adv.Margin = [Windows.Thickness]::new(0, 0, 8, 0)
     if ($first) { $adv.Tag = $first.Key; $adv.Add_Click({ param($s, $e) Select-AkariPage ([string]$s.Tag) }) }
     $legacy = New-AkariModeCard 'history' 'Legacy' 'The old AkariOS-Ultimate pages, being retired as Advanced takes them over. Every button acts right away.' $true
@@ -565,16 +570,9 @@ function Show-AkariSteps {
                     $hd.Margin = [Windows.Thickness]::new(2, 12, 0, 8)
                     [void]$StepBody.Children.Add($hd)
                 }
-                $b = [Windows.Controls.Border]::new()
-                $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
-                $sp = [Windows.Controls.StackPanel]::new()
-                $sp.VerticalAlignment = 'Center'
-                $name = New-AkariText $r.Name 14
-                [void]$sp.Children.Add($name)
                 $change = if ($r.From) { "$($r.From) $([char]0x2192) $($r.To)" } else { $r.To }
-                [void]$sp.Children.Add((New-AkariText $change 12 'Mu'))
-                $b.Child = $sp
-                [void]$StepBody.Children.Add($b)
+                $icon, $brush = if ($r.To -eq 'Default') { 'undo-2', 'Mu' } else { 'arrow-right', 'AccText' }
+                [void]$StepBody.Children.Add((New-AkariReviewRow $r.Id $r.Name $change $icon $brush))
             }
         }
         3 { Show-AkariResult }
@@ -673,16 +671,42 @@ function Show-AkariResult {
     }
     foreach ($o in $script:Outcomes) {
         $t = $script:Tweaks | Where-Object { $_.Id -eq $o.Id } | Select-Object -First 1
-        $b = [Windows.Controls.Border]::new()
-        $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
-        $sp = [Windows.Controls.StackPanel]::new()
-        $sp.VerticalAlignment = 'Center'
-        [void]$sp.Children.Add((New-AkariText $(if ($t) { $t.Name } else { $o.Id }) 14))
         $line = if ($o.Message) { "$($o.Outcome): $($o.Message)" } else { $o.Outcome }
-        [void]$sp.Children.Add((New-AkariText $line 12 $(if ($o.Outcome -eq 'Failed') { 'Bad' } else { 'Mu' })))
-        $b.Child = $sp
-        [void]$StepBody.Children.Add($b)
+        $icon, $brush = switch ($o.Outcome) {
+            { $_ -in 'Applied', 'Reverted' } { 'circle-check', 'Ok' }
+            'Already' { 'circle-minus', 'Mu' }
+            'Skipped' { 'circle-slash', 'Warn' }
+            default { 'circle-x', 'Bad' }
+        }
+        [void]$StepBody.Children.Add((New-AkariReviewRow $o.Id $(if ($t) { $t.Name } else { $o.Id }) $line $icon $brush))
     }
+}
+
+# a Review / result row (the design system's ReviewRow): the Tweak's Category blob, its name, then the change
+# (From -> To) or the Outcome, and a status icon on the right
+function New-AkariReviewRow([string]$Id, [string]$Name, [string]$Line, [string]$Icon, [string]$Brush) {
+    $t = $script:Tweaks | Where-Object { $_.Id -eq $Id } | Select-Object -First 1
+    $blob = if (-not $t) { 'settings' } elseif ($t.Section -eq 'Apps') { if ($t.Category -eq 'Install') { 'download' } else { 'trash-2' } } else { Get-AkariCategoryIcon $t.Category }
+    $b = [Windows.Controls.Border]::new()
+    $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
+    $b.Tag = $Id
+    $dp = [Windows.Controls.DockPanel]::new()
+    $bl = New-AkariBlob $blob 32
+    $bl.Margin = [Windows.Thickness]::new(0, 0, 14, 0)
+    [Windows.Controls.DockPanel]::SetDock($bl, 'Left')
+    $st = New-AkariIcon $Icon 18 $Brush
+    $st.VerticalAlignment = 'Center'
+    $st.Margin = [Windows.Thickness]::new(14, 0, 0, 0)
+    [Windows.Controls.DockPanel]::SetDock($st, 'Right')
+    $sp = [Windows.Controls.StackPanel]::new()
+    $sp.VerticalAlignment = 'Center'
+    $nm = New-AkariText $Name 14
+    $nm.FontWeight = 'SemiBold'
+    [void]$sp.Children.Add($nm)
+    [void]$sp.Children.Add((New-AkariText $Line 13 $(if ($Brush -eq 'Bad') { 'Bad' } else { 'Mu' })))
+    foreach ($x in $bl, $st, $sp) { [void]$dp.Children.Add($x) }
+    $b.Child = $dp
+    $b
 }
 
 # Done: forget the Selection and the cached steps, back to Home (an apps flow: back to where it was opened)

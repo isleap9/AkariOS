@@ -193,31 +193,97 @@ function New-AkariCategoryCard([string]$Title, [string]$Icon, [string]$Note) {
     $card = [Windows.Controls.Border]::new()
     $card.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'CategoryCard')
     $panel = [Windows.Controls.StackPanel]::new()
-    $head = [Windows.Controls.StackPanel]::new()
-    $head.Orientation = 'Horizontal'
-    $head.Margin = [Windows.Thickness]::new(0, 0, 0, 6)
-    $ic = New-AkariIcon $Icon 20
-    $ic.Margin = [Windows.Thickness]::new(0, 0, 10, 0)
-    $ic.VerticalAlignment = 'Center'
+    # head: the icon blob, the title, a note ("Not yet ported"), and the count pill on the right (Count.Text: Steps.ps1)
+    $head = [Windows.Controls.DockPanel]::new()
+    $head.Margin = [Windows.Thickness]::new(0, 0, 0, 10)
+    $count = [Windows.Controls.TextBlock]::new()
+    $count.FontSize = 12
+    $count.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, 'Mu')
+    Set-AkariFont $count 'Mono'
+    $pill = [Windows.Controls.Border]::new()
+    $pill.CornerRadius = [Windows.CornerRadius]::new(10)
+    $pill.Padding = [Windows.Thickness]::new(8, 1, 8, 2)
+    $pill.BorderThickness = [Windows.Thickness]::new(1)
+    $pill.VerticalAlignment = 'Center'
+    $pill.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, 'Ctl')
+    $pill.SetResourceReference([Windows.Controls.Border]::BorderBrushProperty, 'CtlBd')
+    $pill.Child = $count
+    [Windows.Controls.DockPanel]::SetDock($pill, 'Right')
+    $ic = New-AkariBlob $Icon 36
+    $ic.Margin = [Windows.Thickness]::new(0, 0, 12, 0)
     $tt = [Windows.Controls.TextBlock]::new()
     $tt.Text = $Title
     $tt.FontSize = 20
     $tt.FontWeight = 'SemiBold'
     Set-AkariFont $tt 'Display'
     $tt.VerticalAlignment = 'Center'
-    [void]$head.Children.Add($ic); [void]$head.Children.Add($tt)
+    $tt.TextTrimming = 'CharacterEllipsis'
+    [Windows.Controls.DockPanel]::SetDock($ic, 'Left')
+    [void]$head.Children.Add($pill); [void]$head.Children.Add($ic)
     if ($Note) {
         $nt = [Windows.Controls.TextBlock]::new()
         $nt.Text = $Note
         $nt.FontSize = 12
-        $nt.Margin = [Windows.Thickness]::new(10, 2, 0, 0)
+        $nt.Margin = [Windows.Thickness]::new(10, 2, 8, 0)
         $nt.VerticalAlignment = 'Center'
         $nt.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, 'Ter')
+        [Windows.Controls.DockPanel]::SetDock($nt, 'Right')
         [void]$head.Children.Add($nt)
     }
+    [void]$head.Children.Add($tt)
     [void]$panel.Children.Add($head)
     $card.Child = $panel
-    @{ Card = $card; Panel = $panel }
+    @{ Card = $card; Panel = $panel; Count = $count }
+}
+
+# an icon on a rounded crimson-tint square (the design system's "blob"): category cards, mode cards, Review rows,
+# dialogs. $Brush / $Fill: the icon colour and the square's (a warning: Warn on WarnSoft)
+function New-AkariBlob([string]$Icon, [double]$Size = 36, [string]$Brush = 'AccText', [string]$Fill = 'AccSoft') {
+    $b = [Windows.Controls.Border]::new()
+    $b.Width = $Size; $b.Height = $Size
+    $b.CornerRadius = [Windows.CornerRadius]::new([Math]::Round($Size * 0.3))
+    $b.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, $Fill)
+    $b.VerticalAlignment = 'Center'
+    $i = New-AkariIcon $Icon ([Math]::Round($Size * 0.55)) $Brush
+    $i.HorizontalAlignment = 'Center'; $i.VerticalAlignment = 'Center'
+    $b.Child = $i
+    $b.Tag = $Icon
+    $b
+}
+
+# the dashed rule between two rows of a card; shown only while $Row is (the search filter hides rows)
+function New-AkariRule($Row) {
+    $l = [Windows.Shapes.Line]::new()
+    $l.X1 = 0; $l.X2 = 1; $l.Stretch = 'Fill'; $l.Height = 1
+    $l.StrokeThickness = 1
+    $l.StrokeDashArray = [Windows.Media.DoubleCollection]::new([double[]](4, 3))
+    $l.SetResourceReference([Windows.Shapes.Shape]::StrokeProperty, 'Bd')
+    $l.Margin = [Windows.Thickness]::new(0, 2, 0, 2)
+    $bd = [Windows.Data.Binding]::new('Visibility'); $bd.Source = $Row
+    [void][Windows.Data.BindingOperations]::SetBinding($l, [Windows.UIElement]::VisibilityProperty, $bd)
+    $l
+}
+
+# a pill badge: AkariOS (crimson tint), Caution (amber outline), Advanced (solid amber)
+function New-AkariBadge([string]$Kind) {
+    $b = [Windows.Controls.Border]::new()
+    $b.CornerRadius = [Windows.CornerRadius]::new(10)
+    $b.Padding = [Windows.Thickness]::new(8, 1, 8, 2)
+    $b.Margin = [Windows.Thickness]::new(0, 0, 6, 0)
+    $b.VerticalAlignment = 'Center'
+    $fg, $bg, $bd = switch ($Kind) {
+        'AkariOS' { 'AccText', 'AccSoft', $null }
+        'Caution' { 'Warn', 'WarnSoft', 'Warn' }
+        default { 'WarnT', 'Warn', $null }
+    }
+    $b.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, $bg)
+    if ($bd) { $b.BorderThickness = [Windows.Thickness]::new(1); $b.SetResourceReference([Windows.Controls.Border]::BorderBrushProperty, $bd) }
+    $t = [Windows.Controls.TextBlock]::new()
+    $t.Text = $Kind; $t.FontSize = 12; $t.FontWeight = 'SemiBold'
+    $t.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, $fg)
+    $b.Child = $t
+    $b.Tag = $Kind
+    $b
 }
 
 # "0x28", "40" -> number; anything else -> $null

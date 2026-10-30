@@ -66,41 +66,36 @@ function New-AkariCatalogueCard($t) {
     $ctl.Margin = [Windows.Thickness]::new(16, 0, 0, 0)
     [Windows.Controls.DockPanel]::SetDock($ctl, 'Right')
     [void]$dp.Children.Add($ctl)
-    # Risk badge and the restart / Safe Mode glyphs, left of the control
+    # the restart / Safe Mode marks, left of the control
     $marks = [Windows.Controls.StackPanel]::new()
     $marks.Orientation = 'Horizontal'
     $marks.VerticalAlignment = 'Center'
     [Windows.Controls.DockPanel]::SetDock($marks, 'Right')
-    if ($t.Risk -in 'Caution', 'Advanced') {
-        $brush = if ($t.Risk -eq 'Advanced') { 'Bad' } else { 'Warn' }
-        $badge = [Windows.Controls.Border]::new()
-        $badge.BorderThickness = [Windows.Thickness]::new(1)
-        $badge.CornerRadius = [Windows.CornerRadius]::new(3)
-        $badge.Padding = [Windows.Thickness]::new(7, 1, 7, 1)
-        $badge.Margin = [Windows.Thickness]::new(12, 0, 0, 0)
-        $badge.SetResourceReference([Windows.Controls.Border]::BorderBrushProperty, $brush)
-        $badge.Child = New-AkariText $t.Risk 12 $brush
-        [void]$marks.Children.Add($badge)
-    }
     if ($t.Reboot) { [void]$marks.Children.Add((New-AkariGlyph 'rotate-ccw' 'Mu' 'Restart required')) }
     if ($t.SafeMode) { [void]$marks.Children.Add((New-AkariGlyph 'shield' 'Mu' 'Runs in Safe Mode: Akari restarts into it and back')) }
     [void]$dp.Children.Add($marks)
-    # name ("(AkariOS)" when it is part of the AkariOS setup), description, State line
+    # the TweakRow: name, then the id (mono) with the AkariOS and Risk badges, the description, the State line
     $text = [Windows.Controls.StackPanel]::new()
     $text.VerticalAlignment = 'Center'
     $name = [Windows.Controls.TextBlock]::new()
     [void]$name.Inlines.Add([Windows.Documents.Run]::new($t.Name))
-    if ($t.AkariOS) {
-        $tag = [Windows.Documents.Run]::new(' (AkariOS)')
-        $tag.SetResourceReference([Windows.Documents.TextElement]::ForegroundProperty, 'Mu')
-        [void]$name.Inlines.Add($tag)
-    }
     $name.FontSize = 14
+    $name.FontWeight = 'SemiBold'
     $name.TextWrapping = 'Wrap'
     [void]$text.Children.Add($name)
+    $meta = [Windows.Controls.WrapPanel]::new()
+    $meta.Margin = [Windows.Thickness]::new(0, 4, 0, 0)
+    $id = New-AkariText $t.Id 12 'Ter'
+    Set-AkariFont $id 'Mono'
+    $id.Margin = [Windows.Thickness]::new(0, 0, 10, 0)
+    $id.VerticalAlignment = 'Center'
+    [void]$meta.Children.Add($id)
+    if ($t.AkariOS) { [void]$meta.Children.Add((New-AkariBadge 'AkariOS')) }
+    if ($t.Risk -in 'Caution', 'Advanced') { [void]$meta.Children.Add((New-AkariBadge $t.Risk)) }
+    [void]$text.Children.Add($meta)
     if ($t.Description) {
-        $d = New-AkariText $t.Description 12.5 'Mu'
-        $d.Margin = [Windows.Thickness]::new(0, 2, 0, 0)
+        $d = New-AkariText $t.Description 13 'Mu'
+        $d.Margin = [Windows.Thickness]::new(0, 6, 0, 0)
         [void]$text.Children.Add($d)
     }
     $e.StateText = New-AkariText '' 12 'Ter'

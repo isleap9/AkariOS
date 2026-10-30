@@ -59,6 +59,23 @@ function Update-AkariFrame {
     if ($h -ne [IntPtr]::Zero) { $v = [int]($script:Theme -eq 'Dark'); [void][Akari.Dwm]::DwmSetWindowAttribute($h, 20, [ref]$v, 4) }
 }
 
+# the title bar logo for the theme: Assets\AkariLogo-dark.png (white A) or AkariLogo-light.png (black A), each read
+# once; AkariLogo.png when the theme's file is missing
+$script:LogoCache = @{}
+function Update-AkariLogo {
+    $name = $script:Theme
+    if (-not $script:LogoCache.ContainsKey($name)) {
+        $p = "$Root\Assets\AkariLogo-$($name.ToLowerInvariant()).png"
+        if (-not (Test-Path -LiteralPath $p)) { $p = "$Root\Assets\AkariLogo.png" }
+        $script:LogoCache[$name] = if (Test-Path -LiteralPath $p) {
+            $bmp = [Windows.Media.Imaging.BitmapImage]::new()
+            $bmp.BeginInit(); $bmp.UriSource = [Uri]$p; $bmp.CacheOption = 'OnLoad'; $bmp.EndInit(); $bmp.Freeze()
+            $bmp
+        }
+    }
+    if ($Logo) { $Logo.Source = $script:LogoCache[$name] }
+}
+
 # $Theme: System, Dark or Light; -Save keeps it in settings.json
 function Set-AkariTheme([string]$Theme = 'System', [switch]$Save) {
     if ($Theme -notin $AkariThemes) { $Theme = 'System' }
@@ -69,6 +86,7 @@ function Set-AkariTheme([string]$Theme = 'System', [switch]$Save) {
     $md.Insert(0, $d)
     $script:ThemeDict = $d; $script:ThemeSetting = $Theme; $script:Theme = $name
     Update-AkariFrame
+    Update-AkariLogo
     if ($Save) { Save-AkariThemeSetting $Theme }
 }
 Set-AkariTheme (Get-AkariThemeSetting)
@@ -100,11 +118,11 @@ $Pages = [ordered]@{
     Advanced   = @{ Glyph = 'flask-conical'; Sub = 'Security, CPU and display pipeline tweaks for experienced users' }
 }
 
+# the window and taskbar icon (the title bar logo follows the theme: Update-AkariLogo)
 $logoPath = "$Root\Assets\AkariLogo.png"
 if (Test-Path $logoPath) {
     $bmp = [Windows.Media.Imaging.BitmapImage]::new()
     $bmp.BeginInit(); $bmp.UriSource = [Uri]$logoPath; $bmp.CacheOption = 'OnLoad'; $bmp.EndInit()
-    $Logo.Source = $bmp
     $window.Icon = $bmp
 }
 $window.Add_SourceInitialized({
@@ -374,7 +392,7 @@ function Select-AkariPage([string]$Name) {
 }
 
 # ---- home tiles: Install AkariOS (One-click or Guided), Optimize (Manual mode), Downloads, Import / Export
-$tile = New-AkariModeCard 'zap' 'Install AkariOS' 'Guided optimization for Windows. Recommended for a fresh install.' $true
+$tile = New-AkariModeCard -Hot 'zap' 'Install AkariOS' 'Guided optimization for Windows. Recommended for a fresh install.' $true
 $tile.Add_Click({ Select-AkariPage 'Install AkariOS' })
 [void]$HomeTiles.Children.Add($tile)
 $tile = New-AkariModeCard 'sliders-horizontal' 'Optimize' 'Manual, in-depth optimization for Windows. Recommended for power users.' $true

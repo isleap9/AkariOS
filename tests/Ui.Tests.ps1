@@ -241,7 +241,8 @@ $e = New-AkariTweakRow $ak 'Default'; Show $e
 function Shown($tb) { [Windows.Documents.TextRange]::new($tb.ContentStart, $tb.ContentEnd).Text }
 "akName=$(Shown $e.Control.Content)"; "plainName=$(Shown (New-AkariTweakRow $tog 'Default').Control.Content)"
 $c = New-AkariCategoryCard 'Windows' 'app-window' 'Not yet ported'
-"cardHead=$($c.Panel.Children[0].Children.Count)"
+"cardHead=$($c.Panel.Children[0].Children.Count)|$($c.Panel.Children[0].Children[1].Tag)|$($null -ne $c.Count)"
+$b = New-AkariBadge 'Advanced'; "badge=$($b.Tag)|$($b.Child.Text)"
 '@
     $out = @{}
     & powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root 2>&1 | ForEach-Object {
@@ -294,7 +295,8 @@ $c = New-AkariCategoryCard 'Windows' 'app-window' 'Not yet ported'
         $out.actGlyphs | Should Be '0'
     }
 
-    It 'builds a category card head: icon, title, note' { $out.cardHead | Should Be '3' }
+    It 'builds a category card head: count pill, icon blob, note, title' { $out.cardHead | Should Be '4|app-window|True' }
+    It 'builds a Risk badge' { $out.badge | Should Be 'Advanced|Advanced' }
 
     It 'marks a Tweak of the AkariOS setup with (AkariOS) after its name' {
         $out.akName | Should Be 'Ak (AkariOS)'
@@ -373,7 +375,9 @@ $tm = $MainMenu.Items | Where-Object { $_ -is [Windows.Controls.MenuItem] -and "
 $tm.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent))
 $tm.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent))
 "themeLight=$($tm.Header)|$($window.FindResource('Bg').Color)|$(@($window.Resources.MergedDictionaries | Where-Object { $_.Contains('Acc') }).Count)|$(Get-AkariThemeSetting)|$($Body.Background.Color)"
+$lightLogo = Split-Path $Logo.Source.UriSource.LocalPath -Leaf
 Set-AkariTheme 'Dark'; "themeDark=$($window.FindResource('Bg').Color)|$(Get-AkariThemeSetting)"
+"logo=$lightLogo|$(Split-Path $Logo.Source.UriSource.LocalPath -Leaf)"
 Set-AkariTheme 'Nonsense'; "themeBad=$script:ThemeSetting"
 Set-AkariTheme 'Dark' -Save
 Click $StepBack
@@ -561,6 +565,7 @@ Select-AkariPage 'Optimize'; Click $StepBody.Children[0].Children[1]
         $out.themeLight | Should Be 'Theme: Light|#FFF8F3F1|1|Light|#FFF8F3F1'
     }
     It 'Set-AkariTheme Dark loads the dark brushes without saving' { $out.themeDark | Should Be '#FF0D0A0B|Light' }
+    It 'swaps the title bar logo with the theme' { $out.logo | Should Be 'AkariLogo-light.png|AkariLogo-dark.png' }
     It 'an unknown theme falls back to Follow Windows' { $out.themeBad | Should Be 'System' }
     It 'the status bar shows the version' { $out.appVersion | Should Match '^AkariOS \d+\.\d+\.\d+$' }
     It 'a launch check that finds an update asks on Home and shows the Home bar' {

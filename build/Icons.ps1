@@ -22,7 +22,8 @@ $Names = @(
     'gamepad-2', 'gauge', 'sliders-vertical', 'lock', 'panel-bottom', 'layout-grid', 'folder', 'palette', 'cloud-download',
     'power', 'wifi', 'bell', 'mouse', 'accessibility', 'volume-2', 'settings-2', 'shield-check', 'eraser', 'hard-drive',
     # marks, dialogs, bars
-    'triangle-alert', 'rotate-ccw', 'circle-help', 'circle-x', 'shield', 'search', 'arrow-left',
+    'triangle-alert', 'rotate-ccw', 'circle-help', 'circle-x', 'shield', 'search', 'arrow-left', 'arrow-right',
+    'circle-check', 'circle-minus', 'circle-slash', 'undo-2',
     # window chrome and controls
     'menu', 'minus', 'square', 'copy', 'x', 'check', 'chevron-down',
     # the title bar menu
