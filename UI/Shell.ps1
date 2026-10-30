@@ -198,6 +198,7 @@ $timer.Add_Tick({
         $script:Job = $null
         Set-Busy $false
         if ($j.Kind -eq 'Apply') { Complete-AkariApply $j.Shared }
+        if ($j.Kind -eq 'Export') { Complete-AkariExport $j.Shared }
         # a Catalogue change updates its card only (the page stays as it is)
         if ("$($j.Kind)" -like 'Catalogue*') { Complete-AkariCatalogueJob $j } else { Show-Page }
         # Catalogue changes that queued up meanwhile
@@ -319,7 +320,8 @@ $tile.Add_Click({ Select-AkariPage 'Downloads' })
 $tile = New-AkariModeCard ([string][char]0xE88E) 'Install USB' 'Prepare a Windows install USB: an autounattend.xml with accounts, language, edition, disk and setup choices, after Schneegans'' generator.' $true
 $tile.Add_Click({ Select-AkariPage 'Install USB' })
 [void]$HomeTiles.Children.Add($tile)
-$tile = New-AkariModeCard ([string][char]0xE72D) 'Import / Export settings' 'Save your choices to a file, or load them on another PC. Coming in a later version.' $false
+$tile = New-AkariModeCard ([string][char]0xE72D) 'Import / Export settings' 'Save this PC''s settings to a file, or load them on another PC and review them in Guided.' $true
+$tile.Add_Click({ Show-AkariImportExport })
 [void]$HomeTiles.Children.Add($tile)
 $last = $HomeTiles.Children.Count - 1
 foreach ($i in 0..$last) { $HomeTiles.Children[$i].Margin = [Windows.Thickness]::new($(if ($i) { 8 } else { 0 }), 0, $(if ($i -lt $last) { 8 } else { 0 }), 0) }

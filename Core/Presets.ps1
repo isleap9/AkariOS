@@ -89,8 +89,9 @@ function ConvertTo-AkariPresetEntries($Items) {
     }
 }
 
-# writes a user preset (or Last used with -Path $AkariLastUsedPath); returns the file path
-function Save-AkariPreset([string]$Name, $Items, [string]$Description = '', [string]$Path = '') {
+# writes a user preset (or Last used with -Path $AkariLastUsedPath); returns the file path. $Extra: more top-level
+# fields after Tweaks (an export's "Exported" block); readers ignore fields they don't know.
+function Save-AkariPreset([string]$Name, $Items, [string]$Description = '', [string]$Path = '', $Extra = $null) {
     if (-not $Path) {
         $safe = ($Name -replace '[\\/:*?"<>|]', '_').Trim()
         if (-not $safe) { throw 'a preset needs a name' }
@@ -98,8 +99,58 @@ function Save-AkariPreset([string]$Name, $Items, [string]$Description = '', [str
     }
     New-Item (Split-Path $Path) -ItemType Directory -Force | Out-Null
     $doc = [ordered]@{ Name = $Name; Description = $Description; Tweaks = @(ConvertTo-AkariPresetEntries $Items) }
+    if ($Extra) { foreach ($k in $Extra.Keys) { $doc[$k] = $Extra[$k] } }
     [IO.File]::WriteAllText($Path, ($doc | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))
     $Path
+}
+
+# ---- Export (M5): this PC's settings as a preset. Import is the GUI's (UI\ImportExport.ps1): a preset file read
+# into the Guided Selection.
+
+# the Tweaks an export reads: one-file Toggles and Choices this PC meets (no Legacy, Actions, Group Entries, Apps,
+# OneClick or Tools). Pure but for Test-AkariRequirement (Core\System.ps1).
+function Get-AkariExportTweaks($Tweaks) {
+    @($Tweaks | Where-Object {
+        -not $_.Legacy -and -not $_.Group -and $_.Kind -in 'Toggle', 'Choice' -and $_.Section -notin 'Apps', 'OneClick', 'Tools' -and
+        (-not $_.Requires -or -not (Test-AkariRequirement $_))
+    })
+}
+
+# plan items from what a PC has: $Rows = @{ Tweak; State; Value } (Value: a Choice's current value). A Toggle in the
+# Optimized State = Apply; a Choice on its Recommended value = Apply, on another of its values (not the Default) =
+# Apply with that value. Default, Custom and Unknown Toggles are left out. Pure.
+function ConvertTo-AkariExportItems($Rows) {
+    foreach ($r in $Rows) {
+        $t = $r.Tweak
+        if ($t.Kind -eq 'Choice') {
+            $v = $r.Value
+            if ($null -eq $v -or (Test-AkariRegMatch $v (Resolve-AkariDefault $t.Default))) { continue }
+            if (Test-AkariRegMatch $v $t.Recommended) { @{ Id = $t.Id; Mode = 'Apply' }; continue }
+            if ($t.Editable -or @($t.Choices | Where-Object { Test-AkariRegMatch $v $_.Value }).Count) { @{ Id = $t.Id; Mode = 'Apply'; Value = $v } }
+        }
+        elseif ($r.State -eq 'Optimized') { @{ Id = $t.Id; Mode = 'Apply' } }
+    }
+}
+
+# reads every exportable Tweak's State on this PC (seconds: run it in the background job) -> plan items
+function Get-AkariExportItems($Tweaks) {
+    $rows = foreach ($t in Get-AkariExportTweaks $Tweaks) {
+        $v = $null
+        if ($t.Kind -eq 'Choice') { try { $v = Get-AkariChoiceValue $t } catch { } }
+        @{ Tweak = $t; State = $(if ($t.Kind -eq 'Choice') { '' } else { Get-AkariState $t }); Value = $v }
+    }
+    @(ConvertTo-AkariExportItems @($rows))
+}
+
+# writes this PC's settings to $Path as a preset (named after the PC, with an "Exported" block: Akari version, Windows
+# build, date) -> @{ Path; Count }
+function Export-AkariSettings($Tweaks, [string]$Path, [string]$Version = '') {
+    $items = @(Get-AkariExportItems $Tweaks)
+    $pc = $env:COMPUTERNAME
+    $date = (Get-Date).ToString('yyyy-MM-dd HH:mm')
+    $extra = [ordered]@{ Exported = [ordered]@{ Computer = $pc; Date = $date; AkariVersion = $Version; WindowsBuild = [string](Get-AkariOSBuild) } }
+    $p = Save-AkariPreset "Exported from $pc" $items "Settings exported from $pc on $date" $Path $extra
+    @{ Path = $p; Count = $items.Count }
 }
 
 # Last used: the plan of the last Guided Run, as a preset named "Last used"; $null when there is none yet

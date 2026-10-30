@@ -168,8 +168,8 @@ $MainMenu = [Windows.Controls.ContextMenu]::new()
 $MainMenu.Width = 244
 $MenuBtn.ContextMenu = $MainMenu
 $items = [Collections.Generic.List[object]]::new()
-$items.Add((New-AkariMenuItem 'Import settings' 'E8B5' $null))
-$items.Add((New-AkariMenuItem 'Export settings' 'EDE1' $null))
+$items.Add((New-AkariMenuItem 'Import settings' 'E8B5' { Start-AkariImport }))
+$items.Add((New-AkariMenuItem 'Export settings' 'EDE1' { Start-AkariExport }))
 $items.Add((New-AkariMenuItem 'System Restore' 'E81C' { Start-Process "$env:SystemRoot\System32\rstrui.exe" }))
 $items.Add([Windows.Controls.Separator]::new())
 $glyphs = @{ 'GitHub' = 'E774'; 'Report a bug' = 'EBE8'; 'Discord' = 'E8BD' }

@@ -165,6 +165,8 @@ function Reset-AkariTweakRows {
         Set-AkariRowControl $e $e.Initial
         if ($script:Sel.Contains($e.Tweak.Id)) { $script:Sel.Remove($e.Tweak.Id) }
     }
+    # the changes a preset brought for Tweaks with no row here go too
+    foreach ($id in @($script:Sel.Keys)) { if ($script:Sel[$id].Hidden) { $script:Sel.Remove($id) } }
     Update-AkariStepFooter
 }
 
@@ -221,7 +223,14 @@ function Set-AkariQuickSelect($Preset) {
     $missing = 0
     foreach ($i in $plan.Items) {
         $e = $script:TweakRows[$i.Id]
-        if (-not $e) { if (-not $script:AppRows.Contains($i.Id)) { $missing++ }; continue }
+        if (-not $e) {
+            if ($script:AppRows.Contains($i.Id)) { continue }
+            # a Toggle or Choice Guided doesn't show (Optimize › Advanced only): selected all the same, listed apart
+            # on Review (never an Action, nor One-click's own steps)
+            $t = $script:Tweaks | Where-Object { $_.Id -eq $i.Id } | Select-Object -First 1
+            if ($t -and @(Get-AkariExportTweaks @($t)).Count) { Set-AkariHiddenPending $t $i } else { $missing++ }
+            continue
+        }
         $t = $e.Tweak
         $target = if ($i.Mode -eq 'Revert') { 'Default' } elseif ($t.Kind -eq 'Choice') { if ($i.ContainsKey('Value')) { $i.Value } else { $t.Recommended } } else { 'Optimized' }
         Set-AkariRowControl $e $(if ($target -eq 'Default' -and $t.Kind -ne 'Choice') { 'None' } elseif ($target -eq 'Default') { Resolve-AkariDefault $t.Default } else { $target })
@@ -232,6 +241,18 @@ function Set-AkariQuickSelect($Preset) {
     Update-AkariStepFooter
     $note = if ($missing -or $plan.Unknown.Count) { " ($($missing + $plan.Unknown.Count) not on this PC or not shown here)" } else { '' }
     Add-Log "Quick select: $($Preset.Name), $($script:Sel.Count) changes$note"
+}
+
+# a preset's change to a Tweak with no row on the Tweaks step: its State read now, the change marked Hidden
+function Set-AkariHiddenPending($Tweak, $Item) {
+    $cur = $null
+    if ($Tweak.Kind -eq 'Choice') { try { $cur = Get-AkariChoiceValue $Tweak } catch { } }
+    $def = Resolve-AkariDefault $Tweak.Default
+    $target = if ($Item.Mode -eq 'Revert') { if ($Tweak.Kind -eq 'Choice') { $def } else { 'Default' } }
+              elseif ($Tweak.Kind -eq 'Choice') { if ($Item.ContainsKey('Value')) { $Item.Value } else { $Tweak.Recommended } }
+              else { 'Optimized' }
+    Set-AkariPending $script:Sel $Tweak (Get-AkariState $Tweak) $target $cur
+    if ($script:Sel.Contains($Tweak.Id)) { $script:Sel[$Tweak.Id].Hidden = $true }
 }
 
 # saves the current Selection as a user preset (asks for its name)
@@ -532,7 +553,16 @@ function Show-AkariSteps {
                 $n.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
                 [void]$StepBody.Children.Add($n)
             }
-            foreach ($r in Get-AkariReviewItems $script:Sel) {
+            # the Guided steps' changes first, then those to Tweaks only Optimize › Advanced shows (a preset's, an import's)
+            $review = @(Get-AkariReviewItems $script:Sel)
+            $hidden = @($review | Where-Object { $_.Hidden })
+            foreach ($r in @($review | Where-Object { -not $_.Hidden }) + $hidden) {
+                if ($hidden.Count -and $r -eq $hidden[0]) {
+                    $hd = New-AkariText "Advanced settings (Optimize $([char]0x203A) Advanced)" 16
+                    $hd.FontWeight = 'SemiBold'
+                    $hd.Margin = [Windows.Thickness]::new(2, 12, 0, 8)
+                    [void]$StepBody.Children.Add($hd)
+                }
                 $b = [Windows.Controls.Border]::new()
                 $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
                 $sp = [Windows.Controls.StackPanel]::new()

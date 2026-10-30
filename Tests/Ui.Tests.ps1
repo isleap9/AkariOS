@@ -166,7 +166,8 @@ param($Root, $LogFile, $Install)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework
 $AkariLogFile = $LogFile
-foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'Restore', 'Version', 'Update', 'Unattend') { . "$Root\Core\$f.ps1" }
+$AkariPresetDir = Join-Path (Split-Path $LogFile) 'presets'
+foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'Restore', 'Version', 'Update', 'Unattend', 'Presets') { . "$Root\Core\$f.ps1" }
 # the Install USB page reads no drive and no PC setting here
 function Get-AkariSetupDrives { }
 function Get-AkariUnattendDefaults { @{} }
@@ -182,7 +183,7 @@ $script:Groups = @(); $script:RowCache = @{}; $script:Cat = 'Home'; $script:Busy
 $script:Queue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
 $loaded = @{ Problems = @() }
 function Get-AkariAppxInstalled { @() }; function Start-AkariFeatureRead { }
-foreach ($f in 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows', 'CataloguePage', 'About', 'UnattendForm', 'Unattend') { . "$Root\UI\$f.ps1" }
+foreach ($f in 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows', 'CataloguePage', 'About', 'UnattendForm', 'Unattend', 'ImportExport') { . "$Root\UI\$f.ps1" }
 $timer.Stop()
 # the launch prompt is a dialog: record it instead
 function Show-AkariUpdatePrompt { $script:Prompted = $true }
@@ -221,6 +222,13 @@ Click $StepBack; "usbFileBack=$script:Cat"
 "menu=$(($MainMenu.Items | ForEach-Object { if ($_ -is [Windows.Controls.Separator]) { '-' } elseif ($_.IsEnabled) { $_.Header } else { "($($_.Header))" } }) -join ',')"
 $MainMenu.Items[$MainMenu.Items.Count - 1].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent)); "menuAbout=$script:Cat"
 Click $StepBack
+# Import settings (the menu item): a settings file, picked through the stubbed file dialog, opens Guided on its Tweaks step
+$importFile = Join-Path (Split-Path $LogFile) 'import.json'
+Set-Content $importFile '{ "Name": "Imported", "Tweaks": [ "cat-tog" ] }'
+function Select-AkariSettingsFile($Save) { $importFile }
+$MainMenu.Items[0].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent))
+"import=$script:Cat|$script:Mode|$script:Step|$(@($script:Sel.Keys) -join ',')|$(Test-Path (Join-Path $AkariPresetDir 'import.json'))"
+Select-AkariPage 'Home'
 $rel = @{ Ok = $true; Version = [version]'9.0.0'; Notes = "## New`n- **fast**"; PageUrl = 'https://example.test/r'; AssetUrl = 'https://example.test/a.zip'; Digest = 'sha256:x' }
 $script:Prompted = $false; Complete-AkariUpdateCheck $rel $false; "launch=$script:Prompted,$($UpdateBar.Visibility),$($UpdateText.Text)"
 Select-AkariPage 'Optimize'; $script:Prompted = $false; Complete-AkariUpdateCheck $rel $false; "launchAway=$script:Prompted"
@@ -383,9 +391,12 @@ Select-AkariPage 'Optimize'; Click $StepBody.Children[0].Children[1]
         $out.catLeft | Should Be 'Check|Optimize,Check,Refresh,Setup,Downloads,Graphics,Windows,Hardware,Advanced|Collapsed'
     }
     It 'the title bar says AkariOS' { $out.title | Should Be 'AkariOS' }
-    It 'the options menu: settings files greyed out until M5, System Restore, the About links, Logs, About' {
-        $out.menu | Should Be '(Import settings),(Export settings),System Restore,-,GitHub,Report a bug,Discord,Logs,About'
+    It 'the options menu: Import / Export settings, System Restore, the About links, Logs, About' {
+        $out.menu | Should Be 'Import settings,Export settings,System Restore,-,GitHub,Report a bug,Discord,Logs,About'
         $out.menuAbout | Should Be 'About'
+    }
+    It 'Import settings opens the file in Guided on the Tweaks step, and keeps a copy in the presets' {
+        $out.import | Should Be 'Install AkariOS|Guided|1|cat-tog|True'
     }
     It 'the status bar shows the version' { $out.appVersion | Should Match '^AkariOS \d+\.\d+\.\d+$' }
     It 'a launch check that finds an update asks on Home and shows the Home bar' {

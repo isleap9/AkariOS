@@ -118,6 +118,9 @@ $script:Tweaks = @(
     ConvertTo-AkariTweak @{ Id = 'ch'; Name = 'Ch'; Description = 'D'; Section = 'Advanced'; Category = 'Tuning'; Kind = 'Choice'; Risk = 'Safe'
         Registry = @{ Path = $Key; Name = 'C'; Type = 'DWord' }; Recommended = 0x26; Default = 2; Editable = $true
         Choices = @(@{ Value = 0x26; Label = 'A' }, @{ Value = 0x28; Label = 'B' }) } 'x' $false
+    # Optimize > Advanced only: no row on the Tweaks step
+    ConvertTo-AkariTweak @{ Id = 'adv'; Name = 'Adv'; Description = 'D'; Section = 'Optimize'; Category = 'Gaming'; Risk = 'Safe'; Guided = $false
+        Registry = @{ Path = $Key; Name = 'H'; Type = 'DWord'; Value = 1; Default = $null } } 'x' $false
 ) + @($fx.Tweaks | Where-Object { $_.Group })
 foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps') { . "$Root\UI\$f.ps1" }
 function Get-AkariAppxInstalled { @('Akari.Test.One', 'Akari.Test.Two') }; function Start-AkariFeatureRead { }; function Add-Log($m) { }
@@ -131,11 +134,15 @@ $script:Mode = 'Guided'; $script:Step = 1
 [void](Get-AkariTweaksView)
 # a pick of the user's that the preset must replace
 $script:TweakRows['ch'].Control.SelectedIndex = 2; Set-AkariChoiceTarget 'ch' 0x28
-$p = @{ Name = 'P'; Entries = @(@{ Id = 'tog'; HasValue = $false }, @{ Id = 'opt'; Value = 'Default'; HasValue = $true }, @{ Id = 'good-group/*'; HasValue = $false }) }
+$p = @{ Name = 'P'; Entries = @(@{ Id = 'tog'; HasValue = $false }, @{ Id = 'opt'; Value = 'Default'; HasValue = $true }, @{ Id = 'good-group/*'; HasValue = $false }, @{ Id = 'adv'; HasValue = $false }) }
 Set-AkariQuickSelect $p
 "sel=$((Get-AkariPlanItems $script:Sel | ForEach-Object { "$($_.Id):$($_.Mode)" }) -join ' ')"
+"hidden=$((Get-AkariReviewItems $script:Sel | Where-Object { $_.Hidden } | ForEach-Object { $_.Id }) -join ',')"
 "togChecked=$($script:TweakRows['tog'].Control.IsChecked)"; "optChecked=$($script:TweakRows['opt'].Control.IsChecked)"; "chIndex=$($script:TweakRows['ch'].Control.SelectedIndex)"
 "appOne=$($script:AppRows['good-group/Akari.Test.One'].Control.IsChecked)"; "appTwo=$($script:AppRows['good-group/Akari.Test.Two'].Control.IsChecked)"
+# Clear selection drops the hidden change too
+Reset-AkariTweakRows
+"afterClear=$((Get-AkariPlanItems $script:Sel | ForEach-Object { $_.Id }) -join ' ')"
 '@
     $k = "HKCU:\Software\AkariTest\$([guid]::NewGuid())"
     $out = @{}
@@ -147,11 +154,53 @@ Set-AkariQuickSelect $p
 
     It 'runs without errors' { $out['error'] | Should BeNullOrEmpty }
     It 'replaces the Selection with the preset: Apply, Revert of an Optimized row, the wildcard''s non-keep apps' {
-        $out.sel | Should Be 'good-group/Akari.Test.One:Apply tog:Apply opt:Revert'
+        $out.sel | Should Be 'good-group/Akari.Test.One:Apply tog:Apply opt:Revert adv:Apply'
         $out.togChecked | Should Be 'True'
         $out.optChecked | Should Be 'False'
         $out.chIndex | Should Be '0'
         $out.appOne | Should Be 'True'
         $out.appTwo | Should Be 'False'
     }
+    It 'selects a Tweak Guided doesn''t show, marked for its own Review heading; Clear selection drops it' {
+        $out.hidden | Should Be 'adv'
+        $out.afterClear | Should Be 'good-group/Akari.Test.One'
+    }
+}
+
+Describe 'Export settings' {
+    $AkariPresetDir = "$TestDrive\presets"
+    $AkariStatePath = "$TestDrive\state.json"
+    foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'System', 'Presets') { . "$Core\$f.ps1" }
+    $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
+    $k = "HKCU:\Software\AkariTest\$([guid]::NewGuid())"
+    New-Item $k -Force | Out-Null
+    $T = { param($h) ConvertTo-AkariTweak $h 'x' $false }
+    $tw = @(
+        & $T @{ Id = 'on'; Name = 'On'; Section = 'Optimize'; Category = 'G'; Registry = @{ Path = $k; Name = 'On'; Type = 'DWord'; Value = 1; Default = $null } }
+        & $T @{ Id = 'off'; Name = 'Off'; Section = 'Optimize'; Category = 'G'; Registry = @{ Path = $k; Name = 'Off'; Type = 'DWord'; Value = 1; Default = $null } }
+        & $T @{ Id = 'rec'; Name = 'Rec'; Section = 'Advanced'; Category = 'T'; Kind = 'Choice'; Recommended = 38; Default = 2; Registry = @{ Path = $k; Name = 'Rec'; Type = 'DWord' }; Choices = @(@{ Value = 38 }, @{ Value = 40 }) }
+        & $T @{ Id = 'other'; Name = 'Other'; Section = 'Advanced'; Category = 'T'; Kind = 'Choice'; Recommended = 38; Default = 2; Registry = @{ Path = $k; Name = 'Other'; Type = 'DWord' }; Choices = @(@{ Value = 38 }, @{ Value = 40 }) }
+        & $T @{ Id = 'def'; Name = 'Def'; Section = 'Advanced'; Category = 'T'; Kind = 'Choice'; Recommended = 38; Default = 2; Registry = @{ Path = $k; Name = 'Def'; Type = 'DWord' }; Choices = @(@{ Value = 38 }, @{ Value = 40 }) }
+        & $T @{ Id = 'act'; Name = 'Act'; Section = 'Tools'; Category = 'C'; Kind = 'Action'; Apply = { } }
+        & $T @{ Id = 'one'; Name = 'One'; Section = 'OneClick'; Category = 'C'; Registry = @{ Path = $k; Name = 'One'; Type = 'DWord'; Value = 1; Default = $null } }
+    )
+    foreach ($n in @(@('On', 1), @('Rec', 38), @('Other', 40), @('Def', 2), @('One', 1))) { New-ItemProperty $k -Name $n[0] -Value $n[1] -PropertyType DWord | Out-Null }
+
+    try {
+        It 'turns what a PC has into plan items: Optimized Toggles, Choices off their Default (a value only when not Recommended)' {
+            $rows = @(@{ Tweak = $tw[0]; State = 'Optimized' }, @{ Tweak = $tw[1]; State = 'Custom' }, @{ Tweak = $tw[2]; Value = 38 },
+                @{ Tweak = $tw[3]; Value = 40 }, @{ Tweak = $tw[4]; Value = 2 }, @{ Tweak = $tw[3]; Value = 99 }, @{ Tweak = $tw[2]; Value = $null })
+            (@(ConvertTo-AkariExportItems $rows) | ForEach-Object { "$($_.Id)$(if ($_.ContainsKey('Value')) { "=$($_.Value)" })" }) -join ' ' | Should Be 'on rec other=40'
+        }
+        It 'writes this PC''s settings as a preset an import reads back, with an Exported block' {
+            $r = Export-AkariSettings $tw "$TestDrive\out\settings.json" '9.9.9'
+            $r.Count | Should Be 3
+            $p = Read-AkariPreset $r.Path
+            ($p.Entries | ForEach-Object { "$($_.Id)$(if ($_.HasValue) { "=$($_.Value)" })" }) -join ' ' | Should Be 'on rec other=40'
+            $j = Get-Content $r.Path -Raw | ConvertFrom-Json
+            $j.Exported.AkariVersion | Should Be '9.9.9'
+            $j.Exported.Computer | Should Be $env:COMPUTERNAME
+            $j.Name | Should Be "Exported from $env:COMPUTERNAME"
+        }
+    } finally { Remove-Item $k -Recurse -Force -ErrorAction SilentlyContinue }
 }

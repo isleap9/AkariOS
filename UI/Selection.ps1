@@ -45,8 +45,10 @@ function Set-AkariPending($Sel, $Tweak, [string]$State, $Target, $Current = $nul
     $Sel[$id] = $item
 }
 
+# Hidden: a change to a Tweak the Guided steps don't show (Guided = $false), from a preset or an imported file;
+# Review lists those under their own heading
 function Get-AkariReviewItems($Sel) {
-    foreach ($i in $Sel.Values) { [pscustomobject]@{ Id = $i.Id; Name = $i.Name; From = $i.From; To = $i.To } }
+    foreach ($i in $Sel.Values) { [pscustomobject]@{ Id = $i.Id; Name = $i.Name; From = $i.From; To = $i.To; Hidden = [bool]$i.Hidden } }
 }
 
 # the Review note about changes that restart the PC (Test-AkariRestarts, Core\Runner.ps1: they run last), or $null.
