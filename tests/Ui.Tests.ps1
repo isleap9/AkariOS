@@ -50,6 +50,44 @@ Describe 'UI files' {
     }
 }
 
+Describe 'Themes (UI\Theme.Dark.xaml, UI\Theme.Light.xaml)' {
+    $keys = { param($f) ([xml](Get-Content $f -Raw)).ResourceDictionary.SolidColorBrush | ForEach-Object { $_.Key } }
+    $dark = @(& $keys "$Root\UI\Theme.Dark.xaml" | Sort-Object)
+    $light = @(& $keys "$Root\UI\Theme.Light.xaml" | Sort-Object)
+
+    It 'both parse as WPF resource dictionaries' {
+        $s = "Add-Type -AssemblyName PresentationFramework; foreach (`$n in 'Dark', 'Light') { [void][Windows.Markup.XamlReader]::Parse((Get-Content ('$Root\UI\Theme.' + `$n + '.xaml') -Raw)) }; 'ok'"
+        Test-XamlInChild $s | Should Be 'ok'
+    }
+
+    It 'hold the same brush keys' {
+        $dark.Count | Should BeGreaterThan 20
+        ($dark -join ',') | Should Be ($light -join ',')
+    }
+
+    # every brush a XAML file or a SetResourceReference / FindResource names, minus the styles and fonts the UI defines
+    It 'define every brush the UI uses' {
+        $xaml = Get-ChildItem "$Root\UI\*.xaml" | Where-Object { $_.Name -notlike 'Theme.*' }
+        $defined = foreach ($f in $xaml) { ([regex]::Matches((Get-Content $f.FullName -Raw), 'x:Key="([^"{]+)"')) | ForEach-Object { $_.Groups[1].Value } }
+        $used = @(
+            foreach ($f in $xaml) { [regex]::Matches((Get-Content $f.FullName -Raw), '\{(?:Dynamic|Static)Resource ([A-Za-z0-9]+)\}') | ForEach-Object { $_.Groups[1].Value } }
+            foreach ($f in Get-ChildItem "$Root\UI\*.ps1") { [regex]::Matches((Get-Content $f.FullName -Raw), "(?:SetResourceReference\([^,]+,\s*|FindResource\()'([A-Za-z0-9]+)'") | ForEach-Object { $_.Groups[1].Value } }
+        ) | Sort-Object -Unique
+        $miss = @($used | Where-Object { $_ -notin $defined -and $_ -notin $dark })
+        ($miss -join ', ') | Should Be ''
+    }
+
+    It 'leave no colour literals in the window, controls or dialog XAML' {
+        $hits = Select-String -Path "$Root\UI\MainWindow.xaml", "$Root\UI\Controls.xaml", "$Root\UI\Dialog.xaml" -Pattern '#[0-9A-Fa-f]{6,8}\b'
+        @($hits | ForEach-Object { "$($_.Filename):$($_.LineNumber)" }) -join ', ' | Should Be ''
+    }
+
+    It 'have no Inv / InvT left (renamed Acc / AccT)' {
+        $hits = Select-String -Path "$Root\UI\*.xaml", "$Root\UI\*.ps1" -Pattern "Resource Inv(T)?\}|'Inv(T)?'"
+        @($hits).Count | Should Be 0
+    }
+}
+
 Describe 'Get-AkariMasonry' {
     . "$Root\UI\Cards.ps1"
     It 'puts each card in the shortest column, leftmost on ties' {
@@ -221,6 +259,15 @@ Click $StepBack; "usbFileBack=$script:Cat"
 "title=$($window.FindName('TitleText').Text)"
 "menu=$(($MainMenu.Items | ForEach-Object { if ($_ -is [Windows.Controls.Separator]) { '-' } elseif ($_.IsEnabled) { $_.Header } else { "($($_.Header))" } }) -join ',')"
 $MainMenu.Items[$MainMenu.Items.Count - 1].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent)); "menuAbout=$script:Cat"
+# themes: the menu row cycles Follow Windows -> Dark -> Light, swaps the one theme dictionary and saves the choice
+"themeStart=$script:ThemeSetting,$(@($window.Resources.MergedDictionaries | Where-Object { $_.Contains('Acc') }).Count)"
+$tm = $MainMenu.Items | Where-Object { $_ -is [Windows.Controls.MenuItem] -and "$($_.Header)" -like 'Theme:*' }
+$tm.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent))
+$tm.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent))
+"themeLight=$($tm.Header)|$($window.FindResource('Bg').Color)|$(@($window.Resources.MergedDictionaries | Where-Object { $_.Contains('Acc') }).Count)|$(Get-AkariThemeSetting)|$($Body.Background.Color)"
+Set-AkariTheme 'Dark'; "themeDark=$($window.FindResource('Bg').Color)|$(Get-AkariThemeSetting)"
+Set-AkariTheme 'Nonsense'; "themeBad=$script:ThemeSetting"
+Set-AkariTheme 'Dark' -Save
 Click $StepBack
 # Import settings (the menu item): a settings file, picked through the stubbed file dialog, opens Guided on its Tweaks step
 $importFile = Join-Path (Split-Path $LogFile) 'import.json'
@@ -392,12 +439,18 @@ Select-AkariPage 'Optimize'; Click $StepBody.Children[0].Children[1]
     }
     It 'the title bar says AkariOS' { $out.title | Should Be 'AkariOS' }
     It 'the options menu: Import / Export settings, System Restore, the About links, Logs, About' {
-        $out.menu | Should Be 'Import settings,Export settings,System Restore,-,GitHub,Report a bug,Discord,Logs,About'
+        $out.menu | Should Be 'Import settings,Export settings,System Restore,Theme: Follow Windows,-,GitHub,Report a bug,Discord,Logs,About'
         $out.menuAbout | Should Be 'About'
     }
     It 'Import settings opens the file in Guided on the Tweaks step, and keeps a copy in the presets' {
         $out.import | Should Be 'Install AkariOS|Guided|1|cat-tog|True'
     }
+    It 'starts on Follow Windows with one theme dictionary' { $out.themeStart | Should Be 'System,1' }
+    It 'the Theme menu row cycles to Light: swaps the dictionary, repaints the body and saves the choice' {
+        $out.themeLight | Should Be 'Theme: Light|#FFF8F3F1|1|Light|#FFF8F3F1'
+    }
+    It 'Set-AkariTheme Dark loads the dark brushes without saving' { $out.themeDark | Should Be '#FF0D0A0B|Light' }
+    It 'an unknown theme falls back to Follow Windows' { $out.themeBad | Should Be 'System' }
     It 'the status bar shows the version' { $out.appVersion | Should Match '^AkariOS \d+\.\d+\.\d+$' }
     It 'a launch check that finds an update asks on Home and shows the Home bar' {
         $out.launch | Should Match '^True,Visible,AkariOS 9\.0\.0 is available'

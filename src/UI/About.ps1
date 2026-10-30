@@ -160,7 +160,7 @@ function New-AkariMenuItem([string]$Header, [string]$Glyph, [scriptblock]$Click)
     $it
 }
 
-# the title bar's options menu (after Win11Debloat's): settings files (M5), System Restore, then the About links,
+# the title bar's options menu (after Win11Debloat's): settings files (M5), System Restore, the theme, then the About links,
 # the log folder and About
 # (links with no Url are left out, as on About)
 $MainMenu = [Windows.Controls.ContextMenu]::new()
@@ -171,6 +171,14 @@ $items = [Collections.Generic.List[object]]::new()
 $items.Add((New-AkariMenuItem 'Import settings' 'E8B5' { Start-AkariImport }))
 $items.Add((New-AkariMenuItem 'Export settings' 'EDE1' { Start-AkariExport }))
 $items.Add((New-AkariMenuItem 'System Restore' 'E81C' { Start-Process "$env:SystemRoot\System32\rstrui.exe" }))
+# Theme: Follow Windows -> Dark -> Light -> ..., applied at once and kept in settings.json (Set-AkariTheme, UI\Shell.ps1)
+$AkariThemeLabels = @{ System = 'Theme: Follow Windows'; Dark = 'Theme: Dark'; Light = 'Theme: Light' }
+$items.Add((New-AkariMenuItem $AkariThemeLabels[$script:ThemeSetting] 'E790' {
+    param($s, $e)
+    $next = $AkariThemes[([array]::IndexOf($AkariThemes, $script:ThemeSetting) + 1) % $AkariThemes.Count]
+    Set-AkariTheme $next -Save
+    $s.Header = $AkariThemeLabels[$next]
+}))
 $items.Add([Windows.Controls.Separator]::new())
 $glyphs = @{ 'GitHub' = 'E774'; 'Report a bug' = 'EBE8'; 'Discord' = 'E8BD' }
 foreach ($l in @($script:AboutData.Links | Where-Object { $_.Url })) {

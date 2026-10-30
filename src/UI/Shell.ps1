@@ -1,4 +1,4 @@
-﻿# Shell: window chrome, Mica, caption buttons, sidebar, search, page switching, status bar,
+﻿# Shell: window chrome, theme (Set-AkariTheme), Mica, caption buttons, sidebar, search, page switching, status bar,
 # the background job and the timer that drains the log queue. Dot-sourced by Akari.ps1 after UI\Steps.ps1.
 
 # ---- window
@@ -10,6 +10,61 @@ foreach ($n in 'Nav', 'Search', 'Heading', 'Rows', 'Page', 'Logo', 'HomePanel',
                'CapMin', 'CapMax', 'CapMaxGlyph', 'CapClose', 'StepsPanel', 'StepDots', 'StepBody', 'StepFooter', 'StepBack', 'StepNext',
                'UpdateBar', 'UpdateText', 'UpdateOpen', 'AppVersion', 'AppVersionText', 'MenuBtn', 'CatBars', 'NavScroll') { Set-Variable $n $window.FindName($n) }
 $AppVersionText.Text = "AkariOS $AkariVersion"
+
+# ---- theme: UI\Theme.Dark.xaml or UI\Theme.Light.xaml, merged first into the window's resources (every brush is a
+# DynamicResource, so swapping the dictionary repaints the window). The choice (System, Dark, Light) is settings.json's
+# Theme, next to akari.log; System follows Windows' app mode and changes with it.
+if (-not $AkariSettingsPath) { $AkariSettingsPath = Join-Path (Split-Path $AkariLogFile) 'settings.json' }
+$AkariThemes = @('System', 'Dark', 'Light')
+$script:ThemeDict = $null; $script:ThemeSetting = 'System'; $script:Theme = 'Dark'; $script:Mica = $false
+
+function Read-AkariSettings {
+    $s = @{}
+    try { (Get-Content $AkariSettingsPath -Raw -ErrorAction Stop | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $s[$_.Name] = $_.Value } } catch { }
+    $s
+}
+
+function Get-AkariThemeSetting {
+    $t = [string](Read-AkariSettings).Theme
+    if ($t -in $AkariThemes) { $t } else { 'System' }
+}
+
+function Save-AkariThemeSetting([string]$Theme) {
+    $s = Read-AkariSettings
+    $s.Theme = $Theme
+    try { New-Item (Split-Path $AkariSettingsPath) -ItemType Directory -Force | Out-Null; ($s | ConvertTo-Json) | Set-Content $AkariSettingsPath }
+    catch { Write-ErrLog "Could not save the theme: $_" }
+}
+
+# System -> Dark or Light from AppsUseLightTheme (1 = light); Dark when it can't be read
+function Resolve-AkariTheme([string]$Theme) {
+    if ($Theme -ne 'System') { return $Theme }
+    try { $v = Get-ItemPropertyValue 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' 'AppsUseLightTheme' -ErrorAction Stop }
+    catch { return 'Dark' }
+    if ($v -eq 1) { 'Light' } else { 'Dark' }
+}
+
+# the body and the frame follow the theme: Mica (Windows 11) shows through Tint in dark only; light and Windows 10
+# use the solid Bg. Attribute 20 (immersive dark mode) darkens the frame and Mica; no handle yet = before the window opens.
+function Update-AkariFrame {
+    $Body.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, $(if ($script:Mica -and $script:Theme -eq 'Dark') { 'Tint' } else { 'Bg' }))
+    $h = [Windows.Interop.WindowInteropHelper]::new($window).Handle
+    if ($h -ne [IntPtr]::Zero) { $v = [int]($script:Theme -eq 'Dark'); [void][Akari.Dwm]::DwmSetWindowAttribute($h, 20, [ref]$v, 4) }
+}
+
+# $Theme: System, Dark or Light; -Save keeps it in settings.json
+function Set-AkariTheme([string]$Theme = 'System', [switch]$Save) {
+    if ($Theme -notin $AkariThemes) { $Theme = 'System' }
+    $name = Resolve-AkariTheme $Theme
+    $d = [Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Theme.$name.xaml" -Raw))
+    $md = $window.Resources.MergedDictionaries
+    if ($script:ThemeDict) { [void]$md.Remove($script:ThemeDict) }
+    $md.Insert(0, $d)
+    $script:ThemeDict = $d; $script:ThemeSetting = $Theme; $script:Theme = $name
+    Update-AkariFrame
+    if ($Save) { Save-AkariThemeSetting $Theme }
+}
+Set-AkariTheme (Get-AkariThemeSetting)
 Initialize-AkariSteps
 
 # every page: icon glyph (Segoe Fluent Icons) and the subtitle under the page title. Home, Install AkariOS,
@@ -49,9 +104,6 @@ $window.Add_SourceInitialized({
     $h = [Windows.Interop.WindowInteropHelper]::new($window).Handle
     # no system menu: windows stops drawing its own caption buttons under ours
     [void][Akari.Dwm]::SetWindowLong($h, -16, ([Akari.Dwm]::GetWindowLong($h, -16) -band (-bnot 0x80000)))
-    # dark frame (also makes Mica dark)
-    $v = 1
-    [void][Akari.Dwm]::DwmSetWindowAttribute($h, 20, [ref]$v, 4)
     # mica behind the whole window on windows 11; windows 10 keeps the solid black body
     $build = [Environment]::OSVersion.Version.Build
     if ($build -ge 22000) {
@@ -65,8 +117,19 @@ $window.Add_SourceInitialized({
             $v = 1
             $r = [Akari.Dwm]::DwmSetWindowAttribute($h, 1029, [ref]$v, 4)
         }
-        if ($r -eq 0) { $Body.Background = $window.FindResource('Tint') }
+        if ($r -eq 0) { $script:Mica = $true }
     }
+    # the frame (dark or light) and the body over Mica, for the current theme
+    Update-AkariFrame
+    # Theme = System: follow Windows when its app mode changes (WM_SETTINGCHANGE "ImmersiveColorSet")
+    try {
+        [Windows.Interop.HwndSource]::FromHwnd($h).AddHook([Windows.Interop.HwndSourceHook] {
+            param($hwnd, $msg, $wParam, $lParam, [ref]$handled)
+            if ($msg -eq 0x1A -and $script:ThemeSetting -eq 'System' -and $lParam -ne [IntPtr]::Zero -and
+                [Runtime.InteropServices.Marshal]::PtrToStringUni($lParam) -eq 'ImmersiveColorSet') { Set-AkariTheme 'System' }
+            [IntPtr]::Zero
+        })
+    } catch { Write-ErrLog "Theme hook: $_" }
 })
 # maximized, windows pushes the frame past the screen edge: pad it back in
 $window.Add_StateChanged({
@@ -157,7 +220,7 @@ function Show-Page {
     if (-not $list.Count -and -not $onHome) {
         $msg = [Windows.Controls.TextBlock]::new()
         $msg.Text = if ($q) { 'No scripts match.' } else { 'Nothing here yet.' }
-        $msg.Foreground = $window.FindResource('Mu')
+        $msg.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, 'Mu')
         [void]$Rows.Children.Add($msg)
     }
 }

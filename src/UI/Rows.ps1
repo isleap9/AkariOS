@@ -67,7 +67,8 @@ function Update-Row($t) {
     $s = Get-AkariState $t
     $dot = $row.FindName('Dot')
     # filled = Optimized, empty = Default, dimmed = Custom or Unknown
-    $dot.Fill = if ($s -eq 'Optimized') { $window.FindResource('Inv') } else { [Windows.Media.Brushes]::Transparent }
+    # a resource reference, so the dot follows a theme switch
+    if ($s -eq 'Optimized') { $dot.SetResourceReference([Windows.Shapes.Shape]::FillProperty, 'Acc') } else { $dot.Fill = [Windows.Media.Brushes]::Transparent }
     $dot.Opacity = if ($s -in 'Optimized', 'Default') { 1 } else { 0.35 }
     $row.FindName('Opt').Style = $window.FindResource($(if ($s -eq 'Optimized') { 'BtnP' } else { 'Btn' }))
     $row.FindName('Def').Style = $window.FindResource('Btn')
