@@ -178,17 +178,37 @@ function Import-AkariTweakFile([string]$Path, [string]$TweaksRoot) {
 # one owner per registry value (M3 plan): the id of a loaded Tweak that already has one of $Tweak's rows (the same
 # value, or anything inside a key another Tweak deletes or creates, or a key around another Tweak's values), else
 # $null. $Owners: the rows loaded so far, @{ Id; Path; Name } (Name $null = a key row). Paths compare without case.
-function Find-AkariRegistryOwner($Tweak, $Owners) {
-    $norm = { param($p) (([string]$p) -replace '^HKEY_CURRENT_USER\\', 'HKCU:\' -replace '^HKEY_LOCAL_MACHINE\\', 'HKLM:\').TrimEnd('\').ToLower() }
+# One owner per registry value. A row clashes with an earlier Tweak's row when both set the same value, when it is
+# inside an earlier key row, or when it is a key row with an earlier row inside it. The rows loaded so far are kept
+# indexed (comparing every pair took ~18 s for the real tree): New-AkariOwnerIndex, Add-AkariRegistryOwner; then
+# Find-AkariRegistryOwner <tweak> <index> -> the first owner's id, or $null.
+function ConvertTo-AkariOwnerPath([string]$Path) { ($Path -replace '^HKEY_CURRENT_USER\\', 'HKCU:\' -replace '^HKEY_LOCAL_MACHINE\\', 'HKLM:\').TrimEnd('\').ToLower() }
+
+# ValueRows = 'path|name' of value rows, KeyRows = paths of key rows, Under = every row's path and each key above it;
+# each -> id
+function New-AkariOwnerIndex { @{ ValueRows = @{}; KeyRows = @{}; Under = @{} } }
+
+# a path, then each key above it, up to the hive
+function Get-AkariOwnerParents([string]$Path) {
+    $q = $Path
+    while ($true) { $q; $i = $q.LastIndexOf('\'); if ($i -lt 0) { break }; $q = $q.Substring(0, $i) }
+}
+
+function Add-AkariRegistryOwner($Index, $Tweak) {
     foreach ($e in $Tweak.Registry) {
-        $p = & $norm $e.Path
-        $key = -not $e.ContainsKey('Name')
-        foreach ($o in $Owners) {
-            $op = & $norm $o.Path
-            $same = (-not $key -and $null -ne $o.Name -and $p -eq $op -and "$($e.Name)" -eq "$($o.Name)")
-            $inside = ($null -eq $o.Name -and ($p -eq $op -or $p.StartsWith("$op\"))) -or ($key -and ($op -eq $p -or $op.StartsWith("$p\")))
-            if ($same -or $inside) { return $o.Id }
-        }
+        $p = ConvertTo-AkariOwnerPath $e.Path
+        $map, $k = if ($e.ContainsKey('Name')) { $Index.ValueRows, "$p|$($e.Name)" } else { $Index.KeyRows, $p }
+        if (-not $map.ContainsKey($k)) { $map[$k] = $Tweak.Id }
+        foreach ($q in Get-AkariOwnerParents $p) { if (-not $Index.Under.ContainsKey($q)) { $Index.Under[$q] = $Tweak.Id } }
+    }
+}
+
+function Find-AkariRegistryOwner($Tweak, $Index) {
+    foreach ($e in $Tweak.Registry) {
+        $p = ConvertTo-AkariOwnerPath $e.Path
+        $o = if ($e.ContainsKey('Name')) { $Index.ValueRows["$p|$($e.Name)"] } else { $Index.Under[$p] }
+        if ($o) { return $o }
+        foreach ($q in Get-AkariOwnerParents $p) { if ($Index.KeyRows[$q]) { return $Index.KeyRows[$q] } }
     }
     $null
 }
@@ -202,7 +222,7 @@ function Get-AkariTweaks([string]$TweaksRoot) {
     $files = Get-ChildItem $TweaksRoot -Directory | ForEach-Object { Get-ChildItem $_.FullName -Directory } |
         ForEach-Object { Get-ChildItem $_.FullName -Filter *.ps1 -File } | Sort-Object FullName
     $seen = @{}
-    $owners = [System.Collections.Generic.List[object]]::new()
+    $owners = New-AkariOwnerIndex
     foreach ($f in $files) {
         try { $t = Import-AkariTweakFile $f.FullName $TweaksRoot }
         catch { $problems.Add([pscustomobject]@{ File = $f.FullName; Level = 'Error'; Message = $_.Exception.Message }); continue }
@@ -237,7 +257,7 @@ function Get-AkariTweaks([string]$TweaksRoot) {
                 $seen.Remove($t.Id)
                 continue
             }
-            foreach ($e in $t.Registry) { $owners.Add(@{ Id = $t.Id; Path = $e.Path; Name = $(if ($e.ContainsKey('Name')) { [string]$e.Name } else { $null }) }) }
+            Add-AkariRegistryOwner $owners $t
         }
         $tweaks.Add($t)
     }

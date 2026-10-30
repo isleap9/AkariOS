@@ -131,6 +131,31 @@ Describe 'Get-AkariTweaks' {
     }
 }
 
+Describe 'Find-AkariRegistryOwner' {
+    . "$Core\Loader.ps1"
+    $ix = New-AkariOwnerIndex
+    Add-AkariRegistryOwner $ix @{ Id = 'val'; Registry = @(@{ Path = 'HKCU:\Software\A'; Name = 'V'; Value = 1 }) }
+    Add-AkariRegistryOwner $ix @{ Id = 'key'; Registry = @(@{ Path = 'HKEY_LOCAL_MACHINE\SOFTWARE\K\'; Value = 'Key'; Default = $null }) }
+    $find = { param([hashtable]$Row) Find-AkariRegistryOwner @{ Id = 'new'; Registry = @($Row) } $ix }
+
+    It 'finds the same value (any case, long or short hive name)' {
+        & $find @{ Path = 'HKEY_CURRENT_USER\software\a'; Name = 'v' } | Should Be 'val'
+    }
+    It 'finds a value or key inside an earlier key row' {
+        & $find @{ Path = 'HKLM:\SOFTWARE\K'; Name = 'X' } | Should Be 'key'
+        & $find @{ Path = 'HKLM:\SOFTWARE\K\Sub'; Value = 'Key'; Default = $null } | Should Be 'key'
+    }
+    It 'finds a key row holding an earlier value' {
+        & $find @{ Path = 'HKCU:\Software'; Value = $null; Default = 'Key' } | Should Be 'val'
+    }
+    It 'lets other values and neighbouring keys through' {
+        & $find @{ Path = 'HKCU:\Software\A'; Name = 'Other' } | Should BeNullOrEmpty
+        & $find @{ Path = 'HKCU:\Software\AB'; Value = 'Key'; Default = $null } | Should BeNullOrEmpty
+        & $find @{ Path = 'HKLM:\SOFTWARE\KK'; Name = 'X' } | Should BeNullOrEmpty
+        & $find @{ Path = 'HKLM:\SOFTWARE'; Name = 'K' } | Should BeNullOrEmpty
+    }
+}
+
 Describe 'The real Tweaks tree' {
     . "$Core\Loader.ps1"; . "$Core\Legacy.ps1"
     $root = Join-Path (Join-Path (Split-Path $PSScriptRoot) 'src') 'Tweaks'

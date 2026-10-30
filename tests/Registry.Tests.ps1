@@ -129,7 +129,54 @@ Describe 'Set-Reg and Get-AkariRegValue' {
             Get-AkariRegValue $k 'Nope' | Should BeNullOrEmpty
             Get-AkariRegValue "$k\NoKey" 'A' | Should BeNullOrEmpty
         }
+
+        It 'reads an ExpandString expanded, a MultiString item by item and Binary as bytes' {
+            Set-Reg $k 'Exp' '%SystemRoot%\x' 'ExpandString'
+            Get-AkariRegValue $k 'Exp' | Should Be "$env:SystemRoot\x"
+            Set-Reg $k 'Multi' ([string[]]('a', 'b')) 'MultiString'
+            (@(Get-AkariRegValue $k 'Multi') -join ',') | Should Be 'a,b'
+            Set-Reg $k 'Bin' ([byte[]](1, 2, 255)) 'Binary'
+            (@(Get-AkariRegValue $k 'Bin') -join ',') | Should Be '1,2,255'
+        }
+
+        It 'tells an existing key from a missing one' {
+            Get-AkariRegKey $k | Should Be 'Key'
+            Get-AkariRegKey "$k\NoKey" | Should BeNullOrEmpty
+            Get-AkariRegKey 'HKLM:\SOFTWARE' | Should Be 'Key'
+        }
+
+        # the provider takes ~0.4 s per read under HKLM:\SOFTWARE\Classes: HKLM and HKCU reads go through .NET
+        It 'reads HKLM and HKCU without the registry provider' {
+            Mock Get-ItemProperty { throw 'provider' }
+            Mock Test-Path { throw 'provider' }
+            Get-AkariRegValue $k 'A' | Should Be 1
+            Get-AkariRegValue 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' 'CurrentBuild' | Should Not BeNullOrEmpty
+            Get-AkariRegValue 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Classes\NoSuchAkariKey' 'x' | Should BeNullOrEmpty
+            Get-AkariRegKey 'HKLM:\SOFTWARE\Classes\*' | Should Be 'Key'
+            Assert-MockCalled Get-ItemProperty -Times 0 -Exactly
+            Assert-MockCalled Test-Path -Times 0 -Exactly
+        }
     } finally { Remove-Item $k -Recurse -Force -ErrorAction SilentlyContinue }
+}
+
+Describe 'Split-AkariRegPath' {
+    . "$Core\Registry.ps1"
+    $s = { param($p) $r = Split-AkariRegPath $p; if ($r) { "$($r.Hive)|$($r.Sub)" } else { 'none' } }
+
+    It 'splits provider paths into a hive and a subkey' {
+        & $s 'HKLM:\SOFTWARE\Classes\*\shell' | Should Be 'LocalMachine|SOFTWARE\Classes\*\shell'
+        & $s 'Registry::HKEY_USERS\S-1-5-21\Software\X\' | Should Be 'Users|S-1-5-21\Software\X'
+        & $s 'Registry::HKLM\SYSTEM' | Should Be 'LocalMachine|SYSTEM'
+        & $s 'Registry::HKEY_CLASSES_ROOT' | Should Be 'ClassesRoot|'
+        & $s 'hklm:\software' | Should Be 'LocalMachine|software'
+    }
+
+    It 'leaves other forms to the provider' {
+        & $s 'HKLM\SOFTWARE' | Should Be 'none'
+        & $s 'HKCU:\Software' | Should Be 'none'
+        & $s 'Registry::HKEY_NOPE\X' | Should Be 'none'
+        & $s 'C:\Windows' | Should Be 'none'
+    }
 }
 
 Describe 'Registry entries: State, Apply, Revert' {

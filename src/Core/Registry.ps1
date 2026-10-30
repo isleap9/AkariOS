@@ -44,10 +44,44 @@ function Get-AkariUserFolder([string]$Name) {
 # Paths are literal everywhere (-LiteralPath): a key named '*' (HKEY_CLASSES_ROOT\* = all files) must never act as a
 # wildcard. A key's unnamed value is Name '(default)'.
 
+# Reads go through .NET's registry API: the PowerShell provider takes ~0.4 s per read under HKLM:\SOFTWARE\Classes
+# (the context menu Tweaks), .NET ~1 ms. Same results: ExpandStrings come back expanded, a missing key or value is
+# $null. Any other path form, or a key .NET can't open, is read through the provider as before.
+
+# a provider path (HKLM:\..., Registry::<hive>\...) -> @{ Hive (a RegistryHive name); Sub (the subkey, '' = the hive) },
+# or $null for any other form. Pure.
+function Split-AkariRegPath([string]$Path) {
+    $hives = @{
+        HKLM = 'LocalMachine'; HKEY_LOCAL_MACHINE = 'LocalMachine'; HKCU = 'CurrentUser'; HKEY_CURRENT_USER = 'CurrentUser'
+        HKU = 'Users'; HKEY_USERS = 'Users'; HKCR = 'ClassesRoot'; HKEY_CLASSES_ROOT = 'ClassesRoot'
+        HKCC = 'CurrentConfig'; HKEY_CURRENT_CONFIG = 'CurrentConfig'
+    }
+    if ($Path -match '^(?:Registry::(?<h>[A-Z_]+)|(?<h>HKLM):)(?:\\+(?<s>.*?))?\\*$' -and $hives.ContainsKey($Matches.h)) {
+        @{ Hive = $hives[$Matches.h]; Sub = [string]$Matches.s }
+    }
+}
+
+# runs $Read with the opened key (read only; $null when it is missing) -> its result; throws when .NET can't open it
+function Use-AkariRegKey($Parts, [scriptblock]$Read) {
+    $base = [Microsoft.Win32.RegistryKey]::OpenBaseKey($Parts.Hive, [Microsoft.Win32.RegistryView]::Default)
+    try {
+        $k = if ($Parts.Sub) { $base.OpenSubKey($Parts.Sub) } else { $base }
+        try { , (& $Read $k) } finally { if ($k -and $k -ne $base) { $k.Dispose() } }
+    } finally { $base.Dispose() }
+}
+
 # $null when the key or value is absent; DWords come back unsigned
 function Get-AkariRegValue([string]$Path, [string]$Name) {
     $p = Resolve-AkariRegPath $Path
-    $v = (Get-ItemProperty -LiteralPath $p -Name $Name -ErrorAction SilentlyContinue).$Name
+    $parts = Split-AkariRegPath $p
+    $read = $false
+    if ($parts) {
+        try {
+            $v = Use-AkariRegKey $parts { param($k) if ($k) { , $k.GetValue($(if ($Name -eq '(default)') { '' } else { $Name })) } }
+            $read = $true
+        } catch { }
+    }
+    if (-not $read) { $v = (Get-ItemProperty -LiteralPath $p -Name $Name -ErrorAction SilentlyContinue).$Name }
     if ($v -is [int] -and $v -lt 0) { return [BitConverter]::ToUInt32([BitConverter]::GetBytes($v), 0) }
     $v
 }
@@ -101,7 +135,14 @@ function Test-AkariRegMatch($Current, $Expected) {
 function Test-AkariKeyRow([hashtable]$Entry) { -not $Entry.ContainsKey('Name') }
 
 # 'Key' when the key exists, else $null
-function Get-AkariRegKey([string]$Path) { if (Test-Path -LiteralPath (Resolve-AkariRegPath $Path)) { 'Key' } else { $null } }
+function Get-AkariRegKey([string]$Path) {
+    $p = Resolve-AkariRegPath $Path
+    $parts = Split-AkariRegPath $p
+    if ($parts) {
+        try { return $(if (Use-AkariRegKey $parts { param($k) $null -ne $k }) { 'Key' } else { $null }) } catch { }
+    }
+    if (Test-Path -LiteralPath $p) { 'Key' } else { $null }
+}
 
 # Registry entries are @{ Path; Name; Type; Value; Default } (Default $null = delete on Revert), or key rows
 # @{ Path; Value; Default } (see Test-AkariKeyRow). Binary values: Type 'Binary', Value a [byte[]].

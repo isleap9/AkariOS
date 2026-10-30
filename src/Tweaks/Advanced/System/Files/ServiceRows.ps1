@@ -13,7 +13,7 @@ function Get-ServiceRows([string]$Pick) {
             default { $s.Default }
         }
         $row = @{ Path = "HKLM:\SYSTEM\CurrentControlSet\Services\$($s.Name)"; Name = 'Start'; Type = 'DWord'; Value = $v; Default = $s.Default }
-        if (Test-Path -LiteralPath (Resolve-AkariRegPath $row.Path)) { $row }
+        if (Get-AkariRegKey $row.Path) { $row }
     }
 }
 
