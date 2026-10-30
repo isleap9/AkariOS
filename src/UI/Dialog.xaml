@@ -23,7 +23,11 @@
           <ColumnDefinition Width="Auto"/>
           <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
-        <TextBlock x:Name="DlgIcon" FontFamily="{DynamicResource Icons}" FontSize="22" Margin="0,0,14,0" VerticalAlignment="Top"/>
+        <Viewbox x:Name="DlgIcon" Width="24" Height="24" Margin="0,0,14,0" VerticalAlignment="Top">
+          <Canvas Width="24" Height="24">
+            <Path x:Name="DlgIconPath" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+          </Canvas>
+        </Viewbox>
         <StackPanel Grid.Column="1">
           <ScrollViewer MaxHeight="360" VerticalScrollBarVisibility="Auto">
             <TextBlock x:Name="DlgText" TextWrapping="Wrap" LineHeight="21"/>

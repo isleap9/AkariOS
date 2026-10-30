@@ -145,15 +145,12 @@ function New-AkariAboutButton([string]$Text, [string]$Url) {
 
 function Open-AkariLogFolder { $f = Split-Path $AkariLogFile; if (Test-Path $f) { Start-Process explorer.exe $f } }
 
-# a title bar menu row: a Segoe Fluent glyph (hex) and a label; no $Click = greyed out, "coming in a later version"
-function New-AkariMenuItem([string]$Header, [string]$Glyph, [scriptblock]$Click) {
+# a title bar menu row: a Lucide icon (in the row's text colour) and a label; no $Click = greyed out, "coming in a
+# later version"
+function New-AkariMenuItem([string]$Header, [string]$Icon, [scriptblock]$Click) {
     $it = [Windows.Controls.MenuItem]::new()
     $it.Header = $Header
-    $ic = [Windows.Controls.TextBlock]::new()
-    $ic.Text = [string][char][Convert]::ToInt32($Glyph, 16)
-    $ic.SetResourceReference([Windows.Controls.TextBlock]::FontFamilyProperty, 'Icons')
-    $ic.FontSize = 14
-    $it.Icon = $ic
+    $it.Icon = New-AkariIcon $Icon 16 'Inherit'
     if ($Click) { $it.Add_Click($Click) }
     else {
         $it.IsEnabled = $false
@@ -171,27 +168,27 @@ $MainMenu = [Windows.Controls.ContextMenu]::new()
 $MainMenu.Width = 244
 $MenuBtn.ContextMenu = $MainMenu
 $items = [Collections.Generic.List[object]]::new()
-$items.Add((New-AkariMenuItem 'Import settings' 'E8B5' { Start-AkariImport }))
-$items.Add((New-AkariMenuItem 'Export settings' 'EDE1' { Start-AkariExport }))
-$items.Add((New-AkariMenuItem 'System Restore' 'E81C' { Start-Process "$env:SystemRoot\System32\rstrui.exe" }))
+$items.Add((New-AkariMenuItem 'Import settings' 'file-input' { Start-AkariImport }))
+$items.Add((New-AkariMenuItem 'Export settings' 'file-output' { Start-AkariExport }))
+$items.Add((New-AkariMenuItem 'System Restore' 'history' { Start-Process "$env:SystemRoot\System32\rstrui.exe" }))
 # Theme: Follow Windows -> Dark -> Light -> ..., applied at once and kept in settings.json (Set-AkariTheme, UI\Shell.ps1)
 $AkariThemeLabels = @{ System = 'Theme: Follow Windows'; Dark = 'Theme: Dark'; Light = 'Theme: Light' }
-$items.Add((New-AkariMenuItem $AkariThemeLabels[$script:ThemeSetting] 'E790' {
+$items.Add((New-AkariMenuItem $AkariThemeLabels[$script:ThemeSetting] 'sun-moon' {
     param($s, $e)
     $next = $AkariThemes[([array]::IndexOf($AkariThemes, $script:ThemeSetting) + 1) % $AkariThemes.Count]
     Set-AkariTheme $next -Save
     $s.Header = $AkariThemeLabels[$next]
 }))
 $items.Add([Windows.Controls.Separator]::new())
-$glyphs = @{ 'GitHub' = 'E774'; 'Report a bug' = 'EBE8'; 'Discord' = 'E8BD' }
+$glyphs = @{ 'GitHub' = 'github'; 'Report a bug' = 'bug'; 'Discord' = 'message-circle' }
 foreach ($l in @($script:AboutData.Links | Where-Object { $_.Url })) {
-    $g = if ($glyphs[$l.Name]) { $glyphs[$l.Name] } else { 'E71B' }
+    $g = if ($glyphs[$l.Name]) { $glyphs[$l.Name] } else { 'external-link' }
     $it = New-AkariMenuItem $l.Name $g { param($s, $e) Start-Process ([string]$s.Tag) }
     $it.Tag = $l.Url
     $items.Add($it)
 }
-$items.Add((New-AkariMenuItem 'Logs' 'E838' { Open-AkariLogFolder }))
-$items.Add((New-AkariMenuItem 'About' 'E946' { Select-AkariPage 'About' }))
+$items.Add((New-AkariMenuItem 'Logs' 'folder-open' { Open-AkariLogFolder }))
+$items.Add((New-AkariMenuItem 'About' 'info' { Select-AkariPage 'About' }))
 foreach ($it in $items) { [void]$MainMenu.Items.Add($it) }
 # opens under the caption buttons, its right edge 4 px in from the window's
 $MenuBtn.Add_Click({

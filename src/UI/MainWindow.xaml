@@ -17,7 +17,15 @@
   <Window.Resources>
     <!-- Brushes come from UI\Theme.Dark.xaml or UI\Theme.Light.xaml, merged in by Set-AkariTheme (UI\Shell.ps1):
          every colour here is a DynamicResource so a theme switch repaints the window. -->
-    <FontFamily x:Key="Icons">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+    <!-- a Lucide icon (UI\Icons.xaml, Ic.<name>) in a 24x24 Canvas inside a Viewbox: stroke 2, round caps and joins,
+         the colour of the button or control it sits in (the caption buttons' hover colours carry over) -->
+    <Style x:Key="Ic" TargetType="Path">
+      <Setter Property="StrokeThickness" Value="2"/>
+      <Setter Property="StrokeStartLineCap" Value="Round"/>
+      <Setter Property="StrokeEndLineCap" Value="Round"/>
+      <Setter Property="StrokeLineJoin" Value="Round"/>
+      <Setter Property="Stroke" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Control}}"/>
+    </Style>
 
     <!-- Standard button. -->
     <Style x:Key="Btn" TargetType="Button">
@@ -356,16 +364,16 @@
          close (red on hover). -->
     <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
       <Button x:Name="MenuBtn" Style="{StaticResource Cap}" ToolTip="Options">
-        <TextBlock Text="&#xE700;" FontFamily="{StaticResource Icons}" FontSize="13"/>
+        <Viewbox Width="16" Height="16"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.menu}"/></Canvas></Viewbox>
       </Button>
       <Button x:Name="CapMin" Style="{StaticResource Cap}" ToolTip="Minimize">
-        <TextBlock Text="&#xE921;" FontFamily="{StaticResource Icons}" FontSize="10"/>
+        <Viewbox Width="14" Height="14"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.minus}"/></Canvas></Viewbox>
       </Button>
       <Button x:Name="CapMax" Style="{StaticResource Cap}" ToolTip="Maximize">
-        <TextBlock x:Name="CapMaxGlyph" Text="&#xE922;" FontFamily="{StaticResource Icons}" FontSize="10"/>
+        <Viewbox Width="12" Height="12"><Canvas Width="24" Height="24"><Path x:Name="CapMaxGlyph" Style="{StaticResource Ic}" Data="{DynamicResource Ic.square}"/></Canvas></Viewbox>
       </Button>
       <Button x:Name="CapClose" Style="{StaticResource CapX}" ToolTip="Close">
-        <TextBlock Text="&#xE8BB;" FontFamily="{StaticResource Icons}" FontSize="10"/>
+        <Viewbox Width="14" Height="14"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.x}"/></Canvas></Viewbox>
       </Button>
     </StackPanel>
 
@@ -373,7 +381,7 @@
     <DockPanel Grid.Row="1" ClipToBounds="True">
       <Button x:Name="PaneToggle" DockPanel.Dock="Top" Style="{StaticResource Ghost}" Width="40" Height="36"
               HorizontalAlignment="Left" Margin="4,0,0,4" ToolTip="Collapse or expand the sidebar">
-        <TextBlock Text="&#xE700;" FontFamily="{StaticResource Icons}" FontSize="16"/>
+        <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.menu}"/></Canvas></Viewbox>
       </Button>
       <!-- scrolls when the pages don't fit (the Catalogue's Section › Category list is long) -->
       <ScrollViewer x:Name="NavScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
@@ -395,8 +403,11 @@
           <ColumnDefinition Width="*"/>
           <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
-        <TextBlock x:Name="HeaderIcon" FontFamily="{StaticResource Icons}" FontSize="40" VerticalAlignment="Center"
-                   Margin="0,0,16,0" Foreground="{DynamicResource Acc}"/>
+        <Viewbox Width="40" Height="40" VerticalAlignment="Center" Margin="0,0,16,0">
+          <Canvas Width="24" Height="24">
+            <Path x:Name="HeaderIcon" Style="{StaticResource Ic}" Stroke="{DynamicResource Acc}"/>
+          </Canvas>
+        </Viewbox>
         <StackPanel Grid.Column="1" VerticalAlignment="Center">
           <TextBlock x:Name="Heading" FontFamily="{DynamicResource FontDisplay}" FontSize="32" FontWeight="Bold"
                      TextTrimming="CharacterEllipsis"/>
@@ -417,8 +428,9 @@
               </Style>
             </TextBlock.Style>
           </TextBlock>
-          <TextBlock Text="&#xE721;" FontFamily="{StaticResource Icons}" FontSize="13" Foreground="{DynamicResource Mu}"
-                     HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,11,1" IsHitTestVisible="False"/>
+          <Viewbox Width="16" Height="16" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,11,1" IsHitTestVisible="False">
+            <Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Stroke="{DynamicResource Mu}" Data="{DynamicResource Ic.search}"/></Canvas>
+          </Viewbox>
         </Grid>
       </Grid>
 
@@ -451,8 +463,9 @@
               <Border x:Name="UpdateBar" Visibility="Collapsed" CornerRadius="4" BorderThickness="1" Padding="16,10" Margin="0,0,0,12"
                       BorderBrush="{DynamicResource Bd}" Background="{DynamicResource S1}">
                 <DockPanel>
-                  <TextBlock DockPanel.Dock="Left" Text="&#xE896;" FontFamily="{StaticResource Icons}" FontSize="16"
-                             VerticalAlignment="Center" Margin="0,0,12,0" Foreground="{DynamicResource Ok}"/>
+                  <Viewbox DockPanel.Dock="Left" Width="18" Height="18" VerticalAlignment="Center" Margin="0,0,12,0">
+                    <Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Stroke="{DynamicResource Ok}" Data="{DynamicResource Ic.download}"/></Canvas>
+                  </Viewbox>
                   <Button x:Name="UpdateOpen" DockPanel.Dock="Right" Style="{StaticResource Btn}" Content="See what's new" Margin="12,0,0,0"/>
                   <TextBlock x:Name="UpdateText" VerticalAlignment="Center" TextWrapping="Wrap"/>
                 </DockPanel>

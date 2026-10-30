@@ -82,8 +82,8 @@ function New-AkariCatalogueCard($t) {
         $badge.Child = New-AkariText $t.Risk 12 $brush
         [void]$marks.Children.Add($badge)
     }
-    if ($t.Reboot) { [void]$marks.Children.Add((New-AkariGlyph 0xE777 'Mu' 'Restart required')) }
-    if ($t.SafeMode) { [void]$marks.Children.Add((New-AkariGlyph 0xE72E 'Mu' 'Runs in Safe Mode: Akari restarts into it and back')) }
+    if ($t.Reboot) { [void]$marks.Children.Add((New-AkariGlyph 'rotate-ccw' 'Mu' 'Restart required')) }
+    if ($t.SafeMode) { [void]$marks.Children.Add((New-AkariGlyph 'shield' 'Mu' 'Runs in Safe Mode: Akari restarts into it and back')) }
     [void]$dp.Children.Add($marks)
     # name ("(AkariOS)" when it is part of the AkariOS setup), description, State line
     $text = [Windows.Controls.StackPanel]::new()
@@ -163,13 +163,13 @@ function Show-AkariCataloguePage([string]$Query) {
         $Heading.Text = 'Search'
         # [char]0x203A: the file has no BOM, so no non-ASCII text in its strings
         $HeaderSub.Text = "Results for `"$Query`" in Optimize $([char]0x203A) Advanced"
-        $HeaderIcon.Text = [string][char]0xE721
+        Set-AkariIcon $HeaderIcon 'search'
     } else {
         $sec, $cat = $script:Cat.Substring($AkariCataloguePrefix.Length).Split('/', 2)
         $header = if ($AkariCatalogueHeaders.ContainsKey($sec)) { $AkariCatalogueHeaders[$sec] } else { $sec }
         $Heading.Text = $cat
         $HeaderSub.Text = "$header. Each change applies right away."
-        $HeaderIcon.Text = [string][char]$(if ($AkariCategoryGlyphs.ContainsKey($cat)) { $AkariCategoryGlyphs[$cat] } else { 0xE713 })
+        Set-AkariIcon $HeaderIcon (Get-AkariCategoryIcon $cat)
     }
     $list = @(Get-AkariCatalogueList $script:Tweaks $script:Cat $Query)
     # toolbar: how many, and read the States again
@@ -341,7 +341,7 @@ function Complete-AkariCatalogueJob($Job) {
 
 # ---- the bars: Safe Mode changes, restarts
 
-function New-AkariCatalogueBar([int]$Glyph, [string]$Brush) {
+function New-AkariCatalogueBar([string]$Glyph, [string]$Brush) {
     $b = [Windows.Controls.Border]::new()
     $b.BorderThickness = [Windows.Thickness]::new(0, 1, 0, 0)
     $b.SetResourceReference([Windows.Controls.Border]::BorderBrushProperty, 'Bd')
@@ -349,7 +349,7 @@ function New-AkariCatalogueBar([int]$Glyph, [string]$Brush) {
     $b.Padding = [Windows.Thickness]::new(24, 10, 24, 10)
     $dp = [Windows.Controls.DockPanel]::new()
     $ic = New-AkariGlyph $Glyph $Brush ''
-    $ic.FontSize = 16
+    $ic.Width = 18; $ic.Height = 18
     $ic.Margin = [Windows.Thickness]::new(0, 0, 12, 0)
     [Windows.Controls.DockPanel]::SetDock($ic, 'Left')
     $btns = [Windows.Controls.StackPanel]::new()
@@ -370,10 +370,10 @@ function New-AkariBarButton([string]$Text, [scriptblock]$Click, [string]$Style =
     $b
 }
 
-$script:SafeBar = New-AkariCatalogueBar 0xE72E 'Warn'
+$script:SafeBar = New-AkariCatalogueBar 'shield' 'Warn'
 $script:SafeBar.Apply = New-AkariBarButton 'Restart and apply' { Start-AkariCatalogueSafeRun } 'Accent'
 [void]$script:SafeBar.Buttons.Children.Add($script:SafeBar.Apply)
-$script:RestartBar = New-AkariCatalogueBar 0xE777 'Mu'
+$script:RestartBar = New-AkariCatalogueBar 'rotate-ccw' 'Mu'
 $script:RestartBar.Explorer = New-AkariBarButton 'Restart Explorer' { Start-AkariCatalogueExplorer }
 $script:RestartBar.Reboot = New-AkariBarButton 'Restart now' { Start-AkariCatalogueRestart }
 foreach ($x in $script:RestartBar.Explorer, $script:RestartBar.Reboot) { [void]$script:RestartBar.Buttons.Children.Add($x) }

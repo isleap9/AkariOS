@@ -3,11 +3,12 @@
 # Enter), the first closes like Esc. Falls back to the native box if the dialog can't open.
 # Dot-sourced by Akari.ps1 before the other UI files; called only once the window is up.
 
+# each Icon: a Lucide icon (UI\Icons.xaml) and its colour
 $AkariDialogIcons = @{
-    Info = @{ Glyph = 0xE946; Brush = 'Tx' }
-    Question = @{ Glyph = 0xE9CE; Brush = 'Tx' }
-    Warning = @{ Glyph = 0xE7BA; Brush = 'Warn' }
-    Error = @{ Glyph = 0xEA39; Brush = 'Bad' }
+    Info = @{ Glyph = 'info'; Brush = 'Tx' }
+    Question = @{ Glyph = 'circle-help'; Brush = 'Tx' }
+    Warning = @{ Glyph = 'triangle-alert'; Brush = 'Warn' }
+    Error = @{ Glyph = 'circle-x'; Brush = 'Bad' }
 }
 
 # builds the dialog without showing it: its window, Tag.Result = the pressed button's text ($null = closed with Esc)
@@ -20,7 +21,12 @@ function New-AkariDialog([string]$Message, [string]$Title = 'AkariOS', [string[]
     $d.FindName('DlgText').Text = $Message
     $ic = $d.FindName('DlgIcon')
     $i = $AkariDialogIcons[$Icon]
-    if ($i) { $ic.Text = [string][char]$i.Glyph; $ic.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, $i.Brush) }
+    if ($i) {
+        $p = $d.FindName('DlgIconPath')
+        $p.SetResourceReference([Windows.Shapes.Path]::DataProperty, "Ic.$($i.Glyph)")
+        $p.SetResourceReference([Windows.Shapes.Shape]::StrokeProperty, $i.Brush)
+        $ic.Tag = $i.Glyph
+    }
     else { $ic.Visibility = 'Collapsed' }
     if ($TextBox) { $d.FindName('DlgInput').Visibility = 'Visible' }
     $bar = $d.FindName('DlgButtons')

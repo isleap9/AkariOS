@@ -112,8 +112,12 @@
             </Grid.ColumnDefinitions>
             <Border x:Name="Box" Width="20" Height="20" CornerRadius="4" BorderThickness="1"
                     BorderBrush="{DynamicResource Mu}" Background="{DynamicResource Ctl}" VerticalAlignment="Center">
-              <TextBlock x:Name="Tick" Text="&#xE73E;" FontFamily="{DynamicResource Icons}" FontSize="12" Visibility="Collapsed"
-                         Foreground="{DynamicResource AccT}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              <Viewbox x:Name="Tick" Width="14" Height="14" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Canvas Width="24" Height="24">
+                  <Path Data="{DynamicResource Ic.check}" Stroke="{DynamicResource AccT}" StrokeThickness="3"
+                        StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                </Canvas>
+              </Viewbox>
             </Border>
             <ContentPresenter Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center"/>
           </Grid>
@@ -219,8 +223,12 @@
               <ToggleButton.Template>
                 <ControlTemplate TargetType="ToggleButton">
                   <Border x:Name="B" CornerRadius="4" BorderThickness="1" BorderBrush="{DynamicResource CtlBd}" Background="{DynamicResource Ctl}">
-                    <TextBlock Text="&#xE70D;" FontFamily="{DynamicResource Icons}" FontSize="10" Foreground="{DynamicResource Mu}"
-                               HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <Viewbox Width="14" Height="14" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0">
+                      <Canvas Width="24" Height="24">
+                        <Path Data="{DynamicResource Ic.chevron-down}" Stroke="{DynamicResource Mu}" StrokeThickness="2"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                      </Canvas>
+                    </Viewbox>
                   </Border>
                   <ControlTemplate.Triggers>
                     <Trigger Property="IsMouseOver" Value="True">

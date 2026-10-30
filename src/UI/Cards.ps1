@@ -3,14 +3,46 @@
 # Risk, restart and an unread State; the tooltip carries the description. Cards make no Core calls; UI\Steps.ps1 wires
 # their events to the Selection. Styles come from UI\Controls.xaml.
 
-# Category card icons (Segoe Fluent Icons); a Category not listed here gets the settings gear
+# Category icons (Lucide names, UI\Icons.xaml); a Category not listed here gets 'settings'
 $AkariCategoryGlyphs = @{
-    Gaming = 0xE7FC; Performance = 0xEC4A; Tuning = 0xE9E9; Privacy = 0xE72E
-    Check = 0xE9D9; Refresh = 0xE72C; Setup = 0xE90F; Graphics = 0xE7F4
-    Windows = 0xE771; Hardware = 0xE950; Advanced = 0xE945
-    Taskbar = 0xE7C4; Start = 0xECA5; Explorer = 0xE8B7; Theme = 0xE790
-    Update = 0xE895; Power = 0xE7E8; Network = 0xE839; Notifications = 0xEA8F; Input = 0xE765; Accessibility = 0xE776; Sound = 0xE767; System = 0xE770
-    Security = 0xEA18; Display = 0xE7F4; Apps = 0xE71D; Cleanup = 0xEA99; Drivers = 0xE950
+    Gaming = 'gamepad-2'; Performance = 'gauge'; Tuning = 'sliders-vertical'; Privacy = 'lock'
+    Check = 'activity'; Refresh = 'refresh-cw'; Setup = 'wrench'; Graphics = 'monitor'
+    Windows = 'app-window'; Hardware = 'cpu'; Advanced = 'flask-conical'
+    Taskbar = 'panel-bottom'; Start = 'layout-grid'; Explorer = 'folder'; Theme = 'palette'
+    Update = 'cloud-download'; Power = 'power'; Network = 'wifi'; Notifications = 'bell'; Input = 'mouse'; Accessibility = 'accessibility'; Sound = 'volume-2'; System = 'settings-2'
+    Security = 'shield-check'; Display = 'monitor'; Apps = 'app-window'; Cleanup = 'eraser'; Drivers = 'hard-drive'
+    'Context menu' = 'menu'
+}
+
+# a Category's icon name
+function Get-AkariCategoryIcon([string]$Category) { if ($AkariCategoryGlyphs.ContainsKey($Category)) { $AkariCategoryGlyphs[$Category] } else { 'settings' } }
+
+# a Lucide icon (UI\Icons.xaml, Ic.<name>, built by build\Icons.ps1): its 24x24 path, stroked 2 with round caps and
+# joins in $Brush, scaled to $Size by a Viewbox (the stroke scales with it, as Lucide's does). $Brush 'Inherit': the
+# text colour of the button or menu item it sits in (a selected nav button, a disabled menu row)
+function New-AkariIcon([string]$Name, [double]$Size = 16, [string]$Brush = 'Tx') {
+    $p = [Windows.Shapes.Path]::new()
+    $p.SetResourceReference([Windows.Shapes.Path]::DataProperty, "Ic.$Name")
+    if ($Brush -eq 'Inherit') {
+        $bd = [Windows.Data.Binding]::new('Foreground')
+        $bd.RelativeSource = [Windows.Data.RelativeSource]::new([Windows.Data.RelativeSourceMode]::FindAncestor, [Windows.Controls.Control], 1)
+        [void][Windows.Data.BindingOperations]::SetBinding($p, [Windows.Shapes.Shape]::StrokeProperty, $bd)
+    } else { $p.SetResourceReference([Windows.Shapes.Shape]::StrokeProperty, $Brush) }
+    $p.StrokeThickness = 2
+    $p.StrokeStartLineCap = 'Round'; $p.StrokeEndLineCap = 'Round'; $p.StrokeLineJoin = 'Round'
+    $c = [Windows.Controls.Canvas]::new(); $c.Width = 24; $c.Height = 24
+    [void]$c.Children.Add($p)
+    $v = [Windows.Controls.Viewbox]::new(); $v.Width = $Size; $v.Height = $Size
+    $v.Child = $c
+    $v.Tag = $Name
+    $v
+}
+
+# points an icon at another Lucide icon: one from New-AkariIcon, or a Path in XAML (the page header's, CapMaxGlyph)
+function Set-AkariIcon($Icon, [string]$Name) {
+    $p = if ($Icon -is [Windows.Shapes.Path]) { $Icon } else { $Icon.Child.Children[0] }
+    $p.SetResourceReference([Windows.Shapes.Path]::DataProperty, "Ic.$Name")
+    $Icon.Tag = $Name
 }
 
 # masonry: each card goes to the column with the least rows so far (ties: the leftmost). Pure, no WPF.
@@ -25,15 +57,12 @@ function Get-AkariMasonry([int[]]$Sizes, [int]$Columns) {
     }
 }
 
-function New-AkariGlyph([int]$Code, [string]$Brush, [string]$Tip) {
-    $g = [Windows.Controls.TextBlock]::new()
-    $g.Text = [string][char]$Code
-    $g.FontSize = 12
+# a small mark next to a name (Risk, restart, Safe Mode, an unread State): a 14 px icon with a tooltip
+function New-AkariGlyph([string]$Icon, [string]$Brush, [string]$Tip) {
+    $g = New-AkariIcon $Icon 14 $Brush
     $g.Margin = [Windows.Thickness]::new(6, 0, 0, 0)
     $g.VerticalAlignment = 'Center'
-    $g.ToolTip = $Tip
-    $g.SetResourceReference([Windows.Controls.TextBlock]::FontFamilyProperty, 'Icons')
-    $g.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, $Brush)
+    if ($Tip) { $g.ToolTip = $Tip }
     $g
 }
 
@@ -58,12 +87,12 @@ function New-AkariTweakRow($Tweak, [string]$State, $Current = $null) {
     $glyphs.VerticalAlignment = 'Center'
     if ($Tweak.Risk -in 'Caution', 'Advanced') {
         $b = if ($Tweak.Risk -eq 'Advanced') { 'Bad' } else { 'Warn' }
-        [void]$glyphs.Children.Add((New-AkariGlyph 0xE7BA $b $Tweak.Risk))
+        [void]$glyphs.Children.Add((New-AkariGlyph 'triangle-alert' $b $Tweak.Risk))
     }
-    if ($Tweak.Reboot) { [void]$glyphs.Children.Add((New-AkariGlyph 0xE777 'Mu' 'Restart required')) }
+    if ($Tweak.Reboot) { [void]$glyphs.Children.Add((New-AkariGlyph 'rotate-ccw' 'Mu' 'Restart required')) }
     if ($Tweak.Kind -ne 'Action' -and $State -in 'Custom', 'Unknown') {
         $tip = if ($State -eq 'Custom') { 'Custom value' } else { 'State unknown' }
-        [void]$glyphs.Children.Add((New-AkariGlyph 0xE9CE 'Ter' $tip))
+        [void]$glyphs.Children.Add((New-AkariGlyph 'circle-help' 'Ter' $tip))
     }
     $name = [Windows.Controls.TextBlock]::new()
     [void]$name.Inlines.Add([Windows.Documents.Run]::new($Tweak.Name))
@@ -152,19 +181,16 @@ function Get-AkariFonts([string]$Dir) {
 # a TextBlock (or control) in one of the window's fonts: Display (Unbounded), Text (Manrope) or Mono
 function Set-AkariFont($Block, [string]$Font) { $Block.SetResourceReference([Windows.Documents.TextElement]::FontFamilyProperty, "Font$Font") }
 
-function New-AkariCategoryCard([string]$Title, [int]$Glyph, [string]$Note) {
+function New-AkariCategoryCard([string]$Title, [string]$Icon, [string]$Note) {
     $card = [Windows.Controls.Border]::new()
     $card.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'CategoryCard')
     $panel = [Windows.Controls.StackPanel]::new()
     $head = [Windows.Controls.StackPanel]::new()
     $head.Orientation = 'Horizontal'
     $head.Margin = [Windows.Thickness]::new(0, 0, 0, 6)
-    $ic = [Windows.Controls.TextBlock]::new()
-    $ic.Text = [string][char]$Glyph
-    $ic.FontSize = 18
+    $ic = New-AkariIcon $Icon 20
     $ic.Margin = [Windows.Thickness]::new(0, 0, 10, 0)
     $ic.VerticalAlignment = 'Center'
-    $ic.SetResourceReference([Windows.Controls.TextBlock]::FontFamilyProperty, 'Icons')
     $tt = [Windows.Controls.TextBlock]::new()
     $tt.Text = $Title
     $tt.FontSize = 20

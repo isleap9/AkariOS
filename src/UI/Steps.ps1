@@ -354,8 +354,7 @@ function Get-AkariTweaksView {
             # one-file tweaks: a card per Category; legacy tweaks: a card per old page, marked "Not yet ported"
             $legacy = ($c.Name -eq 'Not yet ported')
             $title = if ($legacy) { $g.Section } else { $c.Name }
-            $glyph = if ($AkariCategoryGlyphs.ContainsKey($title)) { $AkariCategoryGlyphs[$title] } else { 0xE713 }
-            $cc = New-AkariCategoryCard $title $glyph $(if ($legacy) { 'Not yet ported' } else { '' })
+            $cc = New-AkariCategoryCard $title (Get-AkariCategoryIcon $title) $(if ($legacy) { 'Not yet ported' } else { '' })
             $size = 0
             foreach ($id in $c.Ids) {
                 $t = $script:Tweaks | Where-Object { $_.Id -eq $id } | Select-Object -First 1
@@ -422,13 +421,13 @@ function Update-AkariStepFooter {
 }
 
 # the two ways to install: big cards, like Win11Debloat's start screen
-function New-AkariModeCard([string]$Glyph, [string]$Title, [string]$Text, [bool]$Enabled) {
+function New-AkariModeCard([string]$Icon, [string]$Title, [string]$Text, [bool]$Enabled) {
     $b = [Windows.Controls.Button]::new()
     $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'ModeCard')
     $b.IsEnabled = $Enabled
     $sp = [Windows.Controls.StackPanel]::new()
-    $ic = New-AkariText $Glyph 28
-    $ic.SetResourceReference([Windows.Controls.TextBlock]::FontFamilyProperty, 'Icons')
+    $ic = New-AkariIcon $Icon 28 'Acc'
+    $ic.HorizontalAlignment = 'Left'
     $ic.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
     $tt = New-AkariText $Title 20
     $tt.FontWeight = 'SemiBold'
@@ -480,10 +479,10 @@ function Show-AkariChooser {
     $StepNext.Visibility = 'Collapsed'
     $g = [Windows.Controls.Primitives.UniformGrid]::new()
     $g.Columns = 2
-    $one = New-AkariModeCard ([string][char]0xE945) 'One-click' 'The full AkariOS setup in one go: apps, drivers, Safe Mode and tweaks, with restarts handled for you. For a fresh install.' $true
+    $one = New-AkariModeCard 'zap' 'One-click' 'The full AkariOS setup in one go: apps, drivers, Safe Mode and tweaks, with restarts handled for you. For a fresh install.' $true
     $one.Margin = [Windows.Thickness]::new(0, 0, 8, 0)
     $one.Add_Click({ Start-AkariOneClick })
-    $guided = New-AkariModeCard ([string][char]0xE8FD) 'Guided' 'Pick the apps to remove and the Tweaks to apply, review the changes, then apply them in one go.' $true
+    $guided = New-AkariModeCard 'list-checks' 'Guided' 'Pick the apps to remove and the Tweaks to apply, review the changes, then apply them in one go.' $true
     $guided.Margin = [Windows.Thickness]::new(8, 0, 0, 0)
     $guided.Add_Click({ $script:Mode = 'Guided'; $script:Step = 0; Show-AkariSteps })
     [void]$g.Children.Add($one); [void]$g.Children.Add($guided)
@@ -503,10 +502,10 @@ function Show-AkariOptimizeChooser {
     $g.Columns = 2
     # Advanced: the Catalogue (ADR 0005), every one-file Tweak by Section › Category, each change acting right away
     $first = @(Get-AkariCataloguePages $script:Tweaks | ForEach-Object { $_.Pages }) | Select-Object -First 1
-    $adv = New-AkariModeCard ([string][char]0xE9E9) 'Advanced' 'Every tweak AkariOS has, by category. Each change applies right away. More tweaks are on the way.' ([bool]$first)
+    $adv = New-AkariModeCard 'sliders-horizontal' 'Advanced' 'Every tweak AkariOS has, by category. Each change applies right away. More tweaks are on the way.' ([bool]$first)
     $adv.Margin = [Windows.Thickness]::new(0, 0, 8, 0)
     if ($first) { $adv.Tag = $first.Key; $adv.Add_Click({ param($s, $e) Select-AkariPage ([string]$s.Tag) }) }
-    $legacy = New-AkariModeCard ([string][char]0xE713) 'Legacy' 'The old AkariOS-Ultimate pages, being retired as Advanced takes them over. Every button acts right away.' $true
+    $legacy = New-AkariModeCard 'history' 'Legacy' 'The old AkariOS-Ultimate pages, being retired as Advanced takes them over. Every button acts right away.' $true
     $legacy.Margin = [Windows.Thickness]::new(8, 0, 0, 0)
     $legacy.Add_Click({ Select-AkariPage $AkariLegacyPages[0] })
     [void]$g.Children.Add($adv); [void]$g.Children.Add($legacy)

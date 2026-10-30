@@ -5,6 +5,8 @@
 $window = [Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\MainWindow.xaml" -Raw))
 # WinUI-style controls for Install AkariOS (switch, combobox, setting card, ...)
 $window.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Controls.xaml" -Raw)))
+# the Lucide icons (Ic.<name> geometries, built by build\Icons.ps1)
+$window.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Icons.xaml" -Raw)))
 foreach ($n in 'Nav', 'Search', 'Heading', 'Rows', 'Page', 'Logo', 'HomePanel',
                'Shell', 'Body', 'Main', 'PaneCol', 'PaneToggle', 'HomeTiles', 'HeaderIcon', 'HeaderSub', 'StatusDot', 'StatusRing', 'StatusText', 'StatusBar',
                'CapMin', 'CapMax', 'CapMaxGlyph', 'CapClose', 'StepsPanel', 'StepDots', 'StepBody', 'StepFooter', 'StepBack', 'StepNext',
@@ -72,30 +74,30 @@ function Set-AkariTheme([string]$Theme = 'System', [switch]$Save) {
 Set-AkariTheme (Get-AkariThemeSetting)
 Initialize-AkariSteps
 
-# every page: icon glyph (Segoe Fluent Icons) and the subtitle under the page title. Home, Install AkariOS,
+# every page: its icon (a Lucide name, UI\Icons.xaml) and the subtitle under the page title. Home, Install AkariOS,
 # Downloads and the Optimize chooser are full window; the sidebar holds only Optimize › Legacy ($AkariLegacyPages).
 $Pages = [ordered]@{
-    Home       = @{ Glyph = [char]0xE80F; Sub = 'Choose how you want to optimize Windows' }
+    Home       = @{ Glyph = 'house'; Sub = 'Choose how you want to optimize Windows' }
     # Install AkariOS: One-click, or Guided (pick the Tweaks, review, apply once)
-    'Install AkariOS' = @{ Glyph = [char]0xE896; Sub = 'Optimize Windows in one click, or pick each change yourself' }
+    'Install AkariOS' = @{ Glyph = 'zap'; Sub = 'Optimize Windows in one click, or pick each change yourself' }
     # Optimize (Manual mode): the Legacy / Advanced chooser
-    Optimize   = @{ Glyph = [char]0xE713; Sub = 'Manual, in-depth optimization for Windows' }
+    Optimize   = @{ Glyph = 'sliders-horizontal'; Sub = 'Manual, in-depth optimization for Windows' }
     # Downloads: the Guided Install cards on their own (apps, runtimes, tools; Store apps the debloat removed)
-    Downloads  = @{ Glyph = [char]0xE896; Sub = 'Install apps, runtimes and tools, from winget where possible' }
+    Downloads  = @{ Glyph = 'download'; Sub = 'Install apps, runtimes and tools, from winget where possible' }
     # Remove apps (the Catalogue sidebar): the Guided Remove tables on their own
-    'Remove apps' = @{ Glyph = [char]0xE74D; Sub = 'Store apps, optional features, Windows features and legacy apps to remove' }
+    'Remove apps' = @{ Glyph = 'trash-2'; Sub = 'Store apps, optional features, Windows features and legacy apps to remove' }
     # Install USB (UI\Unattend.ps1): the Home tile, Schneegans' unattend generator on one long page
-    'Install USB' = @{ Glyph = [char]0xE88E; Sub = 'An autounattend.xml for a Windows install USB, after Schneegans'' generator' }
+    'Install USB' = @{ Glyph = 'usb'; Sub = 'An autounattend.xml for a Windows install USB, after Schneegans'' generator' }
     # About & Updates (UI\About.ps1): the Home link and the update bar open it
-    About      = @{ Glyph = [char]0xE946; Sub = 'Version, updates and credits' }
+    About      = @{ Glyph = 'info'; Sub = 'Version, updates and credits' }
     # Legacy pages: the frozen AkariOS-Ultimate tweaks (ADR 0004)
-    Check      = @{ Glyph = [char]0xE9D9; Sub = 'Check your BIOS, storage, RAM and GPU, and stress test them' }
-    Refresh    = @{ Glyph = [char]0xE72C; Sub = 'Reinstall or reset Windows, and get a fresh install ready' }
-    Setup      = @{ Glyph = [char]0xE90F; Sub = 'First steps on a new install: activation, startup apps, updates' }
-    Graphics   = @{ Glyph = [char]0xE7F4; Sub = 'Clean and install GPU drivers, and tune NVIDIA, AMD and Intel' }
-    Windows    = @{ Glyph = [char]0xE771; Sub = 'Start menu, taskbar, theme and the rest of Windows' }
-    Hardware   = @{ Glyph = [char]0xE950; Sub = 'Mouse, controller, monitor and network' }
-    Advanced   = @{ Glyph = [char]0xE945; Sub = 'Security, CPU and display pipeline tweaks for experienced users' }
+    Check      = @{ Glyph = 'activity'; Sub = 'Check your BIOS, storage, RAM and GPU, and stress test them' }
+    Refresh    = @{ Glyph = 'refresh-cw'; Sub = 'Reinstall or reset Windows, and get a fresh install ready' }
+    Setup      = @{ Glyph = 'wrench'; Sub = 'First steps on a new install: activation, startup apps, updates' }
+    Graphics   = @{ Glyph = 'monitor'; Sub = 'Clean and install GPU drivers, and tune NVIDIA, AMD and Intel' }
+    Windows    = @{ Glyph = 'app-window'; Sub = 'Start menu, taskbar, theme and the rest of Windows' }
+    Hardware   = @{ Glyph = 'cpu'; Sub = 'Mouse, controller, monitor and network' }
+    Advanced   = @{ Glyph = 'flask-conical'; Sub = 'Security, CPU and display pipeline tweaks for experienced users' }
 }
 
 $logoPath = "$Root\Assets\AkariLogo.png"
@@ -141,7 +143,7 @@ $window.Add_StateChanged({
     $max = ($window.WindowState -eq 'Maximized')
     $Shell.Margin = if ($max) { [Windows.Thickness]::new(8) } else { [Windows.Thickness]::new(0) }
     # maximize button shows the restore glyph while maximized
-    $CapMaxGlyph.Text = [string][char]$(if ($max) { 0xE923 } else { 0xE922 })
+    Set-AkariIcon $CapMaxGlyph $(if ($max) { 'copy' } else { 'square' })
     $CapMax.ToolTip = if ($max) { 'Restore' } else { 'Maximize' }
 })
 # caption buttons
@@ -193,7 +195,7 @@ function Show-Page {
         $HomePanel.Visibility = 'Collapsed'
         $Heading.Text = $script:Cat
         $HeaderSub.Text = $Pages[$script:Cat].Sub
-        $HeaderIcon.Text = [string]$Pages[$script:Cat].Glyph
+        Set-AkariIcon $HeaderIcon ([string]$Pages[$script:Cat].Glyph)
         if ($onChooser) { Show-AkariOptimizeChooser; return }
         if ($onAbout) { if ($script:Cat -eq 'About') { Show-AkariAbout } else { Show-AkariUnattend }; return }
         Enter-AkariFlow $script:Cat
@@ -206,11 +208,11 @@ function Show-Page {
     if ($q) {
         $Heading.Text = 'Search'
         $HeaderSub.Text = "Results for `"$q`""
-        $HeaderIcon.Text = [string][char]0xE721
+        Set-AkariIcon $HeaderIcon 'search'
     } else {
         $Heading.Text = $script:Cat
         $HeaderSub.Text = $Pages[$script:Cat].Sub
-        $HeaderIcon.Text = [string]$Pages[$script:Cat].Glyph
+        Set-AkariIcon $HeaderIcon ([string]$Pages[$script:Cat].Glyph)
     }
     # Optimize › Legacy: the legacy tweaks of this page (or every legacy match of the search), each row acting right away
     $list = @(if (-not $onHome) { Get-AkariLegacyList $script:Tweaks $script:Cat $q })
@@ -283,14 +285,12 @@ function Confirm-Run([string]$text) {
 # ---- sidebar: '← Optimize' back to the chooser, then the Legacy pages (Optimize › Legacy) or the Catalogue's Section
 # headings and Category pages (Optimize › Advanced)
 # one sidebar entry: icon in a 40 px column (it stays put when the pane collapses to 48 px), label after it
-function New-AkariNavButton([string]$Tag, [string]$Label, [string]$Glyph, [string]$Tip) {
+function New-AkariNavButton([string]$Tag, [string]$Label, [string]$Icon, [string]$Tip) {
     $g = [Windows.Controls.Grid]::new()
     $c0 = [Windows.Controls.ColumnDefinition]::new(); $c0.Width = [Windows.GridLength]::new(40)
     [void]$g.ColumnDefinitions.Add($c0); [void]$g.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new())
-    $ic = [Windows.Controls.TextBlock]::new()
-    $ic.Text = $Glyph
-    $ic.FontFamily = $window.FindResource('Icons')
-    $ic.FontSize = 16
+    # in the nav button's own text colour (it changes when selected)
+    $ic = New-AkariIcon $Icon 18 'Inherit'
     $ic.HorizontalAlignment = 'Center'; $ic.VerticalAlignment = 'Center'
     $lb = [Windows.Controls.TextBlock]::new()
     $lb.Text = $Label; $lb.FontSize = 14; $lb.VerticalAlignment = 'Center'; $lb.Margin = [Windows.Thickness]::new(4, 0, 0, 1)
@@ -308,7 +308,7 @@ function Set-AkariNav([string]$Mode) {
     if ($script:NavMode -eq $Mode) { return }
     $script:NavMode = $Mode
     $Nav.Children.Clear()
-    $back = New-AkariNavButton 'Optimize' 'Optimize' ([string][char]0xE72B) 'Back to Optimize'
+    $back = New-AkariNavButton 'Optimize' 'Optimize' 'arrow-left' 'Back to Optimize'
     # a gap between the way back and the pages
     $back.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
     [void]$Nav.Children.Add($back)
@@ -328,8 +328,7 @@ function Set-AkariNav([string]$Mode) {
             $h.Visibility = if ($script:PaneOpen) { 'Visible' } else { 'Collapsed' }
             [void]$Nav.Children.Add($h)
             foreach ($p in $s.Pages) {
-                $glyph = if ($AkariCategoryGlyphs.ContainsKey($p.Category)) { $AkariCategoryGlyphs[$p.Category] } else { 0xE713 }
-                [void]$Nav.Children.Add((New-AkariNavButton $p.Key $p.Category ([string][char]$glyph) "$($s.Header) › $($p.Category)"))
+                [void]$Nav.Children.Add((New-AkariNavButton $p.Key $p.Category (Get-AkariCategoryIcon $p.Category) "$($s.Header) › $($p.Category)"))
             }
         }
     }
@@ -375,22 +374,22 @@ function Select-AkariPage([string]$Name) {
 }
 
 # ---- home tiles: Install AkariOS (One-click or Guided), Optimize (Manual mode), Downloads, Import / Export
-$tile = New-AkariModeCard ([string][char]0xE756) 'Install AkariOS' 'Guided optimization for Windows. Recommended for a fresh install.' $true
+$tile = New-AkariModeCard 'zap' 'Install AkariOS' 'Guided optimization for Windows. Recommended for a fresh install.' $true
 $tile.Add_Click({ Select-AkariPage 'Install AkariOS' })
 [void]$HomeTiles.Children.Add($tile)
-$tile = New-AkariModeCard ([string][char]0xE713) 'Optimize' 'Manual, in-depth optimization for Windows. Recommended for power users.' $true
+$tile = New-AkariModeCard 'sliders-horizontal' 'Optimize' 'Manual, in-depth optimization for Windows. Recommended for power users.' $true
 # the Legacy / Advanced chooser
 $tile.Add_Click({ Select-AkariPage 'Optimize' })
 [void]$HomeTiles.Children.Add($tile)
 # Downloads: the Guided Install cards on their own
-$tile = New-AkariModeCard ([string][char]0xE896) 'Downloads' 'Install apps, game launchers, runtimes and tools, or bring back Store apps the debloat removed.' $true
+$tile = New-AkariModeCard 'download' 'Downloads' 'Install apps, game launchers, runtimes and tools, or bring back Store apps the debloat removed.' $true
 $tile.Add_Click({ Select-AkariPage 'Downloads' })
 [void]$HomeTiles.Children.Add($tile)
 # Install USB: Schneegans' unattend generator, an autounattend.xml for a Windows install USB (UI\Unattend.ps1)
-$tile = New-AkariModeCard ([string][char]0xE88E) 'Install USB' 'Prepare a Windows install USB: an autounattend.xml with accounts, language, edition, disk and setup choices, after Schneegans'' generator.' $true
+$tile = New-AkariModeCard 'usb' 'Install USB' 'Prepare a Windows install USB: an autounattend.xml with accounts, language, edition, disk and setup choices, after Schneegans'' generator.' $true
 $tile.Add_Click({ Select-AkariPage 'Install USB' })
 [void]$HomeTiles.Children.Add($tile)
-$tile = New-AkariModeCard ([string][char]0xE72D) 'Import / Export settings' 'Save this PC''s settings to a file, or load them on another PC and review them in Guided.' $true
+$tile = New-AkariModeCard 'arrow-left-right' 'Import / Export settings' 'Save this PC''s settings to a file, or load them on another PC and review them in Guided.' $true
 $tile.Add_Click({ Show-AkariImportExport })
 [void]$HomeTiles.Children.Add($tile)
 $last = $HomeTiles.Children.Count - 1

@@ -81,7 +81,7 @@ foreach ($f in 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps') { . "$Root\UI
 function Get-AkariAppxInstalled { @() }; function Start-AkariFeatureRead { }; $script:Groups = @()
 $res = [Windows.Controls.StackPanel]::new()
 $res.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Controls.xaml" -Raw)))
-$res.Resources['Icons'] = [Windows.Media.FontFamily]::new('Segoe MDL2 Assets')
+$res.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Icons.xaml" -Raw)))
 $StepDots = [Windows.Controls.StackPanel]::new(); $StepBody = [Windows.Controls.StackPanel]::new()
 [void]$res.Children.Add($StepDots); [void]$res.Children.Add($StepBody)
 $StepBack = [Windows.Controls.Button]::new(); $StepNext = [Windows.Controls.Button]::new()
