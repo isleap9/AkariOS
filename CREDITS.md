@@ -1,6 +1,7 @@
 # Credits
 
-AkariOS builds on the work of these projects. Each ported Tweak is listed with its upstream source.
+AkariOS builds on the work of these projects. Each ported Tweak is listed with its upstream source. Paths below are
+under `src/`.
 
 | Tweak | Source |
 |---|---|

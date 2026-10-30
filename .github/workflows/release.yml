@@ -1,7 +1,7 @@
 # A release: push a tag v<version> that matches $AkariVersion in Core/Version.ps1.
 #   git tag -a v0.1.0 -m "release notes here"   (an annotated tag's message becomes the notes; else GitHub writes them)
 #   git push origin v0.1.0
-# Builds AkariOS-<version>.zip (one AkariOS\ folder with what Akari runs from) and Akari.ps1 (Build/Bootstrap.ps1
+# Builds AkariOS-<version>.zip (one AkariOS\ folder with what Akari runs from) and Akari.ps1 (build/Bootstrap.ps1
 # filled in: the one-liner `iwr .../releases/latest/download/Akari.ps1 -useb | iex`) and publishes both. Akari's updater
 # (Core/Update.ps1) reads the latest release and checks the zip against the SHA-256 GitHub reports for it.
 # Windows runner: files get CRLF line endings, like a Windows checkout (.cmd and .reg files need them).
@@ -23,15 +23,17 @@ jobs:
       - name: Build the zip
         shell: pwsh
         run: |
-          $ver = (Select-String -Path Core/Version.ps1 -Pattern "AkariVersion = '([^']+)'").Matches[0].Groups[1].Value
-          if ("v$ver" -ne $env:GITHUB_REF_NAME) { throw "Tag $env:GITHUB_REF_NAME does not match `$AkariVersion = '$ver' in Core/Version.ps1" }
+          $ver = (Select-String -Path src/Core/Version.ps1 -Pattern "AkariVersion = '([^']+)'").Matches[0].Groups[1].Value
+          if ("v$ver" -ne $env:GITHUB_REF_NAME) { throw "Tag $env:GITHUB_REF_NAME does not match `$AkariVersion = '$ver' in src/Core/Version.ps1" }
           New-Item dist/AkariOS -ItemType Directory -Force | Out-Null
-          Copy-Item Akari.ps1, Core, UI, Tweaks, Presets, OneClick, Assets, LICENSE, CREDITS.md, AllowScripts.cmd dist/AkariOS -Recurse
+          # everything in src/ (Akari.ps1 and its folders) plus the license and credits, in one AkariOS\ folder
+          Copy-Item src/* dist/AkariOS -Recurse
+          Copy-Item LICENSE, CREDITS.md dist/AkariOS
           Compress-Archive dist/AkariOS "dist/AkariOS-$ver.zip"
-          # the one-liner's Akari.ps1: Build/Bootstrap.ps1 with this release's version and the zip's SHA-256
+          # the one-liner's Akari.ps1: build/Bootstrap.ps1 with this release's version and the zip's SHA-256
           $sha = (Get-FileHash "dist/AkariOS-$ver.zip" -Algorithm SHA256).Hash
-          $boot = (Get-Content Build/Bootstrap.ps1 -Raw).Replace('__AKARI_VERSION__', $ver).Replace('__AKARI_SHA256__', $sha)
-          if ($boot -match '__AKARI_') { throw 'Build/Bootstrap.ps1 still has a placeholder' }
+          $boot = (Get-Content build/Bootstrap.ps1 -Raw).Replace('__AKARI_VERSION__', $ver).Replace('__AKARI_SHA256__', $sha)
+          if ($boot -match '__AKARI_') { throw 'build/Bootstrap.ps1 still has a placeholder' }
           [IO.File]::WriteAllText("$PWD/dist/Akari.ps1", $boot, [Text.UTF8Encoding]::new($false))
           "AKARI_VERSION=$ver" >> $env:GITHUB_ENV
 
