@@ -194,6 +194,7 @@ function Show-AkariCataloguePage([string]$Query) {
             $hs = if ($AkariCatalogueHeaders.ContainsKey($t.Section)) { $AkariCatalogueHeaders[$t.Section] } else { $t.Section }
             $h = New-AkariText "$hs $([char]0x203A) $($t.Category)" 14
             $h.FontWeight = 'SemiBold'
+            Set-AkariFont $h 'Display'
             $h.Margin = [Windows.Thickness]::new(2, 12, 0, 6)
             [void]$Rows.Children.Add($h)
         }

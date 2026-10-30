@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="AkariOS" Width="1100" Height="720" MinWidth="860" MinHeight="560"
         WindowStartupLocation="CenterScreen" UseLayoutRounding="True" SnapsToDevicePixels="True"
-        FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13"
+        FontFamily="{DynamicResource FontText}" FontSize="14" FontWeight="Medium"
         Background="Transparent" Foreground="{DynamicResource Tx}">
   <!-- The shell, after Akari-Dash's WinUI 3 window in its Akari theme: a wordmark title bar over
        Mica, a labelled sidebar, a page header with a large icon, title, subtitle and the search on
@@ -349,7 +349,7 @@
       <Image x:Name="Logo" Width="16" Height="16" Margin="0,0,10,0">
         <Image.Clip><EllipseGeometry Center="8,8" RadiusX="8" RadiusY="8"/></Image.Clip>
       </Image>
-      <TextBlock x:Name="TitleText" Text="AkariOS" FontSize="12" VerticalAlignment="Center"/>
+      <TextBlock x:Name="TitleText" Text="AkariOS" FontFamily="{DynamicResource FontDisplay}" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center"/>
     </StackPanel>
 
     <!-- Caption buttons, drawn like Windows 11's: the options menu (UI\About.ps1), minimize, maximize / restore,
@@ -398,7 +398,7 @@
         <TextBlock x:Name="HeaderIcon" FontFamily="{StaticResource Icons}" FontSize="40" VerticalAlignment="Center"
                    Margin="0,0,16,0" Foreground="{DynamicResource Acc}"/>
         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-          <TextBlock x:Name="Heading" FontFamily="Segoe UI Variable Display, Segoe UI" FontSize="28" FontWeight="SemiBold"
+          <TextBlock x:Name="Heading" FontFamily="{DynamicResource FontDisplay}" FontSize="32" FontWeight="Bold"
                      TextTrimming="CharacterEllipsis"/>
           <TextBlock x:Name="HeaderSub" Foreground="{DynamicResource Mu}" FontSize="14" Margin="0,2,0,0" TextWrapping="Wrap"/>
         </StackPanel>
@@ -488,7 +488,7 @@
             </EventTrigger>
           </Path.Triggers>
         </Path>
-        <TextBlock x:Name="StatusText" Text="Ready" FontSize="11.5" VerticalAlignment="Center" Foreground="{DynamicResource Mu}"
+        <TextBlock x:Name="StatusText" Text="Ready" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource Mu}"
                    MaxWidth="520" TextTrimming="CharacterEllipsis"/>
         <!-- indeterminate progress bar -->
         <Border x:Name="StatusBar" Width="160" Height="3" Margin="12,0,0,0" CornerRadius="1.5" VerticalAlignment="Center"
@@ -510,7 +510,7 @@
       </StackPanel>
       <Button x:Name="AppVersion" Style="{StaticResource Ghost}" HorizontalAlignment="Right" VerticalAlignment="Center"
               Cursor="Hand" ToolTip="About AkariOS: version, updates and credits">
-        <TextBlock x:Name="AppVersionText" Margin="6,1" FontSize="10.5" Text="AkariOS" Foreground="{DynamicResource Ter}"/>
+        <TextBlock x:Name="AppVersionText" Margin="6,1" FontSize="12" FontFamily="{DynamicResource FontMono}" Text="AkariOS" Foreground="{DynamicResource Ter}"/>
       </Button>
     </Grid>
 

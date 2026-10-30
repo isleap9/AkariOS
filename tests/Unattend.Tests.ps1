@@ -103,7 +103,7 @@ param($Root, $Usb, $Stick, $Folder)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework
 . "$Root\Core\Unattend.ps1"
-foreach ($f in 'Selection', 'Steps', 'UnattendForm', 'Unattend') { . "$Root\UI\$f.ps1" }
+foreach ($f in 'Selection', 'Cards', 'Steps', 'UnattendForm', 'Unattend') { . "$Root\UI\$f.ps1" }
 function Add-Log($m) { }
 function Get-AkariUnattendDefaults { @{ UILanguage = 'it-IT'; Locale = 'it-IT'; Keyboard = '00000410'; GeoLocation = '118'; TimeZone = 'W. Europe Standard Time' } }
 function Get-AkariSetupDrives { [pscustomobject]@{ Root = "$Stick\"; Label = 'STICK'; Setup = $false }; [pscustomobject]@{ Root = "$Usb\"; Label = 'WIN11'; Setup = $true } }

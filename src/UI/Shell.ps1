@@ -11,6 +11,11 @@ foreach ($n in 'Nav', 'Search', 'Heading', 'Rows', 'Page', 'Logo', 'HomePanel',
                'UpdateBar', 'UpdateText', 'UpdateOpen', 'AppVersion', 'AppVersionText', 'MenuBtn', 'CatBars', 'NavScroll') { Set-Variable $n $window.FindName($n) }
 $AppVersionText.Text = "AkariOS $AkariVersion"
 
+# ---- fonts (Get-AkariFonts, UI\Cards.ps1): FontDisplay, FontText, FontMono; Dialog.ps1 gets them through the
+# window's resources
+$f = Get-AkariFonts "$Root\Assets\Fonts"
+foreach ($k in $f.Keys) { $window.Resources[$k] = $f[$k] }
+
 # ---- theme: UI\Theme.Dark.xaml or UI\Theme.Light.xaml, merged first into the window's resources (every brush is a
 # DynamicResource, so swapping the dictionary repaints the window). The choice (System, Dark, Light) is settings.json's
 # Theme, next to akari.log; System follows Windows' app mode and changes with it.
@@ -314,8 +319,10 @@ function Set-AkariNav([string]$Mode) {
         foreach ($f in 'Remove apps', 'Downloads') { [void]$Nav.Children.Add((New-AkariNavButton $f $f ([string]$Pages[$f].Glyph) $Pages[$f].Sub)) }
         foreach ($s in Get-AkariCataloguePages $script:Tweaks) {
             $h = [Windows.Controls.TextBlock]::new()
-            $h.Text = $s.Header
-            $h.FontSize = 12; $h.FontWeight = 'SemiBold'
+            # an overline: 11 px Unbounded capitals
+            $h.Text = $s.Header.ToUpperInvariant()
+            $h.FontSize = 11; $h.FontWeight = 'SemiBold'
+            Set-AkariFont $h 'Display'
             $h.Margin = [Windows.Thickness]::new(14, 10, 0, 4)
             $h.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, 'Mu')
             $h.Visibility = if ($script:PaneOpen) { 'Visible' } else { 'Collapsed' }

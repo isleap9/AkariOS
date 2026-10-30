@@ -3,7 +3,7 @@
         Title="AkariOS" Width="472" SizeToContent="Height" WindowStyle="None" AllowsTransparency="True"
         Background="Transparent" ResizeMode="NoResize" ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
         UseLayoutRounding="True" SnapsToDevicePixels="True"
-        FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13" Foreground="{DynamicResource Tx}">
+        FontFamily="{DynamicResource FontText}" FontSize="14" FontWeight="Medium" Foreground="{DynamicResource Tx}">
   <!-- Akari's dialog (UI\Dialog.ps1), after Win11Debloat's message box: a dark card over the dimmed window, a
        title, an icon next to the text (an optional text box under it), the buttons on a darker strip. The 16 px
        margin leaves room for the shadow. Styles and brushes come from the main window's resources. -->
@@ -17,7 +17,7 @@
         <RowDefinition Height="Auto"/>
         <RowDefinition Height="Auto"/>
       </Grid.RowDefinitions>
-      <TextBlock x:Name="DlgTitle" Margin="20,16,20,0" FontSize="14" FontWeight="SemiBold" Background="Transparent"/>
+      <TextBlock x:Name="DlgTitle" Margin="20,16,20,0" FontFamily="{DynamicResource FontDisplay}" FontSize="16" FontWeight="SemiBold" Background="Transparent"/>
       <Grid Grid.Row="1" Margin="20,12,20,20">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="Auto"/>
@@ -26,7 +26,7 @@
         <TextBlock x:Name="DlgIcon" FontFamily="{DynamicResource Icons}" FontSize="22" Margin="0,0,14,0" VerticalAlignment="Top"/>
         <StackPanel Grid.Column="1">
           <ScrollViewer MaxHeight="360" VerticalScrollBarVisibility="Auto">
-            <TextBlock x:Name="DlgText" TextWrapping="Wrap" LineHeight="19"/>
+            <TextBlock x:Name="DlgText" TextWrapping="Wrap" LineHeight="21"/>
           </ScrollViewer>
           <TextBox x:Name="DlgInput" Style="{DynamicResource Flat}" Margin="0,12,0,0" Visibility="Collapsed"/>
         </StackPanel>

@@ -371,8 +371,9 @@ function Get-AkariTweaksView {
     $view = [Windows.Controls.StackPanel]::new()
     [void]$view.Children.Add((New-AkariTweaksToolbar))
     foreach ($sec in $script:TweakSections) {
-        $sec.Heading = New-AkariText $sec.Header 18
+        $sec.Heading = New-AkariText $sec.Header 20
         $sec.Heading.FontWeight = 'SemiBold'
+        Set-AkariFont $sec.Heading 'Display'
         $sec.Heading.Margin = [Windows.Thickness]::new(2, $(if ($sec -eq $script:TweakSections[0]) { 0 } else { 12 }), 0, 10)
         $sec.Grid = [Windows.Controls.Grid]::new()
         [void]$view.Children.Add($sec.Heading)
@@ -429,8 +430,9 @@ function New-AkariModeCard([string]$Glyph, [string]$Title, [string]$Text, [bool]
     $ic = New-AkariText $Glyph 28
     $ic.SetResourceReference([Windows.Controls.TextBlock]::FontFamilyProperty, 'Icons')
     $ic.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
-    $tt = New-AkariText $Title 18
+    $tt = New-AkariText $Title 20
     $tt.FontWeight = 'SemiBold'
+    Set-AkariFont $tt 'Display'
     $tx = New-AkariText $Text 13 'Mu'
     $tx.Margin = [Windows.Thickness]::new(0, 6, 0, 0)
     foreach ($x in $ic, $tt, $tx) { [void]$sp.Children.Add($x) }
@@ -560,6 +562,7 @@ function Show-AkariSteps {
                 if ($hidden.Count -and $r -eq $hidden[0]) {
                     $hd = New-AkariText "Advanced settings (Optimize $([char]0x203A) Advanced)" 16
                     $hd.FontWeight = 'SemiBold'
+                    Set-AkariFont $hd 'Display'
                     $hd.Margin = [Windows.Thickness]::new(2, 12, 0, 8)
                     [void]$StepBody.Children.Add($hd)
                 }

@@ -78,7 +78,7 @@ function Add-AkariUaFormItems($Panel, $Items, $Gates) {
             $tb.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Flat')
             if ($it.Kind -eq 'Multi') {
                 $tb.AcceptsReturn = $true; $tb.AcceptsTab = $true; $tb.Height = 160
-                $tb.FontFamily = [Windows.Media.FontFamily]::new('Consolas')
+                Set-AkariFont $tb 'Mono'
                 $tb.VerticalScrollBarVisibility = 'Auto'; $tb.HorizontalScrollBarVisibility = 'Auto'
             } elseif ($it.Kind -eq 'Number') { $tb.Width = 140; $tb.HorizontalAlignment = 'Left' }
             [void]$Panel.Children.Add($tb)
@@ -234,7 +234,7 @@ function New-AkariUaFormScripts([string]$Phase, [string]$Label, $Gates) {
         $tb = [Windows.Controls.TextBox]::new()
         $tb.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Flat')
         $tb.AcceptsReturn = $true; $tb.AcceptsTab = $true; $tb.Height = 90
-        $tb.FontFamily = [Windows.Media.FontFamily]::new('Consolas'); $tb.VerticalScrollBarVisibility = 'Auto'; $tb.HorizontalScrollBarVisibility = 'Auto'
+        Set-AkariFont $tb 'Mono'; $tb.VerticalScrollBarVisibility = 'Auto'; $tb.HorizontalScrollBarVisibility = 'Auto'
         [Windows.Controls.Grid]::SetColumn($tb, 1)
         [void]$g.Children.Add($type); [void]$g.Children.Add($tb)
         $script:UaBindings.Add(@{ Field = "$($Phase)ScriptType$r"; Kind = 'Select'; Control = $type; Gates = @($Gates) })
@@ -260,7 +260,7 @@ function New-AkariUaFormComponents($Gates) {
         $tb = [Windows.Controls.TextBox]::new()
         $tb.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Flat')
         $tb.AcceptsReturn = $true; $tb.AcceptsTab = $true; $tb.Height = 90; $tb.Margin = [Windows.Thickness]::new(0, 4, 0, 0)
-        $tb.FontFamily = [Windows.Media.FontFamily]::new('Consolas'); $tb.VerticalScrollBarVisibility = 'Auto'; $tb.HorizontalScrollBarVisibility = 'Auto'
+        Set-AkariFont $tb 'Mono'; $tb.VerticalScrollBarVisibility = 'Auto'; $tb.HorizontalScrollBarVisibility = 'Auto'
         [void]$row.Children.Add($cb); [void]$row.Children.Add($tb)
         $script:UaBindings.Add(@{ Field = "Component$r"; Kind = 'Select'; Control = $cb; Gates = @($Gates) })
         $script:UaBindings.Add(@{ Field = "ComponentContent$r"; Kind = 'Input'; Control = $tb; Gates = @($Gates) })
@@ -281,8 +281,9 @@ function New-AkariUaForm($Panel, $Sections) {
         $card.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
         $card.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
         $sp = [Windows.Controls.StackPanel]::new()
-        $h = New-AkariText $s.Title 14
+        $h = New-AkariText $s.Title 20
         $h.FontWeight = 'SemiBold'; $h.Margin = [Windows.Thickness]::new(0, 0, 0, 8)
+        Set-AkariFont $h 'Display'
         [void]$sp.Children.Add($h)
         Add-AkariUaFormItems $sp $s.Items @()
         $card.Child = $sp

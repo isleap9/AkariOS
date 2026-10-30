@@ -19,8 +19,9 @@ function Show-AkariAbout {
     $card = [Windows.Controls.Border]::new()
     $card.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
     $sp = [Windows.Controls.StackPanel]::new()
-    $p.Version = New-AkariText "AkariOS $AkariVersion" 18
+    $p.Version = New-AkariText "AkariOS $AkariVersion" 20
     $p.Version.FontWeight = 'SemiBold'
+    Set-AkariFont $p.Version 'Display'
     $p.Status = New-AkariText '' 13 'Mu'
     $p.Status.Margin = [Windows.Thickness]::new(0, 4, 0, 12)
     $bar = [Windows.Controls.StackPanel]::new()
@@ -46,6 +47,7 @@ function Show-AkariAbout {
     # the release notes, as plain text
     $p.NotesHead = New-AkariText "What's new" 14
     $p.NotesHead.FontWeight = 'SemiBold'
+    Set-AkariFont $p.NotesHead 'Display'
     $p.NotesHead.Margin = [Windows.Thickness]::new(0, 16, 0, 6)
     $p.Notes = New-AkariText '' 13 'Mu'
     foreach ($x in $p.Version, $p.Status, $bar, $p.NotesHead, $p.Notes) { [void]$sp.Children.Add($x) }
@@ -122,8 +124,9 @@ function New-AkariAboutCard([string]$Title) {
     $c.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
     $c.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
     $sp = [Windows.Controls.StackPanel]::new()
-    $h = New-AkariText $Title 14
+    $h = New-AkariText $Title 20
     $h.FontWeight = 'SemiBold'
+    Set-AkariFont $h 'Display'
     $h.Margin = [Windows.Thickness]::new(0, 0, 0, 10)
     [void]$sp.Children.Add($h)
     $c.Child = $sp

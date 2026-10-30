@@ -137,6 +137,21 @@ function Get-AkariRowStart($e, [bool]$UseState) {
 }
 
 # a category card: icon, title and an optional note (e.g. "Not yet ported"); rows go into .Panel
+# the window's fonts (Assets\Fonts, SIL OFL; loaded from the folder, never installed): FontDisplay = Unbounded
+# (titles, overlines), FontText = Manrope (everything else), FontMono = JetBrains Mono (ids, the version, code). Each
+# falls back to Segoe UI / Consolas when its file is missing. UI\Shell.ps1 puts them in the window's resources.
+function Get-AkariFonts([string]$Dir) {
+    $base = [Uri]('file:///' + ($Dir.TrimEnd('\') -replace '\\', '/') + '/')
+    @{
+        FontDisplay = [Windows.Media.FontFamily]::new($base, './#Unbounded, Segoe UI Variable Display, Segoe UI')
+        FontText    = [Windows.Media.FontFamily]::new($base, './#Manrope, Segoe UI Variable Text, Segoe UI')
+        FontMono    = [Windows.Media.FontFamily]::new($base, './#JetBrains Mono, Cascadia Mono, Consolas')
+    }
+}
+
+# a TextBlock (or control) in one of the window's fonts: Display (Unbounded), Text (Manrope) or Mono
+function Set-AkariFont($Block, [string]$Font) { $Block.SetResourceReference([Windows.Documents.TextElement]::FontFamilyProperty, "Font$Font") }
+
 function New-AkariCategoryCard([string]$Title, [int]$Glyph, [string]$Note) {
     $card = [Windows.Controls.Border]::new()
     $card.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'CategoryCard')
@@ -152,14 +167,15 @@ function New-AkariCategoryCard([string]$Title, [int]$Glyph, [string]$Note) {
     $ic.SetResourceReference([Windows.Controls.TextBlock]::FontFamilyProperty, 'Icons')
     $tt = [Windows.Controls.TextBlock]::new()
     $tt.Text = $Title
-    $tt.FontSize = 16
+    $tt.FontSize = 20
     $tt.FontWeight = 'SemiBold'
+    Set-AkariFont $tt 'Display'
     $tt.VerticalAlignment = 'Center'
     [void]$head.Children.Add($ic); [void]$head.Children.Add($tt)
     if ($Note) {
         $nt = [Windows.Controls.TextBlock]::new()
         $nt.Text = $Note
-        $nt.FontSize = 11
+        $nt.FontSize = 12
         $nt.Margin = [Windows.Thickness]::new(10, 2, 0, 0)
         $nt.VerticalAlignment = 'Center'
         $nt.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, 'Ter')

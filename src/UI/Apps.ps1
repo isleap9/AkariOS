@@ -210,8 +210,9 @@ function New-AkariAppTable([string]$Title, [string]$Last, $Items) {
     $table = [Windows.Controls.Border]::new()
     $table.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'CategoryCard')
     $sp = [Windows.Controls.StackPanel]::new()
-    $tt = New-AkariAppCell $Title 0 'Tx' 16
+    $tt = New-AkariAppCell $Title 0 'Tx' 20
     $tt.FontWeight = 'SemiBold'
+    Set-AkariFont $tt 'Display'
     $tt.Margin = [Windows.Thickness]::new(0, 0, 0, 8)
     [void]$sp.Children.Add($tt)
     $head = New-AkariAppGrid

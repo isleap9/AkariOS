@@ -50,6 +50,43 @@ Describe 'UI files' {
     }
 }
 
+Describe 'Fonts (Assets\Fonts)' {
+    Add-Type -AssemblyName PresentationCore, PresentationFramework
+    . "$Root\UI\Cards.ps1"
+    $dir = "$Root\Assets\Fonts"
+    $files = @{ 'Unbounded' = 'Unbounded-SemiBold', 'Unbounded-Bold'; 'Manrope' = 'Manrope-Medium', 'Manrope-SemiBold', 'Manrope-Bold'; 'JetBrains Mono' = 'JetBrainsMono-Medium' }
+
+    It 'ships each static TTF with its family name, and an OFL licence per family' {
+        foreach ($fam in $files.Keys) {
+            foreach ($n in $files[$fam]) {
+                $g = [Windows.Media.GlyphTypeface]::new([Uri]"$dir\$n.ttf")
+                "$n=$($g.FamilyNames['en-us'])" | Should Be "$n=$fam"
+            }
+        }
+        foreach ($l in 'Unbounded', 'Manrope', 'JetBrainsMono') { (Get-Content "$dir\$l-OFL.txt" -Raw) | Should Match 'SIL Open Font License' }
+    }
+    It 'are static, not variable fonts (WPF ignores variable axes)' {
+        foreach ($f in Get-ChildItem $dir -Filter *.ttf) {
+            $b = [IO.File]::ReadAllBytes($f.FullName); $n = $b[4] * 256 + $b[5]
+            $tags = for ($i = 0; $i -lt $n; $i++) { [Text.Encoding]::ASCII.GetString($b, 12 + 16 * $i, 4) }
+            "$($f.Name):$($tags -contains 'fvar')" | Should Be "$($f.Name):False"
+        }
+    }
+    It 'load from the folder as FontDisplay, FontText and FontMono with every weight the UI uses' {
+        $f = Get-AkariFonts $dir
+        $w = { param($k) (@($f[$k].GetTypefaces() | ForEach-Object { "$($_.Weight)" }) | Sort-Object -Unique) -join ',' }
+        & $w 'FontDisplay' | Should Be 'Bold,SemiBold'
+        & $w 'FontText' | Should Be 'Bold,Medium,SemiBold'
+        & $w 'FontMono' | Should Match 'Medium'
+    }
+    It 'go into the release zip (the workflow ships all of src)' {
+        (Get-Content "$Root\..\.github\workflows\release.yml" -Raw) | Should Match 'Copy-Item src/\* dist/AkariOS -Recurse'
+    }
+    It 'leave no Segoe UI or Consolas in the UI but the fallbacks' {
+        @(Select-String -Path "$Root\UI\*.xaml", "$Root\UI\*.ps1" -Pattern 'Segoe UI|Consolas' | Where-Object { $_.Line -notmatch '\./#|^\s*#' }).Count | Should Be 0
+    }
+}
+
 Describe 'Themes (UI\Theme.Dark.xaml, UI\Theme.Light.xaml)' {
     $keys = { param($f) ([xml](Get-Content $f -Raw)).ResourceDictionary.SolidColorBrush | ForEach-Object { $_.Key } }
     $dark = @(& $keys "$Root\UI\Theme.Dark.xaml" | Sort-Object)
@@ -73,7 +110,9 @@ Describe 'Themes (UI\Theme.Dark.xaml, UI\Theme.Light.xaml)' {
             foreach ($f in $xaml) { [regex]::Matches((Get-Content $f.FullName -Raw), '\{(?:Dynamic|Static)Resource ([A-Za-z0-9]+)\}') | ForEach-Object { $_.Groups[1].Value } }
             foreach ($f in Get-ChildItem "$Root\UI\*.ps1") { [regex]::Matches((Get-Content $f.FullName -Raw), "(?:SetResourceReference\([^,]+,\s*|FindResource\()'([A-Za-z0-9]+)'") | ForEach-Object { $_.Groups[1].Value } }
         ) | Sort-Object -Unique
-        $miss = @($used | Where-Object { $_ -notin $defined -and $_ -notin $dark })
+        # the fonts are put in the window's resources by UI\Shell.ps1 (Get-AkariFonts), not by a theme
+        $fonts = 'FontDisplay', 'FontText', 'FontMono'
+        $miss = @($used | Where-Object { $_ -notin $defined -and $_ -notin $dark -and $_ -notin $fonts })
         ($miss -join ', ') | Should Be ''
     }
 
@@ -257,6 +296,8 @@ Click $StepBack; "aboutBack=$script:Cat"
 Click $HomeTiles.Children[3]; "usbFile=$script:Cat|$($Heading.Text)|$($PaneCol.Width.Value)|$($StepNext.Visibility)|$($null -ne $script:UnattendParts.Drive)"
 Click $StepBack; "usbFileBack=$script:Cat"
 "title=$($window.FindName('TitleText').Text)"
+$fam = { param($e) "$($e.FontFamily.Source)".Split(',')[0] }
+"fonts=$(& $fam $window)|$(& $fam $Heading)|$($Heading.FontSize)|$(& $fam $window.FindName('TitleText'))|$(& $fam $AppVersionText)"
 "menu=$(($MainMenu.Items | ForEach-Object { if ($_ -is [Windows.Controls.Separator]) { '-' } elseif ($_.IsEnabled) { $_.Header } else { "($($_.Header))" } }) -join ',')"
 $MainMenu.Items[$MainMenu.Items.Count - 1].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent)); "menuAbout=$script:Cat"
 # themes: the menu row cycles Follow Windows -> Dark -> Light, swaps the one theme dictionary and saves the choice
@@ -438,6 +479,9 @@ Select-AkariPage 'Optimize'; Click $StepBody.Children[0].Children[1]
         $out.catLeft | Should Be 'Check|Optimize,Check,Refresh,Setup,Downloads,Graphics,Windows,Hardware,Advanced|Collapsed'
     }
     It 'the title bar says AkariOS' { $out.title | Should Be 'AkariOS' }
+    It 'uses Manrope for text, Unbounded 32 for the page title and the wordmark, JetBrains Mono for the version' {
+        $out.fonts | Should Be './#Manrope|./#Unbounded|32|./#Unbounded|./#JetBrains Mono'
+    }
     It 'the options menu: Import / Export settings, System Restore, the About links, Logs, About' {
         $out.menu | Should Be 'Import settings,Export settings,System Restore,Theme: Follow Windows,-,GitHub,Report a bug,Discord,Logs,About'
         $out.menuAbout | Should Be 'About'
