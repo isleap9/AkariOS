@@ -150,7 +150,15 @@ function Open-AkariLogFolder { $f = Split-Path $AkariLogFile; if (Test-Path $f) 
 function New-AkariMenuItem([string]$Header, [string]$Icon, [scriptblock]$Click) {
     $it = [Windows.Controls.MenuItem]::new()
     $it.Header = $Header
-    $it.Icon = New-AkariIcon $Icon 16 'Inherit'
+    # the menu opens in a popup, outside the window's tree, where the icon found neither its shape nor its colour:
+    # both are set here, from the window's resources and from the row
+    $ic = New-AkariIcon $Icon 16
+    $p = $ic.Child.Children[0]
+    $p.Data = $window.FindResource("Ic.$Icon")
+    $bd = [Windows.Data.Binding]::new('Foreground')
+    $bd.Source = $it
+    [void][Windows.Data.BindingOperations]::SetBinding($p, [Windows.Shapes.Shape]::StrokeProperty, $bd)
+    $it.Icon = $ic
     if ($Click) { $it.Add_Click($Click) }
     else {
         $it.IsEnabled = $false

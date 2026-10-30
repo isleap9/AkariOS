@@ -393,6 +393,8 @@ Click $StepBack; "usbFileBack=$script:Cat"
 $fam = { param($e) "$($e.FontFamily.Source)".Split(',')[0] }
 "fonts=$(& $fam $window)|$(& $fam $Heading)|$($Heading.FontSize)|$(& $fam $window.FindName('TitleText'))|$(& $fam $AppVersionText)"
 "menu=$(($MainMenu.Items | ForEach-Object { if ($_ -is [Windows.Controls.Separator]) { '-' } elseif ($_.IsEnabled) { $_.Header } else { "($($_.Header))" } }) -join ',')"
+# the menu's popup is outside the window's tree: each icon has its shape and its row's colour without a layout
+"menuIcons=$(@($MainMenu.Items | Where-Object { $_ -is [Windows.Controls.MenuItem] } | ForEach-Object { $ip = $_.Icon.Child.Children[0]; ($null -ne $ip.Data) -and ([Windows.Data.BindingOperations]::GetBinding($ip, [Windows.Shapes.Shape]::StrokeProperty).Source -eq $_) -and ($ip.Stroke -eq $_.Foreground) } | Sort-Object -Unique) -join ',')"
 $MainMenu.Items[$MainMenu.Items.Count - 1].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent)); "menuAbout=$script:Cat"
 # themes: the menu row cycles Follow Windows -> Dark -> Light, swaps the one theme dictionary and saves the choice
 "themeStart=$script:ThemeSetting,$(@($window.Resources.MergedDictionaries | Where-Object { $_.Contains('Acc') }).Count)"
@@ -613,6 +615,9 @@ $Sections.SelectedItem = $Sections.Items[2]
     It 'the options menu: Import / Export settings, System Restore, the About links, Logs, About' {
         $out.menu | Should Be 'Import settings,Export settings,System Restore,Theme: Follow Windows,-,GitHub,Report a bug,Discord,Logs,About'
         $out.menuAbout | Should Be 'About'
+    }
+    It 'every options menu row has its icon, in the row colour, with no layout (the menu opens in a popup)' {
+        $out.menuIcons | Should Be 'True'
     }
     It 'Import settings opens the file in Guided on the Tweaks step, and keeps a copy in the presets' {
         $out.import | Should Be 'Install AkariOS|Guided|1|cat-tog|True'
