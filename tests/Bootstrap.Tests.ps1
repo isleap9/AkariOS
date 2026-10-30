@@ -69,7 +69,18 @@ Describe 'AkariOS.exe (build\Launcher.cs)' {
         ($log -join "`n") | Should BeNullOrEmpty
         Test-Path $out | Should Be $true
         (Get-Content "$Repo\build\Launcher.manifest" -Raw) | Should Match 'requireAdministrator'
-        (Get-Content "$Repo\.github\workflows\release.yml" -Raw) | Should Match 'build/Launcher\.cs'
+        (Get-Content "$Repo\.github\workflows\release.yml" -Raw) | Should Match 'build\\Launcher\.cs'
+    }
+    # csc reads a / in a file name as an option: with build/Launcher.cs the 1.1.0 release build failed
+    It 'the release workflow compiles it with its own command line, from the repo root' {
+        $line = @(Get-Content "$Repo\.github\workflows\release.yml" | Where-Object { $_ -match '^\s*& \$csc ' })
+        $line.Count | Should Be 1
+        $csc = "$env:SystemRoot\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+        $cmd = $line[0].Trim().Replace('dist\AkariOS\AkariOS.exe', "$TestDrive\wf.exe")
+        Push-Location $Repo
+        try { $log = Invoke-Expression "$cmd 2>&1" } finally { Pop-Location }
+        ($log -join "`n") | Should BeNullOrEmpty
+        Test-Path "$TestDrive\wf.exe" | Should Be $true
     }
     It 'starts Akari.ps1 from its own folder with the execution policy bypassed, and does not wait' {
         $cs = Get-Content "$Repo\build\Launcher.cs" -Raw
