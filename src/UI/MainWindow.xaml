@@ -421,10 +421,10 @@
     <Border x:Name="Body" Grid.RowSpan="3" Background="{DynamicResource Bg}"/>
 
     <!-- Top bar (the window's drag region; the tabs, search and buttons stay clickable): the A mark and wordmark, the
-         tabs (UI\Shell.ps1), then the search, the options menu and the caption buttons on the right. -->
+         tabs (UI\Shell.ps1), then the search, the options menu and the caption buttons on the right. The tabs take
+         the space left (clipped if it runs out): the search and the caption buttons always keep theirs. -->
     <Grid x:Name="TopBar">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="Auto"/>
         <ColumnDefinition Width="Auto"/>
         <ColumnDefinition Width="*"/>
         <ColumnDefinition Width="Auto"/>
@@ -435,9 +435,9 @@
         <Image x:Name="Logo" Width="24" Height="24" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality"/>
         <TextBlock x:Name="TitleText" Text="AkariOS" FontFamily="{DynamicResource FontDisplay}" FontWeight="Bold" FontSize="16" VerticalAlignment="Center"/>
       </StackPanel>
-      <StackPanel x:Name="Tabs" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"/>
-      <!-- search: a pill box, or below 1100 px an icon button that opens it (Ctrl+K at any width) -->
-      <Grid x:Name="SearchBox" Grid.Column="3" Width="260" VerticalAlignment="Center" Margin="12,0,8,0"
+      <StackPanel x:Name="Tabs" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left" ClipToBounds="True"/>
+      <!-- search: a pill box, or in a narrow window an icon button that opens it (Ctrl+K at any width) -->
+      <Grid x:Name="SearchBox" Grid.Column="2" Width="260" VerticalAlignment="Center" Margin="12,0,8,0"
             WindowChrome.IsHitTestVisibleInChrome="True">
         <TextBox x:Name="Search" Style="{StaticResource Flat}" Padding="38,7,14,8"/>
         <TextBlock x:Name="SearchHint" Text="Search" Foreground="{DynamicResource Mu}" Margin="40,0,0,1"
@@ -457,14 +457,14 @@
           <Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Stroke="{DynamicResource Mu}" Data="{DynamicResource Ic.search}"/></Canvas>
         </Viewbox>
       </Grid>
-      <Button x:Name="SearchBtn" Grid.Column="3" Style="{StaticResource Ghost}" Width="36" Height="36" Margin="12,0,8,0"
+      <Button x:Name="SearchBtn" Grid.Column="2" Style="{StaticResource Ghost}" Width="36" Height="36" Margin="12,0,8,0"
               VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Search (Ctrl+K)" WindowChrome.IsHitTestVisibleInChrome="True">
         <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.search}"/></Canvas></Viewbox>
       </Button>
 
     <!-- Caption buttons, drawn like Windows 11's: the options menu (UI\About.ps1), minimize, maximize / restore,
          close (red on hover). -->
-    <StackPanel Grid.Column="4" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+    <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
       <Button x:Name="MenuBtn" Style="{StaticResource Cap}" ToolTip="Options">
         <Viewbox Width="16" Height="16"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.menu}"/></Canvas></Viewbox>
       </Button>
@@ -488,8 +488,8 @@
         <RowDefinition Height="*"/>
       </Grid.RowDefinitions>
 
-      <!-- Page header: icon, title, subtitle. -->
-      <Grid Margin="4,0,0,16">
+      <!-- Page header: icon, title, subtitle (hidden on Home). -->
+      <Grid x:Name="PageHeader" Margin="4,0,0,16">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="Auto"/>
           <ColumnDefinition Width="*"/>
@@ -545,8 +545,9 @@
               <StackPanel x:Name="StepBody"/>
             </StackPanel>
 
-            <!-- Home page: the update bar (only when a newer release exists, UI\About.ps1), four tiles (built in
-                 UI\Shell.ps1) and the About link; no sidebar on this page. -->
+            <!-- Home page: the update bar (only when a newer release exists, UI\About.ps1), the hero (headline, lead,
+                 One-click and Choose changes, three stats read in the background: UI\Shell.ps1) and the mode cards
+                 (built in UI\Shell.ps1). Home has no page header: the hero is its title. -->
             <StackPanel x:Name="HomePanel" Visibility="Collapsed">
               <Border x:Name="UpdateBar" Visibility="Collapsed" CornerRadius="4" BorderThickness="1" Padding="16,10" Margin="0,0,0,12"
                       BorderBrush="{DynamicResource Bd}" Background="{DynamicResource S1}">
@@ -558,7 +559,30 @@
                   <TextBlock x:Name="UpdateText" VerticalAlignment="Center" TextWrapping="Wrap"/>
                 </DockPanel>
               </Border>
-              <UniformGrid x:Name="HomeTiles" Columns="5" Margin="0,8,0,0"/>
+              <StackPanel x:Name="Hero" Margin="8,12,8,36">
+                <TextBlock x:Name="HeroOver" FontFamily="{DynamicResource FontDisplay}" FontSize="11" FontWeight="SemiBold"
+                           Foreground="{DynamicResource AccText}" Margin="0,0,0,12"/>
+                <TextBlock Text="Windows, tuned for games." FontFamily="{DynamicResource FontDisplay}" FontSize="40" FontWeight="Bold"
+                           TextWrapping="Wrap"/>
+                <TextBlock Foreground="{DynamicResource Mu}" FontSize="16" TextWrapping="Wrap" MaxWidth="620" HorizontalAlignment="Left" Margin="0,12,0,0"
+                           Text="Remove the bloat, apply the tweaks that matter and keep a way back: every change can be reverted to the Windows default."/>
+                <WrapPanel Margin="0,24,0,0">
+                  <Button x:Name="HeroOneClick" Style="{StaticResource BtnP}" Margin="0,0,12,8" ToolTip="The full AkariOS setup in one go, with restarts handled for you">
+                    <StackPanel Orientation="Horizontal">
+                      <Viewbox Width="16" Height="16" Margin="0,0,8,0"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Stroke="{DynamicResource AccT}" Data="{DynamicResource Ic.zap}"/></Canvas></Viewbox>
+                      <TextBlock Text="One-click setup"/>
+                    </StackPanel>
+                  </Button>
+                  <Button x:Name="HeroChoose" Style="{StaticResource Btn}" Content="Choose changes" Margin="0,0,0,8"
+                          ToolTip="Pick the apps and Tweaks yourself, review them, then apply them in one go"/>
+                </WrapPanel>
+                <!-- the stats: Tweaks, removable apps, changes applied (a dash until read) -->
+                <StackPanel x:Name="HeroStats" Orientation="Horizontal" Margin="0,28,0,0"/>
+              </StackPanel>
+              <TextBlock Text="MORE TOOLS" FontFamily="{DynamicResource FontDisplay}" FontSize="11" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Mu}" Margin="8,0,0,12"/>
+              <!-- columns follow the window's width (Update-AkariWidth) -->
+              <UniformGrid x:Name="HomeTiles" Columns="4"/>
             </StackPanel>
 
             <StackPanel x:Name="Rows"/>

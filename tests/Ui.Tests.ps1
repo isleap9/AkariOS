@@ -44,7 +44,7 @@ Describe 'UI files' {
 
     It 'Controls.xaml parses and defines every style' {
         $s = "Add-Type -AssemblyName PresentationFramework; `$d = [Windows.Markup.XamlReader]::Parse((Get-Content '$Root\UI\Controls.xaml' -Raw)); " +
-             "`$miss = @('Switch', 'Combo', 'ComboItem', 'Segmented', 'SegItem', 'Check', 'SettingCard', 'CategoryCard', 'Accent', 'StepDot', 'ModeCard' | Where-Object { -not `$d.Contains(`$_) }); " +
+             "`$miss = @('Switch', 'Combo', 'ComboItem', 'Segmented', 'SegItem', 'Check', 'SettingCard', 'CategoryCard', 'Accent', 'StepNum', 'ModeCard' | Where-Object { -not `$d.Contains(`$_) }); " +
              "if (`$miss) { 'missing: ' + (`$miss -join ', ') } else { 'ok' }"
         Test-XamlInChild $s | Should Be 'ok'
     }
@@ -231,7 +231,7 @@ $seg = ConvertTo-AkariTweak @{ Id = 'seg'; Name = 'Seg'; Description = 'D'; Kind
 $e = New-AkariTweakRow $seg 'Default' 0; Show $e
 Set-AkariRowControl $e 2; $v2 = Get-AkariComboValue $e
 Set-AkariRowControl $e 'None'
-"seg=$($e.Control.GetType().Name)|$($e.Control.Items.Count)|$v2|$(Get-AkariComboValue $e)|$($e.Control.Style -eq $host_.FindResource('Segmented'))"
+"seg=$($e.Control.GetType().Name)|$($e.Control.Items.Count)|$v2|$(Get-AkariComboValue $e)|$($e.Control.Style -eq $host_.FindResource('Segmented'))|$(@($e.Control.Items | ForEach-Object { $_.GetType().Name } | Sort-Object -Unique) -join ',')"
 "chType=$((New-AkariTweakRow $ch 'Default' 0x26).Control.GetType().Name)"
 $e = New-AkariTweakRow $act 'Unknown'; Show $e
 "actType=$($e.Control.GetType().Name)"; "actGlyphs=$($e.Glyphs.Children.Count)"
@@ -285,7 +285,8 @@ $b = New-AkariBadge 'Advanced'; "badge=$($b.Tag)|$($b.Child.Text)"
     }
 
     It 'shows a short Choice as the segmented picker (same items, same row code), an editable one as a combobox' {
-        $out.seg | Should Be 'ListBox|4|2|None|True'
+        # ListBoxItems: a ComboBoxItem in a ListBox ignores the mouse
+        $out.seg | Should Be 'ListBox|4|2|None|True|ListBoxItem'
         $out.chType | Should Be 'ComboBox'
     }
 
@@ -344,9 +345,16 @@ function ChipList { ($Chips.Children | ForEach-Object { $_.Tag }) -join ',' }
 function ChipOn { ($Chips.Children | Where-Object { $_.IsChecked }).Tag }
 "tabs=$(($Tabs.Children | ForEach-Object { $_.Tag }) -join ',')"
 Select-AkariPage 'Home'; "home=$($HomePanel.Visibility)|$(TabOn)|$($SubNav.Visibility)|$($SearchHint.Text)"
+# the hero: no page header, Tweaks counted at once, the other stats read in a job
+"homeStats=$($PageHeader.Visibility)|$($script:Jobs.Count)|$($script:Jobs[-1].Code -match 'Get-AkariExportItems')|$($script:HomeStat.Tweaks.Text)|$([int][char]$script:HomeStat.Applied.Text)"
+Complete-AkariHomeStats @{ Apps = 12; Applied = 34 }; "homeStatsDone=$($script:HomeStat.Apps.Text)|$($script:HomeStat.Applied.Text)"
+Select-AkariPage 'Home'; "homeStatsOnce=$($script:Jobs.Count)"
+$script:Jobs = @()
+Click $HeroChoose; "heroChoose=$script:Cat|$script:Mode|$script:Step|$($PageHeader.Visibility)"
 # the Optimize tile (and tab) opens the Catalogue's first page, its Section and chips in the sub-header
-Click $HomeTiles.Children[1]
+Click $HomeTiles.Children[0]
 "optimize=$script:Cat|$(TabOn)|$($SubNav.Visibility)|$(($Sections.Items | ForEach-Object { $_.Tag }) -join ',')|$(ChipList)|$(ChipOn)|$($SearchHint.Text)"
+"sectionItems=$(@($Sections.Items | ForEach-Object { $_.GetType().Name } | Sort-Object -Unique) -join ',')"
 $tog = $script:CatCards['cat-tog']
 "catReading=$($tog.StateText.Text -replace '[^ -~]', '.')|$($tog.Control.IsEnabled)|$($script:Jobs.Count)"
 # Legacy: the last Section, its pages as chips (Downloads is a tab)
@@ -360,7 +368,7 @@ $Search.Text = 'theme'; "search=$(Rows)|$($SearchHint.Text)"; $Search.Text = ''
 SetTab 'Home'; SetTab 'Optimize'; "optimizeAgain=$script:Cat|$(TabOn)"
 SetTab 'Install AkariOS'; "install=$script:Cat|$(TabOn)|$($SubNav.Visibility)|$($SearchHint.Text)"
 Click $StepBack; "installBack=$script:Cat|$(TabOn)"
-Click $HomeTiles.Children[2]; "dlHome=$script:FlowExit"
+Click $HomeTiles.Children[1]; "dlHome=$script:FlowExit"
 # every page is reachable: a tab, a Section's chip, Remove apps, or About in the options menu
 $reach = @($AkariTabs.Keys) + @($script:OptSections | ForEach-Object { $_.Pages | ForEach-Object { $_.Key } }) + 'Remove apps', 'About'
 "unreached=$((@($Pages.Keys) | Where-Object { $_ -notin $reach }) -join ',')"
@@ -377,9 +385,9 @@ $cr = $script:AboutParts.Credits.Children[0]
 "aboutLicenseLink=$($script:AboutParts.License.Parent.Orientation),$($script:AboutParts.License.Parent.Children[1].Content)"
 "appVersion=$($AppVersionText.Text)"
 Click $StepBack; "aboutBack=$script:Cat"
-# the Install USB tile (fourth of five): full window, Back leads Home
+# the Install USB tile (third of four): full window, Back leads Home
 "tiles=$(($HomeTiles.Children | ForEach-Object { $_.Content.Children[1].Text }) -join ',')|$($HomeTiles.Columns)"
-Click $HomeTiles.Children[3]; "usbFile=$script:Cat|$($Heading.Text)|$(TabOn)|$($StepNext.Visibility)|$($null -ne $script:UnattendParts.Drive)"
+Click $HomeTiles.Children[2]; "usbFile=$script:Cat|$($Heading.Text)|$(TabOn)|$($StepNext.Visibility)|$($null -ne $script:UnattendParts.Drive)"
 Click $StepBack; "usbFileBack=$script:Cat"
 "title=$($window.FindName('TitleText').Text)"
 $fam = { param($e) "$($e.FontFamily.Source)".Split(',')[0] }
@@ -457,9 +465,27 @@ Click $StepBack; "catRemoveBack=$script:Cat|$(ChipOn)|$($SubNav.Visibility)"
 SetTab 'Downloads'; "catDownloads=$script:Cat|$script:Mode|$script:FlowExit"
 Click $StepBack; "catDownloadsBack=$script:Cat"
 # under 1100 px: the search is an icon button that opens the box, the tabs lose their icons
-Update-AkariWidth 900; "narrow=$($SearchBox.Visibility)|$($SearchBtn.Visibility)|$($script:TabIcons[0].Visibility)"
+Update-AkariWidth 1100; "narrow=$($SearchBox.Visibility)|$($SearchBtn.Visibility)|$($script:TabIcons[0].Visibility)|$($TitleText.Visibility)"
 Click $SearchBtn; "narrowOpen=$($SearchBox.Visibility)|$($SearchBtn.Visibility)"
-Update-AkariWidth 1400; "wide=$($SearchBox.Visibility)|$($SearchBtn.Visibility)|$($script:TabIcons[0].Visibility)"
+Update-AkariWidth 900; "narrowest=$($TitleText.Visibility)"
+Update-AkariWidth 1400; "wide=$($SearchBox.Visibility)|$($SearchBtn.Visibility)|$($script:TabIcons[0].Visibility)|$($TitleText.Visibility)"
+# the caption buttons fit at every width from the window's MinWidth up (the tabs give way, never the buttons)
+$fit = @(); $tabsFit = @()
+$window.Content = $null; $hostB = [Windows.Controls.Border]::new(); foreach ($k in $window.Resources.Keys) { $hostB.Resources[$k] = $window.Resources[$k] }
+foreach ($m in $window.Resources.MergedDictionaries) { $hostB.Resources.MergedDictionaries.Add($m) }; $hostB.Child = $Shell
+foreach ($w in $window.MinWidth, 1000, 1100, 1200, 1319, 1320, 1400) {
+    Update-AkariWidth $w
+    $hostB.Measure([Windows.Size]::new($w, 720)); $hostB.Arrange([Windows.Rect]::new(0, 0, $w, 720)); $hostB.UpdateLayout()
+    $x = $CapClose.TranslatePoint([Windows.Point]::new($CapClose.ActualWidth, 0), $hostB).X
+    $fit += "$w=$([Math]::Abs($x - $w) -lt 1)"
+    # the last tab ends before the search (box or button) starts: no tab is cut off
+    $t = $Tabs.Children[$Tabs.Children.Count - 1]
+    $se = if ($SearchBox.Visibility -eq 'Visible') { $SearchBox } else { $SearchBtn }
+    $tabsFit += "$w=$($t.TranslatePoint([Windows.Point]::new($t.ActualWidth, 0), $hostB).X -le $se.TranslatePoint([Windows.Point]::new(0, 0), $hostB).X)"
+}
+"capsFit=$($fit -join ',')"
+"tabsFit=$($tabsFit -join ',')"
+$hostB.Child = $null; $window.Content = $Shell
 # search: every Catalogue Tweak, a heading per Section › Category
 $Search.Text = 'Cat'
 "catSearch=$($Heading.Text)|$(($Rows.Children | Where-Object { $_ -is [Windows.Controls.TextBlock] } | ForEach-Object { $_.Text -replace '[^ -~]', '>' }) -join ',')|$(@($Rows.Children | Where-Object { $_ -is [Windows.Controls.Border] }).Count)"
@@ -476,9 +502,16 @@ $Sections.SelectedItem = $Sections.Items[2]
     It 'builds without errors' { $out['error'] | Should BeNullOrEmpty }
     It 'the top bar has five tabs' { $out.tabs | Should Be 'Home,Install AkariOS,Optimize,Downloads,Install USB' }
     It 'Home checks its tab, with no sub-header' { $out.home | Should Be 'Visible|Home|Collapsed|Search Legacy' }
+    It 'the Home hero replaces the page header; Tweaks are counted at once, the other stats in one background read' {
+        $out.homeStats | Should Be 'Collapsed|1|True|3|8212'
+        $out.homeStatsDone | Should Be '12|34'
+        $out.homeStatsOnce | Should Be '1'
+    }
+    It 'Choose changes opens Guided on its first step' { $out.heroChoose | Should Be 'Install AkariOS|Guided|0|Visible' }
     It 'the Optimize tile opens the Catalogue''s first page: the Sections (Legacy last) and its Category chips' {
         $out.optimize | Should Be 'Catalogue:Customize/Taskbar|Optimize|Visible|Customize,Advanced,Legacy|Catalogue:Customize/Taskbar|Catalogue:Customize/Taskbar|Search Optimize'
     }
+    It 'the Section pills are ListBoxItems (a ComboBoxItem in a ListBox ignores clicks)' { $out.sectionItems | Should Be 'ListBoxItem' }
     It 'reads States in the background: the switch waits for its State' {
         $out.catReading | Should Be 'Reading.|False|1'
     }
@@ -506,7 +539,7 @@ $Sections.SelectedItem = $Sections.Items[2]
         $out.aboutBack | Should Be 'Home'
     }
     It 'the Install USB tile opens its form full window, and Back goes Home' {
-        $out.tiles | Should Be 'Install AkariOS,Optimize,Downloads,Install USB,Import / Export settings|5'
+        $out.tiles | Should Be 'Optimize,Downloads,Install USB,Import / Export settings|4'
         $out.usbFile | Should Be 'Install USB|Install USB|Install USB|Collapsed|True'
         $out.usbFileBack | Should Be 'Home'
     }
@@ -555,10 +588,17 @@ $Sections.SelectedItem = $Sections.Items[2]
         $out.catDownloads | Should Be 'Downloads|Downloads|Catalogue:Advanced/Security'
         $out.catDownloadsBack | Should Be 'Catalogue:Advanced/Security'
     }
-    It 'under 1100 px the search is an icon button that opens the box, and the tabs show text only' {
-        $out.narrow | Should Be 'Collapsed|Visible|Collapsed'
+    It 'under 1320 px the search is an icon button that opens the box and the tabs show text only; under 1000 no wordmark' {
+        $out.narrow | Should Be 'Collapsed|Visible|Collapsed|Visible'
         $out.narrowOpen | Should Be 'Visible|Collapsed'
-        $out.wide | Should Be 'Visible|Collapsed|Visible'
+        $out.narrowest | Should Be 'Collapsed'
+        $out.wide | Should Be 'Visible|Collapsed|Visible|Visible'
+    }
+    It 'keeps the caption buttons in the window at every width' {
+        $out.capsFit | Should Be '860=True,1000=True,1100=True,1200=True,1319=True,1320=True,1400=True'
+    }
+    It 'shows every tab whole at every width' {
+        $out.tabsFit | Should Be '860=True,1000=True,1100=True,1200=True,1319=True,1320=True,1400=True'
     }
     It 'search lists every Catalogue match under its Section › Category' {
         $out.catSearch | Should Be 'Search|Customize > Taskbar,Advanced > Security|2'

@@ -113,6 +113,7 @@ $StepBody.Children[0].Children[1].RaiseEvent([Windows.RoutedEventArgs]::new([Win
 $script:Step = 1; Show-AkariSteps
 "s1next=$($StepNext.Content)"; "s1enabled=$($StepNext.IsEnabled)"; "rows=$($script:TweakRows.Count)"; "cards=$($script:TweakCards.Count)"
 "heading=$($Heading.Text)"; "dots=$($StepDots.Children.Count)"
+"stepper=$(($StepDots.Children | ForEach-Object { $c = $_.Children[$_.Children.Count - 2]; "$($_.Tag):$(if ($c.Child -is [Windows.Controls.TextBlock]) { $c.Child.Text } else { 'check' }):$($_.Children[$_.Children.Count - 1].Text)" }) -join '|')"
 "legStart=$($script:TweakRows['leg'].Control.IsChecked)"; "optStart=$($script:TweakRows['opt'].Control.IsChecked)"
 $script:TweakRows['tog'].Control.IsChecked = $true; Step-AkariCheck 'tog'
 $script:TweakRows['opt'].Control.IsChecked = $false; Step-AkariCheck 'opt'
@@ -170,9 +171,10 @@ $script:Step = 1; Show-AkariSteps
         $out.s1next | Should Be 'Review (0)'
         $out.s1enabled | Should Be 'False'
     }
-    It 'names the step in the page header, dots in the footer' {
+    It 'names the step in the page header; the footer stepper numbers the steps, Apps done, Tweaks current' {
         $out.heading | Should Be 'Tweaks'
         $out.dots | Should Be '3'
+        $out.stepper | Should Be 'Done:check:Apps|Current:2:Tweaks|:3:Review & Apply'
     }
     It 'starts an Optimized Tweak checked and an unread one unchecked' {
         $out.optStart | Should Be 'True'

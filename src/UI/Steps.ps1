@@ -495,22 +495,60 @@ function Show-AkariChooser {
     [void]$StepBody.Children.Add($g)
 }
 
+# one step of the stepper: a short line from the step before (not on the first), the numbered circle (a check when
+# done), the step's name; $State: Current, Done or ''
+function New-AkariStepItem([int]$Number, [string]$Name, [string]$State, [bool]$Line) {
+    $sp = [Windows.Controls.StackPanel]::new()
+    $sp.Orientation = 'Horizontal'
+    $sp.Tag = $State
+    if ($Line) {
+        $l = [Windows.Controls.Border]::new()
+        $l.Width = 28; $l.Height = 1.5; $l.Margin = [Windows.Thickness]::new(12, 0, 12, 0); $l.VerticalAlignment = 'Center'
+        $l.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, $(if ($State) { 'Acc' } else { 'CtlBd' }))
+        [void]$sp.Children.Add($l)
+    }
+    $c = [Windows.Controls.Border]::new()
+    $c.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'StepNum')
+    $c.Tag = $State
+    $c.VerticalAlignment = 'Center'
+    if ($State -eq 'Done') {
+        $ic = New-AkariIcon 'check' 14 'AccText'
+        $ic.HorizontalAlignment = 'Center'; $ic.VerticalAlignment = 'Center'
+        $c.Child = $ic
+    } else {
+        $t = [Windows.Controls.TextBlock]::new()
+        $t.Text = [string]$Number; $t.FontSize = 12; $t.FontWeight = 'Bold'
+        $t.HorizontalAlignment = 'Center'; $t.VerticalAlignment = 'Center'
+        Set-AkariFont $t 'Display'
+        $c.Child = $t
+    }
+    [void]$sp.Children.Add($c)
+    $lb = [Windows.Controls.TextBlock]::new()
+    $lb.Text = $Name; $lb.FontSize = 13; $lb.VerticalAlignment = 'Center'; $lb.Margin = [Windows.Thickness]::new(8, 0, 0, 1)
+    if ($State -eq 'Current') { $lb.FontWeight = 'SemiBold' }
+    $lb.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, $(if ($State -eq 'Current') { 'Tx' } else { 'Mu' }))
+    [void]$sp.Children.Add($lb)
+    $sp
+}
+
 function Show-AkariSteps {
     # the Tweaks view is cached: detach it before the body is cleared, so it can be added again
     if ($script:TweaksView -and $script:TweaksView.Parent) { $script:TweaksView.Parent.Children.Remove($script:TweaksView) }
     if ($script:AppsView -and $script:AppsView.Parent) { $script:AppsView.Parent.Children.Remove($script:AppsView) }
     if ($script:Mode -eq 'Choose') { Show-AkariChooser; return }
     if ($StepFooter) { $StepFooter.Visibility = 'Visible' }
-    # step dots, centred in the footer between Back and Next; each names its step
+    # the stepper, centred in the footer between Back and Next: numbered steps, the current one crimson, done ones checked
     $StepDots.Children.Clear()
     # an apps flow (Downloads, Remove apps): one Apps tab alone, with its own headers
     $flow = $AkariAppFlows[$script:Mode]
-    foreach ($i in $AkariFlows[$(if ($flow) { $script:Mode } else { 'Guided' })]) {
-        $d = [Windows.Shapes.Ellipse]::new()
-        $d.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'StepDot')
-        $d.ToolTip = if ($flow -and $i -eq 0) { $script:Mode } else { $AkariStepNames[$i] }
-        if ($i -eq [math]::Min($script:Step, 2)) { $d.Tag = 'Current' }
-        [void]$StepDots.Children.Add($d)
+    $steps = @($AkariFlows[$(if ($flow) { $script:Mode } else { 'Guided' })])
+    $cur = [math]::Min($script:Step, 2)
+    for ($n = 0; $n -lt $steps.Count; $n++) {
+        $i = $steps[$n]
+        $name = if ($flow -and $i -eq 0) { $script:Mode } elseif ($flow) { $flow.Review[0] } else { $AkariStepNames[$i] }
+        # the result screen: every step done
+        $state = if ($i -lt $cur -or $script:Step -gt 2) { 'Done' } elseif ($i -eq $cur) { 'Current' } else { '' }
+        [void]$StepDots.Children.Add((New-AkariStepItem ($n + 1) $name $state ([bool]$n)))
     }
     $h = if ($flow -and $script:Step -eq 0) { $flow.Head }
          elseif ($flow -and $script:Step -eq 2) { $flow.Review }

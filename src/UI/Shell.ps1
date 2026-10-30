@@ -10,7 +10,8 @@ $window.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get
 foreach ($n in 'Tabs', 'Search', 'SearchBox', 'SearchBtn', 'SearchHint', 'SubNav', 'Sections', 'Chips', 'RemoveApps', 'Heading', 'Rows', 'Page', 'Logo', 'HomePanel',
                'Shell', 'Body', 'Main', 'TopBar', 'HomeTiles', 'HeaderIcon', 'HeaderSub', 'StatusDot', 'StatusRing', 'StatusText', 'StatusBar',
                'CapMin', 'CapMax', 'CapMaxGlyph', 'CapClose', 'StepsPanel', 'StepDots', 'StepBody', 'StepFooter', 'StepBack', 'StepNext',
-               'UpdateBar', 'UpdateText', 'UpdateOpen', 'AppVersion', 'AppVersionText', 'MenuBtn', 'CatBars') { Set-Variable $n $window.FindName($n) }
+               'UpdateBar', 'UpdateText', 'UpdateOpen', 'AppVersion', 'AppVersionText', 'MenuBtn', 'CatBars',
+               'PageHeader', 'TitleText', 'HeroOver', 'HeroOneClick', 'HeroChoose', 'HeroStats') { Set-Variable $n $window.FindName($n) }
 $AppVersionText.Text = "AkariOS $AkariVersion"
 
 # ---- fonts (Get-AkariFonts, UI\Cards.ps1): FontDisplay, FontText, FontMono; Dialog.ps1 gets them through the
@@ -117,6 +118,11 @@ $Pages = [ordered]@{
     Advanced   = @{ Glyph = 'flask-conical'; Sub = 'Security, CPU and display pipeline tweaks for experienced users' }
 }
 
+# opens wide enough for the whole top bar (1360 x 800) when the screen has room, else as big as the screen allows
+$wa = [Windows.SystemParameters]::WorkArea
+$window.Width = [Math]::Max($window.MinWidth, [Math]::Min(1360, $wa.Width - 40))
+$window.Height = [Math]::Max($window.MinHeight, [Math]::Min(800, $wa.Height - 40))
+
 # the window and taskbar icon (the title bar logo follows the theme: Update-AkariLogo)
 $logoPath = "$Root\Assets\AkariLogo.png"
 if (Test-Path $logoPath) {
@@ -189,6 +195,8 @@ function Show-Page {
     # About and Install USB: full pages, Back leads home
     $onAbout = (-not $q -and $script:Cat -in 'About', 'Install USB')
     $CatBars.Visibility = 'Collapsed'
+    # Home: the hero is the title
+    $PageHeader.Visibility = if (-not $q -and $script:Cat -eq 'Home') { 'Collapsed' } else { 'Visible' }
     Update-AkariTopBar
     # Optimize › Advanced (the Catalogue, UI\CataloguePage.ps1): its own pages and search
     if ($script:Cat -like "$AkariCataloguePrefix*") { Show-AkariCataloguePage $q; return }
@@ -206,6 +214,7 @@ function Show-Page {
         return
     }
     $onHome = (-not $q -and $script:Cat -eq 'Home')
+    if ($onHome) { Start-AkariHomeStats }
     $Rows.Children.Clear()
     if ($q) {
         $Heading.Text = 'Search'
@@ -270,6 +279,8 @@ $timer.Add_Tick({
         if ($j.Kind -eq 'Apply') { Complete-AkariApply $j.Shared }
         if ($j.Kind -eq 'Export') { Complete-AkariExport $j.Shared }
         # a Catalogue change updates its card only (the page stays as it is)
+        # Home's stats are read again the next time it shows
+        $script:StatsFresh = $false
         if ("$($j.Kind)" -like 'Catalogue*') { Complete-AkariCatalogueJob $j } else { Show-Page }
         # Catalogue changes that queued up meanwhile
         Start-AkariCatalogueNext
@@ -347,7 +358,8 @@ function Update-AkariSubNav {
     if (-not $script:OptSections) {
         $script:OptSections = @(Get-AkariOptimizeSections)
         foreach ($s in $script:OptSections) {
-            $it = [Windows.Controls.ComboBoxItem]::new()
+            # a ListBoxItem: a ComboBoxItem in a ListBox ignores clicks
+            $it = [Windows.Controls.ListBoxItem]::new()
             $it.Content = $s.Header; $it.Tag = $s.Name
             # Legacy is being retired: a muted pill
             if ($s.Name -eq 'Legacy') { $it.Opacity = 0.65; $it.ToolTip = 'The old AkariOS-Ultimate pages, being retired as the others take them over' }
@@ -408,8 +420,9 @@ $Sections.Add_SelectionChanged({
 $RemoveApps.Add_Click({ Select-AkariPage 'Remove apps' })
 $Search.Add_TextChanged({ Show-Page })
 
-# narrow window (under 1100 px): the search is an icon button that opens the box, the tabs show text only.
-# Ctrl+K opens and focuses the search at any width.
+# narrow window: the top bar needs about 1300 px with the tab icons and the search box, about 980 with neither,
+# and 880 without the wordmark too. Under 1320 px the search is an icon button that opens the box and the tabs show
+# text only; under 1000 the wordmark goes. Ctrl+K opens and focuses the search at any width.
 $script:Narrow = $false
 function Set-AkariSearchOpen([bool]$Open) {
     $show = $Open -or -not $script:Narrow
@@ -423,8 +436,11 @@ function Open-AkariSearch {
     $Search.SelectAll()
 }
 function Update-AkariWidth([double]$Width) {
-    $script:Narrow = ($Width -lt 1100)
+    $script:Narrow = ($Width -lt 1320)
+    $TitleText.Visibility = if ($Width -lt 1000) { 'Collapsed' } else { 'Visible' }
     foreach ($i in $script:TabIcons) { $i.Visibility = if ($script:Narrow) { 'Collapsed' } else { 'Visible' } }
+    # Home's mode cards: four in a row, two under 1000 px
+    $HomeTiles.Columns = if ($Width -lt 1000) { 2 } else { 4 }
     Set-AkariSearchOpen ([bool]$Search.Text -or $Search.IsKeyboardFocusWithin)
 }
 $window.Add_SizeChanged({ Update-AkariWidth $window.ActualWidth })
@@ -435,10 +451,80 @@ $window.Add_PreviewKeyDown({
     if ($e.Key -eq 'K' -and [Windows.Input.Keyboard]::Modifiers -eq 'Control') { Open-AkariSearch; $e.Handled = $true }
 })
 
-# ---- home tiles: Install AkariOS (One-click or Guided), Optimize (Manual mode), Downloads, Import / Export
-$tile = New-AkariModeCard -Hot 'zap' 'Install AkariOS' 'Guided optimization for Windows. Recommended for a fresh install.' $true
-$tile.Add_Click({ Select-AkariPage 'Install AkariOS' })
-[void]$HomeTiles.Children.Add($tile)
+# ---- Home: the hero (One-click, or Guided from its first step) and its stats
+$HeroOver.Text = "AKARIOS $AkariVersion"
+$HeroOneClick.Add_Click({ Start-AkariOneClick })
+$HeroChoose.Add_Click({
+    Select-AkariPage 'Install AkariOS'
+    $script:Mode = 'Guided'; $script:Step = 0
+    Show-AkariSteps
+})
+
+# a stat: a big number over its label, a rule between stats; the numbers are in $script:HomeStat
+$script:HomeStat = @{}
+foreach ($s in @(@('Tweaks', 'Tweaks'), @('Apps', 'Removable apps'), @('Applied', 'Changes applied'))) {
+    if ($HeroStats.Children.Count) {
+        $r = [Windows.Controls.Border]::new()
+        $r.Width = 1; $r.Margin = [Windows.Thickness]::new(28, 6, 28, 6)
+        $r.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, 'Bd')
+        [void]$HeroStats.Children.Add($r)
+    }
+    $sp = [Windows.Controls.StackPanel]::new()
+    $n = [Windows.Controls.TextBlock]::new()
+    $n.Text = [string][char]0x2014; $n.FontSize = 28; $n.FontWeight = 'Bold'
+    Set-AkariFont $n 'Display'
+    $l = [Windows.Controls.TextBlock]::new()
+    $l.Text = $s[1]; $l.FontSize = 13
+    $l.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, 'Mu')
+    [void]$sp.Children.Add($n); [void]$sp.Children.Add($l)
+    [void]$HeroStats.Children.Add($sp)
+    $script:HomeStat[$s[0]] = $n
+}
+
+# $Stats: @{ Tweaks; Apps; Applied }, each a count or $null (a dash: not read)
+function Set-AkariHomeStats($Stats) {
+    foreach ($k in @($Stats.Keys)) {
+        if ($script:HomeStat[$k]) { $script:HomeStat[$k].Text = if ($null -eq $Stats[$k]) { [string][char]0x2014 } else { '{0:N0}' -f [int]$Stats[$k] } }
+    }
+}
+
+# the stats, read once and again after a change: Tweaks = the Catalogue's; removable apps = the Store apps on the PC
+# outside the keep-list; changes applied = what Export would save (Get-AkariExportItems), read in a runspace
+$script:StatsJob = $null; $script:StatsFresh = $false
+function Start-AkariHomeStats {
+    if ($script:StatsJob -or $script:StatsFresh) { return }
+    $script:StatsFresh = $true
+    Set-AkariHomeStats @{ Tweaks = @(Get-AkariCatalogueTweaks $script:Tweaks).Count }
+    $q = { param($s) "'" + ([string]$s -replace "'", "''") + "'" }
+    $shared = [hashtable]::Synchronized(@{})
+    # the job loads the tweaks itself (a script block must not cross runspaces); its log stays quiet
+    $code = @"
+`$loaded = Get-AkariTweaks $(& $q "$Root\Tweaks")
+try { `$AkariShared.Apps = @(Get-AkariAppxInstalled | Where-Object { `$e = Resolve-AkariEntry `$loaded.Groups "appx/`$_"; `$e -and -not `$e.Keep }).Count } catch { }
+try { `$AkariShared.Applied = @(Get-AkariExportItems @(`$loaded.Tweaks)).Count } catch { }
+"@
+    $job = Start-AkariJob $code ([System.Collections.Concurrent.ConcurrentQueue[string]]::new()) "$Root\Core" $shared
+    $script:StatsJob = $job
+    $tm = [Windows.Threading.DispatcherTimer]::new()
+    $tm.Interval = [TimeSpan]::FromMilliseconds(300)
+    $tm.Tag = $job
+    $tm.Add_Tick({
+        param($s, $a)
+        $j = $s.Tag
+        # each stat as soon as it is read (the apps take seconds, the States about a minute)
+        Complete-AkariHomeStats $j.Shared
+        if (-not $j.Handle.IsCompleted) { return }
+        $s.Stop()
+        try { [void]$j.Ps.EndInvoke($j.Handle) } catch { Write-ErrLog "Home stats: $_" }
+        $j.Ps.Dispose(); $j.Rs.Dispose()
+        $script:StatsJob = $null
+        Complete-AkariHomeStats $j.Shared
+    })
+    $tm.Start()
+}
+function Complete-AkariHomeStats($Shared) { Set-AkariHomeStats @{ Apps = $Shared.Apps; Applied = $Shared.Applied } }
+
+# ---- Home: the mode cards under the hero: Optimize, Downloads, Install USB, Import / Export
 $tile = New-AkariModeCard 'sliders-horizontal' 'Optimize' 'Manual, in-depth optimization for Windows. Recommended for power users.' $true
 # the Optimize tab's page
 $tile.Add_Click({ Select-AkariPage 'Optimize' })
@@ -454,8 +540,9 @@ $tile.Add_Click({ Select-AkariPage 'Install USB' })
 $tile = New-AkariModeCard 'arrow-left-right' 'Import / Export settings' 'Save this PC''s settings to a file, or load them on another PC and review them in Guided.' $true
 $tile.Add_Click({ Show-AkariImportExport })
 [void]$HomeTiles.Children.Add($tile)
-$last = $HomeTiles.Children.Count - 1
-foreach ($i in 0..$last) { $HomeTiles.Children[$i].Margin = [Windows.Thickness]::new($(if ($i) { 8 } else { 0 }), 0, $(if ($i -lt $last) { 8 } else { 0 }), 0) }
+# 16 px between cards in any number of columns: 8 around each, the grid pulled out by 8
+foreach ($t in $HomeTiles.Children) { $t.Margin = [Windows.Thickness]::new(8) }
+$HomeTiles.Margin = [Windows.Thickness]::new(-8)
 
 # ---- go
 $window.Add_Loaded({

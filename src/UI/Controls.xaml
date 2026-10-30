@@ -281,8 +281,9 @@
     </Setter>
   </Style>
 
-  <!-- Segmented picker: a Choice with up to 4 values (UI\Cards.ps1 picks it over Combo). A ListBox of the same
-       ComboBoxItems a Combo holds (ComboBoxItem is a ListBoxItem), so the row code is the same: a pill track, the picked
+  <!-- Segmented picker: a Choice with up to 4 values (UI\Cards.ps1 picks it over Combo), and Optimize's Sections. A
+       ListBox of ListBoxItems (never ComboBoxItems: they ignore clicks outside a ComboBox), so the row code is the
+       same as a Combo's: a pill track, the picked
        segment crimson. Segments wrap onto a second line when the card is narrow. -->
   <Style x:Key="SegItem" TargetType="ListBoxItem">
     <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
@@ -454,18 +455,26 @@
     </Setter>
   </Style>
 
-  <!-- Step dot: outlined; Tag="Current" fills it. -->
-  <Style x:Key="StepDot" TargetType="Ellipse">
-    <Setter Property="Width" Value="8"/>
-    <Setter Property="Height" Value="8"/>
-    <Setter Property="Margin" Value="4,0"/>
-    <Setter Property="Stroke" Value="{DynamicResource Mu}"/>
-    <Setter Property="StrokeThickness" Value="1"/>
-    <Setter Property="Fill" Value="Transparent"/>
+  <!-- Stepper number (the Guided footer, UI\Steps.ps1): an outlined circle with the step's number; Tag="Current"
+       fills it crimson, Tag="Done" turns it soft crimson (it holds a check). -->
+  <Style x:Key="StepNum" TargetType="Border">
+    <Setter Property="Width" Value="26"/>
+    <Setter Property="Height" Value="26"/>
+    <Setter Property="CornerRadius" Value="13"/>
+    <Setter Property="BorderThickness" Value="1.5"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource CtlBd}"/>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource Mu}"/>
     <Style.Triggers>
       <Trigger Property="Tag" Value="Current">
-        <Setter Property="Fill" Value="{DynamicResource Acc}"/>
-        <Setter Property="Stroke" Value="{DynamicResource Acc}"/>
+        <Setter Property="Background" Value="{DynamicResource Acc}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Acc}"/>
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource AccT}"/>
+      </Trigger>
+      <Trigger Property="Tag" Value="Done">
+        <Setter Property="Background" Value="{DynamicResource AccSoft}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccSoft}"/>
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource AccText}"/>
       </Trigger>
     </Style.Triggers>
   </Style>
