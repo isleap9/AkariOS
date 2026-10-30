@@ -1,7 +1,8 @@
 # A release: push a tag v<version> that matches $AkariVersion in Core/Version.ps1.
 #   git tag -a v0.1.0 -m "release notes here"   (an annotated tag's message becomes the notes; else GitHub writes them)
 #   git push origin v0.1.0
-# Builds AkariOS-<version>.zip (one AkariOS\ folder with what Akari runs from) and publishes it. Akari's updater
+# Builds AkariOS-<version>.zip (one AkariOS\ folder with what Akari runs from) and Akari.ps1 (Build/Bootstrap.ps1
+# filled in: the one-liner `iwr .../releases/latest/download/Akari.ps1 -useb | iex`) and publishes both. Akari's updater
 # (Core/Update.ps1) reads the latest release and checks the zip against the SHA-256 GitHub reports for it.
 # Windows runner: files get CRLF line endings, like a Windows checkout (.cmd and .reg files need them).
 name: Release
@@ -27,6 +28,11 @@ jobs:
           New-Item dist/AkariOS -ItemType Directory -Force | Out-Null
           Copy-Item Akari.ps1, Core, UI, Tweaks, Presets, OneClick, Assets, LICENSE, CREDITS.md, AllowScripts.cmd dist/AkariOS -Recurse
           Compress-Archive dist/AkariOS "dist/AkariOS-$ver.zip"
+          # the one-liner's Akari.ps1: Build/Bootstrap.ps1 with this release's version and the zip's SHA-256
+          $sha = (Get-FileHash "dist/AkariOS-$ver.zip" -Algorithm SHA256).Hash
+          $boot = (Get-Content Build/Bootstrap.ps1 -Raw).Replace('__AKARI_VERSION__', $ver).Replace('__AKARI_SHA256__', $sha)
+          if ($boot -match '__AKARI_') { throw 'Build/Bootstrap.ps1 still has a placeholder' }
+          [IO.File]::WriteAllText("$PWD/dist/Akari.ps1", $boot, [Text.UTF8Encoding]::new($false))
           "AKARI_VERSION=$ver" >> $env:GITHUB_ENV
 
       - name: Publish the release
@@ -38,4 +44,4 @@ jobs:
           # checkout may leave an annotated tag lightweight: fetch it as it is
           git fetch --force origin "refs/tags/${tag}:refs/tags/${tag}"
           $notes = if ((git cat-file -t $tag) -eq 'tag') { '--notes-from-tag' } else { '--generate-notes' }
-          gh release create $tag "dist/AkariOS-$env:AKARI_VERSION.zip" --title "AkariOS $env:AKARI_VERSION" $notes
+          gh release create $tag "dist/AkariOS-$env:AKARI_VERSION.zip" dist/Akari.ps1 --title "AkariOS $env:AKARI_VERSION" $notes

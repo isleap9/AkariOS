@@ -380,7 +380,7 @@ Loader rules:
 ## 9. Distribution
 
 - Develop with many small files.
-- `Build/Bundle.ps1` concatenates Core + Tweaks + UI (XAML embedded as here-strings) into a single `Akari.ps1`. It never includes `_ref/`.
+- ~~`Build/Bundle.ps1` concatenates Core + Tweaks + UI into a single `Akari.ps1`.~~ Replaced (2026-10-30, M6): `Build/Bootstrap.ps1`, attached to each release as `Akari.ps1`, downloads that release's zip (SHA-256 checked), unpacks it to `%LOCALAPPDATA%\Akari\app\<version>` and runs it. Tweaks keep reading their files next to them; nothing is bundled. It never includes `_ref/`.
 - A GitHub Action builds the bundle on tag and attaches it to the Release, together with the binaries (7-Zip, DDU, VC++, DirectX) that used to live in AkariOS-Files. `Core/Download.ps1` fetches them on demand, because a script run through `iex` has no files next to it.
 - Install line stays a one-liner (replaces today's `IWR.ps1`, which downloads `main.zip` into `C:\AkariOS-Ultimate`):
   ```powershell
@@ -445,7 +445,7 @@ Shallow clones (`git clone --depth 1`) kept next to the code so agents always ha
 | **M3: Windows category** ✅ Oct 2026 (plan `docs/plans/2026-10-19-m3-port-windows.md`) | Optimize chooser (Legacy / Advanced); engine prep (`Requires`, `Explorer`, `Ported.psd1`); `6 Windows` from the old no-UI Ultimate ported to one-file tweaks, all Toggles revertible with `Detect` (Security parts wait for M4); Presets with Quick select, Last used and CLI `-Preset`. |
 | **M4: One-click** ✅ Oct 2026 (passed on the VM; the old `OneClick/` scripts and `-OneClick` removed 2026-10-22) | AkariOS one-click (Home button and `-Preset AkariOS`) reproduces the old Akari-OS 3-phase run, including reboots and Safe Mode. |
 | **M5: Apps + Config** ✅ Oct 2026 | Import / Export of settings (the Home tile and the title menu): Export = a preset file of this PC's Tweak settings (Optimized Toggles, Choices off their Default; no apps, Actions or Legacy), Import = that file (or any preset) in Guided on the Tweaks step, Advanced-only Tweaks listed apart on Review, a copy in the user's presets. Already done earlier: the app removal checklist and winget installs (Guided Apps, Downloads), Quick select, Last used and Save as preset (M3). |
-| **M6: Release** | Bundled single-file release via GitHub Action, old repos archived. |
+| **M6: Release** (built Oct 2026; first release and archiving the old repos are the user's call) | One-liner release via GitHub Action, old repos archived. Decided 2026-10-30: no concatenated single file (the tweaks read files next to them); the release's `Akari.ps1` is `Build/Bootstrap.ps1` filled in, which downloads that release's zip, checks its SHA-256 and runs it from `%LOCALAPPDATA%\Akari\app`. Still open: `$AkariVersion` 1.0.0 and its tag, moving the AkariOS-Files binaries into Releases, retiring `IWR.ps1` / `AllowScripts.cmd`. |
 | **M7: Polish** | Rest of the port, Services list, own tweaks, new Home extras, Optimize › Advanced. (`Requires` filtering came with M3.) |
 
 ---

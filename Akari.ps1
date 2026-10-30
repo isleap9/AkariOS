@@ -90,8 +90,9 @@ foreach ($c in @($Root, (Split-Path -Parent $Root), "$Root\Tweaks")) {
 }
 # ---- Core: helpers, loader, state and runner (the background job loads the same files)
 foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Appx', 'Winget', 'AppSetup', 'Restore', 'System', 'Presets', 'Phases', 'Version', 'Update', 'Unattend') { . "$Root\Core\$f.ps1" }
-# the folder an update replaces (none when run from GitHub through iex: that is always the latest)
-$AkariInstallDir = if ($PSScriptRoot) { $Root } else { '' }
+# the folder an update replaces (none when run from GitHub through iex, or unpacked by the one-liner's bootstrap,
+# Build\Bootstrap.ps1, which marks its copy with .bootstrap: the next one-liner run is always the latest)
+$AkariInstallDir = if ($PSScriptRoot -and -not (Test-Path -LiteralPath (Join-Path $Root '.bootstrap'))) { $Root } else { '' }
 # after an update: the previous copy (<folder>.old) and the download folder go
 Remove-AkariUpdateLeftover $AkariInstallDir
 # covers the whole script, the CLI / -Resume branches above too (a trap applies to its entire scope)
