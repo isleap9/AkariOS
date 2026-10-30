@@ -6,7 +6,7 @@ $Tw = Join-Path $Root 'Tweaks'
 # a Default on every row, and a full Apply / Revert round trip. Both hives go to HKCU:\Software\AkariTest\<guid>.
 Describe 'ZOICWARE ports' {
     $AkariStatePath = "$TestDrive\state.json"
-    foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'System') { . "$Core\$f.ps1" }
+    foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'System', 'Trusted') { . "$Core\$f.ps1" }
     $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
     $tk = "HKCU:\Software\AkariTest\$([guid]::NewGuid())"
     Mock Resolve-AkariRegPath { if ($Path -match '^HKCU:\\(.*)$') { "$tk\$($Matches[1])" } elseif ($Path -match '^HKLM:\\(.*)$') { "$tk\HKLM\$($Matches[1])" } else { $Path } }
@@ -14,10 +14,14 @@ Describe 'ZOICWARE ports' {
     # no real powercfg, and never a real scheduled task (an Action runs once here, against this mock)
     Mock Invoke-AkariPowerCfg { }
     Mock Remove-AkariScheduledTasks { 3 }
+    # TrustedInstaller writes go to the test key as admin (never a real Run-Trusted)
+    Mock Invoke-AkariRegistryTrusted { Invoke-AkariRegistry $Entries $Mode }
+    # a print verb Windows has (context-remove-print only touches the ones that exist)
+    New-Item -Path "$tk\HKLM\SOFTWARE\Classes\batfile\shell\print" -Force | Out-Null
     $files = @(Get-ChildItem $Tw -Recurse -Filter *.ps1 | Where-Object { $_.DirectoryName -notmatch '\\Files$' -and (Get-Content $_.FullName -TotalCount 3) -match 'ZOICWARE' })
 
     try {
-        It 'finds the ports (guard)' { $files.Count -ge 47 | Should Be $true }
+        It 'finds the ports (guard)' { $files.Count -ge 65 | Should Be $true }
         It 'redirects both hives (guard)' { Resolve-AkariRegPath 'HKLM:\SOFTWARE\X' | Should Be "$tk\HKLM\SOFTWARE\X" }
         foreach ($f in $files) {
             $t = Import-AkariTweakFile $f.FullName $Tw
@@ -48,6 +52,21 @@ Describe 'ZOICWARE ports' {
             $t = Import-AkariTweakFile "$Tw\Advanced\System\RemoveScheduledTasks.ps1" $Tw
             Invoke-AkariTweak $t Apply | Out-Null
             Assert-MockCalled Remove-AkariScheduledTasks -Scope It -Exactly 1 -ParameterFilter { ($Keep -join ',') -eq 'SvcRestartTask,MsCtfMonitor' }
+        }
+        It 'hides Personalize and Display as TrustedInstaller' {
+            foreach ($n in 'Personalize', 'Display') {
+                $t = Import-AkariTweakFile "$Tw\Customize\Context menu\Remove$n.ps1" $Tw
+                Invoke-AkariTweak $t Apply | Out-Null
+            }
+            Assert-MockCalled Invoke-AkariRegistryTrusted -Scope It -Exactly 2 -ParameterFilter { $Mode -eq 'Apply' -and $Entries[0].Name -eq 'ProgrammaticAccessOnly' }
+        }
+        It 'hides Print only on the print verbs that exist' {
+            $t = Import-AkariTweakFile "$Tw\Customize\Context menu\RemovePrint.ps1" $Tw
+            Invoke-AkariTweak $t Apply | Out-Null
+            Test-Path "$tk\HKLM\SOFTWARE\Classes\txtfile\shell\print" | Should Be $false
+            Get-AkariRegValue 'HKLM:\SOFTWARE\Classes\batfile\shell\print' 'ProgrammaticAccessOnly' | Should Be ''
+            Invoke-AkariTweak $t Revert | Out-Null
+            Test-Path "$tk\HKLM\SOFTWARE\Classes\batfile\shell\print" | Should Be $true
         }
         It 'sets the power mode overlay through powercfg' {
             $t = Import-AkariTweakFile "$Tw\Optimize\Power\PowerMode.ps1" $Tw

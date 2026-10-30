@@ -109,7 +109,22 @@ batches, and Legacy is retired.
    outside the repo), "Import your own plan" (a file picker), the Ultimate duplicate, plan removal and default plans
    (`power-ultimate-plan`), hibernation (`power-hibernate-off`) and per-device USB power saving
    (`power-device-power-saving`).
-7. **Batch 5, ZOICWARE optional tweaks and the Ultimate Context Menu**.
+7. **Batch 5, ZOICWARE optional tweaks and the Ultimate Context Menu**. Decided 2026-10-30, in two commits.
+   **5a** (done): a new Category, Customize › Context menu (the AkariOS `explorer-classic-context-menu` and
+   `explorer-trim-context-menu` stay in Explorer). One Toggle per checkbox: 13 Add entries (each .reg's keys; Revert
+   deletes them, Windows has none) and 5 Remove entries (Print: `ProgrammaticAccessOnly` on the print verbs this Windows
+   has only; Personalize and Display: `ProgrammaticAccessOnly` written as TrustedInstaller instead of deleting the
+   key; Extract All, Cast to Device: blocked handlers). Fixed on the way: the New menu takes `newMenu.reg` only (not
+   `newMenu11.reg`'s `ps1legacy` class, which takes Run with PowerShell and Edit off .ps1 files), Snipping Tool uses the
+   Windows 11 file on both versions, Delete Permanently drops its `*\shellex` key (not a verb), Run as admin is named
+   for what it adds (.ps1, .msi, .vbs). Skipped: Give access to, Restore previous versions, Customize this folder (the
+   same entries `explorer-trim-context-menu` removes through other values), and Add to Favorites, Open in Terminal,
+   Send to, Share, Troubleshoot compatibility, Include in library, Scan with Defender (already owned by it).
+   **5b**: General, Visual, Update, Misc and Dialogs. Skipped: Black Theme, Transparent Taskbar, PBO curve, Modern
+   Cursor, Dark Accents (outside tools or files), Open File Security Warning, Network icon, Mouse and Sound Schemes,
+   Game Bar popup, Mouse accel, Drivers in Windows Update, Pause 1 year (already owned), PowerShell logging (doesn't
+   last), Classic Accents (three colours follow the accent: no single default), Remove Password (no Revert), the Start
+   menu shortcut cleanup (deletes files) and the Start menu locations shortcut (not a setting).
 8. **Batch 6, ZOICWARE Windows 11 tweaks** that need no outside tool.
 9. **Batch 7, the rest of ZOICWARE**: its debloat (rows on Apps › Remove), installers (Downloads), the stripped Nvidia
    driver install (Tools › Drivers), Ultimate Cleanup (Tools › Cleanup). Config import / export is M5's.
