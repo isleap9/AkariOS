@@ -123,12 +123,12 @@ $wa = [Windows.SystemParameters]::WorkArea
 $window.Width = [Math]::Max($window.MinWidth, [Math]::Min(1360, $wa.Width - 40))
 $window.Height = [Math]::Max($window.MinHeight, [Math]::Min(800, $wa.Height - 40))
 
-# the window and taskbar icon (the title bar logo follows the theme: Update-AkariLogo)
-$logoPath = "$Root\Assets\AkariLogo.png"
+# the window and taskbar icon: AkariLogo.ico (the one AkariOS.exe has; Windows picks the frame for each size), else
+# AkariLogo.png (the title bar logo follows the theme: Update-AkariLogo)
+$logoPath = "$Root\Assets\AkariLogo.ico"
+if (-not (Test-Path $logoPath)) { $logoPath = "$Root\Assets\AkariLogo.png" }
 if (Test-Path $logoPath) {
-    $bmp = [Windows.Media.Imaging.BitmapImage]::new()
-    $bmp.BeginInit(); $bmp.UriSource = [Uri]$logoPath; $bmp.CacheOption = 'OnLoad'; $bmp.EndInit()
-    $window.Icon = $bmp
+    $window.Icon = [Windows.Media.Imaging.BitmapFrame]::Create([Uri]$logoPath, 'None', 'OnLoad')
 }
 $window.Add_SourceInitialized({
     $h = [Windows.Interop.WindowInteropHelper]::new($window).Handle
