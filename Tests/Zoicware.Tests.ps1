@@ -19,6 +19,21 @@ Describe 'ZOICWARE ports' {
     # a print verb Windows has (context-remove-print only touches the ones that exist)
     New-Item -Path "$tk\HKLM\SOFTWARE\Classes\batfile\shell\print" -Force | Out-Null
     Mock Get-AkariEdition { 'Professional' }
+    Mock Get-AkariGpus { @{ Path = 'HKLM:\SYSTEM\AkariTestGpu'; Name = 'NVIDIA GeForce RTX 4070'; Vendor = 'NVIDIA' } }
+    # the cleanup Actions run here: never a real delete, event log, Disk Cleanup, driver store or TrustedInstaller call
+    Mock Remove-AkariPaths { 2 }
+    Mock Grant-AkariOwnership { }
+    Mock Run-Trusted { }
+    Mock Invoke-AkariWevtutil { if ($Arguments[0] -eq 'el') { 'Application'; 'System' } }
+    Mock Invoke-AkariCleanMgr { }
+    Mock Remove-AkariDriverPackage { 0 }
+    Mock Get-AkariDriverPackages {
+        [pscustomobject]@{ Driver = 'oem10.inf'; OriginalFileName = 'C:\Windows\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_a\nv_dispi.inf'; ProviderName = 'NVIDIA'; ClassName = 'Display'; Version = '32.0.15.6094'; Date = [datetime]'2024-08-01' }
+        [pscustomobject]@{ Driver = 'oem22.inf'; OriginalFileName = 'C:\Windows\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_b\nv_dispi.inf'; ProviderName = 'NVIDIA'; ClassName = 'Display'; Version = '32.0.15.7680'; Date = [datetime]'2025-06-01' }
+        [pscustomobject]@{ Driver = 'oem5.inf'; OriginalFileName = 'C:\Windows\System32\DriverStore\FileRepository\rt640x64.inf_amd64_c\rt640x64.inf'; ProviderName = 'Realtek'; ClassName = 'Net'; Version = '10.68.0.0'; Date = [datetime]'2024-01-01' }
+    }
+    # Disk Cleanup categories this Windows has (the test hive's)
+    foreach ($c in 'Update Cleanup', 'Temporary Files', 'Recycle Bin') { New-Item -Path "$tk\HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches\$c" -Force | Out-Null }
     # the boot store, w32tm and the Photos app's settings hive, faked: never the real ones
     $fake = @{ BootUx = $false; Apps = @{} }
     Mock Read-AkariBcd { if ($fake.BootUx) { 'bootuxdisabled          Yes' } }
@@ -50,7 +65,7 @@ Describe 'ZOICWARE ports' {
     $files = @(Get-ChildItem $Tw -Recurse -Filter *.ps1 | Where-Object { $_.DirectoryName -notmatch '\\Files$' -and (Get-Content $_.FullName -TotalCount 3) -match 'ZOICWARE' })
 
     try {
-        It 'finds the ports (guard)' { $files.Count -ge 84 | Should Be $true }
+        It 'finds the ports (guard)' { $files.Count -ge 92 | Should Be $true }
         It 'redirects both hives (guard)' { Resolve-AkariRegPath 'HKLM:\SOFTWARE\X' | Should Be "$tk\HKLM\SOFTWARE\X" }
         foreach ($f in $files) {
             $t = Import-AkariTweakFile $f.FullName $Tw
@@ -147,6 +162,31 @@ Describe 'ZOICWARE ports' {
             Get-AkariRegValue 'HKCU:\Control Panel\Mouse' 'RawMouseThrottleDuration' | Should Be $null
             Invoke-AkariTweak $t Revert | Out-Null
             Get-AkariState $t | Should Be 'Default'
+        }
+        Context 'Ultimate Cleanup' {
+            It 'deletes only the older of two copies of the same driver' {
+                Invoke-AkariTweak (Import-AkariTweakFile "$Tw\Tools\Cleanup\OldDrivers.ps1" $Tw) Apply | Out-Null
+                Assert-MockCalled Remove-AkariDriverPackage -Scope It -Exactly 1
+                Assert-MockCalled Remove-AkariDriverPackage -Scope It -Exactly 1 -ParameterFilter { $Inf -eq 'oem10.inf' }
+            }
+            It 'clears every event log wevtutil lists' {
+                Invoke-AkariTweak (Import-AkariTweakFile "$Tw\Tools\Cleanup\EventLogs.ps1" $Tw) Apply | Out-Null
+                Assert-MockCalled Invoke-AkariWevtutil -Scope It -Exactly 2 -ParameterFilter { $Arguments[0] -eq 'cl' }
+            }
+            It 'runs Disk Cleanup with the categories this Windows has, never the Recycle Bin' {
+                Invoke-AkariTweak (Import-AkariTweakFile "$Tw\Tools\Cleanup\DiskCleanup.ps1" $Tw) Apply | Out-Null
+                $vc = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches'
+                Get-AkariRegValue "$vc\Update Cleanup" 'StateFlags0069' | Should Be 2
+                Get-AkariRegValue "$vc\Recycle Bin" 'StateFlags0069' | Should Be $null
+                Test-Path "$tk\HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches\Thumbnail Cache" | Should Be $false
+                Assert-MockCalled Invoke-AkariCleanMgr -Scope It -Exactly 1 -ParameterFilter { $Set -eq 69 }
+            }
+            It 'deletes the temp folders, the logs and the shader caches through Remove-AkariPaths' {
+                foreach ($f in 'TempFiles', 'WindowsLogs', 'NvidiaShaderCache') { Invoke-AkariTweak (Import-AkariTweakFile "$Tw\Tools\Cleanup\$f.ps1" $Tw) Apply | Out-Null }
+                Assert-MockCalled Remove-AkariPaths -Scope It -Exactly 1 -ParameterFilter { $Paths -contains "$TestDrive\LocalAppData\Temp\*" }
+                Assert-MockCalled Remove-AkariPaths -Scope It -Exactly 1 -ParameterFilter { $Paths -contains "$env:SystemRoot\Logs\CBS\CBS.log" }
+                Assert-MockCalled Remove-AkariPaths -Scope It -Exactly 1 -ParameterFilter { $Paths -contains "$TestDrive\LocalLow\NVIDIA\PerDriverVersion\DXCache" }
+            }
         }
         It 'syncs the clock after setting the time servers' {
             $t = Import-AkariTweakFile "$Tw\Customize\System\TimeServer.ps1" $Tw

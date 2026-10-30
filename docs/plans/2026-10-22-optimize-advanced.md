@@ -143,5 +143,15 @@ batches, and Legacy is retired.
    LastSuppressionTimes (no Default), the Quick Settings layout rewrite and logon task (no Default), the old Start menu
    through NoStartMenuMorePrograms (that policy hides All apps; the old layout is a side effect), and the Windows 10
    Notepad (Store Notepad removal and a capability install: batch 7's debloat).
-9. **Batch 7, the rest of ZOICWARE**: its debloat (rows on Apps › Remove), installers (Downloads), the stripped Nvidia
-   driver install (Tools › Drivers), Ultimate Cleanup (Tools › Cleanup). Config import / export is M5's.
+9. **Batch 7, the rest of ZOICWARE** (done, 2026-10-30). Ultimate Cleanup = seven Actions in Tools › Cleanup (event
+   logs, Windows logs, temp, NVIDIA shader cache, Windows.old, old duplicate drivers read as `Get-WindowsDriver`
+   objects instead of dism's English text and deleted without /force, Disk Cleanup with ZOICWARE's categories minus
+   the Recycle Bin and the reset files), every delete and tool through a mocked Core wrapper; and
+   `nvidia-legacy-sharpen` (Hardware › Graphics). Skipped: the debloat (its presets are the Remove tab's AkariOS idea;
+   Teams / OneDrive, health tools, Remote Desktop, Edge, capabilities and features are Remove rows already; the Win32
+   uninstaller is a GUI of its own; the locked-app remover marks system packages EndOfLife with no way back), the
+   installers (VC++ and DirectX are Downloads apps; .NET 3.5 needs ZOICWARE's .cab; ngen is not a setting; the network
+   driver search is Tools › Refresh's; "Install Other Scripts" runs zoicware's other GitHub tools), the NVIDIA
+   driver install and its NVCP, ReBar, MSI, P-State and HDCP steps (already Tweaks), its GSYNC / DLSS .nip profiles
+   (files outside the repo) and the per-monitor vibrance, speakers and colour (picked per monitor in its own window).
+   FR33THY's Legacy `cleanup` Action is ported with the Legacy retirement. Config import / export is M5's.

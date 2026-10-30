@@ -146,6 +146,55 @@ function Remove-AkariScheduledTasks([string[]]$Keep) {
     $n
 }
 
+# deletes files and folders (a path may hold wildcards: everything it matches goes, folders with their contents);
+# what is in use or protected stays. Returns how many items went. The only bulk delete of the cleanup Actions: tests
+# mock this, so a test never deletes real files.
+function Remove-AkariPaths([string[]]$Paths) {
+    $n = 0
+    foreach ($p in $Paths) {
+        foreach ($i in @(Get-Item -Path $p -Force -ErrorAction SilentlyContinue)) {
+            try { Remove-Item -LiteralPath $i.FullName -Recurse -Force -ErrorAction Stop; $n++ } catch { }
+        }
+    }
+    $n
+}
+
+# the only wevtutil call (event logs: "el" lists them, "cl <name>" clears one); returns its output lines. Continue:
+# see Invoke-AkariPowerCfg (a log Windows won't clear writes to stderr).
+function Invoke-AkariWevtutil {
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
+    $ErrorActionPreference = 'Continue'
+    & "$env:SystemRoot\System32\wevtutil.exe" @Arguments 2>&1 | ForEach-Object { "$_" }
+}
+
+# runs Disk Cleanup with a saved set of categories (cleanmgr /sagerun:<n>) and waits for it, at most 30 minutes; a
+# Disk Cleanup whose CPU time and memory stop changing for 30 seconds is taken as frozen and closed (after ZOICWARE,
+# credit @instead1337). Tests mock this.
+function Invoke-AkariCleanMgr([int]$Set) {
+    $p = Start-Process "$env:SystemRoot\System32\cleanmgr.exe" -ArgumentList "/sagerun:$Set" -PassThru
+    $clock = [Diagnostics.Stopwatch]::StartNew(); $last = $null; $still = 0
+    while (-not $p.HasExited -and $clock.Elapsed.TotalMinutes -lt 30) {
+        Start-Sleep -Seconds 10
+        $p.Refresh()
+        $now = "$($p.TotalProcessorTime)|$($p.WorkingSet64)"
+        if ($now -eq $last) { $still++ } else { $still = 0 }
+        $last = $now
+        if ($still -ge 3) { break }
+    }
+    if (-not $p.HasExited) { $p | Stop-Process -Force -ErrorAction SilentlyContinue }
+}
+
+# the third-party driver packages in the driver store (Get-WindowsDriver -Online: Driver = oemNN.inf,
+# OriginalFileName, ProviderName, ClassName, Version, Date). Read only; tests mock this.
+function Get-AkariDriverPackages { @(Get-WindowsDriver -Online -ErrorAction Stop) }
+
+# deletes one driver package from the driver store (pnputil /delete-driver oemNN.inf, never /force: a package a
+# device uses stays); returns pnputil's exit code. Tests mock this.
+function Remove-AkariDriverPackage([string]$Inf) {
+    & "$env:SystemRoot\System32\pnputil.exe" /delete-driver $Inf 2>&1 | Out-Null
+    $LASTEXITCODE
+}
+
 # runs a program (a tool a tweak ships or installs: 7-Zip, lodctr, ...) and waits; returns its exit code. Tests mock this.
 function Invoke-AkariExe([string]$Path, [string[]]$Arguments) {
     & $Path @Arguments 2>&1 | ForEach-Object { "$_" } | Out-Null
