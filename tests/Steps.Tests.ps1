@@ -107,16 +107,6 @@ function Select-AkariPage($n) { $script:went = $n }
 Initialize-AkariSteps
 $StepBack.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
 "backTo=$script:went"
-# Optimize: the Advanced / Legacy chooser; Advanced opens the Catalogue's first page, Legacy opens Check, Back goes Home
-$script:Cat = 'Optimize'; Show-AkariOptimizeChooser
-"optCards=$($StepBody.Children[0].Children.Count)"; "optEnabled=$($StepBody.Children[0].Children[0].IsEnabled),$($StepBody.Children[0].Children[1].IsEnabled)"
-"optHeading=$($Heading.Text)"; "optFooter=$($StepBack.Visibility),$($StepNext.Visibility)"
-$StepBody.Children[0].Children[0].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
-"advancedTo=$script:went"
-$StepBody.Children[0].Children[1].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
-"legacyTo=$script:went"
-$StepBack.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
-"optBack=$script:went"
 $script:Cat = 'Install AkariOS'; Show-AkariSteps
 $StepBody.Children[0].Children[1].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
 "mode=$script:Mode"; "s0next=$($StepNext.Content)"; "s0back=$($StepBack.Visibility)"; "guidedFooter=$($StepFooter.Visibility)"
@@ -168,17 +158,6 @@ $script:Step = 1; Show-AkariSteps
         $out.closed | Should Be 'True'
     }
     It 'Back on the chooser goes Home' { $out.backTo | Should Be 'Home' }
-    It 'Optimize offers Advanced and Legacy, with only Back' {
-        $out.optCards | Should Be '2'
-        $out.optEnabled | Should Be 'True,True'
-        $out.optHeading | Should Be 'Optimize'
-        $out.optFooter | Should Be 'Visible,Collapsed'
-    }
-    It 'Advanced opens the Catalogue''s first page; Legacy the first Legacy page; Back goes Home' {
-        $out.advancedTo | Should Be 'Catalogue:Optimize/Gaming'
-        $out.legacyTo | Should Be 'Check'
-        $out.optBack | Should Be 'Home'
-    }
     It 'Guided starts on Apps, with Back to the chooser' {
         $out.mode | Should Be 'Guided'
         $out.s0next | Should Be 'Next'

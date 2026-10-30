@@ -149,9 +149,6 @@ function Get-AkariCatalogueCard($t) {
 # ---- the page
 
 function Show-AkariCataloguePage([string]$Query) {
-    Set-AkariNav 'Catalogue'
-    Sync-AkariNav
-    Set-AkariPane $true
     $StepsPanel.Visibility = 'Collapsed'; $StepFooter.Visibility = 'Collapsed'; $HomePanel.Visibility = 'Collapsed'
     $Rows.Children.Clear()
     if ($Query) {

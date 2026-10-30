@@ -4,13 +4,12 @@
         WindowStartupLocation="CenterScreen" UseLayoutRounding="True" SnapsToDevicePixels="True"
         FontFamily="{DynamicResource FontText}" FontSize="14" FontWeight="Medium"
         Background="Transparent" Foreground="{DynamicResource Tx}">
-  <!-- The shell, after Akari-Dash's WinUI 3 window in its Akari theme: a wordmark title bar over
-       Mica, a labelled sidebar, a page header with a large icon, title, subtitle and the search on
-       the right, the page on one rounded bordered surface, and a status bar. The frame is extended
-       over the whole window (GlassFrameThickness -1) so Windows draws Mica behind it; the window
-       draws its own min / max / close buttons, since the black tint would dim Windows' ones. -->
+  <!-- The shell (the design system's): a 64 px top bar (the A mark and wordmark, pill tabs, search, the options
+       menu and caption buttons), a page header (icon, Unbounded title, subtitle), Optimize's sub-header (Sections and
+       Category chips), the page on one rounded surface, and a status bar. The frame is extended over the whole window
+       (GlassFrameThickness -1) so Windows draws Mica behind it; the window draws its own min / max / close buttons. -->
   <WindowChrome.WindowChrome>
-    <WindowChrome CaptionHeight="48" GlassFrameThickness="-1" ResizeBorderThickness="6"
+    <WindowChrome CaptionHeight="64" GlassFrameThickness="-1" ResizeBorderThickness="6"
                   UseAeroCaptionButtons="False" CornerRadius="0"/>
   </WindowChrome.WindowChrome>
 
@@ -258,32 +257,61 @@
       </Setter>
     </Style>
 
-    <!-- Sidebar item, after NavigationViewItem: rounded fill on hover and selection, and the
-         crimson pill on the left of the selected one. Content is an icon + label grid built in code. -->
-    <Style x:Key="Nav" TargetType="RadioButton">
+    <!-- Top bar tab (Home, Install, Optimize, Downloads, USB): a pill with an icon and a label (built in UI\Shell.ps1),
+         crimson tint and crimson text when it is the current one. Clickable inside the title bar's drag region. -->
+    <Style x:Key="Tab" TargetType="RadioButton">
+      <Setter Property="Foreground" Value="{DynamicResource Mu}"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Margin" Value="0,0,4,0"/>
+      <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusRing}"/>
+      <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="RadioButton">
+            <Border x:Name="B" CornerRadius="18" Background="Transparent" Padding="14,7,14,8">
+              <ContentPresenter x:Name="C" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="B" Property="Background" Value="{DynamicResource CtlH}"/>
+                <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="B" Property="Background" Value="{DynamicResource CtlP}"/>
+              </Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="B" Property="Background" Value="{DynamicResource AccSoft}"/>
+                <Setter Property="Foreground" Value="{DynamicResource AccText}"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- Category chip (Optimize's sub-header, under the Section row): a small outlined pill, crimson when current. -->
+    <Style x:Key="Chip" TargetType="RadioButton">
       <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Margin" Value="0,0,6,6"/>
       <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusRing}"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="RadioButton">
-            <Grid Margin="4,2" Height="36">
-              <Border x:Name="B" CornerRadius="18" Background="Transparent">
-                <ContentPresenter x:Name="C" VerticalAlignment="Center"/>
-              </Border>
-              <Border x:Name="Bar" Width="3" Height="16" CornerRadius="1.5" HorizontalAlignment="Left" VerticalAlignment="Center"
-                      Background="{DynamicResource Acc}" Visibility="Collapsed"/>
-            </Grid>
+            <Border x:Name="B" CornerRadius="15" BorderThickness="1" BorderBrush="{DynamicResource CtlBd}" Background="{DynamicResource Ctl}"
+                    Padding="10,4,12,5">
+              <ContentPresenter VerticalAlignment="Center"/>
+            </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource Ctl}"/>
-              </Trigger>
-              <Trigger Property="IsPressed" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource CtlP}"/>
-                <Setter TargetName="C" Property="Opacity" Value="0.78"/>
+                <Setter TargetName="B" Property="Background" Value="{DynamicResource CtlH}"/>
               </Trigger>
               <Trigger Property="IsChecked" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource CtlH}"/>
-                <Setter TargetName="Bar" Property="Visibility" Value="Visible"/>
+                <Setter TargetName="B" Property="Background" Value="{DynamicResource Acc}"/>
+                <Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource Acc}"/>
+                <Setter Property="Foreground" Value="{DynamicResource AccT}"/>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -383,29 +411,60 @@
 
   <Grid x:Name="Shell">
     <Grid.RowDefinitions>
-      <RowDefinition Height="48"/>
+      <RowDefinition Height="64"/>
       <RowDefinition Height="*"/>
       <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
-    <Grid.ColumnDefinitions>
-      <ColumnDefinition x:Name="PaneCol" Width="232"/>
-      <ColumnDefinition Width="*"/>
-    </Grid.ColumnDefinitions>
 
     <!-- Akari black behind the whole window: solid without Mica (Windows 10), a near-black tint over
          Mica when it is on (set in code). -->
-    <Border x:Name="Body" Grid.RowSpan="3" Grid.ColumnSpan="2" Background="{DynamicResource Bg}"/>
+    <Border x:Name="Body" Grid.RowSpan="3" Background="{DynamicResource Bg}"/>
 
-    <!-- Title bar (drag region): icon and name. -->
-    <StackPanel Grid.ColumnSpan="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
-      <!-- the A mark for the theme (Update-AkariLogo, UI\Shell.ps1) -->
-      <Image x:Name="Logo" Width="20" Height="20" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-      <TextBlock x:Name="TitleText" Text="AkariOS" FontFamily="{DynamicResource FontDisplay}" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center"/>
-    </StackPanel>
+    <!-- Top bar (the window's drag region; the tabs, search and buttons stay clickable): the A mark and wordmark, the
+         tabs (UI\Shell.ps1), then the search, the options menu and the caption buttons on the right. -->
+    <Grid x:Name="TopBar">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,24,0">
+        <!-- the A mark for the theme (Update-AkariLogo, UI\Shell.ps1) -->
+        <Image x:Name="Logo" Width="24" Height="24" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+        <TextBlock x:Name="TitleText" Text="AkariOS" FontFamily="{DynamicResource FontDisplay}" FontWeight="Bold" FontSize="16" VerticalAlignment="Center"/>
+      </StackPanel>
+      <StackPanel x:Name="Tabs" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"/>
+      <!-- search: a pill box, or below 1100 px an icon button that opens it (Ctrl+K at any width) -->
+      <Grid x:Name="SearchBox" Grid.Column="3" Width="260" VerticalAlignment="Center" Margin="12,0,8,0"
+            WindowChrome.IsHitTestVisibleInChrome="True">
+        <TextBox x:Name="Search" Style="{StaticResource Flat}" Padding="38,7,14,8"/>
+        <TextBlock x:Name="SearchHint" Text="Search" Foreground="{DynamicResource Mu}" Margin="40,0,0,1"
+                   VerticalAlignment="Center" IsHitTestVisible="False">
+          <TextBlock.Style>
+            <Style TargetType="TextBlock">
+              <Setter Property="Visibility" Value="Collapsed"/>
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding Text, ElementName=Search}" Value="">
+                  <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </TextBlock.Style>
+        </TextBlock>
+        <Viewbox Width="16" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="14,0,0,1" IsHitTestVisible="False">
+          <Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Stroke="{DynamicResource Mu}" Data="{DynamicResource Ic.search}"/></Canvas>
+        </Viewbox>
+      </Grid>
+      <Button x:Name="SearchBtn" Grid.Column="3" Style="{StaticResource Ghost}" Width="36" Height="36" Margin="12,0,8,0"
+              VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Search (Ctrl+K)" WindowChrome.IsHitTestVisibleInChrome="True">
+        <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.search}"/></Canvas></Viewbox>
+      </Button>
 
     <!-- Caption buttons, drawn like Windows 11's: the options menu (UI\About.ps1), minimize, maximize / restore,
          close (red on hover). -->
-    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+    <StackPanel Grid.Column="4" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
       <Button x:Name="MenuBtn" Style="{StaticResource Cap}" ToolTip="Options">
         <Viewbox Width="16" Height="16"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.menu}"/></Canvas></Viewbox>
       </Button>
@@ -419,32 +478,21 @@
         <Viewbox Width="14" Height="14"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.x}"/></Canvas></Viewbox>
       </Button>
     </StackPanel>
-
-    <!-- Sidebar -->
-    <DockPanel Grid.Row="1" ClipToBounds="True">
-      <Button x:Name="PaneToggle" DockPanel.Dock="Top" Style="{StaticResource Ghost}" Width="40" Height="36"
-              HorizontalAlignment="Left" Margin="4,0,0,4" ToolTip="Collapse or expand the sidebar">
-        <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.menu}"/></Canvas></Viewbox>
-      </Button>
-      <!-- scrolls when the pages don't fit (the Catalogue's Section › Category list is long) -->
-      <ScrollViewer x:Name="NavScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
-        <StackPanel x:Name="Nav"/>
-      </ScrollViewer>
-    </DockPanel>
+    </Grid>
 
     <!-- Main -->
-    <Grid x:Name="Main" Grid.Row="1" Grid.Column="1">
+    <Grid x:Name="Main" Grid.Row="1" Margin="20,8,20,0">
       <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
         <RowDefinition Height="Auto"/>
         <RowDefinition Height="*"/>
       </Grid.RowDefinitions>
 
-      <!-- Page header: large icon, title, subtitle; the search on the right. -->
-      <Grid Margin="2,0,16,16">
+      <!-- Page header: icon, title, subtitle. -->
+      <Grid Margin="4,0,0,16">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="Auto"/>
           <ColumnDefinition Width="*"/>
-          <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
         <Viewbox Width="40" Height="40" VerticalAlignment="Center" Margin="0,0,16,0">
           <Canvas Width="24" Height="24">
@@ -456,29 +504,26 @@
                      TextTrimming="CharacterEllipsis"/>
           <TextBlock x:Name="HeaderSub" Foreground="{DynamicResource Mu}" FontSize="14" Margin="0,2,0,0" TextWrapping="Wrap"/>
         </StackPanel>
-        <Grid Grid.Column="2" Width="280" VerticalAlignment="Center" Margin="16,0,0,0">
-          <TextBox x:Name="Search" Style="{StaticResource Flat}" Padding="38,7,14,8" ToolTip="Search all scripts"/>
-          <TextBlock Text="Search all scripts" Foreground="{DynamicResource Mu}" Margin="40,0,0,1"
-                     VerticalAlignment="Center" IsHitTestVisible="False">
-            <TextBlock.Style>
-              <Style TargetType="TextBlock">
-                <Setter Property="Visibility" Value="Collapsed"/>
-                <Style.Triggers>
-                  <DataTrigger Binding="{Binding Text, ElementName=Search}" Value="">
-                    <Setter Property="Visibility" Value="Visible"/>
-                  </DataTrigger>
-                </Style.Triggers>
-              </Style>
-            </TextBlock.Style>
-          </TextBlock>
-          <Viewbox Width="16" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="14,0,0,1" IsHitTestVisible="False">
-            <Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Stroke="{DynamicResource Mu}" Data="{DynamicResource Ic.search}"/></Canvas>
-          </Viewbox>
-        </Grid>
       </Grid>
 
+      <!-- Optimize's sub-header (UI\Shell.ps1): the Sections as a segmented row (Legacy last), the Section's Categories
+           as chips under it, and Remove apps on the right. Only on Optimize's pages. -->
+      <DockPanel x:Name="SubNav" Grid.Row="1" Margin="0,0,0,10" Visibility="Collapsed">
+        <Button x:Name="RemoveApps" DockPanel.Dock="Right" Style="{StaticResource Btn}" VerticalAlignment="Top" Margin="12,0,0,0"
+                ToolTip="Store apps, optional features, Windows features and legacy apps to remove">
+          <StackPanel Orientation="Horizontal">
+            <Viewbox Width="16" Height="16" Margin="0,0,8,0"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.trash-2}"/></Canvas></Viewbox>
+            <TextBlock Text="Remove apps"/>
+          </StackPanel>
+        </Button>
+        <StackPanel>
+          <ListBox x:Name="Sections" Style="{DynamicResource Segmented}" HorizontalAlignment="Left" Margin="0,0,0,10"/>
+          <WrapPanel x:Name="Chips"/>
+        </StackPanel>
+      </DockPanel>
+
       <!-- The page's surface: one rounded, bordered panel. -->
-      <Border Grid.Row="1" Margin="0,0,16,0" CornerRadius="8" BorderThickness="1"
+      <Border Grid.Row="2" CornerRadius="20" BorderThickness="1"
               BorderBrush="{DynamicResource Bd}" Background="{DynamicResource Surf}">
         <DockPanel>
         <!-- Guided steps footer, pinned under the page (Win11Debloat-style): Back on the left, the step dots centred,
@@ -525,7 +570,7 @@
     </Grid>
 
     <!-- Status bar: Ready, or what is running now with a progress bar; the app name and version on the right. -->
-    <Grid Grid.Row="2" Grid.ColumnSpan="2" Margin="16,6,16,6">
+    <Grid Grid.Row="2" Margin="24,8,20,8">
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
         <!-- the green dot at rest; a spinning ring while something runs -->
         <Ellipse x:Name="StatusDot" Width="8" Height="8" Margin="0,0,8,0" VerticalAlignment="Center" Fill="{DynamicResource Ok}"/>
@@ -571,6 +616,6 @@
     </Grid>
 
     <!-- Dims the whole window while an Akari dialog (UI\Dialog.ps1) is open. -->
-    <Border x:Name="ModalOverlay" Grid.RowSpan="3" Grid.ColumnSpan="2" Background="{DynamicResource Scrim}" Visibility="Collapsed"/>
+    <Border x:Name="ModalOverlay" Grid.RowSpan="3" Background="{DynamicResource Scrim}" Visibility="Collapsed"/>
   </Grid>
 </Window>

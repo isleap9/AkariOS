@@ -75,8 +75,8 @@ function Get-AkariFlowStep([string]$Mode, [int]$Step, [int]$Dir) {
     $f[$i]
 }
 
-# Optimize › Legacy: the sidebar pages, in order (Downloads takes the old Installers slot). The Shell puts
-# '← Optimize' (back to the chooser) above them.
+# Optimize › Legacy: its pages, in order (Downloads takes the old Installers slot; it is a tab of its own now, so
+# Optimize's Legacy chips leave it out).
 $AkariLegacyPages = 'Check', 'Refresh', 'Setup', 'Downloads', 'Graphics', 'Windows', 'Hardware', 'Advanced'
 # where an apps flow's Back (first step) and Done lead: the Legacy or Catalogue page it was opened from, else Home
 $script:FlowExit = 'Home'
@@ -94,8 +94,8 @@ function Get-AkariLegacyList($Tweaks, [string]$Page, [string]$Query) {
 }
 
 function Step-AkariBack {
-    # the choosers' Back goes Home, Back on an apps flow's first step to where it was opened (no sidebar here)
-    if ($script:Cat -in 'Optimize', 'About', 'Install USB' -or $script:Mode -eq 'Choose') { Select-AkariPage 'Home'; return }
+    # the chooser's Back goes Home, Back on an apps flow's first step to where it was opened
+    if ($script:Cat -in 'About', 'Install USB' -or $script:Mode -eq 'Choose') { Select-AkariPage 'Home'; return }
     $prev = Get-AkariFlowStep $script:Mode $script:Step -1
     if ($null -ne $prev) { $script:Step = $prev }
     elseif ($AkariAppFlows.Contains($script:Mode)) { Select-AkariPage $script:FlowExit; return }
@@ -491,29 +491,6 @@ function Show-AkariChooser {
     $guided.Margin = [Windows.Thickness]::new(8, 0, 0, 0)
     $guided.Add_Click({ $script:Mode = 'Guided'; $script:Step = 0; Show-AkariSteps })
     [void]$g.Children.Add($one); [void]$g.Children.Add($guided)
-    $StepBody.Children.Clear()
-    [void]$StepBody.Children.Add($g)
-}
-
-# Optimize (Manual mode): Legacy, the frozen AkariOS-Ultimate pages (ADR 0004), or Advanced (designed later).
-# Laid out like the Install AkariOS chooser; Back goes Home (Step-AkariBack).
-function Show-AkariOptimizeChooser {
-    $StepDots.Children.Clear()
-    Set-AkariStepHeader 'Optimize' 'Manual, in-depth optimization for Windows'
-    if ($StepFooter) { $StepFooter.Visibility = 'Visible' }
-    $StepBack.Visibility = 'Visible'
-    $StepNext.Visibility = 'Collapsed'
-    $g = [Windows.Controls.Primitives.UniformGrid]::new()
-    $g.Columns = 2
-    # Advanced: the Catalogue (ADR 0005), every one-file Tweak by Section › Category, each change acting right away
-    $first = @(Get-AkariCataloguePages $script:Tweaks | ForEach-Object { $_.Pages }) | Select-Object -First 1
-    $adv = New-AkariModeCard -Hot 'sliders-horizontal' 'Advanced' 'Every tweak AkariOS has, by category. Each change applies right away. More tweaks are on the way.' ([bool]$first)
-    $adv.Margin = [Windows.Thickness]::new(0, 0, 8, 0)
-    if ($first) { $adv.Tag = $first.Key; $adv.Add_Click({ param($s, $e) Select-AkariPage ([string]$s.Tag) }) }
-    $legacy = New-AkariModeCard 'history' 'Legacy' 'The old AkariOS-Ultimate pages, being retired as Advanced takes them over. Every button acts right away.' $true
-    $legacy.Margin = [Windows.Thickness]::new(8, 0, 0, 0)
-    $legacy.Add_Click({ Select-AkariPage $AkariLegacyPages[0] })
-    [void]$g.Children.Add($adv); [void]$g.Children.Add($legacy)
     $StepBody.Children.Clear()
     [void]$StepBody.Children.Add($g)
 }

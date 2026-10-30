@@ -109,7 +109,6 @@ Describe 'Icons (UI\Icons.xaml, Lucide)' {
             "Glyph = '([^']+)'",
             "(?:New-AkariIcon|New-AkariGlyph|New-AkariModeCard|New-AkariCatalogueBar|Set-AkariIcon\s+\`$\w+)\s+'([^']+)'",
             "New-AkariMenuItem\s+(?:'[^']*'|\`$\S+)\s+'([^']+)'",
-            "New-AkariNavButton\s+'[^']*'\s+'[^']*'\s+'([^']+)'",
             "Set-AkariIcon[^\n]*?\{ '([a-z0-9-]+)' \} else",
             "Set-AkariIcon[^\n]*else \{ '([a-z0-9-]+)' \}",
             "\`$g = if [^\n]*else \{ '([a-z0-9-]+)' \}",
@@ -120,7 +119,7 @@ Describe 'Icons (UI\Icons.xaml, Lucide)' {
             foreach ($p in $patterns) { foreach ($m in [regex]::Matches($src, $p)) { $used.Add($m.Groups[1].Value) } }
         }
         # the patterns catch every kind of use (guard), then each name must be an icon
-        foreach ($n in 'copy', 'square', 'external-link', 'arrow-left', 'file-input', 'triangle-alert', 'house', 'gamepad-2') { "$n $($used -contains $n)" | Should Be "$n True" }
+        foreach ($n in 'copy', 'square', 'external-link', 'usb', 'file-input', 'triangle-alert', 'house', 'gamepad-2') { "$n $($used -contains $n)" | Should Be "$n True" }
         $miss = @($used | Sort-Object -Unique | Where-Object { "Ic.$_" -notin $have -and $_ -notmatch '^(Bad|Warn|Mu|Ter|Tx|Acc|Ok|Inherit)$' })
         ($miss -join ', ') | Should Be ''
     }
@@ -331,23 +330,41 @@ $loaded = @{ Problems = @() }
 function Get-AkariAppxInstalled { @() }; function Start-AkariFeatureRead { }
 foreach ($f in 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows', 'CataloguePage', 'About', 'UnattendForm', 'Unattend', 'ImportExport') { . "$Root\UI\$f.ps1" }
 $timer.Stop()
+# the Catalogue reads its States in a job: recorded, never run (no real job, no Safe Mode read)
+function Test-AkariSafeMode { $false }
+$script:Jobs = @()
+function Start-AkariJob($Code, $Queue, $CoreDir, $Shared) { $script:Jobs += , @{ Code = $Code; Shared = $Shared }; @{ Handle = [pscustomobject]@{ IsCompleted = $false }; Shared = $Shared } }
 # the launch prompt is a dialog: record it instead
 function Show-AkariUpdatePrompt { $script:Prompted = $true }
 function Click($b) { $b.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent)) }
 function Rows { ($Rows.Children | ForEach-Object { if ($_ -is [Windows.Controls.TextBlock]) { 'msg' } else { $_.Child.Children[0].Children[1].Children[0].Text } }) -join ',' }
-"nav=$(($Nav.Children | ForEach-Object { $_.Tag }) -join ',')"
-Select-AkariPage 'Home'; "home=$($HomePanel.Visibility),$($PaneCol.Width.Value)"
-Click $HomeTiles.Children[1]; "optimize=$script:Cat,$($StepsPanel.Visibility),$($PaneCol.Width.Value),$($StepBody.Children[0].Children.Count)"
-Click $StepBody.Children[0].Children[1]; "legacy=$script:Cat,$($PaneCol.Width.Value),$(Rows)"
+function TabOn { ($Tabs.Children | Where-Object { $_.IsChecked }).Tag }
+function SetTab($n) { ($Tabs.Children | Where-Object { $_.Tag -eq $n }).IsChecked = $true }
+function ChipList { ($Chips.Children | ForEach-Object { $_.Tag }) -join ',' }
+function ChipOn { ($Chips.Children | Where-Object { $_.IsChecked }).Tag }
+"tabs=$(($Tabs.Children | ForEach-Object { $_.Tag }) -join ',')"
+Select-AkariPage 'Home'; "home=$($HomePanel.Visibility)|$(TabOn)|$($SubNav.Visibility)|$($SearchHint.Text)"
+# the Optimize tile (and tab) opens the Catalogue's first page, its Section and chips in the sub-header
+Click $HomeTiles.Children[1]
+"optimize=$script:Cat|$(TabOn)|$($SubNav.Visibility)|$(($Sections.Items | ForEach-Object { $_.Tag }) -join ',')|$(ChipList)|$(ChipOn)|$($SearchHint.Text)"
+$tog = $script:CatCards['cat-tog']
+"catReading=$($tog.StateText.Text -replace '[^ -~]', '.')|$($tog.Control.IsEnabled)|$($script:Jobs.Count)"
+# Legacy: the last Section, its pages as chips (Downloads is a tab)
+$Sections.SelectedItem = $Sections.Items[2]; "legacy=$script:Cat|$(TabOn)|$(ChipList)|$(Rows)"
 Select-AkariPage 'Advanced'; "advanced=$(Rows)"
-Select-AkariPage 'Windows'; "windows=$(Rows),$(($Nav.Children | Where-Object { $_.IsChecked }).Tag)"
-($Nav.Children | Where-Object { $_.Tag -eq 'Downloads' }).IsChecked = $true; "downloads=$script:Cat,$script:FlowExit,$($PaneCol.Width.Value)"
-Click $StepBack; "dlBack=$script:Cat,$(($Nav.Children | Where-Object { $_.IsChecked }).Tag)"
-$Search.Text = 'theme'; "search=$(Rows)"; $Search.Text = ''
-$Nav.Children[0].IsChecked = $true; "backToChooser=$script:Cat,$($PaneCol.Width.Value)"
-Click $StepBack; "chooserBack=$script:Cat"
+($Chips.Children | Where-Object { $_.Tag -eq 'Windows' }).IsChecked = $true; "windows=$(Rows)|$(ChipOn)|$($Sections.SelectedItem.Tag)"
+SetTab 'Downloads'; "downloads=$script:Cat|$script:FlowExit|$(TabOn)|$($SubNav.Visibility)"
+Click $StepBack; "dlBack=$script:Cat|$(TabOn)|$(ChipOn)"
+$Search.Text = 'theme'; "search=$(Rows)|$($SearchHint.Text)"; $Search.Text = ''
+# the Optimize tab comes back to the Optimize page seen last
+SetTab 'Home'; SetTab 'Optimize'; "optimizeAgain=$script:Cat|$(TabOn)"
+SetTab 'Install AkariOS'; "install=$script:Cat|$(TabOn)|$($SubNav.Visibility)|$($SearchHint.Text)"
+Click $StepBack; "installBack=$script:Cat|$(TabOn)"
 Click $HomeTiles.Children[2]; "dlHome=$script:FlowExit"
-Select-AkariPage 'Home'; "aboutLink=$($null -eq $window.FindName('AboutLink'))"; Click $AppVersion; "about=$script:Cat,$($StepsPanel.Visibility),$($PaneCol.Width.Value),$($HomePanel.Visibility)"
+# every page is reachable: a tab, a Section's chip, Remove apps, or About in the options menu
+$reach = @($AkariTabs.Keys) + @($script:OptSections | ForEach-Object { $_.Pages | ForEach-Object { $_.Key } }) + 'Remove apps', 'About'
+"unreached=$((@($Pages.Keys) | Where-Object { $_ -notin $reach }) -join ',')"
+Select-AkariPage 'Home'; "aboutLink=$($null -eq $window.FindName('AboutLink'))"; Click $AppVersion; "about=$script:Cat|$($StepsPanel.Visibility)|$(TabOn)|$($HomePanel.Visibility)"
 "aboutVersion=$($script:AboutParts.Version.Text)"
 "aboutLinks=$(($script:AboutParts.Links.Children | Where-Object { $_.Visibility -eq 'Visible' } | ForEach-Object { $_.Content }) -join ',')"
 "aboutCredits=$($script:AboutParts.Credits.Children.Count),$($script:AboutParts.Credits.Children[0].Children[0].Inlines.FirstInline.Inlines.FirstInline.Text)"
@@ -362,7 +379,7 @@ $cr = $script:AboutParts.Credits.Children[0]
 Click $StepBack; "aboutBack=$script:Cat"
 # the Install USB tile (fourth of five): full window, Back leads Home
 "tiles=$(($HomeTiles.Children | ForEach-Object { $_.Content.Children[1].Text }) -join ',')|$($HomeTiles.Columns)"
-Click $HomeTiles.Children[3]; "usbFile=$script:Cat|$($Heading.Text)|$($PaneCol.Width.Value)|$($StepNext.Visibility)|$($null -ne $script:UnattendParts.Drive)"
+Click $HomeTiles.Children[3]; "usbFile=$script:Cat|$($Heading.Text)|$(TabOn)|$($StepNext.Visibility)|$($null -ne $script:UnattendParts.Drive)"
 Click $StepBack; "usbFileBack=$script:Cat"
 "title=$($window.FindName('TitleText').Text)"
 $fam = { param($e) "$($e.FontFamily.Source)".Split(',')[0] }
@@ -408,14 +425,8 @@ function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My
 # the Catalogue (Optimize › Advanced): no real job, restore point or dialog
 function Confirm-AkariDialog { $true }
 function Add-AkariRestoreFirst($Code, $Button) { $Code }
-function Test-AkariSafeMode { $false }
-$script:Jobs = @()
-function Start-AkariJob($Code, $Queue, $CoreDir, $Shared) { $script:Jobs += , @{ Code = $Code; Shared = $Shared }; @{ Handle = [pscustomobject]@{ IsCompleted = $false }; Shared = $Shared } }
-Select-AkariPage 'Optimize'; Click $StepBody.Children[0].Children[0]
-"catNav=$(($Nav.Children | ForEach-Object { if ($_ -is [Windows.Controls.TextBlock]) { '#' + $_.Text } else { $_.Tag } }) -join ',')"
-"catFirst=$script:Cat|$($Heading.Text)|$($PaneCol.Width.Value)|$(($Nav.Children | Where-Object { $_.IsChecked }).Tag)"
-$tog = $script:CatCards['cat-tog']
-"catReading=$($tog.StateText.Text -replace '[^ -~]', '.')|$($tog.Control.IsEnabled)|$($script:Jobs.Count)"
+Select-AkariPage 'Catalogue:Customize/Taskbar'
+"catFirst=$script:Cat|$($Heading.Text)|$(TabOn)|$(ChipOn)|$($SearchHint.Text)"
 Set-AkariCatalogueStates @{ 'cat-tog' = @{ State = 'Default'; Current = $null } }
 "catRead=$($tog.StateText.Text)|$($tog.Control.IsChecked)|$($tog.Control.IsEnabled)"
 $tog.Control.IsChecked = $true; Click $tog.Control
@@ -430,8 +441,8 @@ Complete-AkariCatalogueJob $j; Start-AkariCatalogueNext
 "catNext=$($script:Job.Shared.Id)|$($script:CatQueue.Count)"
 $j = $script:Job; $j.Shared.Outcome = [pscustomobject]@{ Outcome = 'Failed'; Message = 'boom' }; $script:Job = $null; Complete-AkariCatalogueJob $j
 "catFailed=$($script:CatCards['tuning'].StateText.Text)"
-# a Safe Mode Toggle waits in the bar; switched back, it leaves it
-Select-AkariPage 'Catalogue:Advanced/Security'
+# a Safe Mode Toggle waits in the bar; switched back, it leaves it (the Advanced Section opens its first Category)
+$Sections.SelectedItem = $Sections.Items[1]; "catSection=$script:Cat|$(ChipList)"
 $safe = $script:CatCards['cat-safe']
 Set-AkariCatalogueStates @{ 'cat-safe' = @{ State = 'Default'; Current = $null } }
 $n = $script:Jobs.Count
@@ -439,22 +450,23 @@ $safe.Control.IsChecked = $true; Click $safe.Control
 "catSafe=$($script:SafePending['cat-safe'].Mode)|$($safe.StateText.Text)|$($CatBars.Visibility)|$($script:SafeBar.Bar.Visibility)|$($script:Jobs.Count - $n)"
 $safe.Control.IsChecked = $false; Click $safe.Control
 "catSafeBack=$($script:SafePending.Count)|$($script:SafeBar.Bar.Visibility)|$($safe.Control.IsChecked)"
-# Remove apps and Downloads at the top of the sidebar: full window, Back returns to the Catalogue page
-($Nav.Children | Where-Object { $_.Tag -eq 'Remove apps' }).IsChecked = $true
-"catRemove=$script:Cat|$script:Mode|$script:FlowExit|$($PaneCol.Width.Value)|$($Heading.Text)"
-Click $StepBack; "catRemoveBack=$script:Cat|$(($Nav.Children | Where-Object { $_.IsChecked }).Tag)|$($PaneCol.Width.Value)"
-($Nav.Children | Where-Object { $_.Tag -eq 'Downloads' }).IsChecked = $true; "catDownloads=$script:Cat|$script:Mode|$script:FlowExit"
+# Remove apps (the sub-header button) and the Downloads tab: Back returns to the Catalogue page
+Click $RemoveApps
+"catRemove=$script:Cat|$script:Mode|$script:FlowExit|$(TabOn)|$($SubNav.Visibility)|$($Heading.Text)"
+Click $StepBack; "catRemoveBack=$script:Cat|$(ChipOn)|$($SubNav.Visibility)"
+SetTab 'Downloads'; "catDownloads=$script:Cat|$script:Mode|$script:FlowExit"
 Click $StepBack; "catDownloadsBack=$script:Cat"
-# the 48 px icon strip has no room for a scrollbar: hidden there (the wheel still scrolls), back when the pane opens
-Click $PaneToggle; "paneCompact=$($PaneCol.Width.Value)|$($NavScroll.VerticalScrollBarVisibility)"
-Click $PaneToggle; "paneOpen=$($PaneCol.Width.Value)|$($NavScroll.VerticalScrollBarVisibility)"
+# under 1100 px: the search is an icon button that opens the box, the tabs lose their icons
+Update-AkariWidth 900; "narrow=$($SearchBox.Visibility)|$($SearchBtn.Visibility)|$($script:TabIcons[0].Visibility)"
+Click $SearchBtn; "narrowOpen=$($SearchBox.Visibility)|$($SearchBtn.Visibility)"
+Update-AkariWidth 1400; "wide=$($SearchBox.Visibility)|$($SearchBtn.Visibility)|$($script:TabIcons[0].Visibility)"
 # search: every Catalogue Tweak, a heading per Section › Category
 $Search.Text = 'Cat'
 "catSearch=$($Heading.Text)|$(($Rows.Children | Where-Object { $_ -is [Windows.Controls.TextBlock] } | ForEach-Object { $_.Text -replace '[^ -~]', '>' }) -join ',')|$(@($Rows.Children | Where-Object { $_ -is [Windows.Controls.Border] }).Count)"
 $Search.Text = ''
-# back to Optimize, then Legacy: the sidebar lists the Legacy pages again
-Select-AkariPage 'Optimize'; Click $StepBody.Children[0].Children[1]
-"catLeft=$script:Cat|$(($Nav.Children | ForEach-Object { $_.Tag }) -join ',')|$($CatBars.Visibility)"
+# the Legacy Section: its chips again, the Catalogue's bars hidden
+$Sections.SelectedItem = $Sections.Items[2]
+"catLeft=$script:Cat|$(ChipList)|$($CatBars.Visibility)"
 '@
     $out = @{}
     & powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -LogFile "$TestDrive\a.log" -Install "$TestDrive\inst" 2>&1 | ForEach-Object {
@@ -462,35 +474,40 @@ Select-AkariPage 'Optimize'; Click $StepBody.Children[0].Children[1]
     }
 
     It 'builds without errors' { $out['error'] | Should BeNullOrEmpty }
-    It 'the sidebar holds only the way back and the Legacy pages' {
-        $out.nav | Should Be 'Optimize,Check,Refresh,Setup,Downloads,Graphics,Windows,Hardware,Advanced'
+    It 'the top bar has five tabs' { $out.tabs | Should Be 'Home,Install AkariOS,Optimize,Downloads,Install USB' }
+    It 'Home checks its tab, with no sub-header' { $out.home | Should Be 'Visible|Home|Collapsed|Search Legacy' }
+    It 'the Optimize tile opens the Catalogue''s first page: the Sections (Legacy last) and its Category chips' {
+        $out.optimize | Should Be 'Catalogue:Customize/Taskbar|Optimize|Visible|Customize,Advanced,Legacy|Catalogue:Customize/Taskbar|Catalogue:Customize/Taskbar|Search Optimize'
     }
-    It 'Home has no sidebar' { $out.home | Should Be 'Visible,0' }
-    It 'the Optimize tile opens the chooser, full window' { $out.optimize | Should Be 'Optimize,Visible,0,2' }
-    It 'Legacy opens Check with the sidebar, legacy rows only' {
-        $out.legacy | Should Be 'Check,232,BIOS check'
+    It 'reads States in the background: the switch waits for its State' {
+        $out.catReading | Should Be 'Reading.|False|1'
+    }
+    It 'the Legacy Section opens Check, its pages as chips without Downloads, legacy rows only' {
+        $out.legacy | Should Be 'Check|Optimize|Check,Refresh,Setup,Graphics,Windows,Hardware,Advanced|BIOS check'
         $out.advanced | Should Be 'Old advanced'
-        $out.windows | Should Be 'Dark theme,Windows'
+        $out.windows | Should Be 'Dark theme|Windows|Legacy'
     }
-    It 'Downloads from Legacy is full window and Back returns to that page' {
-        $out.downloads | Should Be 'Downloads,Windows,0'
-        $out.dlBack | Should Be 'Windows,Windows'
+    It 'the Downloads tab opens the flow, and Back returns to the Legacy page' {
+        $out.downloads | Should Be 'Downloads|Windows|Downloads|Collapsed'
+        $out.dlBack | Should Be 'Windows|Optimize|Windows'
     }
-    It 'search lists legacy matches only' { $out.search | Should Be 'Dark theme' }
-    It '<- Optimize goes to the chooser, whose Back goes Home' {
-        $out.backToChooser | Should Be 'Optimize,0'
-        $out.chooserBack | Should Be 'Home'
+    It 'search lists legacy matches only' { $out.search | Should Be 'Dark theme|Search Legacy' }
+    It 'the Optimize tab comes back to the Optimize page seen last' { $out.optimizeAgain | Should Be 'Windows|Optimize' }
+    It 'the Install AkariOS tab opens its chooser, whose Back goes Home' {
+        $out.install | Should Be 'Install AkariOS|Install AkariOS|Collapsed|Filter this step'
+        $out.installBack | Should Be 'Home|Home'
     }
     It 'Downloads from Home exits to Home' { $out.dlHome | Should Be 'Home' }
+    It 'every page is reachable from a tab, a chip, Remove apps or the options menu' { $out.unreached | Should BeNullOrEmpty }
     It 'the status bar version opens About, full window, and Back goes Home; Home has no About link' {
         $out.aboutLink | Should Be 'True'
-        $out.about | Should Be 'About,Visible,0,Collapsed'
+        $out.about | Should Be 'About|Visible||Collapsed'
         $out.aboutVersion | Should Match '^AkariOS \d+\.\d+\.\d+$'
         $out.aboutBack | Should Be 'Home'
     }
     It 'the Install USB tile opens its form full window, and Back goes Home' {
         $out.tiles | Should Be 'Install AkariOS,Optimize,Downloads,Install USB,Import / Export settings|5'
-        $out.usbFile | Should Be 'Install USB|Install USB|0|Collapsed|True'
+        $out.usbFile | Should Be 'Install USB|Install USB|Install USB|Collapsed|True'
         $out.usbFileBack | Should Be 'Home'
     }
     It 'About lists the links (a link without a URL is hidden), the credits and the license' {
@@ -514,14 +531,10 @@ Select-AkariPage 'Optimize'; Click $StepBody.Children[0].Children[1]
         $out.readText | Should Be 'My preset|True'
         $out.overlay | Should Be 'Collapsed'
     }
-    It 'Advanced opens the Catalogue: Section headings and Category pages in the sidebar, the first page open' {
-        $out.catNav | Should Be 'Optimize,Remove apps,Downloads,#Customize,Catalogue:Customize/Taskbar,#Advanced,Catalogue:Advanced/Security,Catalogue:Advanced/Tuning'
-        $out.catFirst | Should Be 'Catalogue:Customize/Taskbar|Taskbar|232|Catalogue:Customize/Taskbar'
+    It 'a Catalogue page: its chip checked under the Optimize tab' {
+        $out.catFirst | Should Be 'Catalogue:Customize/Taskbar|Taskbar|Optimize|Catalogue:Customize/Taskbar|Search Optimize'
     }
-    It 'reads States in the background: the switch waits for its State' {
-        $out.catReading | Should Be 'Reading.|False|1'
-        $out.catRead | Should Be 'Windows default|False|True'
-    }
+    It 'a State that arrives sets the switch' { $out.catRead | Should Be 'Windows default|False|True' }
     It 'a switch applies right away in the job; a second change queues; Explorer changes go to the restart bar' {
         $out.catRun | Should Be 'Applying.|Catalogue|True|Apply'
         $out.catQueued | Should Be '1|Waiting.|2'
@@ -529,25 +542,29 @@ Select-AkariPage 'Optimize'; Click $StepBody.Children[0].Children[1]
         $out.catNext | Should Be 'tuning|0'
         $out.catFailed | Should Be 'Failed: boom'
     }
+    It 'a Section opens its first Category, with its chips' {
+        $out.catSection | Should Be 'Catalogue:Advanced/Security|Catalogue:Advanced/Security,Catalogue:Advanced/Tuning'
+    }
     It 'a Safe Mode Tweak waits in the Safe Mode bar instead of running; switched back, it leaves it' {
         $out.catSafe | Should Be 'Apply|Waiting for Safe Mode|Visible|Visible|0'
         $out.catSafeBack | Should Be '0|Collapsed|False'
     }
-    It 'Remove apps and Downloads open full window from the Catalogue sidebar, and Back returns to its page' {
-        $out.catRemove | Should Be 'Remove apps|Remove apps|Catalogue:Advanced/Security|0|Remove apps'
-        $out.catRemoveBack | Should Be 'Catalogue:Advanced/Security|Catalogue:Advanced/Security|232'
+    It 'Remove apps (sub-header) and the Downloads tab open their flows, and Back returns to the Catalogue page' {
+        $out.catRemove | Should Be 'Remove apps|Remove apps|Catalogue:Advanced/Security|Optimize|Collapsed|Remove apps'
+        $out.catRemoveBack | Should Be 'Catalogue:Advanced/Security|Catalogue:Advanced/Security|Visible'
         $out.catDownloads | Should Be 'Downloads|Downloads|Catalogue:Advanced/Security'
         $out.catDownloadsBack | Should Be 'Catalogue:Advanced/Security'
     }
-    It 'the compact sidebar hides its scrollbar so the icons keep their 40 px column' {
-        $out.paneCompact | Should Be '48|Hidden'
-        $out.paneOpen | Should Be '232|Auto'
+    It 'under 1100 px the search is an icon button that opens the box, and the tabs show text only' {
+        $out.narrow | Should Be 'Collapsed|Visible|Collapsed'
+        $out.narrowOpen | Should Be 'Visible|Collapsed'
+        $out.wide | Should Be 'Visible|Collapsed|Visible'
     }
     It 'search lists every Catalogue match under its Section › Category' {
         $out.catSearch | Should Be 'Search|Customize > Taskbar,Advanced > Security|2'
     }
-    It 'leaving for Legacy brings its sidebar back and hides the bars' {
-        $out.catLeft | Should Be 'Check|Optimize,Check,Refresh,Setup,Downloads,Graphics,Windows,Hardware,Advanced|Collapsed'
+    It 'leaving for Legacy shows its chips and hides the Catalogue''s bars' {
+        $out.catLeft | Should Be 'Check|Check,Refresh,Setup,Graphics,Windows,Hardware,Advanced|Collapsed'
     }
     It 'the title bar says AkariOS' { $out.title | Should Be 'AkariOS' }
     It 'uses Manrope for text, Unbounded 32 for the page title and the wordmark, JetBrains Mono for the version' {
