@@ -44,7 +44,7 @@ Describe 'UI files' {
 
     It 'Controls.xaml parses and defines every style' {
         $s = "Add-Type -AssemblyName PresentationFramework; `$d = [Windows.Markup.XamlReader]::Parse((Get-Content '$Root\UI\Controls.xaml' -Raw)); " +
-             "`$miss = @('Switch', 'Combo', 'ComboItem', 'Check', 'SettingCard', 'CategoryCard', 'Accent', 'StepDot', 'ModeCard' | Where-Object { -not `$d.Contains(`$_) }); " +
+             "`$miss = @('Switch', 'Combo', 'ComboItem', 'Segmented', 'SegItem', 'Check', 'SettingCard', 'CategoryCard', 'Accent', 'StepDot', 'ModeCard' | Where-Object { -not `$d.Contains(`$_) }); " +
              "if (`$miss) { 'missing: ' + (`$miss -join ', ') } else { 'ok' }"
         Test-XamlInChild $s | Should Be 'ok'
     }
@@ -141,7 +141,8 @@ Describe 'Icons (UI\Icons.xaml, Lucide)' {
 }
 
 Describe 'Themes (UI\Theme.Dark.xaml, UI\Theme.Light.xaml)' {
-    $keys = { param($f) ([xml](Get-Content $f -Raw)).ResourceDictionary.SolidColorBrush | ForEach-Object { $_.Key } }
+    # brushes, and the colours a DropShadowEffect needs (AccC)
+    $keys = { param($f) $x = ([xml](Get-Content $f -Raw)).ResourceDictionary; @($x.SolidColorBrush) + @($x.Color) | Where-Object { $_ } | ForEach-Object { $_.Key } }
     $dark = @(& $keys "$Root\UI\Theme.Dark.xaml" | Sort-Object)
     $light = @(& $keys "$Root\UI\Theme.Light.xaml" | Sort-Object)
 
@@ -225,6 +226,14 @@ Set-AkariRowControl $e 'None'; "chNoChange=$(Get-AkariComboValue $e)"
 $e = New-AkariTweakRow $ch 'Custom' 7; Show $e
 "chUnlisted=$(Get-AkariRowStart $e $true)"
 Set-AkariRowControl $e 7; "chTyped=$($e.Control.Text)"
+# a Choice with up to 4 values that can't be typed: the segmented picker, driven by the same row code
+$seg = ConvertTo-AkariTweak @{ Id = 'seg'; Name = 'Seg'; Description = 'D'; Kind = 'Choice'; Risk = 'Safe'; Recommended = 1; Default = 0
+    Registry = @{ Path = 'HKCU:\x'; Name = 'S'; Type = 'DWord' }; Choices = @(@{ Value = 0; Label = 'Off' }, @{ Value = 1; Label = 'On' }, @{ Value = 2; Label = 'Max' }) } 'x' $false
+$e = New-AkariTweakRow $seg 'Default' 0; Show $e
+Set-AkariRowControl $e 2; $v2 = Get-AkariComboValue $e
+Set-AkariRowControl $e 'None'
+"seg=$($e.Control.GetType().Name)|$($e.Control.Items.Count)|$v2|$(Get-AkariComboValue $e)|$($e.Control.Style -eq $host_.FindResource('Segmented'))"
+"chType=$((New-AkariTweakRow $ch 'Default' 0x26).Control.GetType().Name)"
 $e = New-AkariTweakRow $act 'Unknown'; Show $e
 "actType=$($e.Control.GetType().Name)"; "actGlyphs=$($e.Glyphs.Children.Count)"
 $ak = ConvertTo-AkariTweak @{ Id = 'ak'; Name = 'Ak'; Description = 'D'; Risk = 'Safe'; AkariOS = $true } 'x' $false
@@ -273,6 +282,11 @@ $c = New-AkariCategoryCard 'Windows' 'app-window' 'Not yet ported'
     It 'starts an unlisted value on No change, and can show it as typed text' {
         $out.chUnlisted | Should Be 'None'
         $out.chTyped | Should Be '7'
+    }
+
+    It 'shows a short Choice as the segmented picker (same items, same row code), an editable one as a combobox' {
+        $out.seg | Should Be 'ListBox|4|2|None|True'
+        $out.chType | Should Be 'ComboBox'
     }
 
     It 'shows an Action as a checkbox with no state glyph' {

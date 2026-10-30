@@ -30,12 +30,13 @@
   <SolidColorBrush x:Key="CtlBd"    Color="#1FFFFFFF"/> <!-- 1 px control stroke -->
   <SolidColorBrush x:Key="Line"     Color="#8BFFFFFF"/> <!-- text box underline, scrollbar thumb -->
   <SolidColorBrush x:Key="InFocus"  Color="#B3251F20"/> <!-- text box fill with keyboard focus -->
-  <SolidColorBrush x:Key="Tip"      Color="#2F2829"/> <!-- tooltip fill -->
-  <SolidColorBrush x:Key="TipBd"    Color="#33000000"/> <!-- tooltip border -->
-  <SolidColorBrush x:Key="TipT"     Color="#FBF5F4"/> <!-- tooltip text -->
+  <SolidColorBrush x:Key="Tip"      Color="#FBF5F4"/> <!-- tooltip fill (inverted: paper on black) -->
+  <SolidColorBrush x:Key="TipBd"    Color="#33FBF5F4"/> <!-- tooltip border -->
+  <SolidColorBrush x:Key="TipT"     Color="#0D0A0B"/> <!-- tooltip text -->
   <SolidColorBrush x:Key="Track"    Color="#1AFFFFFF"/> <!-- progress and step tracks -->
   <SolidColorBrush x:Key="Scrim"    Color="#A6000000"/> <!-- dims the window under a dialog -->
   <SolidColorBrush x:Key="CloseH"   Color="#C42B1C"/> <!-- title bar close on hover (Windows red) -->
   <SolidColorBrush x:Key="CloseP"   Color="#C83C30"/> <!-- title bar close pressed -->
   <SolidColorBrush x:Key="CloseT"   Color="#FFFFFF"/> <!-- close glyph on CloseH / CloseP -->
+  <Color x:Key="AccC">#E3263F</Color> <!-- Acc as a colour: the primary buttons' glow (DropShadowEffect) -->
 </ResourceDictionary>

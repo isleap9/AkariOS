@@ -38,4 +38,5 @@
   <SolidColorBrush x:Key="CloseH"   Color="#C42B1C"/> <!-- title bar close on hover (Windows red) -->
   <SolidColorBrush x:Key="CloseP"   Color="#C83C30"/> <!-- title bar close pressed -->
   <SolidColorBrush x:Key="CloseT"   Color="#FFFFFF"/> <!-- close glyph on CloseH / CloseP -->
+  <Color x:Key="AccC">#C8102E</Color> <!-- Acc as a colour: the primary buttons' glow (DropShadowEffect) -->
 </ResourceDictionary>

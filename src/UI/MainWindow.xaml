@@ -27,19 +27,44 @@
       <Setter Property="Stroke" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Control}}"/>
     </Style>
 
-    <!-- Standard button. -->
+    <!-- Keyboard focus: a 2 px Focus ring 3 px outside the control. FocusRing for pills (buttons, switches, text
+         boxes, combos), FocusBox for square things (check boxes, cards). Every focusable control uses one. -->
+    <Style x:Key="FocusRing">
+      <Setter Property="Control.Template">
+        <Setter.Value>
+          <ControlTemplate>
+            <Rectangle Margin="-3" RadiusX="21" RadiusY="21" Stroke="{DynamicResource Focus}" StrokeThickness="2" SnapsToDevicePixels="True"/>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="FocusBox">
+      <Setter Property="Control.Template">
+        <Setter.Value>
+          <ControlTemplate>
+            <Rectangle Margin="-3" RadiusX="9" RadiusY="9" Stroke="{DynamicResource Focus}" StrokeThickness="2" SnapsToDevicePixels="True"/>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- Secondary button: a pill with a control fill and a 1 px stroke, SemiBold text. -->
     <Style x:Key="Btn" TargetType="Button">
       <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
       <Setter Property="Background" Value="{DynamicResource Ctl}"/>
       <Setter Property="BorderBrush" Value="{DynamicResource CtlBd}"/>
-      <Setter Property="Padding" Value="12,5,12,6"/>
-      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Padding" Value="16,7,16,8"/>
+      <Setter Property="MinHeight" Value="36"/>
+      <Setter Property="FontSize" Value="14"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
       <Setter Property="Margin" Value="6,0,0,0"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusRing}"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
             <Border x:Name="B" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                    BorderThickness="1" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                    BorderThickness="1" CornerRadius="18" Padding="{TemplateBinding Padding}">
               <ContentPresenter x:Name="C" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Border>
             <ControlTemplate.Triggers>
@@ -58,7 +83,7 @@
         </Setter.Value>
       </Setter>
     </Style>
-    <!-- Accent button: crimson (Acc) with white text (AccT), the Akari accent. -->
+    <!-- Primary button: the crimson pill (Acc, AccT text) with the lamp glow under it; AccH on hover, AccP pressed. -->
     <Style x:Key="BtnP" TargetType="Button" BasedOn="{StaticResource Btn}">
       <Setter Property="Background" Value="{DynamicResource Acc}"/>
       <Setter Property="Foreground" Value="{DynamicResource AccT}"/>
@@ -67,31 +92,39 @@
         <Setter.Value>
           <ControlTemplate TargetType="Button">
             <Border x:Name="B" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                    BorderThickness="1" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                    BorderThickness="1" CornerRadius="18" Padding="{TemplateBinding Padding}">
+              <Border.Effect>
+                <DropShadowEffect x:Name="Glow" Color="{DynamicResource AccC}" BlurRadius="24" ShadowDepth="8" Direction="270" Opacity="0.35"/>
+              </Border.Effect>
               <ContentPresenter x:Name="C" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="B" Property="Opacity" Value="0.9"/>
+                <Setter TargetName="B" Property="Background" Value="{DynamicResource AccH}"/>
+                <Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource AccH}"/>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
-                <Setter TargetName="B" Property="Opacity" Value="0.8"/>
+                <Setter TargetName="B" Property="Background" Value="{DynamicResource AccP}"/>
+                <Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource AccP}"/>
               </Trigger>
               <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Opacity" Value="0.4"/>
+                <Setter TargetName="B" Property="Effect" Value="{x:Null}"/>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
         </Setter.Value>
       </Setter>
     </Style>
-    <!-- Borderless icon button (the pane toggle). -->
+    <!-- Ghost button: no fill until hover (the pane toggle, icon buttons), round. -->
     <Style x:Key="Ghost" TargetType="Button">
       <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusRing}"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="B" Background="Transparent" CornerRadius="4">
+            <Border x:Name="B" Background="Transparent" CornerRadius="18">
               <ContentPresenter x:Name="C" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Border>
             <ControlTemplate.Triggers>
@@ -122,7 +155,7 @@
             <!-- the outer margin leaves room for the shadow inside the popup -->
             <Border Margin="12">
               <Border Background="{DynamicResource S2}" BorderBrush="{DynamicResource Bd}" BorderThickness="1"
-                      CornerRadius="6" Padding="4" MinWidth="200">
+                      CornerRadius="12" Padding="6" MinWidth="200">
                 <Border.Effect>
                   <DropShadowEffect BlurRadius="14" Opacity="0.4" ShadowDepth="4" Direction="270"/>
                 </Border.Effect>
@@ -136,11 +169,11 @@
     <Style TargetType="MenuItem">
       <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
       <Setter Property="Background" Value="Transparent"/>
-      <Setter Property="Height" Value="32"/>
+      <Setter Property="Height" Value="34"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="MenuItem">
-            <Border x:Name="B" Background="{TemplateBinding Background}" CornerRadius="4" Padding="8,0,16,0">
+            <Border x:Name="B" Background="{TemplateBinding Background}" CornerRadius="8" Padding="8,0,16,0">
               <Grid>
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="20"/>
@@ -152,7 +185,7 @@
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsHighlighted" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource Ctl}"/>
+                <Setter TargetName="B" Property="Background" Value="{DynamicResource CtlH}"/>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
                 <Setter TargetName="B" Property="Background" Value="{DynamicResource CtlP}"/>
@@ -229,12 +262,12 @@
          crimson pill on the left of the selected one. Content is an icon + label grid built in code. -->
     <Style x:Key="Nav" TargetType="RadioButton">
       <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
-      <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+      <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusRing}"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="RadioButton">
             <Grid Margin="4,2" Height="36">
-              <Border x:Name="B" CornerRadius="4" Background="Transparent">
+              <Border x:Name="B" CornerRadius="18" Background="Transparent">
                 <ContentPresenter x:Name="C" VerticalAlignment="Center"/>
               </Border>
               <Border x:Name="Bar" Width="3" Height="16" CornerRadius="1.5" HorizontalAlignment="Left" VerticalAlignment="Center"
@@ -258,33 +291,42 @@
       </Setter>
     </Style>
 
-    <!-- Text box, after WinUI's: faint fill, a grey underline that turns white and thicker on focus. -->
+    <!-- Text box: a pill (a multi-line box: 12 px corners), control fill and stroke; with keyboard focus the stroke
+         turns crimson inside a soft crimson halo (the focus ring of text boxes). -->
     <Style x:Key="Flat" TargetType="TextBox">
       <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
       <Setter Property="Background" Value="{DynamicResource Ctl}"/>
       <Setter Property="BorderBrush" Value="{DynamicResource CtlBd}"/>
       <Setter Property="CaretBrush" Value="{DynamicResource Tx}"/>
       <Setter Property="SelectionBrush" Value="{DynamicResource Acc}"/>
-      <Setter Property="Padding" Value="10,5,32,6"/>
+      <Setter Property="Padding" Value="14,7,14,8"/>
+      <Setter Property="MinHeight" Value="36"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="TextBox">
             <Grid>
+              <Border x:Name="Halo" Margin="-3" CornerRadius="21" BorderThickness="3" BorderBrush="{DynamicResource AccSoft}" Visibility="Collapsed"/>
+              <!-- no Padding here: the TextBox pads its own text host with its Padding -->
               <Border x:Name="B" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                      BorderThickness="1" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                <ScrollViewer x:Name="PART_ContentHost"/>
+                      BorderThickness="1" CornerRadius="18">
+                <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
               </Border>
-              <Border x:Name="Line" Height="1" VerticalAlignment="Bottom" Margin="1,0" CornerRadius="0,0,4,4"
-                      Background="{DynamicResource Line}"/>
             </Grid>
             <ControlTemplate.Triggers>
+              <Trigger Property="AcceptsReturn" Value="True">
+                <Setter TargetName="B" Property="CornerRadius" Value="12"/>
+                <Setter TargetName="Halo" Property="CornerRadius" Value="15"/>
+                <Setter TargetName="PART_ContentHost" Property="VerticalAlignment" Value="Stretch"/>
+              </Trigger>
               <Trigger Property="IsMouseOver" Value="True">
                 <Setter TargetName="B" Property="Background" Value="{DynamicResource CtlH}"/>
               </Trigger>
               <Trigger Property="IsKeyboardFocused" Value="True">
                 <Setter TargetName="B" Property="Background" Value="{DynamicResource InFocus}"/>
-                <Setter TargetName="Line" Property="Background" Value="{DynamicResource Acc}"/>
-                <Setter TargetName="Line" Property="Height" Value="2"/>
+                <Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource Acc}"/>
+                <Setter TargetName="Halo" Property="Visibility" Value="Visible"/>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -305,11 +347,12 @@
                 <Thumb>
                   <Thumb.Template>
                     <ControlTemplate TargetType="Thumb">
-                      <Border x:Name="T" Background="{DynamicResource Line}" CornerRadius="2" Width="4" Margin="0,4"/>
+                      <Border x:Name="T" Background="{DynamicResource Line}" CornerRadius="3" Width="6" Margin="0,4" Opacity="0.6"/>
                       <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                          <Setter TargetName="T" Property="Width" Value="6"/>
-                          <Setter TargetName="T" Property="CornerRadius" Value="3"/>
+                          <Setter TargetName="T" Property="Width" Value="8"/>
+                          <Setter TargetName="T" Property="CornerRadius" Value="4"/>
+                          <Setter TargetName="T" Property="Opacity" Value="1"/>
                         </Trigger>
                       </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -328,7 +371,8 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="ToolTip">
-            <Border Background="{DynamicResource Tip}" BorderBrush="{DynamicResource TipBd}" BorderThickness="1" CornerRadius="4" Padding="8,5,8,7">
+            <!-- inverted: paper on black in dark, ink on paper in light -->
+            <Border Background="{DynamicResource Tip}" BorderBrush="{DynamicResource TipBd}" BorderThickness="1" CornerRadius="8" Padding="10,6,10,7">
               <ContentPresenter/>
             </Border>
           </ControlTemplate>
@@ -414,8 +458,8 @@
           <TextBlock x:Name="HeaderSub" Foreground="{DynamicResource Mu}" FontSize="14" Margin="0,2,0,0" TextWrapping="Wrap"/>
         </StackPanel>
         <Grid Grid.Column="2" Width="280" VerticalAlignment="Center" Margin="16,0,0,0">
-          <TextBox x:Name="Search" Style="{StaticResource Flat}" ToolTip="Search all scripts"/>
-          <TextBlock Text="Search all scripts" Foreground="{DynamicResource Mu}" Margin="11,0,0,1"
+          <TextBox x:Name="Search" Style="{StaticResource Flat}" Padding="38,7,14,8" ToolTip="Search all scripts"/>
+          <TextBlock Text="Search all scripts" Foreground="{DynamicResource Mu}" Margin="40,0,0,1"
                      VerticalAlignment="Center" IsHitTestVisible="False">
             <TextBlock.Style>
               <Style TargetType="TextBlock">
@@ -428,7 +472,7 @@
               </Style>
             </TextBlock.Style>
           </TextBlock>
-          <Viewbox Width="16" Height="16" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,11,1" IsHitTestVisible="False">
+          <Viewbox Width="16" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="14,0,0,1" IsHitTestVisible="False">
             <Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Stroke="{DynamicResource Mu}" Data="{DynamicResource Ic.search}"/></Canvas>
           </Viewbox>
         </Grid>
