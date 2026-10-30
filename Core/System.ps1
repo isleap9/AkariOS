@@ -85,9 +85,40 @@ function Invoke-AkariCsc([string]$Source, [string]$Out) {
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $Out)) { throw "csc failed: $($log -join ' ')" }
 }
 
-# the boot entry's settings as text lines ("bcdedit /enum {current}"; read only). Changes go through
-# Invoke-AkariBcdEdit (Core\Phases.ps1).
-function Read-AkariBcd { & "$env:SystemRoot\System32\bcdedit.exe" /enum '{current}' 2>&1 | ForEach-Object { "$_" } }
+# a boot store entry's settings as text lines ("bcdedit /enum {current}", or another -Id such as {globalsettings};
+# read only). Changes go through Invoke-AkariBcdEdit (Core\Phases.ps1).
+function Read-AkariBcd([string]$Id = '{current}') { & "$env:SystemRoot\System32\bcdedit.exe" /enum $Id 2>&1 | ForEach-Object { "$_" } }
+
+# the only w32tm call: starts the Windows Time service when it can (w32tm /config needs it running), then runs w32tm
+# with $Arguments; returns its output lines. Continue: see Invoke-AkariPowerCfg.
+function Invoke-AkariW32tm {
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
+    $ErrorActionPreference = 'Continue'
+    Start-Service W32Time -ErrorAction SilentlyContinue
+    & "$env:SystemRoot\System32\w32tm.exe" @Arguments 2>&1 | ForEach-Object { "$_" }
+}
+
+# the hosts file: Akari's lines sit in named blocks between "# AkariOS <name> start" and "# AkariOS <name> end"; the
+# user's own lines are never touched. Tests point $AkariHostsPath at a test file.
+$AkariHostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+
+# the lines of block <name>, or $null when the hosts file has no such block
+function Get-AkariHostsBlock([string]$Name) {
+    if (-not (Test-Path -LiteralPath $AkariHostsPath)) { return $null }
+    $lines = @([IO.File]::ReadAllLines($AkariHostsPath))
+    $s = [array]::IndexOf($lines, "# AkariOS $Name start"); $e = [array]::IndexOf($lines, "# AkariOS $Name end")
+    if ($s -lt 0 -or $e -lt $s) { return $null }
+    , @($lines | Select-Object -Skip ($s + 1) -First ($e - $s - 1))
+}
+
+# writes block <name> with $Lines at the end of the hosts file (replacing it if there); no $Lines = the block removed
+function Set-AkariHostsBlock([string]$Name, [string[]]$Lines) {
+    $all = @(if (Test-Path -LiteralPath $AkariHostsPath) { [IO.File]::ReadAllLines($AkariHostsPath) })
+    $s = [array]::IndexOf($all, "# AkariOS $Name start"); $e = [array]::IndexOf($all, "# AkariOS $Name end")
+    if ($s -ge 0 -and $e -ge $s) { $all = @($all | Select-Object -First $s) + @($all | Select-Object -Skip ($e + 1)) }
+    if ($Lines) { $all = @($all) + "# AkariOS $Name start" + $Lines + "# AkariOS $Name end" }
+    [IO.File]::WriteAllLines($AkariHostsPath, [string[]]$all, [Text.Encoding]::ASCII)
+}
 
 # a protected system file or folder made writable for the administrators group (takeown + icacls, as the old scripts
 # did); Windows keeps it that way. Tests mock this.

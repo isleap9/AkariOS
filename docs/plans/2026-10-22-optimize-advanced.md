@@ -120,7 +120,14 @@ batches, and Legacy is retired.
    for what it adds (.ps1, .msi, .vbs). Skipped: Give access to, Restore previous versions, Customize this folder (the
    same entries `explorer-trim-context-menu` removes through other values), and Add to Favorites, Open in Terminal,
    Send to, Share, Troubleshoot compatibility, Include in library, Scan with Defender (already owned by it).
-   **5b**: General, Visual, Update, Misc and Dialogs. Skipped: Black Theme, Transparent Taskbar, PBO curve, Modern
+   **5b** (done): General, Visual, Update, Misc and Dialogs, 15 Toggles: Explorer (Recycle Bin name, the uninstall,
+   synced delete and "do this for all" dialogs), System (MSConfig restart prompt, no boot animation through
+   `Invoke-AkariBcdEdit` and `Read-AkariBcd -Id`, fast shutdown, pool.ntp.org through `Invoke-AkariW32tm`), Start (user
+   tile), Apps (Windows Terminal's close-tabs warning as a text edit of its settings.json, Photos' delete warning in its
+   settings hive), Update (defer feature and quality updates with ZOICWARE's values, named for what they do; stay on
+   this version; both Pro), Network (Razer / ASUS servers in an Akari block of the hosts file,
+   `Get-` / `Set-AkariHostsBlock`), Security (`PreventDeviceEncryption` only: decrypting is the user's). Skipped:
+   merge conflicts (Windows hides them already, Folder Options' DefaultValue is 1), Black Theme, Transparent Taskbar, PBO curve, Modern
    Cursor, Dark Accents (outside tools or files), Open File Security Warning, Network icon, Mouse and Sound Schemes,
    Game Bar popup, Mouse accel, Drivers in Windows Update, Pause 1 year (already owned), PowerShell logging (doesn't
    last), Classic Accents (three colours follow the accent: no single default), Remove Password (no Revert), the Start
