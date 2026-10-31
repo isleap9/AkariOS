@@ -9,4 +9,7 @@
     <EmbeddedResource Include="$(AkariSrc)Core\Iso\Data\**\*" LogicalName="src/Core/Iso/Data/%(RecursiveDir)%(Filename)%(Extension)" />
     <EmbeddedResource Include="$(AkariSrc)UI\*.psd1" LogicalName="src/UI/%(Filename)%(Extension)" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="10.0.14" />
+  </ItemGroup>
 </Project>

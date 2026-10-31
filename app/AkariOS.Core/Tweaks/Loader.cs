@@ -204,9 +204,8 @@ public sealed partial class Loader(ISourceFiles files, IReadOnlyDictionary<strin
 
         foreach (var e in rowTables)
         {
-            if (e.Get("Path") is not string p) { rowsAreCode = true; continue; }
-            var keyRow = !e.ContainsKey("Name");
-            rows!.Add(new RegistryRow(p, keyRow ? null : Text(e.Get("Name")), Text(e.Get("Type")), e.Get("Value"), ToOsValue(e.Get("Default")), keyRow));
+            if (ToRow(e) is { } row) rows!.Add(row);
+            else rowsAreCode = true;
         }
 
         var needsCode = file.HasCode;
@@ -280,6 +279,14 @@ public sealed partial class Loader(ISourceFiles files, IReadOnlyDictionary<strin
 
     // shown in Guided too unless the file says Guided = $false ($h['Guided'] -ne $false)
     private static bool IsGuided(object? v) => !(v is false || IsNumber(v) && Convert.ToDecimal(v) == 0);
+
+    /// <summary>A Registry row hashtable as a row (no Name key = a key row), or null when its Path isn't text.</summary>
+    public static RegistryRow? ToRow(PsHashtable e)
+    {
+        if (e.Get("Path") is not string p) return null;
+        var keyRow = !e.ContainsKey("Name");
+        return new RegistryRow(p, keyRow ? null : Text(e.Get("Name")), Text(e.Get("Type")), e.Get("Value"), ToOsValue(e.Get("Default")), keyRow);
+    }
 
     private static OsValue ToOsValue(object? v) =>
         v is PsHashtable h && (h.ContainsKey("Win10") || h.ContainsKey("Win11")) ? new OsValue(h.Get("Win10"), h.Get("Win11")) : OsValue.Both(v);

@@ -149,6 +149,10 @@ The engine of `src/Core` for Toggles, Choices and Actions without the GUI. TDD, 
 4. **Registry engine**: `IRegistry` over `Microsoft.Win32.Registry` (64-bit view), the real user's hive
    (`UserHive`), rows Apply / Revert / State, key rows, `ITrustedInstaller` (the TrustedInstaller service's token,
    impersonated on one thread) for rows an admin can't write.
+   Done 2026-10-31 (`AkariOS.Core/Registry/`): `RegistryEngine` over `IRegistryPaths` (`LiveRegistryPaths` with
+   `RealUserSid`, `RedirectedRegistryPaths` for tests), `TrustedInstaller`, and `SystemGuard` (the real ones throw
+   when made under test). Checked against `Core\Registry.ps1` on the same rows in one test key: each app reads what
+   the other wrote as the same State. Not tested here, only on the VM: the real user's SID and TrustedInstaller.
 5. **State**: Optimized / Default / Custom / Unknown, a Choice's value, a behaviour's Detect; remembered State.
 6. **System**: OS build, edition, chassis, GPUs (`Requires`), Explorer restart.
 7. **Runner**: `Run(items) → Outcome[]` (Requires → Skipped, Already, Failed with the message, PC restarts last,
