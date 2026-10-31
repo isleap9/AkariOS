@@ -1,4 +1,4 @@
-# Install USB: the answer file engine, a PowerShell port of Christoph Schneegans' unattend generator (MIT,
+# Unattend Generator: the answer file engine, a PowerShell port of Christoph Schneegans' unattend generator (MIT,
 # https://github.com/cschneegans/unattend-generator, Main.cs / Util.cs / Extensions.cs; its license is Data\LICENSE.txt).
 # The choices are his form's fields (the same names and values as https://schneegans.de/windows/unattend-generator/),
 # a hashtable name -> string (a multi-select: string[]). One function per modifier works on the XML document like his.

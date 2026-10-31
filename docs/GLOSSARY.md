@@ -49,7 +49,7 @@ _Avoid_: manual page, all tweaks
 
 **Requirement**: a condition a Tweak needs to make sense on a machine, such as Win11, NVIDIA or Desktop.
 
-**Install USB**: the Home tile that writes an `autounattend.xml` for a Windows install USB, a port of Christoph Schneegans' unattend generator (his sections and field names). It is a tool, not a Tweak, and its Windows settings are his, not Akari's Tweaks.
+**Unattend Generator**: the Home tile that writes an `autounattend.xml` for a Windows install USB, a port of Christoph Schneegans' unattend generator (his sections and field names). It is a tool, not a Tweak, and its Windows settings are his, not Akari's Tweaks.
 _Avoid_: USB setup file, answer file (in UI text)
 
 ## Running

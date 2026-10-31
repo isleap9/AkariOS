@@ -93,7 +93,7 @@ Describe 'ZOICWARE ports' {
             }
         }
         It 'removes every scheduled task but ZOICWARE''s two' {
-            $t = Import-AkariTweakFile "$Tw\Advanced\System\RemoveScheduledTasks.ps1" $Tw
+            $t = Import-AkariTweakFile "$Tw\Advanced\Scheduled tasks\RemoveScheduledTasks.ps1" $Tw
             Invoke-AkariTweak $t Apply | Out-Null
             Assert-MockCalled Remove-AkariScheduledTasks -Scope It -Exactly 1 -ParameterFilter { ($Keep -join ',') -eq 'SvcRestartTask,MsCtfMonitor' }
         }

@@ -136,6 +136,112 @@ function Set-AkariScheduledTask([string]$TaskPath, [string]$TaskName, [bool]$Ena
     $true
 }
 
+# ---- services and scheduled tasks one by one (the Services and Scheduled tasks pages, UI\ServicesPage.ps1,
+# UI\TasksPage.ps1): read, then changed through the functions below. Tests mock the reads and point the services root
+# at a test key.
+$AkariServicesRoot = 'HKLM:\SYSTEM\CurrentControlSet\Services'
+
+# a service's startup type from Win32_Service's StartMode and DelayedAutoStart: Automatic, AutomaticDelayed, Manual,
+# Disabled (or Boot / System, a driver-like start nobody picks by hand). Pure.
+function ConvertTo-AkariStartType([string]$Mode, [bool]$Delayed) {
+    switch ($Mode) { 'Auto' { if ($Delayed) { 'AutomaticDelayed' } else { 'Automatic' } } 'Manual' { 'Manual' } 'Disabled' { 'Disabled' } default { $Mode } }
+}
+
+# the registry Start value of a startup type (2 automatic, 3 manual, 4 disabled) and its DelayedAutostart. Pure.
+function ConvertFrom-AkariStartType([string]$StartType) {
+    switch ($StartType) {
+        'Automatic' { @{ Start = 2; Delayed = 0 } }
+        'AutomaticDelayed' { @{ Start = 2; Delayed = 1 } }
+        'Manual' { @{ Start = 3; Delayed = 0 } }
+        'Disabled' { @{ Start = 4; Delayed = 0 } }
+        default { throw "unknown startup type: $StartType" }
+    }
+}
+
+# the per-user service template of an instance name (cbdhsvc_4f2a1 -> cbdhsvc), or '': Windows makes each user's
+# instance from the template at sign-in, so a startup type lasts only when the template gets it too. Pure.
+function Get-AkariServiceTemplate([string]$Name) {
+    if ($Name -match '^(.+)_[0-9a-f]{4,8}$') { $Matches[1] } else { '' }
+}
+
+# the services on this PC (all of them, or the one named): @{ Name; DisplayName; Description; Start; Status; CanStop }
+# (Start: ConvertTo-AkariStartType). The only service read: tests mock it.
+function Get-AkariServices([string]$Name) {
+    $p = @{ ClassName = 'Win32_Service'; ErrorAction = 'Stop' }
+    if ($Name) { $p.Filter = "Name='$($Name -replace "'", "\'")'" }
+    foreach ($s in @(Get-CimInstance @p)) {
+        [pscustomobject]@{
+            Name = [string]$s.Name; DisplayName = [string]$s.DisplayName; Description = [string]$s.Description
+            Start = ConvertTo-AkariStartType $s.StartMode ([bool]$s.DelayedAutoStart); Status = [string]$s.State; CanStop = [bool]$s.AcceptStop
+        }
+    }
+}
+
+# sets a service's startup type (ConvertFrom-AkariStartType's names) in its registry key, and its template's for a
+# per-user instance: as admin, else as TrustedInstaller (many service keys are protected); throws when Windows keeps
+# the old one (Defender's, for one, change only in Safe Mode). Takes effect at the next start of the service.
+function Set-AkariServiceStart([string]$Name, [string]$StartType) {
+    $v = ConvertFrom-AkariStartType $StartType
+    $names = @($Name, (Get-AkariServiceTemplate $Name)) | Where-Object { $_ -and (Test-Path -LiteralPath "$AkariServicesRoot\$_") }
+    if (-not $names) { throw "no service named $Name" }
+    $rows = foreach ($n in $names) {
+        @{ Path = "$AkariServicesRoot\$n"; Name = 'Start'; Type = 'DWord'; Value = $v.Start; Default = $v.Start }
+        @{ Path = "$AkariServicesRoot\$n"; Name = 'DelayedAutostart'; Type = 'DWord'; Value = $v.Delayed; Default = $v.Delayed }
+    }
+    try { foreach ($r in $rows) { Set-ItemProperty -LiteralPath $r.Path -Name $r.Name -Value $r.Value -Type DWord -ErrorAction Stop } }
+    catch { Invoke-AkariRegistryTrusted $rows Apply }
+    foreach ($n in $names) {
+        if ((Get-ItemProperty -LiteralPath "$AkariServicesRoot\$n" -Name Start -ErrorAction SilentlyContinue).Start -ne $v.Start) {
+            throw "Windows keeps the startup type of $n (a protected service: some change only in Safe Mode)"
+        }
+    }
+}
+
+# starts or stops a service now ($Op Start / Stop; Stop also stops the services that depend on it). Tests mock this.
+function Invoke-AkariServiceControl([string]$Name, [ValidateSet('Start', 'Stop')][string]$Op) {
+    if ($Op -eq 'Start') { Start-Service -Name $Name -ErrorAction Stop } else { Stop-Service -Name $Name -Force -ErrorAction Stop }
+}
+
+# a Windows resource string ("@%SystemRoot%\system32\x.dll,-101", or Task Scheduler's "$(@...)") as text; other text
+# as it is
+function Resolve-AkariIndirectString([string]$Text) {
+    $t = $Text
+    if ($t -like '$(@*)') { $t = $t.Substring(2, $t.Length - 3) }
+    if ($t -notlike '@*') { return $Text }
+    if (-not ('AkariIndirect' -as [type])) {
+        Add-Type -TypeDefinition 'using System; using System.Text; using System.Runtime.InteropServices; public class AkariIndirect { [DllImport("shlwapi.dll", CharSet = CharSet.Unicode)] public static extern int SHLoadIndirectString(string src, StringBuilder buf, int size, IntPtr reserved); }'
+    }
+    $b = [Text.StringBuilder]::new(1024)
+    if ([AkariIndirect]::SHLoadIndirectString($t, $b, $b.Capacity, [IntPtr]::Zero) -eq 0) { $b.ToString() } else { '' }
+}
+
+# the scheduled tasks on this PC (all of them, or the one at $TaskPath + $TaskName): @{ Path; Name; Enabled; State;
+# Description; Author }. The only task read for the page: tests mock it.
+function Get-AkariTasks([string]$TaskPath, [string]$TaskName) {
+    $p = @{ ErrorAction = 'Stop' }
+    if ($TaskName) { $p.TaskPath = $TaskPath; $p.TaskName = $TaskName }
+    foreach ($t in @(Get-ScheduledTask @p)) {
+        [pscustomobject]@{
+            Path = [string]$t.TaskPath; Name = [string]$t.TaskName; Enabled = ("$($t.State)" -ne 'Disabled'); State = "$($t.State)"
+            Description = Resolve-AkariIndirectString $t.Description; Author = Resolve-AkariIndirectString $t.Author
+        }
+    }
+}
+
+# turns a scheduled task on or off as admin, else as TrustedInstaller (Windows' own tasks such as UpdateOrchestrator's
+# refuse an admin); throws when it stays as it was. Tests mock this.
+function Set-AkariTaskEnabled([string]$TaskPath, [string]$TaskName, [bool]$Enabled) {
+    try {
+        if ($Enabled) { [void](Enable-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -ErrorAction Stop) }
+        else { [void](Disable-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -ErrorAction Stop) }
+    } catch {
+        $full = "$TaskPath$TaskName" -replace "'", "''"
+        Run-Trusted "schtasks.exe /change /tn '$full' $(if ($Enabled) { '/enable' } else { '/disable' })"
+    }
+    $t = Get-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -ErrorAction Stop
+    if (("$($t.State)" -ne 'Disabled') -ne $Enabled) { throw "Windows keeps this task $(if ($Enabled) { 'off' } else { 'on' })" }
+}
+
 # unregisters every scheduled task but the ones named in $Keep (protected ones Windows won't let go are skipped);
 # returns how many went. Tests mock this.
 function Remove-AkariScheduledTasks([string[]]$Keep) {

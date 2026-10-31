@@ -1,4 +1,4 @@
-# Install USB: bloatware, AppLocker, custom scripts and extra components, ported from Schneegans' modifier\Bloatware.cs,
+# Unattend Generator: bloatware, AppLocker, custom scripts and extra components, ported from Schneegans' modifier\Bloatware.cs,
 # AppLocker.cs, Script.cs and Components.cs (MIT; see Engine.ps1).
 
 # a bloatware item's field: Remove + its token, else its name without spaces

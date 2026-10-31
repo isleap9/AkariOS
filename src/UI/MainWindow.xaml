@@ -615,10 +615,13 @@
         </Path>
         <TextBlock x:Name="StatusText" Text="Ready" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource Mu}"
                    MaxWidth="520" TextTrimming="CharacterEllipsis"/>
-        <!-- indeterminate progress bar -->
+        <!-- progress bar: StatusFill shows how far a Run is (Set-AkariProgress), the sliding StatusLoop while the job
+             doesn't say (a single change, the restore point) -->
         <Border x:Name="StatusBar" Width="160" Height="4" Margin="12,0,0,0" CornerRadius="2" VerticalAlignment="Center"
                 Background="{DynamicResource Track}" ClipToBounds="True" Visibility="Collapsed">
-          <Rectangle Width="56" HorizontalAlignment="Left" Fill="{DynamicResource Acc}" RadiusX="2" RadiusY="2">
+          <Grid>
+          <Rectangle x:Name="StatusFill" Width="0" HorizontalAlignment="Left" Fill="{DynamicResource Acc}" RadiusX="2" RadiusY="2" Visibility="Collapsed"/>
+          <Rectangle x:Name="StatusLoop" Width="56" HorizontalAlignment="Left" Fill="{DynamicResource Acc}" RadiusX="2" RadiusY="2">
             <Rectangle.RenderTransform><TranslateTransform/></Rectangle.RenderTransform>
             <Rectangle.Triggers>
               <EventTrigger RoutedEvent="FrameworkElement.Loaded">
@@ -631,6 +634,7 @@
               </EventTrigger>
             </Rectangle.Triggers>
           </Rectangle>
+          </Grid>
         </Border>
       </StackPanel>
       <Button x:Name="AppVersion" Style="{StaticResource Ghost}" HorizontalAlignment="Right" VerticalAlignment="Center"

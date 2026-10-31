@@ -8,7 +8,7 @@ $window.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get
 # the Lucide icons (Ic.<name> geometries, built by build\Icons.ps1)
 $window.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Icons.xaml" -Raw)))
 foreach ($n in 'Tabs', 'Search', 'SearchBox', 'SearchBtn', 'SearchHint', 'SubNav', 'Sections', 'Chips', 'RemoveApps', 'Heading', 'Rows', 'Page', 'Logo', 'HomePanel',
-               'Shell', 'Body', 'Main', 'TopBar', 'HomeTiles', 'HeaderIcon', 'HeaderSub', 'StatusDot', 'StatusRing', 'StatusText', 'StatusBar',
+               'Shell', 'Body', 'Main', 'TopBar', 'HomeTiles', 'HeaderIcon', 'HeaderSub', 'StatusDot', 'StatusRing', 'StatusText', 'StatusBar', 'StatusFill', 'StatusLoop',
                'CapMin', 'CapMax', 'CapMaxGlyph', 'CapClose', 'StepsPanel', 'StepDots', 'StepBody', 'StepFooter', 'StepBack', 'StepNext',
                'UpdateBar', 'UpdateText', 'UpdateOpen', 'AppVersion', 'AppVersionText', 'MenuBtn', 'CatBars',
                'PageHeader', 'TitleText', 'HeroOver', 'HeroOneClick', 'HeroChoose', 'HeroStats') { Set-Variable $n $window.FindName($n) }
@@ -95,7 +95,7 @@ Initialize-AkariSteps
 
 # every page: its icon (a Lucide name, UI\Icons.xaml) and the subtitle under the page title. The tabs open Home,
 # Install AkariOS, Optimize (its sub-header: the Catalogue's pages and the Legacy ones, $AkariLegacyPages), Downloads
-# and Install USB; About is in the options menu.
+# and Unattend Generator; About is in the options menu.
 $Pages = [ordered]@{
     Home       = @{ Glyph = 'house'; Sub = 'Choose how you want to optimize Windows' }
     # Install AkariOS: One-click, or Guided (pick the Tweaks, review, apply once)
@@ -104,8 +104,8 @@ $Pages = [ordered]@{
     Downloads  = @{ Glyph = 'download'; Sub = 'Install apps, runtimes and tools, from winget where possible' }
     # Remove apps (the Catalogue sidebar): the Guided Remove tables on their own
     'Remove apps' = @{ Glyph = 'trash-2'; Sub = 'Store apps, optional features, Windows features and legacy apps to remove' }
-    # Install USB (UI\Unattend.ps1): the Home tile, Schneegans' unattend generator on one long page
-    'Install USB' = @{ Glyph = 'usb'; Sub = 'An autounattend.xml for a Windows install USB, after Schneegans'' generator' }
+    # Unattend Generator (UI\Unattend.ps1): the Home tile, Schneegans' unattend generator on one long page
+    'Unattend Generator' = @{ Glyph = 'usb'; Sub = 'An autounattend.xml for a Windows install USB, after Schneegans'' generator' }
     # About & Updates (UI\About.ps1): the Home link and the update bar open it
     About      = @{ Glyph = 'info'; Sub = 'Version, updates and credits' }
     # Legacy pages: the frozen AkariOS-Ultimate tweaks (ADR 0004)
@@ -192,14 +192,15 @@ function Show-Page {
     $q = $Search.Text.Trim()
     # Install AkariOS and the apps flows: the search filters the current step instead of searching the Legacy pages
     $onSteps = ($script:Cat -eq 'Install AkariOS' -or $AkariAppFlows.Contains($script:Cat))
-    # About and Install USB: full pages, Back leads home
-    $onAbout = (-not $q -and $script:Cat -in 'About', 'Install USB')
+    # About and Unattend Generator: full pages, Back leads home
+    $onAbout = (-not $q -and $script:Cat -in 'About', 'Unattend Generator')
     $CatBars.Visibility = 'Collapsed'
     # Home: the hero is the title
     $PageHeader.Visibility = if (-not $q -and $script:Cat -eq 'Home') { 'Collapsed' } else { 'Visible' }
     Update-AkariTopBar
     # Optimize › Advanced (the Catalogue, UI\CataloguePage.ps1): its own pages and search
     if ($script:Cat -like "$AkariCataloguePrefix*") { Show-AkariCataloguePage $q; return }
+    $script:CatShown = ''
     $StepsPanel.Visibility = if ($onSteps -or $onAbout) { 'Visible' } else { 'Collapsed' }
     $StepFooter.Visibility = $StepsPanel.Visibility
     if ($onSteps -or $onAbout) {
@@ -250,6 +251,27 @@ function Set-Busy([bool]$b, [string]$label = '', [bool]$Lock = $true) {
     $StatusRing.Visibility = if ($b) { 'Visible' } else { 'Collapsed' }
     $StatusBar.Visibility = $StatusRing.Visibility
     $StatusText.Text = if ($b -and $label) { $label } elseif ($b) { 'Working' + [string][char]0x2026 } else { 'Ready' }
+    $script:BusyLabel = $StatusText.Text
+    Set-AkariStatusProgress $null
+}
+
+# the status bar's text and bar for a job's progress (Set-AkariProgress in the job: Done, Total, Step): a bar filled to
+# Done / Total with "label (n of total): step", or the sliding bar while the job doesn't say
+function Get-AkariProgressText([string]$Label, $Shared) {
+    if (-not $Shared -or -not $Shared.Total) { return $Label }
+    $n = [Math]::Min([int]$Shared.Done + 1, [int]$Shared.Total)
+    $t = "$Label ($n of $($Shared.Total))"
+    if ($Shared.Step) { $t += ": $($Shared.Step)" }
+    $t
+}
+function Set-AkariStatusProgress($Shared) {
+    $on = ($Shared -and $Shared.Total)
+    $StatusLoop.Visibility = if ($on) { 'Collapsed' } else { 'Visible' }
+    $StatusFill.Visibility = if ($on) { 'Visible' } else { 'Collapsed' }
+    if ($on) {
+        $StatusFill.Width = $StatusBar.Width * [Math]::Min(1, [double]$Shared.Done / [double]$Shared.Total)
+        $StatusText.Text = Get-AkariProgressText $script:BusyLabel $Shared
+    }
 }
 
 function Invoke-Code([string]$code, [string]$label, $meta = $null) {
@@ -267,6 +289,7 @@ $timer.Add_Tick({
     $m = $null
     while ($script:Queue.TryDequeue([ref]$m)) { Add-Log $m }
     $j = $script:Job
+    if ($j -and $j.Shared -and -not $j.Handle.IsCompleted) { Set-AkariStatusProgress $j.Shared }
     if ($j -and $j.Handle.IsCompleted) {
         try { [void]$j.Ps.EndInvoke($j.Handle) } catch { Add-Log "Error: $($_.Exception.Message)" }
         foreach ($err in $j.Ps.Streams.Error) { Add-Log "Error: $($err.ToString())" }
@@ -295,17 +318,18 @@ function Confirm-Run([string]$text) {
 
 # ---- top bar: the tabs, Optimize's sub-header (Sections, Category chips, Remove apps) and the search
 # the tabs and their icons; Optimize opens the Optimize page seen last (Get-AkariOptimizeTarget)
-$AkariTabs = [ordered]@{ Home = 'house'; 'Install AkariOS' = 'zap'; Optimize = 'sliders-horizontal'; Downloads = 'download'; 'Install USB' = 'usb' }
+$AkariTabs = [ordered]@{ Home = 'house'; 'Install AkariOS' = 'zap'; Optimize = 'sliders-horizontal'; Downloads = 'download'; 'Unattend Generator' = 'usb' }
 
 # the tab page $Page belongs to ('' = none: About). Pure.
 function Get-AkariTab([string]$Page) {
-    if ($Page -in 'Home', 'Install AkariOS', 'Downloads', 'Install USB') { return $Page }
+    if ($Page -in 'Home', 'Install AkariOS', 'Downloads', 'Unattend Generator') { return $Page }
     if ($Page -like "$AkariCataloguePrefix*" -or $Page -in $AkariLegacyPages -or $Page -in 'Optimize', 'Remove apps') { return 'Optimize' }
     ''
 }
 
 # the search box's placeholder on page $Page: what the search looks through there. Pure.
 function Get-AkariSearchHint([string]$Page) {
+    if ($AkariCatalogueLists.ContainsKey($Page)) { return $AkariCatalogueLists[$Page].Hint }
     if ($Page -like "$AkariCataloguePrefix*") { return 'Search Optimize' }
     if ($Page -in 'Downloads', 'Remove apps') { return 'Search apps' }
     if ($Page -eq 'Install AkariOS') { return 'Filter this step' }
@@ -524,7 +548,7 @@ try { `$AkariShared.Applied = @(Get-AkariExportItems @(`$loaded.Tweaks)).Count }
 }
 function Complete-AkariHomeStats($Shared) { Set-AkariHomeStats @{ Apps = $Shared.Apps; Applied = $Shared.Applied } }
 
-# ---- Home: the mode cards under the hero: Optimize, Downloads, Install USB, Import / Export
+# ---- Home: the mode cards under the hero: Optimize, Downloads, Unattend Generator, Import / Export
 $tile = New-AkariModeCard 'sliders-horizontal' 'Optimize' 'Manual, in-depth optimization for Windows. Recommended for power users.' $true
 # the Optimize tab's page
 $tile.Add_Click({ Select-AkariPage 'Optimize' })
@@ -533,9 +557,9 @@ $tile.Add_Click({ Select-AkariPage 'Optimize' })
 $tile = New-AkariModeCard 'download' 'Downloads' 'Install apps, game launchers, runtimes and tools, or bring back Store apps the debloat removed.' $true
 $tile.Add_Click({ Select-AkariPage 'Downloads' })
 [void]$HomeTiles.Children.Add($tile)
-# Install USB: Schneegans' unattend generator, an autounattend.xml for a Windows install USB (UI\Unattend.ps1)
-$tile = New-AkariModeCard 'usb' 'Install USB' 'Prepare a Windows install USB: an autounattend.xml with accounts, language, edition, disk and setup choices, after Schneegans'' generator.' $true
-$tile.Add_Click({ Select-AkariPage 'Install USB' })
+# Unattend Generator: Schneegans' unattend generator, an autounattend.xml for a Windows install USB (UI\Unattend.ps1)
+$tile = New-AkariModeCard 'usb' 'Unattend Generator' 'Prepare a Windows install USB: an autounattend.xml with accounts, language, edition, disk and setup choices, after Schneegans'' generator.' $true
+$tile.Add_Click({ Select-AkariPage 'Unattend Generator' })
 [void]$HomeTiles.Children.Add($tile)
 $tile = New-AkariModeCard 'arrow-left-right' 'Import / Export settings' 'Save this PC''s settings to a file, or load them on another PC and review them in Guided.' $true
 $tile.Add_Click({ Show-AkariImportExport })

@@ -1,4 +1,4 @@
-# Install USB: the setup modifiers, ported from Schneegans' modifier\*.cs (MIT; see Engine.ps1): accessibility, computer
+# Unattend Generator: the setup modifiers, ported from Schneegans' modifier\*.cs (MIT; see Engine.ps1): accessibility, computer
 # name, bypasses, product key, locales, users, express settings, Wi-Fi, empty elements, lockout, password expiration,
 # time zone, the four script sequences, sensitive files, order, processor architectures, pretty.
 

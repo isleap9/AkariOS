@@ -8,6 +8,12 @@ $AkariCatalogueSearch = 'Catalogue:Search'
 # Section order in the sidebar; Tools (checks, Refresh, drivers, cleanup) is the Catalogue's own, never in Guided
 $AkariCatalogueSections = 'Optimize', 'Customize', 'Hardware', 'Advanced', 'Tools'
 $AkariCatalogueHeaders = @{ Hardware = 'Graphics & Hardware' }
+# Category pages that also list what is on the PC, under their Tweaks (the search filters that list there): the page
+# key -> the function that adds the list (UI\ServicesPage.ps1, UI\TasksPage.ps1) and the search box's placeholder
+$AkariCatalogueLists = @{
+    'Catalogue:Advanced/Services'        = @{ Show = 'Show-AkariServiceList'; Hint = 'Search services' }
+    'Catalogue:Advanced/Scheduled tasks' = @{ Show = 'Show-AkariTaskList'; Hint = 'Search tasks' }
+}
 
 # the Tweaks the Catalogue lists: one-file Toggles, Choices and Actions (no Legacy, no Group Entries, not the Apps or
 # OneClick Sections) whose Requires this PC meets

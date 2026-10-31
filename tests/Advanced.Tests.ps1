@@ -222,8 +222,8 @@ Describe 'Advanced tweaks' {
         }
 
         Context 'Services off (in Safe Mode)' {
-            $t = Load 'Advanced\System\ServicesOff.ps1'
-            $data = Import-PowerShellDataFile "$Tw\Advanced\System\Files\services.psd1"
+            $t = Load 'Advanced\Services\ServicesOff.ps1'
+            $data = Import-PowerShellDataFile "$Tw\Advanced\Services\Files\services.psd1"
             $list = @($data.Services)
             # four of the services exist in this test's "Windows"
             foreach ($s in 'WlanSvc', 'SysMain', 'StateRepository', 'Spooler') { New-Item "$tk\HKLM\SYSTEM\CurrentControlSet\Services\$s" -Force | Out-Null }

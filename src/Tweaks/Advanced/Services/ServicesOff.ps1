@@ -1,12 +1,13 @@
 # Ported from AkariOS-Ultimate (FR33THY Ultimate) 8 Advanced\17 Services: "Services: Off", Revert = its "Services:
-# Default". A Choice over Files\services.psd1 (helpers in Files\ServiceRows.ps1); per-service picks may come later.
+# Default". A Choice over Files\services.psd1 (helpers in Files\ServiceRows.ps1). The Services page lists it above
+# every service on the PC, each with its own startup type (UI\ServicesPage.ps1).
 # Many service keys are protected: Safe Mode, TrustedInstaller (then as admin), like FR33THY's .reg import.
 # Light and Manual: ZOICWARE's "Disable Services" and "Set all Services to Manual" (https://github.com/zoicware/ZOICWARE, MIT).
 @{
     Id          = 'advanced-services-off'
     Name        = 'Turn off most Windows services'
     Section     = 'Advanced'
-    Category    = 'System'
+    Category    = 'Services'
     Kind        = 'Choice'
     Risk        = 'Advanced'
     SafeMode    = $true

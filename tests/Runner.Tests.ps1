@@ -140,6 +140,16 @@ Describe 'Invoke-AkariRun' {
             $o = @(Invoke-AkariPlan @(@{ Id = 'good'; Mode = 'Revert' }, @{ Id = 'good'; Mode = 'Apply' }) $list)
             ($o | ForEach-Object { "$($_.Mode):$($_.Outcome)" }) -join ',' | Should Be 'Revert:Reverted,Apply:Applied'
         }
+
+        It 'tells the GUI how far the plan is (the job''s $AkariShared), and nothing without one' {
+            $AkariShared = [hashtable]::Synchronized(@{})
+            [void](Invoke-AkariPlan @(@{ Id = 'good'; Mode = 'Revert' }, @{ Id = 'good'; Mode = 'Apply' }) $list)
+            $AkariShared.Total | Should Be 2
+            $AkariShared.Done | Should Be 1
+            $AkariShared.Step | Should Be 'Good'
+            Remove-Variable AkariShared
+            { Set-AkariProgress 1 2 'x' } | Should Not Throw
+        }
     } finally { Remove-Item $k -Recurse -Force -ErrorAction SilentlyContinue }
 }
 

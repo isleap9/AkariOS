@@ -38,7 +38,7 @@ PC you can reinstall, ideally a fresh install, the first time.
   change applied right away. Also Remove apps and Downloads.
 - **Downloads**: browsers, launchers, runtimes, tools and chat apps, mostly through winget, and Store apps the debloat
   removed.
-- **Install USB**: an `autounattend.xml` for a Windows install USB (accounts, language, edition, disk, bloatware), after
+- **Unattend Generator**: an `autounattend.xml` for a Windows install USB (accounts, language, edition, disk, bloatware), after
   Christoph Schneegans' generator.
 - **Import / Export settings**: save this PC's settings to a file and load them on another PC, reviewed in Guided
   before anything changes.

@@ -94,7 +94,7 @@ Describe 'Get-AkariSetupDrives' {
     It 'marks the drives with Windows setup' { ($d | ForEach-Object { "$($_.Label):$($_.Setup)" }) -join ',' | Should Be 'STICK:False,CCCOMA_X64:True,USB SSD:True' }
 }
 
-Describe 'Install USB page (no window, fake drives in TestDrive)' {
+Describe 'Unattend Generator page (no window, fake drives in TestDrive)' {
     $usb = "$TestDrive\usb"; $stick = "$TestDrive\stick"; $folder = "$TestDrive\folder"
     New-Item -ItemType Directory $usb, $stick | Out-Null
     $probe = "$TestDrive\unattend.ps1"
@@ -184,7 +184,7 @@ $script:UnattendView = $null
     }
 
     It 'runs without errors' { $out['error'] | Should BeNullOrEmpty }
-    It 'opens full window with Back only, his sections built' { $out.page | Should Be 'Install USB|Collapsed|Visible|True' }
+    It 'opens full window with Back only, his sections built' { $out.page | Should Be 'Unattend Generator|Collapsed|Visible|True' }
     It 'starts from the defaults and this PC; hidden branches are left out' {
         $out.start | Should Be 'Unattended|it-IT|00000410|W. Europe Standard Time|Admin|Default|False|False'
         $out.samples | Should Be 'False|SELECT DISK=0'

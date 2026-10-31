@@ -151,6 +151,13 @@ function Get-AkariCatalogueCard($t) {
 function Show-AkariCataloguePage([string]$Query) {
     $StepsPanel.Visibility = 'Collapsed'; $StepFooter.Visibility = 'Collapsed'; $HomePanel.Visibility = 'Collapsed'
     $Rows.Children.Clear()
+    # Services, Scheduled tasks: the page's Tweaks, then its list, which the search filters ($AkariCatalogueLists)
+    $extra = $AkariCatalogueLists[$script:Cat]
+    # typing in the search shows the page again: its Tweaks' States are read only when it opens
+    $again = ($script:CatShown -eq $script:Cat)
+    $script:CatShown = $script:Cat
+    $filter = ''
+    if ($extra) { $filter = $Query; $Query = '' }
     if ($Query) {
         $Heading.Text = 'Search'
         # [char]0x203A: the file has no BOM, so no non-ASCII text in its strings
@@ -164,6 +171,13 @@ function Show-AkariCataloguePage([string]$Query) {
         Set-AkariIcon $HeaderIcon (Get-AkariCategoryIcon $cat)
     }
     $list = @(Get-AkariCatalogueList $script:Tweaks $script:Cat $Query)
+    if ($extra) {
+        foreach ($t in $list) { $e = Get-AkariCatalogueCard $t; [void]$Rows.Children.Add($e.Card); Set-AkariCatalogueCard $e }
+        if (-not $again) { Start-AkariCatalogueStates $list }
+        & $extra.Show $filter
+        Update-AkariCatalogueBars
+        return
+    }
     # toolbar: how many, and read the States again
     $bar = [Windows.Controls.DockPanel]::new()
     $bar.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
@@ -284,6 +298,9 @@ function Start-AkariCatalogueNext {
     if ($script:Job -or -not $script:CatQueue.Count) { return }
     $it = $script:CatQueue[0]
     $script:CatQueue.RemoveAt(0)
+    # a service or a task (the Services and Scheduled tasks lists): UI\ServicesPage.ps1, UI\TasksPage.ps1
+    if ($it.Kind -eq 'Service') { Start-AkariServiceJob $it; return }
+    if ($it.Kind -eq 'Task') { Start-AkariTaskJob $it; return }
     $e = $script:CatCards[$it.Id]
     $t = $e.Tweak
     $e.Busy = 'Running'
@@ -325,6 +342,8 @@ function Complete-AkariCatalogueJob($Job) {
             }
             Set-AkariCatalogueCard $e
         }
+        'CatalogueService' { Complete-AkariServiceJob $s }
+        'CatalogueTask' { Complete-AkariTaskJob $s }
         'CatalogueExplorer' { $script:CatExplorer.Clear() }
         'CatalogueRun' { Complete-AkariCatalogueSafeRun $s }
     }

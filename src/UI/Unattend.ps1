@@ -1,4 +1,4 @@
-# Install USB (Home tile, plan docs/plans/2026-10-29-usb-setup-file.md): Schneegans' unattend generator in AkariOS.
+# Unattend Generator (Home tile, plan docs/plans/2026-10-29-usb-setup-file.md): Schneegans' unattend generator in AkariOS.
 # One long page of his sections (UI\Unattend.psd1, built by UI\UnattendForm.ps1), then Save: autounattend.xml
 # (Core\Unattend.ps1) to a Windows install USB or a folder. Back leads Home. The form is built once per session and
 # keeps what was typed. Needs UI\Steps.ps1 (New-AkariText, Set-AkariStepHeader) and UI\UnattendForm.ps1.
@@ -94,7 +94,7 @@ function Get-AkariUnattendView {
 
 function Show-AkariUnattend {
     $StepDots.Children.Clear()
-    Set-AkariStepHeader 'Install USB' $AkariUnattendSub
+    Set-AkariStepHeader 'Unattend Generator' $AkariUnattendSub
     $StepBack.Visibility = 'Visible'
     $StepNext.Visibility = 'Collapsed'
     $view = Get-AkariUnattendView
@@ -123,14 +123,14 @@ function Invoke-AkariUnattendOpen {
     $path = Select-AkariUnattendFile
     if (-not $path) { return }
     $fields = ConvertFrom-AkariUnattend ([IO.File]::ReadAllText($path))
-    if (-not $fields) { Show-AkariMessage "This file wasn't made by Akari or Schneegans' generator, so its choices can't be read back." 'Warning' 'Install USB'; return }
+    if (-not $fields) { Show-AkariMessage "This file wasn't made by Akari or Schneegans' generator, so its choices can't be read back." 'Warning' 'Unattend Generator'; return }
     $start = Get-AkariUnattendStart
     foreach ($k in $fields.Keys) { $start[$k] = $fields[$k] }
     # a checkbox the file leaves out is off
     Set-AkariUaFormFields $start
     foreach ($b in $script:UaBindings | Where-Object { $_.Kind -eq 'Check' -and -not $fields.ContainsKey($_.Field) }) { $b.Control.IsChecked = $false }
     $script:UnattendParts.Error.Text = ''
-    Add-Log "Install USB: opened $path"
+    Add-Log "Unattend Generator: opened $path"
 }
 
 # the file for the form, or $null with the problem shown
@@ -144,17 +144,17 @@ function Get-AkariUnattendBytes {
 function Confirm-AkariUnattendWipe {
     $f = Get-AkariUaFormFields
     if ($f.PEMode -ne 'Generated' -or $f.PartitionMode -notin 'Unattended', 'Custom') { return $true }
-    Confirm-AkariDialog "This file wipes a disk without asking (Windows PE stage, partitioning). Only use the USB on a PC whose disk you mean to erase.`n`nSave it anyway?" 'Save anyway' 'Cancel' 'Warning' 'Install USB'
+    Confirm-AkariDialog "This file wipes a disk without asking (Windows PE stage, partitioning). Only use the USB on a PC whose disk you mean to erase.`n`nSave it anyway?" 'Save anyway' 'Cancel' 'Warning' 'Unattend Generator'
 }
 
 function Save-AkariUnattendTo($Bytes, [string]$Folder) {
     try {
         $path = Save-AkariUnattend $Bytes $Folder
-        Add-Log "Install USB: saved $path"
+        Add-Log "Unattend Generator: saved $path"
         Open-AkariFolder $Folder
     } catch {
         $script:UnattendParts.Error.Text = "Not saved: $($_.Exception.Message)"
-        Add-Log "Error: Install USB not saved ($($_.Exception.Message))"
+        Add-Log "Error: Unattend Generator not saved ($($_.Exception.Message))"
     }
 }
 
@@ -166,8 +166,8 @@ function Invoke-AkariUnattendUsb {
     if (-not $dr) { $script:UnattendParts.Error.Text = 'No USB drive found: plug one in and press Refresh, or save to a folder.'; return }
     $root = $dr.Tag.Root
     if (-not (Confirm-AkariUnattendWipe)) { return }
-    if (-not $dr.Tag.Setup -and -not (Confirm-AkariDialog "$root has no Windows setup on it (no sources\install.wim or .esd).`n`nSave the file there anyway?" 'Save anyway' 'Cancel' 'Warning' 'Install USB')) { return }
-    if ((Test-Path -LiteralPath (Join-Path $root 'autounattend.xml')) -and -not (Confirm-AkariDialog "$root already has an autounattend.xml.`n`nReplace it?" 'Replace' 'Cancel' 'Question' 'Install USB')) { return }
+    if (-not $dr.Tag.Setup -and -not (Confirm-AkariDialog "$root has no Windows setup on it (no sources\install.wim or .esd).`n`nSave the file there anyway?" 'Save anyway' 'Cancel' 'Warning' 'Unattend Generator')) { return }
+    if ((Test-Path -LiteralPath (Join-Path $root 'autounattend.xml')) -and -not (Confirm-AkariDialog "$root already has an autounattend.xml.`n`nReplace it?" 'Replace' 'Cancel' 'Question' 'Unattend Generator')) { return }
     Save-AkariUnattendTo $bytes $root
 }
 
@@ -178,6 +178,6 @@ function Invoke-AkariUnattendFolder {
     if (-not (Confirm-AkariUnattendWipe)) { return }
     $f = Select-AkariFolder
     if (-not $f) { return }
-    if ((Test-Path -LiteralPath (Join-Path $f 'autounattend.xml')) -and -not (Confirm-AkariDialog "This folder already has an autounattend.xml.`n`nReplace it?" 'Replace' 'Cancel' 'Question' 'Install USB')) { return }
+    if ((Test-Path -LiteralPath (Join-Path $f 'autounattend.xml')) -and -not (Confirm-AkariDialog "This folder already has an autounattend.xml.`n`nReplace it?" 'Replace' 'Cancel' 'Question' 'Unattend Generator')) { return }
     Save-AkariUnattendTo $bytes $f
 }

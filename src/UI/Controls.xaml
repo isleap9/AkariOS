@@ -346,7 +346,7 @@
   </Style>
 
   <!-- Setting card: a Review / result row (blob, name, the change or Outcome), a Catalogue TweakRow, an About or
-       Install USB section. 14 px corners. -->
+       Unattend Generator section. 14 px corners. -->
   <Style x:Key="SettingCard" TargetType="Border">
     <Setter Property="Background" Value="{DynamicResource S1}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource Bd}"/>

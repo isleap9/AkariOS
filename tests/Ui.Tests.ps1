@@ -314,7 +314,7 @@ Add-Type -AssemblyName PresentationFramework
 $AkariLogFile = $LogFile
 $AkariPresetDir = Join-Path (Split-Path $LogFile) 'presets'
 foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'Restore', 'Version', 'Update', 'Unattend', 'Presets') { . "$Root\Core\$f.ps1" }
-# the Install USB page reads no drive and no PC setting here
+# the Unattend Generator page reads no drive and no PC setting here
 function Get-AkariSetupDrives { }
 function Get-AkariUnattendDefaults { @{} }
 $AkariInstallDir = $Install
@@ -329,7 +329,7 @@ $script:Groups = @(); $script:RowCache = @{}; $script:Cat = 'Home'; $script:Busy
 $script:Queue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
 $loaded = @{ Problems = @() }
 function Get-AkariAppxInstalled { @() }; function Start-AkariFeatureRead { }
-foreach ($f in 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows', 'CataloguePage', 'About', 'UnattendForm', 'Unattend', 'ImportExport') { . "$Root\UI\$f.ps1" }
+foreach ($f in 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows', 'CataloguePage', 'ServicesPage', 'TasksPage', 'About', 'UnattendForm', 'Unattend', 'ImportExport') { . "$Root\UI\$f.ps1" }
 $timer.Stop()
 # the Catalogue reads its States in a job: recorded, never run (no real job, no Safe Mode read)
 function Test-AkariSafeMode { $false }
@@ -385,7 +385,7 @@ $cr = $script:AboutParts.Credits.Children[0]
 "aboutLicenseLink=$($script:AboutParts.License.Parent.Orientation),$($script:AboutParts.License.Parent.Children[1].Content)"
 "appVersion=$($AppVersionText.Text)"
 Click $StepBack; "aboutBack=$script:Cat"
-# the Install USB tile (third of four): full window, Back leads Home
+# the Unattend Generator tile (third of four): full window, Back leads Home
 "tiles=$(($HomeTiles.Children | ForEach-Object { $_.Content.Children[1].Text }) -join ',')|$($HomeTiles.Columns)"
 Click $HomeTiles.Children[2]; "usbFile=$script:Cat|$($Heading.Text)|$(TabOn)|$($StepNext.Visibility)|$($null -ne $script:UnattendParts.Drive)"
 Click $StepBack; "usbFileBack=$script:Cat"
@@ -503,7 +503,7 @@ $Sections.SelectedItem = $Sections.Items[2]
     }
 
     It 'builds without errors' { $out['error'] | Should BeNullOrEmpty }
-    It 'the top bar has five tabs' { $out.tabs | Should Be 'Home,Install AkariOS,Optimize,Downloads,Install USB' }
+    It 'the top bar has five tabs' { $out.tabs | Should Be 'Home,Install AkariOS,Optimize,Downloads,Unattend Generator' }
     It 'Home checks its tab, with no sub-header' { $out.home | Should Be 'Visible|Home|Collapsed|Search Legacy' }
     It 'the Home hero replaces the page header; Tweaks are counted at once, the other stats in one background read' {
         $out.homeStats | Should Be 'Collapsed|1|True|3|8212'
@@ -541,9 +541,9 @@ $Sections.SelectedItem = $Sections.Items[2]
         $out.aboutVersion | Should Match '^AkariOS \d+\.\d+\.\d+$'
         $out.aboutBack | Should Be 'Home'
     }
-    It 'the Install USB tile opens its form full window, and Back goes Home' {
-        $out.tiles | Should Be 'Optimize,Downloads,Install USB,Import / Export settings|4'
-        $out.usbFile | Should Be 'Install USB|Install USB|Install USB|Collapsed|True'
+    It 'the Unattend Generator tile opens its form full window, and Back goes Home' {
+        $out.tiles | Should Be 'Optimize,Downloads,Unattend Generator,Import / Export settings|4'
+        $out.usbFile | Should Be 'Unattend Generator|Unattend Generator|Unattend Generator|Collapsed|True'
         $out.usbFileBack | Should Be 'Home'
     }
     It 'About lists the links (a link without a URL is hidden), the credits and the license' {

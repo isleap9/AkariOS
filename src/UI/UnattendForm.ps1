@@ -1,4 +1,4 @@
-# Install USB: builds the form from UI\Unattend.psd1's Sections (WPF), reads it back as Schneegans' fields and fills
+# Unattend Generator: builds the form from UI\Unattend.psd1's Sections (WPF), reads it back as Schneegans' fields and fills
 # it from fields. Like his page, only the picked branches count: a radio option's or a checkbox's Items are shown
 # while it is picked, and a hidden field is left out (his page disables those inputs, so the browser never sends them).
 # Needs UI\Steps.ps1 (New-AkariText). No WPF window here: tests build it in a probe.

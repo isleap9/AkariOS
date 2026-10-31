@@ -95,7 +95,7 @@ function Get-AkariLegacyList($Tweaks, [string]$Page, [string]$Query) {
 
 function Step-AkariBack {
     # the chooser's Back goes Home, Back on an apps flow's first step to where it was opened
-    if ($script:Cat -in 'About', 'Install USB' -or $script:Mode -eq 'Choose') { Select-AkariPage 'Home'; return }
+    if ($script:Cat -in 'About', 'Unattend Generator' -or $script:Mode -eq 'Choose') { Select-AkariPage 'Home'; return }
     $prev = Get-AkariFlowStep $script:Mode $script:Step -1
     if ($null -ne $prev) { $script:Step = $prev }
     elseif ($AkariAppFlows.Contains($script:Mode)) { Select-AkariPage $script:FlowExit; return }

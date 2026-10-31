@@ -5,7 +5,7 @@
     Id          = 'advanced-remove-scheduled-tasks'
     Name        = 'Remove all scheduled tasks'
     Section     = 'Advanced'
-    Category    = 'System'
+    Category    = 'Scheduled tasks'
     Kind        = 'Action'
     Button      = 'Remove'
     Risk        = 'Advanced'

@@ -1,7 +1,8 @@
 # The AkariOS wallpaper, as the old One-click set it (isleap9/Akari-OS steptwo.ps1): OneClick\img.jpg copied to
 # C:\Windows\Web\AkariOS\img.jpg, Fill. It replaces FR33THY's black wallpaper (6 Windows\6 Signout Lockscreen
 # Wallpaper Black) and solid-colour background (22 Control Panel Settings): they all set the same value. The image
-# stays in OneClick\ (17 MB, one copy) until M4 retires that folder. Revert = Windows' own wallpaper (img0.jpg).
+# is OneClick\img.jpg (one copy, the one One-click sets too). Revert = Windows' own wallpaper (img0.jpg). Detect
+# compares the copy with that image: a PC with an older AkariOS wallpaper reads Custom, and Apply puts the current one in.
 @{
     Id          = 'theme-akarios-wallpaper'
     Name        = 'AkariOS wallpaper'
@@ -9,10 +10,13 @@
     Category    = 'Theme'
     Risk        = 'Safe'
     AkariOS     = $true
-    Description = 'Sets the AkariOS wallpaper on the desktop.'
+    Description = 'Sets the AkariOS wallpaper on the desktop (an older AkariOS wallpaper is replaced with the current one).'
     Detect      = {
         $w = Get-AkariRegValue 'HKCU:\Control Panel\Desktop' 'Wallpaper'
-        if ($w -eq "$env:SystemRoot\Web\AkariOS\img.jpg") { 'Optimized' }
+        $src = Join-Path (Split-Path (Split-Path (Split-Path $AkariTweakDir))) 'OneClick\img.jpg'
+        $dst = "$env:SystemRoot\Web\AkariOS\img.jpg"
+        $same = (Test-Path -LiteralPath $dst) -and (Test-Path -LiteralPath $src) -and (Get-Item -LiteralPath $dst).Length -eq (Get-Item -LiteralPath $src).Length
+        if ($w -eq $dst -and $same) { 'Optimized' }
         elseif ($w -eq "$env:SystemRoot\Web\Wallpaper\Windows\img0.jpg") { 'Default' }
         else { 'Custom' }
     }

@@ -11,7 +11,7 @@ $AkariCategoryGlyphs = @{
     Taskbar = 'panel-bottom'; Start = 'layout-grid'; Explorer = 'folder'; Theme = 'palette'
     Update = 'cloud-download'; Power = 'power'; Network = 'wifi'; Notifications = 'bell'; Input = 'mouse'; Accessibility = 'accessibility'; Sound = 'volume-2'; System = 'settings-2'
     Security = 'shield-check'; Display = 'monitor'; Apps = 'app-window'; Cleanup = 'eraser'; Drivers = 'hard-drive'
-    'Context menu' = 'menu'
+    'Context menu' = 'menu'; Services = 'activity'; 'Scheduled tasks' = 'history'
 }
 
 # a Category's icon name

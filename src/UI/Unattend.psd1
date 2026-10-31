@@ -1,4 +1,4 @@
-# Install USB (UI\Unattend.ps1): the form, section by section in the order of Schneegans' generator
+# Unattend Generator (UI\Unattend.ps1): the form, section by section in the order of Schneegans' generator
 # (https://schneegans.de/windows/unattend-generator/), with his field names. UI\UnattendForm.ps1 builds it.
 # Item kinds: Radio (Options: Value, Label, Items shown while it is picked), Check (Label, Items shown while ticked),
 # Input (Label, Kind Text | Number | Multi), Select (Label, List = a Core\Unattend\Data file, or Options: Id, Name),

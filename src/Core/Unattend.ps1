@@ -1,4 +1,4 @@
-# Install USB (plan docs/plans/2026-10-29-usb-setup-file.md): a full port of Christoph Schneegans' unattend generator
+# Unattend Generator (plan docs/plans/2026-10-29-usb-setup-file.md): a full port of Christoph Schneegans' unattend generator
 # (https://schneegans.de/windows/unattend-generator/, MIT), in Core\Unattend\ (Engine, Setup, Disk, ...; his data files
 # and license in Core\Unattend\Data\). The choices are his form's fields; a file carries them as its first comment (his
 # bookmark URL, without passwords), so a file from his site or from Akari opens again in the form.

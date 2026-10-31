@@ -258,6 +258,11 @@ Describe 'Customize: tweaks with script blocks' {
                     (Get-ItemProperty "$AkariTestKey\Control Panel\Desktop").Wallpaper | Should Be "$TestDrive\Windows\Web\AkariOS\img.jpg"
                     Assert-MockCalled Set-AkariDesktopWallpaper -ParameterFilter { $Path -like '*\Web\AkariOS\img.jpg' }
                     Get-AkariState $t | Should Be 'Optimized'
+                    # an older AkariOS wallpaper (another image at the same path): Custom, and Apply puts the current one in
+                    [IO.File]::WriteAllBytes("$TestDrive\Windows\Web\AkariOS\img.jpg", [byte[]](1, 2, 3))
+                    Get-AkariState $t | Should Be 'Custom'
+                    (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+                    Get-AkariState $t | Should Be 'Optimized'
                     (Invoke-AkariTweak $t Revert).Outcome | Should Be 'Reverted'
                     (Get-ItemProperty "$AkariTestKey\Control Panel\Desktop").Wallpaper | Should Be "$TestDrive\Windows\Web\Wallpaper\Windows\img0.jpg"
                     Test-Path "$TestDrive\Windows\Web\AkariOS" | Should Be $false

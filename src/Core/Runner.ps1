@@ -114,6 +114,13 @@ function Test-AkariRestarts($Tweak, [string]$Mode) {
 # Explorer restarts once when a Tweak with Explorer = $true was Applied or Reverted.
 # SafeMode Tweaks outside Safe Mode: once the rest is done, Akari restarts into Safe Mode, runs them there and restarts
 # back (Start-AkariPhases); their Outcome says so and needs a restart.
+# how far a Run is, for the GUI's status bar: in the background job ($AkariShared, Start-AkariJob) sets Done, Total
+# and Step (what runs now); elsewhere (CLI, -Resume) it does nothing
+function Set-AkariProgress([int]$Done, [int]$Total, [string]$Step = '') {
+    $s = Get-Variable AkariShared -ValueOnly -ErrorAction SilentlyContinue
+    if ($s -is [hashtable]) { $s.Step = $Step; $s.Total = $Total; $s.Done = $Done }
+}
+
 function Invoke-AkariPlan([object[]]$Items, $Tweaks) {
     $explorer = $false
     $now = [System.Collections.Generic.List[object]]::new()
@@ -126,16 +133,23 @@ function Invoke-AkariPlan([object[]]$Items, $Tweaks) {
         if ($t -and $t.SafeMode -and -not $inSafeMode -and -not ($t.Kind -eq 'Action' -and $i.Mode -eq 'Revert') -and -not (Test-AkariRequirement $t) -and ($t.Kind -eq 'Action' -or (Get-AkariState $t) -ne $(if ($i.Mode -eq 'Revert') { 'Default' } else { 'Optimized' }))) { $safe.Add(@{ Item = $i; Tweak = $t }) }
         elseif ($t -and (Test-AkariRestarts $t $i.Mode)) { $last.Add(@{ Item = $i; Tweak = $t }) } else { $now.Add(@{ Item = $i; Tweak = $t }) }
     }
+    # steps: each change now, each Safe Mode Prepare, the one restarting change
+    $total = $now.Count + $safe.Count + [Math]::Min(1, $last.Count)
+    $done = 0
     foreach ($x in $now) {
         $i = $x.Item; $t = $x.Tweak
+        Set-AkariProgress $done $total $(if ($t) { $t.Name } else { $i.Id })
+        $done++
         if (-not $t) { Write-Log "Failed: $($i.Id) (unknown tweak id)"; New-AkariOutcome $i.Id $i.Mode 'Failed' $false 'Unknown tweak id'; continue }
         $o = Invoke-AkariTweak $t $i.Mode $i.Value
         if ($t.Explorer -and $o.Outcome -in 'Applied', 'Reverted') { $explorer = $true }
         $o
     }
-    if ($explorer) { Restart-AkariExplorer }
+    if ($explorer) { Set-AkariProgress $done $total 'Restarting Explorer'; Restart-AkariExplorer }
     # what the Safe Mode Tweaks need first (normal mode, network up); one whose Prepare failed is not taken there
     foreach ($x in @($safe)) {
+        Set-AkariProgress $done $total $x.Tweak.Name
+        $done++
         $f = Invoke-AkariPrepare $x.Tweak $x.Item
         if ($f) { $f; [void]$safe.Remove($x) }
     }
@@ -154,6 +168,7 @@ function Invoke-AkariPlan([object[]]$Items, $Tweaks) {
             @{ Name = 'Safe Mode'; Boot = 'SafeMode'; Items = @($safe | ForEach-Object { $_.Item }) }
             @{ Name = 'Back to normal'; Boot = 'Normal'; Items = @() }
         )
+        Set-AkariProgress $total $total 'Restarting into Safe Mode'
         [void](Start-AkariPhases $run $Tweaks)
         return
     }
@@ -161,6 +176,7 @@ function Invoke-AkariPlan([object[]]$Items, $Tweaks) {
     for ($n = 0; $n -lt $last.Count; $n++) {
         $x = $last[$n]
         if ($n -eq 0) {
+            Set-AkariProgress $done $total $x.Tweak.Name
             Write-Log "Last: $($x.Tweak.Name) (restarts the PC)"
             Invoke-AkariTweak $x.Tweak $x.Item.Mode $x.Item.Value
         } else {

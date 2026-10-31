@@ -1,4 +1,4 @@
-# Install USB: the Windows PE stage, ported from Schneegans' modifier\Disk.cs (MIT; see Engine.ps1). With PEMode
+# Unattend Generator: the Windows PE stage, ported from Schneegans' modifier\Disk.cs (MIT; see Engine.ps1). With PEMode
 # Generated or Script, setup's own PE stage is replaced by X:\pe.cmd (written line by line by echo commands): it finds
 # the image, partitions the disk (diskpart), applies Windows (dism), makes it bootable and copies the answer file.
 

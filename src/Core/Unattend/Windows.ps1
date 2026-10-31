@@ -1,4 +1,4 @@
-# Install USB: his Windows settings, ported from Schneegans' modifier\Optimizations.cs and Personalization.cs (MIT;
+# Unattend Generator: his Windows settings, ported from Schneegans' modifier\Optimizations.cs and Personalization.cs (MIT;
 # see Engine.ps1), in his order: taskbar icons, Explorer, system tweaks, VM tools, lock keys, Edge, search, Start pins
 # and tiles, visual effects, desktop icons, Start folders, sticky keys, core isolation; colors, wallpaper, lock screen.
 
