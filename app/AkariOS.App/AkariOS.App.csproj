@@ -24,7 +24,7 @@
   </ItemGroup>
   <!-- The look shared with the PowerShell app (ADR 0006, 0007), loaded as it is through AkariXaml. -->
   <ItemGroup>
-    <EmbeddedResource Include="$(AkariSrc)UI\Theme.Dark.xaml;$(AkariSrc)UI\Theme.Light.xaml;$(AkariSrc)UI\Icons.xaml;$(AkariSrc)UI\Motion.xaml;$(AkariSrc)UI\Controls.xaml;$(AkariSrc)UI\MainWindow.xaml" LogicalName="src/UI/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="$(AkariSrc)UI\Theme.Dark.xaml;$(AkariSrc)UI\Theme.Light.xaml;$(AkariSrc)UI\Icons.xaml;$(AkariSrc)UI\Motion.xaml;$(AkariSrc)UI\Controls.xaml;$(AkariSrc)UI\MainWindow.xaml;$(AkariSrc)UI\Dialog.xaml" LogicalName="src/UI/%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
