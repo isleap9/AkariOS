@@ -74,11 +74,17 @@ Each step ends with tests green (`tests\Run.ps1`) and a VM check by the user (ru
   middle.
 - `Check`: the mark scales 0.6 → 1 and fades in; the fill layer fades. `Radio`: the dot scales from 0.
 - `Combo`: hover layer fades, the chevron rotates 180° while open; `ComboItem` highlight fades.
-- `Segmented` / `SegItem`: the selected pill slides between items (one indicator element positioned from code, through
-  `Start-AkariMotion`), instead of each item lighting up.
-- `Accent`, `ModeCard`, `ModeCardHot`: hover lift (`TranslateTransform.Y` −2 px) and press scale; the glow layer fades.
-- `SettingCard`, `CategoryCard`: border highlight layer fades on hover.
-- `StepNum`: Current / Done change fades and pops.
+- `Segmented` / `SegItem`: the old segment fades out as the new one fades in. (Done this way, not a sliding pill: the
+  segments wrap onto a second line in a narrow card, where one indicator would have to jump rows.)
+- `Accent`, `ModeCard`, `ModeCardHot`: hover lift (`TranslateTransform.Y`: −1 px the button, −3 px the card) and press
+  scale; `Accent`'s glow is its own cached layer under the fades. `ModeCardHot` keeps its glow on the button (one
+  card, a short hover only).
+- `SettingCard`, `CategoryCard`: left as they are (plain Border styles with no template, and not clickable: a hover
+  would suggest they are).
+- `StepNum`: Current / Done pop in (the colours change at once).
+- Done (2026-10-31). Each animated value belongs to one trigger (the switch thumb: size, hover, press, middle, on
+  transforms), so overlapping triggers never fight; a trigger true at load plays then (a switch already on slides in).
+  Test: every control built off screen, its states flipped, ends on the right values with motion on and off.
 
 ### 3. Shell (`MainWindow.xaml`)
 - `Btn`, `BtnP`, `Ghost`, `Cap`, `CapX`, `Chip`, `MenuItem`: hover layer fade, press scale (not on caption buttons:

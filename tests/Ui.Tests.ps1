@@ -263,6 +263,52 @@ $r -join '|'
         $out = @(& powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root 2>&1 | ForEach-Object { "$_" }) -join "`n"
         $out | Should Be 'on fast=120|on rise op=1 y=0 x=40 anim=True same=True|off fast=0|off rise op=1 y=0 x=40 anim=False same=True'
     }
+
+    # the controls' storyboards run (no window: the dispatcher is pumped) and end on each state's values
+    It 'Controls.xaml animates every state to its end, with motion on and off' {
+        $probe = "$TestDrive\controls.ps1"
+        Set-Content $probe -Value @'
+param($Root, $Motion)
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName PresentationFramework
+$env:AKARI_MOTION = $Motion; . "$Root\UI\Motion.ps1"
+$h = [Windows.Controls.StackPanel]::new()
+foreach ($f in 'Theme.Dark', 'Controls', 'Icons') { $h.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\$f.xaml")) }
+function Wait-Ms($ms) { $fr = [Windows.Threading.DispatcherFrame]::new(); $t = [Windows.Threading.DispatcherTimer]::new(); $t.Interval = [TimeSpan]::FromMilliseconds($ms)
+    $t.add_Tick({ $t.Stop(); $fr.Continue = $false }.GetNewClosure()); $t.Start(); [Windows.Threading.Dispatcher]::PushFrame($fr) }
+function Add-Control($c, $style) { $c.Style = $h.Resources[$style]; [void]$h.Children.Add($c); $c }
+function Part($c, $n) { $c.Template.FindName($n, $c) }
+$sw = Add-Control ([Windows.Controls.Primitives.ToggleButton]::new()) 'Switch'; $sw.IsThreeState = $true
+$cs = Add-Control ([Windows.Controls.Primitives.ToggleButton]::new()) 'CatSwitch'; $cs.IsChecked = $true
+$ck = Add-Control ([Windows.Controls.CheckBox]::new()) 'Check'
+$rd = Add-Control ([Windows.Controls.RadioButton]::new()) 'Radio'
+$cb = Add-Control ([Windows.Controls.ComboBox]::new()) 'Combo'; foreach ($i in 'a', 'b') { [void]$cb.Items.Add($i) }; $cb.SelectedIndex = 0
+$sg = Add-Control ([Windows.Controls.ListBox]::new()) 'Segmented'; foreach ($i in 'a', 'b') { [void]$sg.Items.Add([Windows.Controls.ListBoxItem]@{ Content = $i }) }; $sg.SelectedIndex = 0
+$ac = Add-Control ([Windows.Controls.Button]::new()) 'Accent'; $ac.Content = 'Go'
+$mc = Add-Control ([Windows.Controls.Button]::new()) 'ModeCardHot'; $mc.Content = 'x'
+$sn = Add-Control ([Windows.Controls.Border]::new()) 'StepNum'; $sn.Tag = 'Current'
+$h.Measure([Windows.Size]::new(800, 2000)); $h.Arrange([Windows.Rect]::new(0, 0, 800, 2000)); $h.UpdateLayout()
+Wait-Ms 50
+$sw.IsChecked = $true; $ck.IsChecked = $true; $rd.IsChecked = $true; $sg.SelectedIndex = 1; $sn.Tag = 'Done'
+Wait-Ms 450
+$th = (Part $sw 'Thumb').RenderTransform.Children
+$r = @("on $($th[4].X) $($th[3].X) $($th[0].ScaleX) $((Part $sw 'On').Opacity) $((Part $sw 'L').Text)")
+$sw.IsChecked = $null; Wait-Ms 450
+$r += "null $($th[4].X) $($th[3].X) $($th[0].ScaleX) $((Part $sw 'On').Opacity) $((Part $sw 'L').Text)"
+$r += "cat $((Part $cs 'Thumb').RenderTransform.Children[4].X)"
+$r += "check $((Part $ck 'Tick').Opacity) $((Part $ck 'Tick').RenderTransform.ScaleX)"
+$r += "radio $((Part $rd 'Dot').RenderTransform.ScaleX)"
+$i0 = $sg.ItemContainerGenerator.ContainerFromIndex(0); $i1 = $sg.ItemContainerGenerator.ContainerFromIndex(1)
+$r += "seg $((Part $i0 'S').Opacity) $((Part $i1 'S').Opacity)"
+$r += "step $($sn.RenderTransform.ScaleX)"
+$r -join '|'
+'@
+        $want = 'on 20 0 1 1 On|null 0 10 0.8 0 Unchanged|cat 20|check 1 1|radio 1|seg 0 1|step 1'
+        foreach ($m in 'on', 'off') {
+            $out = @(& powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -Motion $m 2>&1 | ForEach-Object { "$_" }) -join "`n"
+            "$m $out" | Should Be "$m $want"
+        }
+    }
 }
 
 Describe 'Get-AkariMasonry' {
