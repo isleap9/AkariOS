@@ -409,6 +409,8 @@ foreach ($t in $AkariTabs.Keys) {
     $script:TabLabels += $rb.Content.Children[1]
     [void]$Tabs.Children.Add($rb)
 }
+# the current tab's tint pill slides from tab to tab (UI\Motion.ps1)
+Enable-AkariPillGroup $Tabs $window.FindName('TabPill')
 
 # the Optimize sub-header for the current page: the Section picked, its Categories as chips, the current one checked
 $script:OptSections = $null; $script:ChipSection = ''; $script:BarSync = $false

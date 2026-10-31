@@ -450,15 +450,26 @@ $sv = Add-Control ([Windows.Controls.ScrollViewer]@{ Height = 60; VerticalScroll
 $fill = Add-Control ([Windows.Shapes.Rectangle]@{ Height = 4; RenderTransformOrigin = [Windows.Point]::new(0, 0.5) }) $null
 $h.Measure([Windows.Size]::new(800, 2000)); $h.Arrange([Windows.Rect]::new(0, 0, 800, 2000)); $h.UpdateLayout()
 Wait-Ms 50
+# the tabs' pill: a row of Tab radio buttons over a Canvas pill, as MainWindow.xaml's top bar
+$row = [Windows.Controls.StackPanel]@{ Orientation = 'Horizontal' }
+$tp = [Windows.Controls.Border]@{ Width = 0; Height = 0; Visibility = 'Hidden' }; $cv = [Windows.Controls.Canvas]::new(); [void]$cv.Children.Add($tp)
+$tg = [Windows.Controls.Grid]::new(); [void]$tg.Children.Add($cv); [void]$tg.Children.Add($row); [void]$h.Children.Add($tg)
+$rt = foreach ($n in 'Home', 'Install AkariOS', 'Optimize') { $b = [Windows.Controls.RadioButton]@{ Content = $n; GroupName = 'row' }; $b.Style = $h.Resources['Tab']; [void]$row.Children.Add($b); $b }
+Enable-AkariPillGroup $row $tp
+$rt[0].IsChecked = $true
+$h.Measure([Windows.Size]::new(800, 2000)); $h.Arrange([Windows.Rect]::new(0, 0, 800, 2000)); $h.UpdateLayout()
+Wait-Ms 50
+$rt[2].IsChecked = $true
 $tab.IsChecked = $true; $chip.IsChecked = $true
 Start-AkariMotion $fill Fill 0 0.5 -Speed Slow
 Wait-Ms 450
-$r = @("tab $((Part $tab 'S').Opacity) $((Part $tab2 'S').Opacity)", "chip $((Part $chip 'S').Opacity)", "fill $($fill.RenderTransform.Children[-2].ScaleX) $($fill.RenderTransformOrigin)")
+$at = $rt[2].TranslatePoint([Windows.Point]::new(0, 0), $cv)
+$r = @("tabs $($tp.Visibility) $([Math]::Round($tp.RenderTransform.Children[-1].X - $at.X)) $($tp.Width -eq $rt[2].ActualWidth) $($rt[2].Foreground -eq $h.Resources['AccText'])", "chip $((Part $chip 'S').Opacity)", "fill $($fill.RenderTransform.Children[-2].ScaleX) $($fill.RenderTransformOrigin)")
 $r -join '|'
 '@
         foreach ($m in 'on', 'off') {
             $out = @(& powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -Motion $m 2>&1 | ForEach-Object { "$_" }) -join "`n"
-            "$m $out" | Should Be "$m tab 1 0|chip 1|fill 0.5 0,0.5"
+            "$m $out" | Should Be "$m tabs Visible 0 True True|chip 1|fill 0.5 0,0.5"
         }
     }
 

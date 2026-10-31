@@ -91,8 +91,8 @@ Each step ends with tests green (`tests\Run.ps1`) and a VM check by the user (ru
 ### 3. Shell (`MainWindow.xaml`)
 - `Btn`, `BtnP`, `Ghost`, `Cap`, `CapX`, `Chip`, `MenuItem`: hover layer fade, press scale (not on caption buttons:
   Windows' own don't).
-- `Tab`: the old tab's crimson tint fades out as the new one's fades in; hover and press fade. (A pill that slides
-  between tabs needs code that follows the tabs' widths as the window resizes: step 7, if time allows.)
+- `Tab`: one tint pill behind the tabs (`TabPill`) slides and stretches to the current tab (`Enable-AkariPillGroup`:
+  it jumps into place when the row resizes, icons and short labels at narrow widths); hover and press fade.
 - `Flat`: the focus stroke and `AccSoft` halo fade in.
 - `ContextMenu` (Quick select, the options menu): fades in and drops 6 px into place; `ToolTip` fades in.
 - `ScrollBar`: thumb thin by default, widens and brightens while the mouse is over the bar (Windows 11 style).
@@ -141,7 +141,6 @@ Each step ends with tests green (`tests\Run.ps1`) and a VM check by the user (ru
 ### 7. Finish
 - Pass on every page in both themes, light and dark, with motion on and off; fix anything that flickers, jumps or
   leaves a control half-animated after a theme swap.
-- Optional: a tab pill that slides between tabs (step 3).
 - CREDITS.md if any technique is taken from another project. Release notes.
 
 ## Not in this plan

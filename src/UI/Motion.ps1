@@ -317,31 +317,56 @@ function Start-AkariStallWatch([scriptblock]$Where) {
     $t.Start()
 }
 
-# ---- the segmented pill (UI\Controls.xaml Segmented: its template's Pill) slides and stretches to the picked segment.
-# Hooked once on every ListBox (a pick, the list or a segment resized), so no page code calls it.
+# ---- sliding pills: one pill (a Border in a Canvas behind the items) that slides and stretches to the picked item.
+# The segmented control's (UI\Controls.xaml Segmented: its template's Pill) is hooked once on every ListBox (a pick,
+# the list or a segment resized), so no page code calls it; a row of radio buttons gets one with Enable-AkariPillGroup
+# (the top bar's tabs).
 
-# puts the list's Pill over its picked segment: glides there ($Animate, a pill already shown) or jumps (its first
-# placement, a resize); no pick = hidden. A segment not laid out yet (items just added): tried once more at Loaded
-# priority ($Retry)
+# puts $Pill over $Target: glides there ($Animate, a pill already shown) or jumps (its first placement, a resize);
+# no target, or one not laid out = hidden. $true when placed
+function Move-AkariPill($Pill, $Target, [bool]$Animate = $true) {
+    if (-not $Target -or $Target.ActualWidth -le 0) { $Pill.Visibility = 'Hidden'; return $false }
+    $p = $Target.TranslatePoint([Windows.Point]::new(0, 0), $Pill.Parent)
+    $jump = -not $Animate -or $Pill.Visibility -ne 'Visible'
+    $Pill.Visibility = 'Visible'
+    foreach ($m in @(@('Slide', $p.X), @('SlideY', $p.Y), @('Width', $Target.ActualWidth), @('Height', $Target.ActualHeight))) {
+        Start-AkariMotion $Pill $m[0] $(if ($jump) { $m[1] }) $m[1] -Speed Base
+    }
+    $true
+}
+
+# the segmented list's Pill over its picked segment. A segment not laid out yet (items just added): tried once more at
+# Loaded priority ($Retry)
 function Update-AkariSegmentPill($List, [bool]$Animate = $true, [bool]$Retry = $true) {
     try {
         $pill = if ($List.Template) { $List.Template.FindName('Pill', $List) }
         if (-not $pill) { return }
         $c = if ($null -ne $List.SelectedItem) { $List.ItemContainerGenerator.ContainerFromItem($List.SelectedItem) }
-        if (-not $c -or $c.ActualWidth -le 0) {
-            if ($null -ne $List.SelectedItem -and $Retry) {
-                [void]$List.Dispatcher.BeginInvoke([Windows.Threading.DispatcherPriority]::Loaded, [Action[object]]{
-                    param($s) Update-AkariSegmentPill $s.List $s.Animate $false }, @{ List = $List; Animate = $Animate })
-            } else { $pill.Visibility = 'Hidden' }
+        if ((-not $c -or $c.ActualWidth -le 0) -and $null -ne $List.SelectedItem -and $Retry) {
+            [void]$List.Dispatcher.BeginInvoke([Windows.Threading.DispatcherPriority]::Loaded, [Action[object]]{
+                param($s) Update-AkariSegmentPill $s.List $s.Animate $false }, @{ List = $List; Animate = $Animate })
             return
         }
-        $p = $c.TranslatePoint([Windows.Point]::new(0, 0), $pill.Parent)
-        $jump = -not $Animate -or $pill.Visibility -ne 'Visible'
-        $pill.Visibility = 'Visible'
-        foreach ($m in @(@('Slide', $p.X), @('SlideY', $p.Y), @('Width', $c.ActualWidth), @('Height', $c.ActualHeight))) {
-            Start-AkariMotion $pill $m[0] $(if ($jump) { $m[1] }) $m[1] -Speed Base
-        }
+        [void](Move-AkariPill $pill $c $Animate)
     } catch { try { Write-ErrLog "Segment pill: $($_.Exception.Message)" } catch { } }
+}
+
+# a row of radio buttons ($Panel's children) with $Pill (a Border in a Canvas behind them) under the checked one: it
+# slides on a check and jumps into place when the row resizes (labels or icons changing)
+$script:AkariPillGroups = @{}
+function Enable-AkariPillGroup($Panel, $Pill) {
+    if (-not $Panel -or -not $Pill) { return }
+    $script:AkariPillGroups[$Panel.GetHashCode()] = $Pill
+    $Panel.AddHandler([Windows.Controls.Primitives.ToggleButton]::CheckedEvent, [Windows.RoutedEventHandler]{ param($s, $e) Update-AkariPillGroup $s $true })
+    $Panel.Add_SizeChanged({ param($s, $e) Update-AkariPillGroup $s $false })
+    Update-AkariPillGroup $Panel $false
+}
+function Update-AkariPillGroup($Panel, [bool]$Animate = $true) {
+    try {
+        $pill = $script:AkariPillGroups[$Panel.GetHashCode()]
+        if (-not $pill) { return }
+        [void](Move-AkariPill $pill @($Panel.Children | Where-Object { $_.IsChecked -eq $true })[0] $Animate)
+    } catch { try { Write-ErrLog "Pill: $($_.Exception.Message)" } catch { } }
 }
 
 if (('Windows.EventManager' -as [type]) -and -not $global:AkariSegmentPillHooked) {

@@ -469,8 +469,8 @@
     </Style>
 
     <!-- Top bar tab (Home, Install, Optimize, Downloads, USB): a pill with an icon and a label (built in UI\Shell.ps1),
-         crimson tint and crimson text when it is the current one (the old tab's tint fades out as the new one's fades
-         in). Clickable inside the title bar's drag region. -->
+         crimson text when it is the current one, over the crimson tint pill (TabPill) that slides from tab to tab.
+         Clickable inside the title bar's drag region. -->
     <Style x:Key="Tab" TargetType="RadioButton">
       <Setter Property="Foreground" Value="{DynamicResource Mu}"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
@@ -484,7 +484,6 @@
             <Grid Background="Transparent">
               <Border x:Name="H" CornerRadius="18" Background="{DynamicResource CtlH}" Opacity="0"/>
               <Border x:Name="P" CornerRadius="18" Background="{DynamicResource CtlP}" Opacity="0"/>
-              <Border x:Name="S" CornerRadius="18" Background="{DynamicResource AccSoft}" Opacity="0"/>
               <Border Padding="14,7,14,8">
                 <ContentPresenter x:Name="C" VerticalAlignment="Center"/>
               </Border>
@@ -523,22 +522,10 @@
                   </BeginStoryboard>
                 </Trigger.ExitActions>
               </Trigger>
+              <!-- the current tab: crimson text over the top bar's sliding TabPill, no hover tint under it -->
               <Trigger Property="IsChecked" Value="True">
                 <Setter Property="Foreground" Value="{DynamicResource AccText}"/>
-                <Trigger.EnterActions>
-                  <BeginStoryboard>
-                    <Storyboard>
-                      <DoubleAnimation Storyboard.TargetName="S" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    </Storyboard>
-                  </BeginStoryboard>
-                </Trigger.EnterActions>
-                <Trigger.ExitActions>
-                  <BeginStoryboard>
-                    <Storyboard>
-                      <DoubleAnimation Storyboard.TargetName="S" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    </Storyboard>
-                  </BeginStoryboard>
-                </Trigger.ExitActions>
+                <Setter TargetName="H" Property="Visibility" Value="Hidden"/>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -803,7 +790,13 @@
         <Image x:Name="Logo" Width="24" Height="24" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality"/>
         <TextBlock x:Name="TitleText" Text="AkariOS" FontFamily="{DynamicResource FontDisplay}" FontWeight="Bold" FontSize="16" VerticalAlignment="Center"/>
       </StackPanel>
-      <StackPanel x:Name="Tabs" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left" ClipToBounds="True"/>
+      <!-- the tabs, over the current tab's tint pill (TabPill: slides to the checked tab, Enable-AkariPillGroup) -->
+      <Grid Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Left" ClipToBounds="True">
+        <Canvas IsHitTestVisible="False">
+          <Border x:Name="TabPill" Width="0" Height="0" CornerRadius="18" Background="{DynamicResource AccSoft}" Visibility="Hidden"/>
+        </Canvas>
+        <StackPanel x:Name="Tabs" Orientation="Horizontal"/>
+      </Grid>
       <!-- search: a pill box, or in a narrow window an icon button that opens it (Ctrl+K at any width) -->
       <Grid x:Name="SearchBox" Grid.Column="2" Width="260" VerticalAlignment="Center" Margin="12,0,8,0"
             WindowChrome.IsHitTestVisibleInChrome="True">
