@@ -5,7 +5,8 @@ using AkariOS.App.Look;
 
 namespace AkariOS.App.Tests;
 
-/// <summary>The motion service (one class: Motion.On is shared, and xUnit runs classes in parallel).</summary>
+/// <summary>The motion service (Motion.On is shared: the "Motion" collection runs these and the window tests in turn).</summary>
+[Collection("Motion")]
 public sealed class MotionTests
 {
     [Theory]

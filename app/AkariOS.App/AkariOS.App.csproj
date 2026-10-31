@@ -10,6 +10,10 @@
     <ApplicationIcon>$(AkariSrc)Assets\AkariLogo.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <!-- the window tests reach its named parts (Tabs, Page, the status bar) -->
+    <InternalsVisibleTo Include="AkariOS.App.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\AkariOS.Core\AkariOS.Core.csproj" />
     <ProjectReference Include="..\AkariOS.Tweaks\AkariOS.Tweaks.csproj" />
   </ItemGroup>

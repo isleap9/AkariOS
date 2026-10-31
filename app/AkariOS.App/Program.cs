@@ -41,6 +41,7 @@ public static partial class Program
             () => engine.Registry.GetValue(@"HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "AppsUseLightTheme") is uint v ? (int)v : null,
             motion);
         theme.Apply(theme.Saved());
-        return app.Run(new MainWindow(theme));
+        var shell = new Shell.ShellViewModel(AkariInfo.Version);
+        return app.Run(new MainWindow(theme, shell, Shell.Placeholder.For));
     }
 }
