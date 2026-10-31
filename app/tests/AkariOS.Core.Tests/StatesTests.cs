@@ -24,11 +24,6 @@ public sealed class StatesTests : IDisposable
         if (Directory.Exists(Path.GetDirectoryName(_stateFile))) Directory.Delete(Path.GetDirectoryName(_stateFile)!, recursive: true);
     }
 
-    internal sealed class FakeSystem : ISystemInfo
-    {
-        public int Build { get; set; }
-    }
-
     private sealed class Code : ITweakCode
     {
         public Func<TweakState>? OnDetect { get; init; }

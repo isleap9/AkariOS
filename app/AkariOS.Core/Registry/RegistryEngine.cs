@@ -44,6 +44,9 @@ public sealed class RegistryEngine(IRegistryPaths paths, ITrustedInstaller? trus
 
     public bool KeyExists(string path) => Use(path, write: false, k => k != null);
 
+    /// <summary>The names of a key's subkeys (empty when it is missing).</summary>
+    public IReadOnlyList<string> SubKeys(string path) => Use(path, write: false, k => (IReadOnlyList<string>?)k?.GetSubKeyNames() ?? []);
+
     // ---- writes
 
     /// <summary>Writes a value (Set-Reg), creating the key. Type: DWord, QWord, String, ExpandString, MultiString,

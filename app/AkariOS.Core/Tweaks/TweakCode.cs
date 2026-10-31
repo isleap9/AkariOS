@@ -1,15 +1,9 @@
 using System.Reflection;
 using AkariOS.Core.Registry;
 using AkariOS.Core.Sources;
+using AkariOS.Core.Machine;
 
 namespace AkariOS.Core.Tweaks;
-
-/// <summary>What the machine is, for Tweaks and the engine (grows with the System batch: edition, chassis, GPUs).</summary>
-public interface ISystemInfo
-{
-    /// <summary>The Windows build (Windows 11 from 22000).</summary>
-    int Build { get; }
-}
 
 /// <summary>What a Tweak's C# works with: the registry, the machine, the shared files, its own file's folder.</summary>
 public sealed class TweakContext(RegistryEngine registry, ISystemInfo system, ISourceFiles files)

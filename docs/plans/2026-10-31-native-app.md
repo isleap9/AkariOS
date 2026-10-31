@@ -158,6 +158,9 @@ The engine of `src/Core` for Toggles, Choices and Actions without the GUI. TDD, 
    `Detect`, `ChoiceValue`, `Rows`), `state.json` in the PowerShell app's format. A Tweak whose C# is missing reads
    Unknown.
 6. **System**: OS build, edition, chassis, GPUs (`Requires`), Explorer restart.
+   Done 2026-10-31 (`AkariOS.Core/Machine/`): `MachineInfo` (registry reads through the engine, WMI behind
+   `IHardware`), `Requirements`, `IExplorer`. The PowerShell app's other System.ps1 wrappers (powercfg, bcdedit,
+   w32tm, ...) come with the Tweaks that use them.
 7. **Runner**: `Run(items) → Outcome[]` (Requires → Skipped, Already, Failed with the message, PC restarts last,
    Explorer once at the end, progress events), `Log` (`akari.log`), restore point (`IRestorePoint`: WMI
    `SystemRestore`, the 24 h throttle lifted once).
