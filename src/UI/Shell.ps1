@@ -411,6 +411,8 @@ foreach ($t in $AkariTabs.Keys) {
 }
 # the current tab's tint pill slides from tab to tab (UI\Motion.ps1)
 Enable-AkariPillGroup $Tabs $window.FindName('TabPill')
+# so does Optimize's current Category chip (the row is rebuilt for each Section: the pill jumps there)
+Enable-AkariPillGroup $Chips $window.FindName('ChipPill')
 
 # the Optimize sub-header for the current page: the Section picked, its Categories as chips, the current one checked
 $script:OptSections = $null; $script:ChipSection = ''; $script:BarSync = $false

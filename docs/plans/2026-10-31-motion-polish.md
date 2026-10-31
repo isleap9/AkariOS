@@ -6,6 +6,9 @@ and progress change snaps instantly. The only animations today are the busy spin
 PowerShell, and fixes the stalls that make it feel slow. Engine, Tweaks, CLI and the Run are not touched: `src/UI`
 only (plus tests).
 
+Status (2026-10-31): steps 1-5 done and released in 1.3.0, with the sliding pills (Sections, tabs, chips) asked for
+after a first look. Step 6's measuring is in; its fixes wait for the numbers from a VM run (`$env:AKARI_UI_TIMING`).
+
 After this plan is done, the native C# WPF app starts (`app/`, its own ADR and plan). It reuses this plan's motion
 tokens and durations, so both apps move alike.
 
@@ -93,6 +96,8 @@ Each step ends with tests green (`tests\Run.ps1`) and a VM check by the user (ru
   Windows' own don't).
 - `Tab`: one tint pill behind the tabs (`TabPill`) slides and stretches to the current tab (`Enable-AkariPillGroup`:
   it jumps into place when the row resizes, icons and short labels at narrow widths); hover and press fade.
+- `Chip`: the current chip's crimson pill (`ChipPill`) slides from chip to chip, behind them (the current chip's own
+  fill and stroke hide); the row is rebuilt for each Section, so the pill jumps there.
 - `Flat`: the focus stroke and `AccSoft` halo fade in.
 - `ContextMenu` (Quick select, the options menu): fades in and drops 6 px into place; `ToolTip` fades in.
 - `ScrollBar`: thumb thin by default, widens and brightens while the mouse is over the bar (Windows 11 style).

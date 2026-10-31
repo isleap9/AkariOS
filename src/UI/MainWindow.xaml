@@ -533,7 +533,8 @@
       </Setter>
     </Style>
 
-    <!-- Category chip (Optimize's sub-header, under the Section row): a small outlined pill, crimson when current. -->
+    <!-- Category chip (Optimize's sub-header, under the Section row): a small outlined pill; the current one shows the
+         row's crimson ChipPill, which slides from chip to chip. -->
     <Style x:Key="Chip" TargetType="RadioButton">
       <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
       <Setter Property="FontSize" Value="13"/>
@@ -545,9 +546,8 @@
           <ControlTemplate TargetType="RadioButton">
             <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
               <Grid.RenderTransform><ScaleTransform/></Grid.RenderTransform>
-              <Border CornerRadius="15" BorderThickness="1" BorderBrush="{DynamicResource CtlBd}" Background="{DynamicResource Ctl}"/>
+              <Border x:Name="Base" CornerRadius="15" BorderThickness="1" BorderBrush="{DynamicResource CtlBd}" Background="{DynamicResource Ctl}"/>
               <Border x:Name="H" Margin="1" CornerRadius="14" Background="{DynamicResource CtlH}" Opacity="0"/>
-              <Border x:Name="S" CornerRadius="15" BorderThickness="1" BorderBrush="{DynamicResource Acc}" Background="{DynamicResource Acc}" Opacity="0"/>
               <Border BorderThickness="1" Padding="10,4,12,5">
                 <ContentPresenter VerticalAlignment="Center"/>
               </Border>
@@ -587,22 +587,11 @@
                   </BeginStoryboard>
                 </Trigger.ExitActions>
               </Trigger>
+              <!-- the current chip: light text, its own fill and stroke gone over the row's sliding ChipPill -->
               <Trigger Property="IsChecked" Value="True">
                 <Setter Property="Foreground" Value="{DynamicResource AccT}"/>
-                <Trigger.EnterActions>
-                  <BeginStoryboard>
-                    <Storyboard>
-                      <DoubleAnimation Storyboard.TargetName="S" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    </Storyboard>
-                  </BeginStoryboard>
-                </Trigger.EnterActions>
-                <Trigger.ExitActions>
-                  <BeginStoryboard>
-                    <Storyboard>
-                      <DoubleAnimation Storyboard.TargetName="S" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    </Storyboard>
-                  </BeginStoryboard>
-                </Trigger.ExitActions>
+                <Setter TargetName="Base" Property="Visibility" Value="Hidden"/>
+                <Setter TargetName="H" Property="Visibility" Value="Hidden"/>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -879,7 +868,13 @@
         </Button>
         <StackPanel>
           <ListBox x:Name="Sections" Style="{DynamicResource Segmented}" HorizontalAlignment="Left" Margin="0,0,0,10"/>
-          <WrapPanel x:Name="Chips"/>
+          <!-- the Category chips over the current one's crimson pill (ChipPill: slides to the checked chip) -->
+          <Grid HorizontalAlignment="Left">
+            <Canvas IsHitTestVisible="False">
+              <Border x:Name="ChipPill" Width="0" Height="0" CornerRadius="15" Background="{DynamicResource Acc}" Visibility="Hidden"/>
+            </Canvas>
+            <WrapPanel x:Name="Chips"/>
+          </Grid>
         </StackPanel>
       </DockPanel>
 

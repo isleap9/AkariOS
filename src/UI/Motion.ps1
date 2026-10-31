@@ -361,11 +361,18 @@ function Enable-AkariPillGroup($Panel, $Pill) {
     $Panel.Add_SizeChanged({ param($s, $e) Update-AkariPillGroup $s $false })
     Update-AkariPillGroup $Panel $false
 }
-function Update-AkariPillGroup($Panel, [bool]$Animate = $true) {
+# (a checked button not laid out yet, the row just rebuilt: tried once more at Loaded priority, $Retry)
+function Update-AkariPillGroup($Panel, [bool]$Animate = $true, [bool]$Retry = $true) {
     try {
         $pill = $script:AkariPillGroups[$Panel.GetHashCode()]
         if (-not $pill) { return }
-        [void](Move-AkariPill $pill @($Panel.Children | Where-Object { $_.IsChecked -eq $true })[0] $Animate)
+        $c = @($Panel.Children | Where-Object { $_.IsChecked -eq $true })[0]
+        if ($c -and $c.ActualWidth -le 0 -and $Retry) {
+            [void]$Panel.Dispatcher.BeginInvoke([Windows.Threading.DispatcherPriority]::Loaded, [Action[object]]{
+                param($s) Update-AkariPillGroup $s.Panel $s.Animate $false }, @{ Panel = $Panel; Animate = $Animate })
+            return
+        }
+        [void](Move-AkariPill $pill $c $Animate)
     } catch { try { Write-ErrLog "Pill: $($_.Exception.Message)" } catch { } }
 }
 

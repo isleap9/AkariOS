@@ -464,12 +464,19 @@ $tab.IsChecked = $true; $chip.IsChecked = $true
 Start-AkariMotion $fill Fill 0 0.5 -Speed Slow
 Wait-Ms 450
 $at = $rt[2].TranslatePoint([Windows.Point]::new(0, 0), $cv)
-$r = @("tabs $($tp.Visibility) $([Math]::Round($tp.RenderTransform.Children[-1].X - $at.X)) $($tp.Width -eq $rt[2].ActualWidth) $($rt[2].Foreground -eq $h.Resources['AccText'])", "chip $((Part $chip 'S').Opacity)", "fill $($fill.RenderTransform.Children[-2].ScaleX) $($fill.RenderTransformOrigin)")
+$r = @("tabs $($tp.Visibility) $([Math]::Round($tp.RenderTransform.Children[-1].X - $at.X)) $($tp.Width -eq $rt[2].ActualWidth) $($rt[2].Foreground -eq $h.Resources['AccText'])", "chip $((Part $chip 'Base').Visibility) $((Part $chip 'H').Visibility)", "fill $($fill.RenderTransform.Children[-2].ScaleX) $($fill.RenderTransformOrigin)")
+# the row rebuilt (Optimize's chips for another Section), one button checked before any layout: the pill finds it
+$row.Children.Clear()
+$nb = foreach ($n in 'A', 'Bb', 'Ccc') { $b = [Windows.Controls.RadioButton]@{ Content = $n; GroupName = 'row2' }; $b.Style = $h.Resources['Chip']; [void]$row.Children.Add($b); $b }
+$nb[1].IsChecked = $true
+Wait-Ms 300
+$at = $nb[1].TranslatePoint([Windows.Point]::new(0, 0), $cv)
+$r += "rebuilt $($tp.Visibility) $([Math]::Round($tp.RenderTransform.Children[-1].X - $at.X)) $($tp.Width -eq $nb[1].ActualWidth)"
 $r -join '|'
 '@
         foreach ($m in 'on', 'off') {
             $out = @(& powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -Motion $m 2>&1 | ForEach-Object { "$_" }) -join "`n"
-            "$m $out" | Should Be "$m tabs Visible 0 True True|chip 1|fill 0.5 0,0.5"
+            "$m $out" | Should Be "$m tabs Visible 0 True True|chip Hidden Hidden|fill 0.5 0,0.5|rebuilt Visible 0 True"
         }
     }
 
