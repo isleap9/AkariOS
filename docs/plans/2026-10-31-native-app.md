@@ -124,6 +124,11 @@ Core APIs are the behaviour to match).
 The engine of `src/Core` for Toggles, Choices and Actions without the GUI. TDD, one area per batch.
 
 1. **`PsData`** (the reader): the subset above, positions in errors, a test per construct, then the whole-tree test.
+   Done 2026-10-31 (`AkariOS.Core/Data/`). Also read: top-level `$name = value` assignments put into later `$name` /
+   `"$name\…"` (the ZOICWARE context-menu Tweaks); a `foreach` or any other expression is kept as `PsCode`. Checked
+   against PowerShell itself: `Oracle/Export-PsData.ps1` reads all 418 shared files the PowerShell app's way and
+   every value agrees. Of the 388 one-file Tweaks, 226 are data only, 162 have code (all of Tools, Hardware and
+   OneClick; Apps 35, Customize 38, Optimize 23, Advanced 9).
 2. **`RegReader`**: `.reg` text (REGEDIT5 and 4, hex, hex(2) / (7) / (b), `-` deletes, line continuations).
 3. **Loader**: `Tweak` (Id, Name, Description, Section, Category, Kind, Risk, Reboot, Restarts, SafeMode, Explorer,
    Requires, AkariOS, Guided, Button, Confirm, Registry rows, Choices, Recommended, Default, Editable, Winget,
