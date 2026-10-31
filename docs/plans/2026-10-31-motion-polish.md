@@ -120,6 +120,9 @@ Each step ends with tests green (`tests\Run.ps1`) and a VM check by the user (ru
   <scrollViewer>` handles `PreviewMouseWheel`, animates toward a target offset on `CompositionTarget.Rendering`, and
   stops listening once it arrives (no per-frame cost when idle). Touchpads (small deltas) scroll as they do now.
   Behind a check on the VM: dropped if it feels worse than the default.
+- Done (2026-10-31): `Enable-AkariSmoothScroll` on `PageScroll` (Windows' wheel lines x 16 px per notch, eased to the
+  target, settled in about a third of a second; an inner scrollable part keeps the wheel), `Reset-AkariScroll` puts a
+  new page at the top (before, a page opened where the last one had been scrolled).
 
 ### 6. Stalls (what motion can't hide)
 - Measure first: a `Measure-AkariUi <label> { … }` timer that logs to akari.log in a debug run (`$env:AKARI_UI_TIMING`),

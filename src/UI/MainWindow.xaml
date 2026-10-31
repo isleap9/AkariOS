@@ -905,7 +905,8 @@
         </Border>
         <!-- Optimize › Advanced: the Safe Mode and restart bars, pinned under the page (UI\CataloguePage.ps1) -->
         <StackPanel x:Name="CatBars" DockPanel.Dock="Bottom" Visibility="Collapsed"/>
-        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <!-- PageScroll glides on the wheel (Enable-AkariSmoothScroll) and goes back to the top on a new page -->
+        <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel x:Name="Page" Margin="24,20,24,20">
 
             <!-- Install AkariOS: the chooser, then the current Guided step (UI\Steps.ps1) -->

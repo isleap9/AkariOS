@@ -354,6 +354,46 @@ $r -join '|'
         $out | Should Be ('page 1>1|stagger 0>0|bar Visible|hiding True|hidden Collapsed 1 True|count ' + ('{0:N0}' -f 1234))
     }
 
+    It 'scrolls by Windows'' wheel lines per notch inside the page, and glides there' {
+        Get-AkariScrollTarget 0 -120 1000 | Should Be 48
+        Get-AkariScrollTarget 48 -240 1000 5 | Should Be 208
+        Get-AkariScrollTarget 20 120 1000 | Should Be 0
+        Get-AkariScrollTarget 990 -120 1000 | Should Be 1000
+        $half = Get-AkariScrollStep 0 100 50
+        ($half -gt 45 -and $half -lt 55) | Should Be $true
+        Get-AkariScrollStep 99.8 100 16 | Should Be 100
+        Get-AkariScrollStep 10 100 -5 | Should Be 10
+    }
+
+    It 'a wheel notch on a smooth ScrollViewer glides to its target; an inner scrollable part keeps the wheel' {
+        $probe = "$TestDrive\scroll.ps1"
+        Set-Content $probe -Value @'
+param($Root, $Motion)
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName PresentationFramework
+$env:AKARI_MOTION = $Motion; . "$Root\UI\Motion.ps1"
+function Wait-Ms($ms) { $fr = [Windows.Threading.DispatcherFrame]::new(); $t = [Windows.Threading.DispatcherTimer]::new(); $t.Interval = [TimeSpan]::FromMilliseconds($ms)
+    $t.add_Tick({ $t.Stop(); $fr.Continue = $false }.GetNewClosure()); $t.Start(); [Windows.Threading.Dispatcher]::PushFrame($fr) }
+function Send-Wheel($to, $delta) { $a = [Windows.Input.MouseWheelEventArgs]::new([Windows.Input.Mouse]::PrimaryDevice, 0, $delta); $a.RoutedEvent = [Windows.UIElement]::PreviewMouseWheelEvent; $to.RaiseEvent($a); $a.Handled }
+$inner = [Windows.Controls.ScrollViewer]@{ Height = 50; Content = [Windows.Controls.Border]@{ Height = 300 } }
+$stack = [Windows.Controls.StackPanel]::new(); [void]$stack.Children.Add($inner); [void]$stack.Children.Add([Windows.Controls.Border]@{ Height = 1000 })
+$sv = [Windows.Controls.ScrollViewer]@{ Height = 100; Content = $stack }
+$sv.Measure([Windows.Size]::new(100, 100)); $sv.Arrange([Windows.Rect]::new(0, 0, 100, 100)); $sv.UpdateLayout()
+Enable-AkariSmoothScroll $sv
+$h = Send-Wheel $sv -120
+$lines = [Math]::Max(1, [Windows.SystemParameters]::WheelScrollLines)
+Wait-Ms 700; $sv.UpdateLayout()
+$r = @("page $h $([Math]::Round($sv.VerticalOffset) -eq [Math]::Min($sv.ScrollableHeight, $lines * 16))")
+$r += "inner $(Send-Wheel $inner -120)"
+$r += "touchpad $(Send-Wheel $sv -30)"
+Reset-AkariScroll $sv; $sv.UpdateLayout()
+$r += "top $($sv.VerticalOffset)"
+$r -join '|'
+'@
+        $out = @(& powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -Motion on 2>&1 | ForEach-Object { "$_" }) -join "`n"
+        $out | Should Be 'page True True|inner False|touchpad False|top 0'
+    }
+
     It 'MainWindow.xaml''s styles animate their states too (buttons, tabs, chips, text box, menu row, scroll bar, progress fill)' {
         $probe = "$TestDrive\shellstyles.ps1"
         Set-Content $probe -Value @'

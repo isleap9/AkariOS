@@ -8,11 +8,13 @@ $window.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Controls.xaml"
 # the Lucide icons (Ic.<name> geometries, built by build\Icons.ps1)
 $window.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Icons.xaml"))
 foreach ($n in 'Tabs', 'Search', 'SearchBox', 'SearchBtn', 'SearchHint', 'SubNav', 'Sections', 'Chips', 'RemoveApps', 'Heading', 'Rows', 'Page', 'Logo', 'HomePanel',
-               'Shell', 'Body', 'Main', 'TopBar', 'HomeTiles', 'HeaderIcon', 'HeaderSub', 'StatusDot', 'StatusRing', 'StatusText', 'StatusBar', 'StatusFill', 'StatusLoop',
+               'Shell', 'Body', 'Main', 'PageScroll', 'TopBar', 'HomeTiles', 'HeaderIcon', 'HeaderSub', 'StatusDot', 'StatusRing', 'StatusText', 'StatusBar', 'StatusFill', 'StatusLoop',
                'CapMin', 'CapMax', 'CapMaxGlyph', 'CapClose', 'StepsPanel', 'StepDots', 'StepBody', 'StepFooter', 'StepBack', 'StepNext',
                'UpdateBar', 'UpdateText', 'UpdateOpen', 'AppVersion', 'AppVersionText', 'MenuBtn', 'CatBars',
                'PageHeader', 'TitleText', 'HeroOver', 'HeroOneClick', 'HeroChoose', 'HeroStats') { Set-Variable $n $window.FindName($n) }
 $AppVersionText.Text = "AkariOS $AkariVersion"
+# the page glides on the mouse wheel (UI\Motion.ps1)
+Enable-AkariSmoothScroll $PageScroll
 
 # ---- fonts (Get-AkariFonts, UI\Cards.ps1): FontDisplay, FontText, FontMono; Dialog.ps1 gets them through the
 # window's resources
@@ -202,6 +204,7 @@ function Show-Page {
     $script:PageMoved = ("$($script:Cat)|$([bool]$q)" -ne $script:PageMotionKey)
     if ($script:PageMoved) {
         $script:PageMotionKey = "$($script:Cat)|$([bool]$q)"
+        Reset-AkariScroll $PageScroll
         Start-AkariEntrance $Page Rise
         Start-AkariEntrance $PageHeader Fade -Speed Base
     }

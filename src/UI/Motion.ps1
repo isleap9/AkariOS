@@ -205,3 +205,76 @@ function Start-AkariCount($Text, [int]$Value, [string]$Format = '{0:N0}') {
     })
     $tm.Start()
 }
+
+# ---- smooth scrolling: a wheel notch moves a target offset and the viewer glides to it (eased, time-based, on
+# CompositionTarget.Rendering only while gliding). Touchpads (deltas that are not whole notches) and inner scrollable
+# parts (a list, a multi-line text box) keep WPF's own scrolling.
+
+# the next target offset for a wheel delta: Windows' wheel lines (16 px each) per notch, kept inside 0..max
+function Get-AkariScrollTarget([double]$Target, [int]$Delta, [double]$Max, [int]$Lines = 3) {
+    [Math]::Max([double]0, [Math]::Min($Max, $Target - ($Delta / 120.0) * $Lines * 16))
+}
+
+# one frame of the glide: the offset after $Ms milliseconds, closing on the target exponentially (~50 ms half-way,
+# settled in about a third of a second), the target itself once within half a pixel
+function Get-AkariScrollStep([double]$Offset, [double]$Target, [double]$Ms) {
+    $next = $Target + ($Offset - $Target) * [Math]::Exp(-[Math]::Max([double]0, $Ms) / 72.0)
+    if ([Math]::Abs($Target - $next) -lt 0.5) { $Target } else { $next }
+}
+
+$script:AkariScrolls = @{}
+$script:AkariScrollLast = $null
+$script:AkariScrollTick = [EventHandler]{
+    param($s, $e)
+    $now = [DateTime]::UtcNow
+    $ms = if ($script:AkariScrollLast) { ($now - $script:AkariScrollLast).TotalMilliseconds } else { 16 }
+    $script:AkariScrollLast = $now
+    foreach ($k in @($script:AkariScrolls.Keys)) {
+        $st = $script:AkariScrolls[$k]
+        if (-not $st.Active) { continue }
+        $v = $st.Viewer
+        $st.Target = [Math]::Min($st.Target, $v.ScrollableHeight)
+        $next = Get-AkariScrollStep $v.VerticalOffset $st.Target $ms
+        $v.ScrollToVerticalOffset($next)
+        if ($next -eq $st.Target) { $st.Active = $false }
+    }
+    if (-not @($script:AkariScrolls.Values | Where-Object { $_.Active }).Count) {
+        [Windows.Media.CompositionTarget]::remove_Rendering($script:AkariScrollTick)
+        $script:AkariScrollLast = $null
+    }
+}
+
+# makes a ScrollViewer glide on the wheel (motion off: left as it is)
+function Enable-AkariSmoothScroll($Viewer) {
+    if (-not $Viewer -or -not $script:AkariMotionOn) { return }
+    $script:AkariScrolls[$Viewer.GetHashCode()] = @{ Viewer = $Viewer; Target = 0.0; Active = $false }
+    $Viewer.Add_PreviewMouseWheel({
+        param($s, $e)
+        if ($e.Handled -or $e.Delta % 120 -ne 0) { return }
+        # an inner part that scrolls itself (between the mouse and this viewer) keeps the wheel
+        $p = $e.OriginalSource
+        while ($p -and $p -ne $s) {
+            if ($p -is [Windows.Controls.ScrollViewer] -and $p.ScrollableHeight -gt 0) { return }
+            $p = if ($p -is [Windows.Media.Visual]) { [Windows.Media.VisualTreeHelper]::GetParent($p) } else { $null }
+        }
+        $st = $script:AkariScrolls[$s.GetHashCode()]
+        if (-not $st -or $s.ScrollableHeight -le 0) { return }
+        if (-not $st.Active) { $st.Target = $s.VerticalOffset }
+        $lines = [Math]::Max(1, [Windows.SystemParameters]::WheelScrollLines)
+        $st.Target = Get-AkariScrollTarget $st.Target $e.Delta $s.ScrollableHeight $lines
+        $e.Handled = $true
+        if (-not @($script:AkariScrolls.Values | Where-Object { $_.Active }).Count) {
+            $script:AkariScrollLast = $null
+            [Windows.Media.CompositionTarget]::add_Rendering($script:AkariScrollTick)
+        }
+        $st.Active = $true
+    })
+}
+
+# stops a glide and puts the viewer at the top (a new page)
+function Reset-AkariScroll($Viewer) {
+    if (-not $Viewer) { return }
+    $st = $script:AkariScrolls[$Viewer.GetHashCode()]
+    if ($st) { $st.Active = $false; $st.Target = 0.0 }
+    $Viewer.ScrollToTop()
+}
