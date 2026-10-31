@@ -44,6 +44,44 @@ Describe 'Appx' {
         Assert-MockCalled Remove-AppxPackage -Times 2 -Exactly -ParameterFilter { $AllUsers -and $Package -eq 'Akari.Test.App_1.0_x64__fake' }
         Assert-MockCalled Remove-AppxProvisionedPackage -Times 1 -Exactly -ParameterFilter { $PackageName -eq 'Akari.Test.App_prov' }
     }
+
+    It 'takes an already-read package list' {
+        (Get-AkariAppxInstalled @((P 'Akari.Test.Given'), (P 'Akari.Test.Fw' @{ IsFramework = $true }))) -join ',' | Should Be 'Akari.Test.Given'
+    }
+}
+
+Describe 'Get-AkariAppxLogos' {
+    . "$Root\Core\Appx.ps1"
+    # a fake package folder: its manifest and the logo files Windows would have made
+    function Pkg([string]$Name, [string]$AppLogo, [string]$PkgLogo, [string[]]$Files) {
+        $dir = Join-Path $TestDrive $Name
+        New-Item "$dir\Assets" -ItemType Directory -Force | Out-Null
+        $ve = if ($AppLogo) { "<uap:VisualElements Square44x44Logo=`"$AppLogo`" />" } else { '' }
+        Set-Content "$dir\AppxManifest.xml" -Value @"
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10">
+  <Properties><Logo>$PkgLogo</Logo></Properties>
+  <Applications><Application Id="App">$ve</Application></Applications>
+</Package>
+"@
+        foreach ($f in $Files) { Set-Content "$dir\Assets\$f" -Value 'png' }
+        [pscustomobject]@{ Name = $Name; InstallLocation = $dir }
+    }
+    $logos = Get-AkariAppxLogos @(
+        Pkg 'Akari.Unplated' 'Assets\List.png' 'Assets\Store.png' @('List.scale-100.png', 'List.targetsize-48_altform-unplated.png', 'Store.scale-100.png')
+        Pkg 'Akari.Scaled' 'Assets\List.png' 'Assets\Store.png' @('List.scale-100.png', 'List.scale-200.png')
+        Pkg 'Akari.StoreLogo' '' 'Assets\Store.png' @('Store.scale-150.png')
+        Pkg 'Akari.None' 'Assets\List.png' 'Assets\Store.png' @()
+        [pscustomobject]@{ Name = 'Akari.NoFolder'; InstallLocation = (Join-Path $TestDrive 'missing') }
+        [pscustomobject]@{ Name = 'Akari.NoLocation'; InstallLocation = $null }
+    )
+
+    It 'takes the unplated 48 px app list logo first' { Split-Path -Leaf $logos['Akari.Unplated'] | Should Be 'List.targetsize-48_altform-unplated.png' }
+    It 'else the biggest scale it knows' { Split-Path -Leaf $logos['Akari.Scaled'] | Should Be 'List.scale-200.png' }
+    It 'falls back to the package logo, any scale' { Split-Path -Leaf $logos['Akari.StoreLogo'] | Should Be 'Store.scale-150.png' }
+    It 'leaves out packages with no logo file, folder or location, without throwing' {
+        ($logos.Keys | Sort-Object) -join ',' | Should Be 'Akari.Scaled,Akari.StoreLogo,Akari.Unplated'
+    }
 }
 
 Describe 'Runner: an Action whose Detect says done' {

@@ -370,6 +370,63 @@ Describe 'Get-AkariInstallCards' {
     It 'offers to restore only the Store apps missing from the PC' { ($cards[3].Items | ForEach-Object { $_.Tweak.Id }) -join ',' | Should Be 'photos' }
 }
 
+Describe 'App icons' {
+    foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
+    . "$Root\UI\Apps.ps1"
+    $dir = Join-Path $TestDrive 'Apps'
+    New-Item $dir -ItemType Directory -Force | Out-Null
+    foreach ($n in 'Akari.Test.Pkg', 'install-test', 'install-black.mono') { Set-Content "$dir\$n.png" -Value 'png' }
+
+    It 'takes an installed Store app''s own logo first' {
+        Get-AkariAppIconFile @{ Id = 'appx/Akari.Test.Pkg'; Package = 'Akari.Test.Pkg' } @{ 'Akari.Test.Pkg' = 'C:\logo.png' } $dir | Should Be 'C:\logo.png'
+    }
+    It 'else the bundled icon of its package, then of its id' {
+        Get-AkariAppIconFile @{ Id = 'store/Akari.Test.Pkg'; Package = 'Akari.Test.Pkg' } @{} $dir | Should Be "$dir\Akari.Test.Pkg.png"
+        Get-AkariAppIconFile @{ Id = 'install-test' } $null $dir | Should Be "$dir\install-test.png"
+    }
+    It 'finds a black-or-white logo''s mask' { Get-AkariAppIconFile @{ Id = 'install-black' } @{} $dir | Should Be "$dir\install-black.mono.png" }
+    It 'else none (the row shows a Lucide icon)' { Get-AkariAppIconFile @{ Id = 'install-other'; Package = 'Akari.Other' } @{} $dir | Should Be $null }
+
+    # build\AppIcons.ps1 makes them: run it after adding an app. More Clock Tool and the braille driver have no logo
+    # of their own: they keep the Lucide icon.
+    It 'has a bundled icon for every app to install, legacy app and Store app to restore' {
+        $none = 'install-more-clock-tool', 'remove-brlapi'
+        $ids = @(Get-ChildItem "$Root\Tweaks\Apps\Install\*.ps1", "$Root\Tweaks\Apps\Remove\*.ps1" | ForEach-Object {
+            $text = Get-Content $_.FullName -Raw
+            if ($text -notmatch 'EntryKind' -and $text -match "Id\s*=\s*'([^']+)'") { $Matches[1] }
+        })
+        $ids += @((Import-PowerShellDataFile "$Root\Tweaks\Apps\Install\StoreApps.psd1").Rows | ForEach-Object { $_.Name })
+        $ids.Count | Should BeGreaterThan 80
+        @($ids | Where-Object { $_ -notin $none -and -not (Test-Path "$Root\Assets\Apps\$_.png") -and -not (Test-Path "$Root\Assets\Apps\$_.mono.png") }) -join ', ' | Should Be ''
+    }
+}
+
+Describe 'Test-AkariWhiteLogo' {
+    Add-Type -AssemblyName PresentationCore
+    foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
+    . "$Root\UI\Apps.ps1"
+    # a 4 x 4 image: a clear border around a 2 x 2 middle of one colour
+    function Img([byte]$R, [byte]$G, [byte]$B) {
+        $px = [byte[]]::new(64)
+        foreach ($i in 5, 6, 9, 10) { $px[$i * 4] = $B; $px[$i * 4 + 1] = $G; $px[$i * 4 + 2] = $R; $px[$i * 4 + 3] = 255 }
+        [Windows.Media.Imaging.BitmapSource]::Create(4, 4, 96, 96, [Windows.Media.PixelFormats]::Bgra32, $null, $px, 16)
+    }
+    It 'is true for a white glyph (drawn in the text colour)' { Test-AkariWhiteLogo (Img 250 250 250) | Should Be $true }
+    It 'is false for a coloured or dark logo' {
+        Test-AkariWhiteLogo (Img 0 120 215) | Should Be $false
+        Test-AkariWhiteLogo (Img 40 40 40) | Should Be $false
+    }
+}
+
+Describe 'Risk marks' {
+    foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
+    . "$Root\UI\Apps.ps1"
+    It 'are Lucide icons that are in Icons.xaml' {
+        $xaml = Get-Content "$Root\UI\Icons.xaml" -Raw
+        foreach ($d in $AkariAppDots.Values) { $xaml.Contains("x:Key=`"Ic.$($d.Icon)`"") | Should Be $true }
+    }
+}
+
 Describe 'Get-AkariAppList' {
     foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
     . "$Root\UI\Apps.ps1"

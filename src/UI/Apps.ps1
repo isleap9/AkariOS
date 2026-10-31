@@ -11,11 +11,22 @@ $script:OnlyInstalled = $true
 $script:AppTab = 'Remove'
 # the last quick select, applied again to the feature rows that arrive after it
 $script:AppsPick = $null
-# dot per Risk: Safe = recommended to remove, Caution = optional, Advanced = not recommended
+# mark per Risk (a Lucide icon): Safe = recommended to remove, Caution = optional, Advanced = not recommended
 $AkariAppDots = @{
-    Safe     = @{ Char = [char]0x25CF; Brush = 'Ok'; Label = 'Recommended' }
-    Caution  = @{ Char = [char]0x25C6; Brush = 'Warn'; Label = 'Optional' }
-    Advanced = @{ Char = [char]0x25B2; Brush = 'Bad'; Label = 'Not recommended' }
+    Safe     = @{ Icon = 'circle-check'; Brush = 'Ok'; Label = 'Recommended' }
+    Caution  = @{ Icon = 'circle-minus'; Brush = 'Warn'; Label = 'Optional' }
+    Advanced = @{ Icon = 'triangle-alert'; Brush = 'Bad'; Label = 'Not recommended' }
+}
+
+# a Risk mark: its 14 px Lucide icon in its colour, the label as tooltip
+function New-AkariRiskMark([string]$Risk) {
+    $d = $AkariAppDots[$Risk]
+    if (-not $d) { $d = $AkariAppDots['Caution'] }
+    $m = New-AkariIcon $d.Icon 14 $d.Brush
+    $m.ToolTip = $d.Label
+    $m.HorizontalAlignment = 'Left'
+    $m.VerticalAlignment = 'Center'
+    $m
 }
 
 # Store apps: every AppxRemove Entry from the data file, plus each installed package the file doesn't list (built as
@@ -100,10 +111,87 @@ function New-AkariAppCell([string]$Text, [int]$Col, [string]$Brush = 'Tx', [doub
     $t
 }
 
-# the table's columns: checkbox | dot | name | description | App ID or source
+# ---- app icons, all without a background: an installed Store app's own logo (read once by Get-AkariAppsView into
+# $script:AppLogos), else the bundled Assets\Apps\<package or id>.png (build\AppIcons.ps1), else a Lucide icon.
+# A black-or-white logo is drawn in the theme's text colour: bundled ones are saved as <key>.mono.png (a mask), a
+# Store logo that is white only (made for a dark Start menu) is found by Test-AkariWhiteLogo.
+
+$script:AppLogos = @{}
+
+# the image file of a row's icon, or $null. Pure, no WPF: $Logos = package name -> logo path; $Dir = Assets\Apps.
+function Get-AkariAppIconFile($Tweak, $Logos, [string]$Dir) {
+    if ($Tweak.Package -and $Logos -and $Logos[$Tweak.Package]) { return $Logos[$Tweak.Package] }
+    foreach ($k in @($Tweak.Package, $Tweak.Id) | Where-Object { $_ }) {
+        foreach ($f in (Join-Path $Dir "$k.png"), (Join-Path $Dir "$k.mono.png")) {
+            if (Test-Path -LiteralPath $f) { return $f }
+        }
+    }
+    $null
+}
+
+# true when an image's visible pixels are white or near white (no colour): it would vanish on the light theme.
+# Every second pixel of each second row is enough.
+function Test-AkariWhiteLogo([Windows.Media.Imaging.BitmapSource]$Image) {
+    $b = [Windows.Media.Imaging.FormatConvertedBitmap]::new($Image, [Windows.Media.PixelFormats]::Bgra32, $null, 0)
+    $w = $b.PixelWidth; $h = $b.PixelHeight
+    $px = [byte[]]::new($w * $h * 4)
+    $b.CopyPixels($px, $w * 4, 0)
+    $n = 0; $white = 0
+    for ($y = 0; $y -lt $h; $y += 2) {
+        for ($x = 0; $x -lt $w; $x += 2) {
+            $i = ($y * $w + $x) * 4
+            if ($px[$i + 3] -lt 100) { continue }
+            $n++
+            $lo = [Math]::Min($px[$i], [Math]::Min($px[$i + 1], $px[$i + 2]))
+            $hi = [Math]::Max($px[$i], [Math]::Max($px[$i + 1], $px[$i + 2]))
+            if ($lo -ge 200 -and $hi - $lo -le 30) { $white++ }
+        }
+    }
+    $n -gt 0 -and $white / $n -ge 0.9
+}
+
+# the 20 px icon of a row: the image (a mask in the text colour when it is black-or-white), or a muted Lucide icon
+# (an optional or Windows feature: settings-2, else app-window)
+function New-AkariAppIcon($Tweak) {
+    $file = Get-AkariAppIconFile $Tweak $script:AppLogos (Join-Path $Root 'Assets\Apps')
+    $icon = $null
+    if ($file) {
+        try {
+            $bi = [Windows.Media.Imaging.BitmapImage]::new()
+            $bi.BeginInit()
+            $bi.UriSource = [Uri]::new($file)
+            $bi.DecodePixelWidth = 40
+            $bi.CacheOption = 'OnLoad'
+            $bi.EndInit()
+            $bi.Freeze()
+            $mono = $file -like '*.mono.png'
+            if (-not $mono -and $Tweak.Package -and $script:AppLogos[$Tweak.Package] -eq $file) { $mono = Test-AkariWhiteLogo $bi }
+            if ($mono) {
+                $icon = [Windows.Shapes.Rectangle]::new()
+                $icon.SetResourceReference([Windows.Shapes.Shape]::FillProperty, 'Tx')
+                $icon.OpacityMask = [Windows.Media.ImageBrush]::new($bi)
+            } else {
+                $icon = [Windows.Controls.Image]::new()
+                $icon.Source = $bi
+                [Windows.Media.RenderOptions]::SetBitmapScalingMode($icon, 'HighQuality')
+            }
+            $icon.Width = 20; $icon.Height = 20
+        } catch { $icon = $null }
+    }
+    if (-not $icon) {
+        $kind = if ($Tweak.Group -in 'capability', 'feature') { 'settings-2' } else { 'app-window' }
+        $icon = New-AkariIcon $kind 18 'Mu'
+    }
+    $icon.HorizontalAlignment = 'Left'
+    $icon.VerticalAlignment = 'Center'
+    [Windows.Controls.Grid]::SetColumn($icon, 2)
+    $icon
+}
+
+# the table's columns: checkbox | Risk mark | icon | name | description | App ID or source
 function New-AkariAppGrid {
     $g = [Windows.Controls.Grid]::new()
-    foreach ($w in 32, 22, 240, 0, 260) {
+    foreach ($w in 32, 22, 30, 240, 0, 260) {
         $c = [Windows.Controls.ColumnDefinition]::new()
         $c.Width = if ($w) { [Windows.GridLength]::new($w) } else { [Windows.GridLength]::new(1, 'Star') }
         [void]$g.ColumnDefinitions.Add($c)
@@ -111,7 +199,7 @@ function New-AkariAppGrid {
     $g
 }
 
-# one table row: @{ Tweak; Installed; Row; Control; Muted }. A removal has a recommendation dot; an install does not.
+# one table row: @{ Tweak; Installed; Row; Control; Muted }. A removal has a Risk mark; an install does not.
 function New-AkariAppRow($Item) {
     $t = $Item.Tweak
     $e = @{ Tweak = $t; Installed = $Item.Installed; Muted = $false }
@@ -124,20 +212,21 @@ function New-AkariAppRow($Item) {
     $cb.VerticalAlignment = 'Center'
     [void]$g.Children.Add($cb)
     if ($t.Category -eq 'Remove') {
-        $d = $AkariAppDots[$t.Risk]
-        $dot = New-AkariAppCell ([string]$d.Char) 1 $d.Brush 11
-        $dot.ToolTip = $d.Label
+        $dot = New-AkariRiskMark $t.Risk
+        [Windows.Controls.Grid]::SetColumn($dot, 1)
         [void]$g.Children.Add($dot)
     }
-    $name = New-AkariAppCell $t.Name 2
+    $icon = New-AkariAppIcon $t
+    $name = New-AkariAppCell $t.Name 3
     if ($t.Keep) { $name.ToolTip = 'Kept by the AkariOS pick (FR33THY''s keep-list)' }
-    if (-not $Item.Installed) { $name.Opacity = 0.6 }
+    if (-not $Item.Installed) { $name.Opacity = 0.6; $icon.Opacity = 0.6 }
+    [void]$g.Children.Add($icon)
     [void]$g.Children.Add($name)
-    $desc = New-AkariAppCell $(if ($t.Description) { $t.Description } else { 'Not in Akari''s list: found on this PC' }) 3 'Mu'
+    $desc = New-AkariAppCell $(if ($t.Description) { $t.Description } else { 'Not in Akari''s list: found on this PC' }) 4 'Mu'
     $desc.ToolTip = $desc.Text
     [void]$g.Children.Add($desc)
     $src = Get-AkariAppSource $t
-    $pkg = New-AkariAppCell $src 4 'Ter' 12
+    $pkg = New-AkariAppCell $src 5 'Ter' 12
     $pkg.ToolTip = if ($Item.Installed) { $src } else { "$src (not on this PC)" }
     [void]$g.Children.Add($pkg)
     $cb.Add_Click({ param($s, $a) Step-AkariAppCheck ([string]$s.Tag) })
@@ -217,7 +306,7 @@ function New-AkariAppTable([string]$Title, [string]$Last, $Items) {
     [void]$sp.Children.Add($tt)
     $head = New-AkariAppGrid
     $head.Margin = [Windows.Thickness]::new(0, 0, 0, 6)
-    foreach ($h in @(@('Name', 2), @('Description', 3), @($Last, 4))) {
+    foreach ($h in @(@('Name', 3), @('Description', 4), @($Last, 5))) {
         $c = New-AkariAppCell $h[0] $h[1] 'Mu' 12
         $c.FontWeight = 'SemiBold'
         [void]$head.Children.Add($c)
@@ -311,7 +400,11 @@ function Set-AkariAppsOnly([string]$Tab) {
 # builds the Apps view once: Store apps and legacy apps now (on the UI thread), the features in the background
 function Get-AkariAppsView {
     if ($script:AppsView) { return $script:AppsView }
-    $installed = @(try { Get-AkariAppxInstalled } catch { })
+    # one package read: the removable ones, every name (the restore card) and the installed apps' logos
+    $pkgs = @(try { Get-AkariAppxPackages } catch { })
+    $installed = @(try { Get-AkariAppxInstalled $pkgs } catch { })
+    $script:AppLogos = @{}
+    try { $script:AppLogos = Get-AkariAppxLogos @($pkgs | Where-Object { $_.Name -in $installed }) } catch { }
     $script:AppRows = [ordered]@{}
     $script:AppsPick = $null
     $p = @{}
@@ -368,7 +461,7 @@ function Get-AkariAppsView {
 
     # Install: a card per kind of app, then the Store apps the debloat removed
     $p.InstallTables = [Windows.Controls.StackPanel]::new()
-    $appx = @(try { Get-AkariAppxPackages | ForEach-Object { $_.Name } } catch { })
+    $appx = @($pkgs | ForEach-Object { $_.Name })
     foreach ($c in Get-AkariInstallCards $script:Tweaks $appx) {
         $t = New-AkariAppTable $c.Title 'Source' @($c.Items)
         if (-not $c.Items.Count) { [void]$t.Rows.Children.Add((New-AkariAppCell 'Nothing to restore: every app in this list is on this PC.' 0 'Mu' 12)) }
@@ -382,11 +475,10 @@ function Get-AkariAppsView {
     $p.Legend.Orientation = 'Horizontal'
     [Windows.Controls.DockPanel]::SetDock($p.Legend, 'Right')
     foreach ($k in 'Safe', 'Caution', 'Advanced') {
-        $d = $AkariAppDots[$k]
-        $dc = New-AkariAppCell ([string]$d.Char) 0 $d.Brush 11
-        $dc.Margin = [Windows.Thickness]::new(12, 0, 6, 0)
+        $dc = New-AkariRiskMark $k
+        $dc.Margin = [Windows.Thickness]::new(16, 0, 6, 0)
         [void]$p.Legend.Children.Add($dc)
-        [void]$p.Legend.Children.Add((New-AkariAppCell $d.Label 0 'Mu' 12))
+        [void]$p.Legend.Children.Add((New-AkariAppCell $AkariAppDots[$k].Label 0 'Mu' 12))
     }
     [void]$foot.Children.Add($p.Legend)
     $script:AppsStatus = New-AkariAppCell '' 0 'Mu' 12

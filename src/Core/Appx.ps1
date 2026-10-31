@@ -13,12 +13,43 @@ function Test-AkariAppxNever([string]$Package) {
 # the raw package list (all users); a function so tests can mock it
 function Get-AkariAppxPackages { @(Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue) }
 
-# names of the removable packages installed for any user: no frameworks, resource or system packages, no never-list
-function Get-AkariAppxInstalled {
-    @(Get-AkariAppxPackages | Where-Object {
+# names of the removable packages installed for any user: no frameworks, resource or system packages, no never-list.
+# $Packages: a list already read with Get-AkariAppxPackages (else it is read now)
+function Get-AkariAppxInstalled($Packages = $null) {
+    if ($null -eq $Packages) { $Packages = Get-AkariAppxPackages }
+    @($Packages | Where-Object {
         -not $_.IsFramework -and -not $_.IsResourcePackage -and -not $_.NonRemovable -and "$($_.SignatureKind)" -ne 'System' -and
         -not (Test-AkariAppxNever $_.Name)
     } | ForEach-Object { $_.Name } | Sort-Object -Unique)
+}
+
+# package name -> the path of its app list logo (the Start menu's icon), for the Apps tables. Read from each
+# package's AppxManifest.xml: the first app's Square44x44Logo, else the package Logo; of the files Windows made of it,
+# an unplated 48 / 32 px one first. Packages with no readable logo are left out; never throws.
+function Get-AkariAppxLogos($Packages) {
+    $logos = @{}
+    foreach ($p in @($Packages)) {
+        try {
+            if (-not $p.InstallLocation -or $logos.ContainsKey($p.Name)) { continue }
+            $m = [xml][IO.File]::ReadAllText((Join-Path $p.InstallLocation 'AppxManifest.xml'))
+            $bases = @(@($m.Package.Applications.Application | ForEach-Object { $_.VisualElements.Square44x44Logo }) + $m.Package.Properties.Logo | Where-Object { $_ })
+            foreach ($b in $bases) {
+                $file = Join-Path $p.InstallLocation $b
+                $dir = Split-Path $file
+                if (-not [IO.Directory]::Exists($dir)) { continue }
+                $stem = [IO.Path]::GetFileNameWithoutExtension($file)
+                $found = $null
+                foreach ($q in 'targetsize-48_altform-unplated', 'targetsize-32_altform-unplated', 'targetsize-48', 'targetsize-32', 'scale-200', 'scale-100') {
+                    $f = Join-Path $dir "$stem.$q.png"
+                    if ([IO.File]::Exists($f)) { $found = $f; break }
+                }
+                if (-not $found -and [IO.File]::Exists($file)) { $found = $file }
+                if (-not $found) { $found = @([IO.Directory]::GetFiles($dir, "$stem.*.png")) | Select-Object -First 1 }
+                if ($found) { $logos[$p.Name] = $found; break }
+            }
+        } catch { }
+    }
+    $logos
 }
 
 function Test-AkariAppxInstalled([string]$Package) {
