@@ -198,12 +198,13 @@ Describe 'Motion (UI\Motion.ps1, UI\Motion.xaml)' {
         Add-AkariMotionXaml '<Window><Window.Resources><S/></Window.Resources></Window>' '<M/>' | Should Be '<Window><Window.Resources><M/><S/></Window.Resources></Window>'
         Add-AkariMotionXaml '<Border/>' '<M/>' | Should Be '<Border/>'
     }
-    It 'plans each kind: Fade, Rise, Pop, Scale, Slide' {
+    It 'plans each kind: Fade, Rise, Pop, Scale, Slide, Fill' {
         ((Get-AkariMotionPlan Fade) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'Opacity 0>1'
         ((Get-AkariMotionPlan Rise) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'Opacity 0>1, Y 10>0'
         ((Get-AkariMotionPlan Pop) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'Opacity 0>1, ScaleX 0.96>1, ScaleY 0.96>1'
         ((Get-AkariMotionPlan Scale 1 0.97) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'ScaleX 1>0.97, ScaleY 1>0.97'
         ((Get-AkariMotionPlan Slide $null 40) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'X >40'
+        ((Get-AkariMotionPlan Fill $null 0.5) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'ScaleX >0.5'
         { Get-AkariMotionPlan Wobble } | Should Throw
     }
     It 'Motion off: Windows'' animation effects, or AKARI_MOTION' {
@@ -309,6 +310,43 @@ $r -join '|'
             "$m $out" | Should Be "$m $want"
         }
     }
+
+    It 'MainWindow.xaml''s styles animate their states too (buttons, tabs, chips, text box, menu row, scroll bar, progress fill)' {
+        $probe = "$TestDrive\shellstyles.ps1"
+        Set-Content $probe -Value @'
+param($Root, $Motion)
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName PresentationFramework
+$env:AKARI_MOTION = $Motion; . "$Root\UI\Motion.ps1"
+$w = Get-AkariXaml "$Root\UI\MainWindow.xaml"
+foreach ($f in 'Theme.Dark', 'Controls', 'Icons') { $w.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\$f.xaml")) }
+$h = [Windows.Controls.StackPanel]::new(); $h.Resources.MergedDictionaries.Add($w.Resources)
+function Wait-Ms($ms) { $fr = [Windows.Threading.DispatcherFrame]::new(); $t = [Windows.Threading.DispatcherTimer]::new(); $t.Interval = [TimeSpan]::FromMilliseconds($ms)
+    $t.add_Tick({ $t.Stop(); $fr.Continue = $false }.GetNewClosure()); $t.Start(); [Windows.Threading.Dispatcher]::PushFrame($fr) }
+function Add-Control($c, $style) { if ($style) { $c.Style = $h.Resources[$style] }; [void]$h.Children.Add($c); $c }
+function Part($c, $n) { $c.Template.FindName($n, $c) }
+foreach ($s in 'Btn', 'BtnP', 'Ghost', 'Cap', 'CapX') { [void](Add-Control ([Windows.Controls.Button]@{ Content = $s }) $s) }
+$tab = Add-Control ([Windows.Controls.RadioButton]@{ Content = 'Tab'; GroupName = 't' }) 'Tab'
+$tab2 = Add-Control ([Windows.Controls.RadioButton]@{ Content = 'Tab2'; GroupName = 't'; IsChecked = $true }) 'Tab'
+$chip = Add-Control ([Windows.Controls.RadioButton]@{ Content = 'Chip' }) 'Chip'
+$tb = Add-Control ([Windows.Controls.TextBox]::new()) 'Flat'
+$mi = Add-Control ([Windows.Controls.MenuItem]@{ Header = 'Row' }) $null
+$sv = Add-Control ([Windows.Controls.ScrollViewer]@{ Height = 60; VerticalScrollBarVisibility = 'Visible'; Content = [Windows.Controls.Border]@{ Height = 400 } }) $null
+$fill = Add-Control ([Windows.Shapes.Rectangle]@{ Height = 4; RenderTransformOrigin = [Windows.Point]::new(0, 0.5) }) $null
+$h.Measure([Windows.Size]::new(800, 2000)); $h.Arrange([Windows.Rect]::new(0, 0, 800, 2000)); $h.UpdateLayout()
+Wait-Ms 50
+$tab.IsChecked = $true; $chip.IsChecked = $true
+Start-AkariMotion $fill Fill 0 0.5 -Speed Slow
+Wait-Ms 450
+$r = @("tab $((Part $tab 'S').Opacity) $((Part $tab2 'S').Opacity)", "chip $((Part $chip 'S').Opacity)", "fill $($fill.RenderTransform.Children[-2].ScaleX) $($fill.RenderTransformOrigin)")
+$r -join '|'
+'@
+        foreach ($m in 'on', 'off') {
+            $out = @(& powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -Motion $m 2>&1 | ForEach-Object { "$_" }) -join "`n"
+            "$m $out" | Should Be "$m tab 1 0|chip 1|fill 0.5 0,0.5"
+        }
+    }
+
 }
 
 Describe 'Get-AkariMasonry' {

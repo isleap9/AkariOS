@@ -47,6 +47,9 @@
       </Setter>
     </Style>
 
+    <!-- Motion (UI\Motion.xaml, as in UI\Controls.xaml): hover / press colours are layers whose Opacity fades over
+         Motion.Fast, presses shrink the pill a little (not the caption buttons: Windows' own don't); each animated
+         value belongs to one trigger. -->
     <!-- Secondary button: a pill with a control fill and a 1 px stroke, SemiBold text. -->
     <Style x:Key="Btn" TargetType="Button">
       <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
@@ -62,17 +65,52 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="B" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                    BorderThickness="1" CornerRadius="18" Padding="{TemplateBinding Padding}">
-              <ContentPresenter x:Name="C" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            </Border>
+            <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
+              <Grid.RenderTransform><ScaleTransform/></Grid.RenderTransform>
+              <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="18"/>
+              <Border x:Name="H" Margin="1" CornerRadius="17" Background="{DynamicResource CtlH}" Opacity="0"/>
+              <Border x:Name="P" Margin="1" CornerRadius="17" Background="{DynamicResource CtlP}" Opacity="0"/>
+              <Border BorderThickness="1" Padding="{TemplateBinding Padding}">
+                <ContentPresenter x:Name="C" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              </Border>
+            </Grid>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource CtlH}"/>
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource CtlP}"/>
                 <Setter TargetName="C" Property="Opacity" Value="0.78"/>
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="0.97" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="0.97" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Spring}"/>
+                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Spring}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
               </Trigger>
               <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Opacity" Value="0.4"/>
@@ -82,7 +120,8 @@
         </Setter.Value>
       </Setter>
     </Style>
-    <!-- Primary button: the crimson pill (Acc, AccT text) with the lamp glow under it; AccH on hover, AccP pressed. -->
+    <!-- Primary button: the crimson pill (Acc, AccT text) with the lamp glow under it (its own cached layer, so the
+         fades never redraw the shadow); AccH on hover, AccP pressed. -->
     <Style x:Key="BtnP" TargetType="Button" BasedOn="{StaticResource Btn}">
       <Setter Property="Background" Value="{DynamicResource Acc}"/>
       <Setter Property="Foreground" Value="{DynamicResource AccT}"/>
@@ -90,25 +129,60 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="B" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                    BorderThickness="1" CornerRadius="18" Padding="{TemplateBinding Padding}">
-              <Border.Effect>
-                <DropShadowEffect x:Name="Glow" Color="{DynamicResource AccC}" BlurRadius="24" ShadowDepth="8" Direction="270" Opacity="0.35"/>
-              </Border.Effect>
-              <ContentPresenter x:Name="C" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            </Border>
+            <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
+              <Grid.RenderTransform><ScaleTransform/></Grid.RenderTransform>
+              <Border x:Name="Glow" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="18">
+                <Border.CacheMode><BitmapCache/></Border.CacheMode>
+                <Border.Effect>
+                  <DropShadowEffect Color="{DynamicResource AccC}" BlurRadius="24" ShadowDepth="8" Direction="270" Opacity="0.35"/>
+                </Border.Effect>
+              </Border>
+              <Border x:Name="H" CornerRadius="18" Background="{DynamicResource AccH}" Opacity="0"/>
+              <Border x:Name="P" CornerRadius="18" Background="{DynamicResource AccP}" Opacity="0"/>
+              <Border BorderThickness="1" Padding="{TemplateBinding Padding}">
+                <ContentPresenter x:Name="C" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              </Border>
+            </Grid>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource AccH}"/>
-                <Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource AccH}"/>
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource AccP}"/>
-                <Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource AccP}"/>
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="0.97" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="0.97" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Spring}"/>
+                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Spring}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
               </Trigger>
               <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Opacity" Value="0.4"/>
-                <Setter TargetName="B" Property="Effect" Value="{x:Null}"/>
+                <Setter TargetName="Glow" Property="Effect" Value="{x:Null}"/>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -123,16 +197,49 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="B" Background="Transparent" CornerRadius="18">
+            <Grid x:Name="Root" Background="Transparent" RenderTransformOrigin="0.5,0.5">
+              <Grid.RenderTransform><ScaleTransform/></Grid.RenderTransform>
+              <Border x:Name="H" CornerRadius="18" Background="{DynamicResource Ctl}" Opacity="0"/>
+              <Border x:Name="P" CornerRadius="18" Background="{DynamicResource CtlP}" Opacity="0"/>
               <ContentPresenter x:Name="C" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            </Border>
+            </Grid>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource Ctl}"/>
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource CtlP}"/>
                 <Setter TargetName="C" Property="Opacity" Value="0.78"/>
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="0.94" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="0.94" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Spring}"/>
+                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Spring}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -141,7 +248,7 @@
     </Style>
 
     <!-- Menus (the title bar menu, Quick select): a dark rounded panel with a shadow, rows with an icon column,
-         after Win11Debloat's options menu. -->
+         after Win11Debloat's options menu. It fades in and drops 6 px into place when it opens. -->
     <Style TargetType="ContextMenu">
       <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
       <Setter Property="FontSize" Value="13"/>
@@ -152,7 +259,8 @@
         <Setter.Value>
           <ControlTemplate TargetType="ContextMenu">
             <!-- the outer margin leaves room for the shadow inside the popup -->
-            <Border Margin="12">
+            <Border x:Name="M" Margin="12">
+              <Border.RenderTransform><TranslateTransform/></Border.RenderTransform>
               <Border Background="{DynamicResource S2}" BorderBrush="{DynamicResource Bd}" BorderThickness="1"
                       CornerRadius="12" Padding="6" MinWidth="200">
                 <Border.Effect>
@@ -161,6 +269,25 @@
                 <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
               </Border>
             </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsOpen" Value="True">
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="M" Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                      <DoubleAnimation Storyboard.TargetName="M" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" From="-6" To="0" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="M" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
+              </Trigger>
+            </ControlTemplate.Triggers>
           </ControlTemplate>
         </Setter.Value>
       </Setter>
@@ -172,8 +299,10 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="MenuItem">
-            <Border x:Name="B" Background="{TemplateBinding Background}" CornerRadius="8" Padding="8,0,16,0">
-              <Grid>
+            <Grid Background="{TemplateBinding Background}">
+              <Border x:Name="H" CornerRadius="8" Background="{DynamicResource CtlH}" Opacity="0"/>
+              <Border x:Name="P" CornerRadius="8" Background="{DynamicResource CtlP}" Opacity="0"/>
+              <Grid Margin="8,0,16,0">
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="20"/>
                   <ColumnDefinition Width="*"/>
@@ -181,13 +310,39 @@
                 <ContentPresenter ContentSource="Icon" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" Margin="10,0,0,1"/>
               </Grid>
-            </Border>
+            </Grid>
             <ControlTemplate.Triggers>
               <Trigger Property="IsHighlighted" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource CtlH}"/>
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource CtlP}"/>
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
               </Trigger>
               <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Opacity" Value="0.4"/>
@@ -208,7 +363,7 @@
       </Setter>
     </Style>
 
-    <!-- Title bar caption button (46 x 32, clickable inside the drag region). -->
+    <!-- Title bar caption button (46 x 32, clickable inside the drag region): fades only, as Windows' own. -->
     <Style x:Key="Cap" TargetType="Button">
       <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
       <Setter Property="Width" Value="46"/>
@@ -218,16 +373,44 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="B" Background="Transparent">
+            <Grid Background="Transparent">
+              <Border x:Name="H" Background="{DynamicResource Ctl}" Opacity="0"/>
+              <Border x:Name="P" Background="{DynamicResource CtlP}" Opacity="0"/>
               <ContentPresenter x:Name="C" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            </Border>
+            </Grid>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource Ctl}"/>
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource CtlP}"/>
                 <Setter TargetName="C" Property="Opacity" Value="0.78"/>
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -238,18 +421,46 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="B" Background="Transparent">
+            <Grid Background="Transparent">
+              <Border x:Name="H" Background="{DynamicResource CloseH}" Opacity="0"/>
+              <Border x:Name="P" Background="{DynamicResource CloseP}" Opacity="0"/>
               <ContentPresenter x:Name="C" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            </Border>
+            </Grid>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource CloseH}"/>
                 <Setter Property="Foreground" Value="{DynamicResource CloseT}"/>
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource CloseP}"/>
                 <Setter Property="Foreground" Value="{DynamicResource CloseT}"/>
                 <Setter TargetName="C" Property="Opacity" Value="0.78"/>
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -258,7 +469,8 @@
     </Style>
 
     <!-- Top bar tab (Home, Install, Optimize, Downloads, USB): a pill with an icon and a label (built in UI\Shell.ps1),
-         crimson tint and crimson text when it is the current one. Clickable inside the title bar's drag region. -->
+         crimson tint and crimson text when it is the current one (the old tab's tint fades out as the new one's fades
+         in). Clickable inside the title bar's drag region. -->
     <Style x:Key="Tab" TargetType="RadioButton">
       <Setter Property="Foreground" Value="{DynamicResource Mu}"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
@@ -269,20 +481,64 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="RadioButton">
-            <Border x:Name="B" CornerRadius="18" Background="Transparent" Padding="14,7,14,8">
-              <ContentPresenter x:Name="C" VerticalAlignment="Center"/>
-            </Border>
+            <Grid Background="Transparent">
+              <Border x:Name="H" CornerRadius="18" Background="{DynamicResource CtlH}" Opacity="0"/>
+              <Border x:Name="P" CornerRadius="18" Background="{DynamicResource CtlP}" Opacity="0"/>
+              <Border x:Name="S" CornerRadius="18" Background="{DynamicResource AccSoft}" Opacity="0"/>
+              <Border Padding="14,7,14,8">
+                <ContentPresenter x:Name="C" VerticalAlignment="Center"/>
+              </Border>
+            </Grid>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource CtlH}"/>
                 <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource CtlP}"/>
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
               </Trigger>
               <Trigger Property="IsChecked" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource AccSoft}"/>
                 <Setter Property="Foreground" Value="{DynamicResource AccText}"/>
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="S" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="S" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -300,18 +556,66 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="RadioButton">
-            <Border x:Name="B" CornerRadius="15" BorderThickness="1" BorderBrush="{DynamicResource CtlBd}" Background="{DynamicResource Ctl}"
-                    Padding="10,4,12,5">
-              <ContentPresenter VerticalAlignment="Center"/>
-            </Border>
+            <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
+              <Grid.RenderTransform><ScaleTransform/></Grid.RenderTransform>
+              <Border CornerRadius="15" BorderThickness="1" BorderBrush="{DynamicResource CtlBd}" Background="{DynamicResource Ctl}"/>
+              <Border x:Name="H" Margin="1" CornerRadius="14" Background="{DynamicResource CtlH}" Opacity="0"/>
+              <Border x:Name="S" CornerRadius="15" BorderThickness="1" BorderBrush="{DynamicResource Acc}" Background="{DynamicResource Acc}" Opacity="0"/>
+              <Border BorderThickness="1" Padding="10,4,12,5">
+                <ContentPresenter VerticalAlignment="Center"/>
+              </Border>
+            </Grid>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource CtlH}"/>
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="0.95" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="0.95" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Spring}"/>
+                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Spring}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
               </Trigger>
               <Trigger Property="IsChecked" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource Acc}"/>
-                <Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource Acc}"/>
                 <Setter Property="Foreground" Value="{DynamicResource AccT}"/>
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="S" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="S" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -320,7 +624,7 @@
     </Style>
 
     <!-- Text box: a pill (a multi-line box: 12 px corners), control fill and stroke; with keyboard focus the stroke
-         turns crimson inside a soft crimson halo (the focus ring of text boxes). -->
+         turns crimson inside a soft crimson halo (the focus ring of text boxes), both fading in. -->
     <Style x:Key="Flat" TargetType="TextBox">
       <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
       <Setter Property="Background" Value="{DynamicResource Ctl}"/>
@@ -335,26 +639,56 @@
         <Setter.Value>
           <ControlTemplate TargetType="TextBox">
             <Grid>
-              <Border x:Name="Halo" Margin="-3" CornerRadius="21" BorderThickness="3" BorderBrush="{DynamicResource AccSoft}" Visibility="Collapsed"/>
+              <Border x:Name="Halo" Margin="-3" CornerRadius="21" BorderThickness="3" BorderBrush="{DynamicResource AccSoft}" Opacity="0"/>
+              <Border x:Name="B" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="18"/>
+              <Border x:Name="H" Margin="1" CornerRadius="17" Background="{DynamicResource CtlH}" Opacity="0"/>
+              <Border x:Name="F" CornerRadius="18" BorderThickness="1" BorderBrush="{DynamicResource Acc}" Background="{DynamicResource InFocus}" Opacity="0"/>
               <!-- no Padding here: the TextBox pads its own text host with its Padding -->
-              <Border x:Name="B" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                      BorderThickness="1" CornerRadius="18">
+              <Border BorderThickness="1">
                 <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
               </Border>
             </Grid>
             <ControlTemplate.Triggers>
               <Trigger Property="AcceptsReturn" Value="True">
                 <Setter TargetName="B" Property="CornerRadius" Value="12"/>
+                <Setter TargetName="H" Property="CornerRadius" Value="11"/>
+                <Setter TargetName="F" Property="CornerRadius" Value="12"/>
                 <Setter TargetName="Halo" Property="CornerRadius" Value="15"/>
                 <Setter TargetName="PART_ContentHost" Property="VerticalAlignment" Value="Stretch"/>
               </Trigger>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource CtlH}"/>
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
               </Trigger>
               <Trigger Property="IsKeyboardFocused" Value="True">
-                <Setter TargetName="B" Property="Background" Value="{DynamicResource InFocus}"/>
-                <Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource Acc}"/>
-                <Setter TargetName="Halo" Property="Visibility" Value="Visible"/>
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="F" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                      <DoubleAnimation Storyboard.TargetName="Halo" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="F" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                      <DoubleAnimation Storyboard.TargetName="Halo" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -362,7 +696,7 @@
       </Setter>
     </Style>
 
-    <!-- Thin rounded scrollbar thumb, as WinUI's at rest. -->
+    <!-- Thin rounded scrollbar thumb, as WinUI's at rest; it widens and brightens while the mouse is over the bar. -->
     <Style TargetType="ScrollBar">
       <Setter Property="Width" Value="12"/>
       <Setter Property="Background" Value="Transparent"/>
@@ -375,13 +709,28 @@
                 <Thumb>
                   <Thumb.Template>
                     <ControlTemplate TargetType="Thumb">
-                      <Border x:Name="T" Background="{DynamicResource Line}" CornerRadius="3" Width="6" Margin="0,4" Opacity="0.6"/>
+                      <Border x:Name="T" Background="{DynamicResource Line}" CornerRadius="3" Width="6" Margin="0,4" Opacity="0.6" RenderTransformOrigin="0.5,0.5">
+                        <Border.RenderTransform><ScaleTransform/></Border.RenderTransform>
+                      </Border>
                       <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                          <Setter TargetName="T" Property="Width" Value="8"/>
-                          <Setter TargetName="T" Property="CornerRadius" Value="4"/>
-                          <Setter TargetName="T" Property="Opacity" Value="1"/>
-                        </Trigger>
+                        <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ScrollBar}}" Value="True">
+                          <DataTrigger.EnterActions>
+                            <BeginStoryboard>
+                              <Storyboard>
+                                <DoubleAnimation Storyboard.TargetName="T" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                                <DoubleAnimation Storyboard.TargetName="T" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1.34" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
+                              </Storyboard>
+                            </BeginStoryboard>
+                          </DataTrigger.EnterActions>
+                          <DataTrigger.ExitActions>
+                            <BeginStoryboard>
+                              <Storyboard>
+                                <DoubleAnimation Storyboard.TargetName="T" Storyboard.TargetProperty="Opacity" To="0.6" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
+                                <DoubleAnimation Storyboard.TargetName="T" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
+                              </Storyboard>
+                            </BeginStoryboard>
+                          </DataTrigger.ExitActions>
+                        </DataTrigger>
                       </ControlTemplate.Triggers>
                     </ControlTemplate>
                   </Thumb.Template>
@@ -394,15 +743,34 @@
       </Setter>
     </Style>
 
+    <!-- Tooltip: fades in when it opens. -->
     <Style TargetType="ToolTip">
       <Setter Property="Foreground" Value="{DynamicResource TipT}"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="ToolTip">
             <!-- inverted: paper on black in dark, ink on paper in light -->
-            <Border Background="{DynamicResource Tip}" BorderBrush="{DynamicResource TipBd}" BorderThickness="1" CornerRadius="8" Padding="10,6,10,7">
+            <Border x:Name="T" Background="{DynamicResource Tip}" BorderBrush="{DynamicResource TipBd}" BorderThickness="1" CornerRadius="8" Padding="10,6,10,7">
               <ContentPresenter/>
             </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsOpen" Value="True">
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="T" Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="T" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
+              </Trigger>
+            </ControlTemplate.Triggers>
           </ControlTemplate>
         </Setter.Value>
       </Setter>
@@ -620,7 +988,8 @@
         <Border x:Name="StatusBar" Width="160" Height="4" Margin="12,0,0,0" CornerRadius="2" VerticalAlignment="Center"
                 Background="{DynamicResource Track}" ClipToBounds="True" Visibility="Collapsed">
           <Grid>
-          <Rectangle x:Name="StatusFill" Width="0" HorizontalAlignment="Left" Fill="{DynamicResource Acc}" RadiusX="2" RadiusY="2" Visibility="Collapsed"/>
+          <!-- full width, its width scale = the share done (Start-AkariMotion Fill, from the left) -->
+          <Rectangle x:Name="StatusFill" RenderTransformOrigin="0,0.5" Fill="{DynamicResource Acc}" RadiusX="2" RadiusY="2" Visibility="Collapsed"/>
           <Rectangle x:Name="StatusLoop" Width="56" HorizontalAlignment="Left" Fill="{DynamicResource Acc}" RadiusX="2" RadiusY="2">
             <Rectangle.RenderTransform><TranslateTransform/></Rectangle.RenderTransform>
             <Rectangle.Triggers>

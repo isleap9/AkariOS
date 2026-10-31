@@ -89,12 +89,15 @@ Each step ends with tests green (`tests\Run.ps1`) and a VM check by the user (ru
 ### 3. Shell (`MainWindow.xaml`)
 - `Btn`, `BtnP`, `Ghost`, `Cap`, `CapX`, `Chip`, `MenuItem`: hover layer fade, press scale (not on caption buttons:
   Windows' own don't).
-- `Tab`: a single crimson indicator under the tabs slides to the checked one (`Update-AkariTopBar` moves it); hover
-  fades.
+- `Tab`: the old tab's crimson tint fades out as the new one's fades in; hover and press fade. (A pill that slides
+  between tabs needs code that follows the tabs' widths as the window resizes: step 7, if time allows.)
 - `Flat`: the focus stroke and `AccSoft` halo fade in.
-- `ContextMenu`, the options menu, `ToolTip`: `PopupAnimation="Fade"` (tooltips after the system delay).
-- `ScrollBar`: thumb thin by default, widens on hover over the bar (Windows 11 style).
-- Status bar: progress fills with easing (`Set-AkariStatusProgress` animates the width) instead of jumping.
+- `ContextMenu` (Quick select, the options menu): fades in and drops 6 px into place; `ToolTip` fades in.
+- `ScrollBar`: thumb thin by default, widens and brightens while the mouse is over the bar (Windows 11 style).
+- Status bar: progress glides (`Set-AkariStatusProgress`: the fill is full width, `Start-AkariMotion Fill` scales it
+  from the left) instead of jumping.
+- Done (2026-10-31): `Btn`, `BtnP` (glow on its own cached layer), `Ghost`, `Cap`, `CapX`, `Tab`, `Chip`, `Flat`,
+  `MenuItem`, `ContextMenu`, `ScrollBar`, `ToolTip`, the progress fill. Test as step 2's.
 
 ### 4. Pages and dialogs
 - Page change: the page surface fades and rises 10 px (`Motion.Slow`) after `Show-Page` builds it; the header text
@@ -126,6 +129,7 @@ Each step ends with tests green (`tests\Run.ps1`) and a VM check by the user (ru
 ### 7. Finish
 - Pass on every page in both themes, light and dark, with motion on and off; fix anything that flickers, jumps or
   leaves a control half-animated after a theme swap.
+- Optional: a tab pill that slides between tabs (step 3).
 - CREDITS.md if any technique is taken from another project. Release notes.
 
 ## Not in this plan

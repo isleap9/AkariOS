@@ -2,7 +2,7 @@
 # into every file it parses (Get-AkariXaml), and Start-AkariMotion, the only code that starts an animation.
 # Dot-sourced first of the UI files by Akari.ps1. Pure helpers first (tests dot-source this file).
 
-$AkariMotionKinds = @('Fade', 'Rise', 'Pop', 'Scale', 'Slide')
+$AkariMotionKinds = @('Fade', 'Rise', 'Pop', 'Scale', 'Slide', 'Fill')
 
 # Motion.xaml's entries (the text between its root tags); $On = $false writes every Duration as 0:0:0
 function Get-AkariMotionEntries([string]$MotionXaml, [bool]$On = $true) {
@@ -29,7 +29,8 @@ function Test-AkariMotionOn {
 }
 
 # what Start-AkariMotion animates for a kind: @{ Property = Opacity|ScaleX|ScaleY|X|Y; From; To }
-# (Fade: opacity; Rise: opacity and Y from 10 px below; Pop: opacity and scale from 0.96; Scale / Slide: scale or X only)
+# (Fade: opacity; Rise: opacity and Y from 10 px below; Pop: opacity and scale from 0.96; Scale / Slide: scale or X only;
+# Fill: the width scale alone, a bar that grows from its RenderTransformOrigin)
 function Get-AkariMotionPlan([string]$Kind, $From = $null, $To = $null) {
     switch ($Kind) {
         'Fade'  { @(@{ Property = 'Opacity'; From = $(if ($null -ne $From) { $From } else { 0 }); To = $(if ($null -ne $To) { $To } else { 1 }) }) }
@@ -39,6 +40,7 @@ function Get-AkariMotionPlan([string]$Kind, $From = $null, $To = $null) {
         'Scale' { $t = if ($null -ne $To) { $To } else { 1 }
                   @(@{ Property = 'ScaleX'; From = $From; To = $t }, @{ Property = 'ScaleY'; From = $From; To = $t }) }
         'Slide' { @(@{ Property = 'X'; From = $From; To = $(if ($null -ne $To) { $To } else { 0 }) }) }
+        'Fill'  { @(@{ Property = 'ScaleX'; From = $From; To = $(if ($null -ne $To) { $To } else { 1 }) }) }
         default { throw "Unknown motion kind '$Kind' (one of $($AkariMotionKinds -join ', '))" }
     }
 }
@@ -59,7 +61,7 @@ function Get-AkariXaml([string]$Path) {
 }
 
 # the element's TransformGroup holding Akari's ScaleTransform and TranslateTransform (made once, around any transform
-# it already had, centred)
+# it already had; centred unless the element names its own RenderTransformOrigin)
 function Get-AkariMotionTransform($Element) {
     $g = $Element.RenderTransform
     if ($g -is [Windows.Media.TransformGroup] -and $g.Children.Count -ge 2 -and $g.Children[-2] -is [Windows.Media.ScaleTransform] -and
@@ -68,7 +70,7 @@ function Get-AkariMotionTransform($Element) {
     if ($g -and -not $g.Value.IsIdentity) { $n.Children.Add($g) }
     $n.Children.Add([Windows.Media.ScaleTransform]::new())
     $n.Children.Add([Windows.Media.TranslateTransform]::new())
-    $Element.RenderTransformOrigin = [Windows.Point]::new(0.5, 0.5)
+    if ($Element.RenderTransformOrigin -eq [Windows.Point]::new(0, 0)) { $Element.RenderTransformOrigin = [Windows.Point]::new(0.5, 0.5) }
     $Element.RenderTransform = $n
     $n
 }

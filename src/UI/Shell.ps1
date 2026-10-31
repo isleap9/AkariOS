@@ -269,9 +269,12 @@ function Get-AkariProgressText([string]$Label, $Shared) {
 function Set-AkariStatusProgress($Shared) {
     $on = ($Shared -and $Shared.Total)
     $StatusLoop.Visibility = if ($on) { 'Collapsed' } else { 'Visible' }
+    # the fill glides to the share done; a bar that was hidden starts there
+    $was = $StatusFill.Visibility -eq 'Visible'
     $StatusFill.Visibility = if ($on) { 'Visible' } else { 'Collapsed' }
     if ($on) {
-        $StatusFill.Width = $StatusBar.Width * [Math]::Min(1, [double]$Shared.Done / [double]$Shared.Total)
+        $share = [Math]::Min(1, [double]$Shared.Done / [double]$Shared.Total)
+        Start-AkariMotion $StatusFill Fill $(if ($was) { $null } else { $share }) $share -Speed Slow
         $StatusText.Text = Get-AkariProgressText $script:BusyLabel $Shared
     }
 }
