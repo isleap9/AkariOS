@@ -76,7 +76,7 @@ commit, export with max compression; `boot.wim` index 2 gets the requirement byp
    compression, oscdimg + ADK, leftover cleanup. Tests mock every wrapper and check the plan and the call order.
 2. **Options and removals** (done 2026-10-31): the ten options as data, app / feature / capability / package removal, AkariOS copy,
    answer file at the root.
-3. **Downloads**: UUP Dump (API mocked, converter mocked) and the Massgrave catalogue (parser on a fixture).
+3. **Downloads** (done 2026-10-31): UUP Dump (API mocked, converter mocked) and the Massgrave catalogue (parser on a fixture).
 4. **The page**: tab, Home tile, `$Pages` entry, the sections, background reads, the build job and its result.
 5. **The VM**: a 25H2 Pro build from UUP Dump, an IoT LTSC 2024 ISO from Massgrave, each with a few option sets,
    installed in a VM.
