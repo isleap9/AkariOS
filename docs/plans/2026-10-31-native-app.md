@@ -154,6 +154,9 @@ The engine of `src/Core` for Toggles, Choices and Actions without the GUI. TDD, 
    when made under test). Checked against `Core\Registry.ps1` on the same rows in one test key: each app reads what
    the other wrote as the same State. Not tested here, only on the VM: the real user's SID and TrustedInstaller.
 5. **State**: Optimized / Default / Custom / Unknown, a Choice's value, a behaviour's Detect; remembered State.
+   Done 2026-10-31 (`AkariOS.Core/Tweaks/States.cs`): Get-AkariState's order, the C# side of a Tweak (`ITweakCode`:
+   `Detect`, `ChoiceValue`, `Rows`), `state.json` in the PowerShell app's format. A Tweak whose C# is missing reads
+   Unknown.
 6. **System**: OS build, edition, chassis, GPUs (`Requires`), Explorer restart.
 7. **Runner**: `Run(items) → Outcome[]` (Requires → Skipped, Already, Failed with the message, PC restarts last,
    Explorer once at the end, progress events), `Log` (`akari.log`), restore point (`IRestorePoint`: WMI
