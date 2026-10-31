@@ -13,7 +13,8 @@ iwr 'https://github.com/isleap9/AkariOS/releases/latest/download/Akari.ps1' -use
 ```
 
 It asks for administrator rights, downloads the latest release, checks it against its SHA-256, installs it to
-`C:\AkariOS`, adds AkariOS to the Start menu and starts it. Run the line again any time to get the latest version.
+`C:\AkariOS`, adds AkariOS to the Start menu and the desktop and starts it. Run the line again any time to get the
+latest version.
 
 Or download `AkariOS-<version>.zip` from [Releases](https://github.com/isleap9/AkariOS/releases), unpack it anywhere
 and run `AkariOS.exe`.
@@ -40,6 +41,9 @@ PC you can reinstall, ideally a fresh install, the first time.
   removed.
 - **Unattend Generator**: an `autounattend.xml` for a Windows install USB (accounts, language, edition, disk, bloatware), after
   Christoph Schneegans' generator.
+- **ISO Builder**: your own Windows 11 ISO, after zoicware's zISO Tweaker: apps and features removed, updates, Defender,
+  telemetry and Windows AI your way, an answer file and AkariOS built in. It can download the ISO too (UUP Dump for
+  23H2 to 26H2 in any language and edition, Massgrave for LTSC and IoT LTSC).
 - **Import / Export settings**: save this PC's settings to a file and load them on another PC, reviewed in Guided
   before anything changes.
 
@@ -65,8 +69,8 @@ From an elevated PowerShell in the AkariOS folder:
 
 ## Credits and license
 
-AkariOS builds on FR33THY's Ultimate and WinSux, ZOICWARE, Win11Debloat, Christoph Schneegans' unattend generator and
-others: see [CREDITS.md](CREDITS.md) for each tweak's source. MIT license: [LICENSE](LICENSE).
+AkariOS builds on FR33THY's Ultimate and WinSux, ZOICWARE and zISO Tweaker, Win11Debloat, Christoph Schneegans' unattend
+generator and others: see [CREDITS.md](CREDITS.md) for each tweak's source. MIT license: [LICENSE](LICENSE).
 
 ## Development
 

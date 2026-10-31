@@ -59,6 +59,13 @@ Describe 'Bootstrap (the one-liner)' {
         Test-Path "$dir\stale.txt" | Should Be $false
         Test-Path "$dir.old" | Should Be $false
     }
+    It 'puts AkariOS in every user''s Start menu and on the Public desktop' {
+        $p = Get-AkariBootShortcutPaths
+        $p.Count | Should Be 2
+        $p[0] | Should Be (Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs\AkariOS.lnk')
+        $p[1] | Should Be (Join-Path ([Environment]::GetFolderPath('CommonDesktopDirectory')) 'AkariOS.lnk')
+        $p[1] | Should Match '\\Users\\Public\\Desktop\\AkariOS\.lnk$'
+    }
 }
 
 Describe 'AkariOS.exe (build\Launcher.cs)' {

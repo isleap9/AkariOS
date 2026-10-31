@@ -57,14 +57,24 @@ function Install-AkariBootApp([string]$Version, [string]$Sha256, [string]$Dir) {
     $exe
 }
 
-# the Start menu shortcut for every user (tests mock it)
+# where the shortcuts go, for every user: the Start menu and the Public desktop (not the elevated account's own
+# desktop, which may not be the user's)
+function Get-AkariBootShortcutPaths {
+    @(
+        (Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs\AkariOS.lnk')
+        (Join-Path ([Environment]::GetFolderPath('CommonDesktopDirectory')) 'AkariOS.lnk')
+    )
+}
+
+# the Start menu and desktop shortcuts (tests mock it)
 function New-AkariBootShortcut([string]$Exe) {
-    $lnk = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs\AkariOS.lnk'
-    $s = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
-    $s.TargetPath = $Exe
-    $s.WorkingDirectory = Split-Path $Exe
-    $s.Description = 'AkariOS'
-    $s.Save()
+    foreach ($lnk in Get-AkariBootShortcutPaths) {
+        $s = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
+        $s.TargetPath = $Exe
+        $s.WorkingDirectory = Split-Path $Exe
+        $s.Description = 'AkariOS'
+        $s.Save()
+    }
 }
 
 if (-not $AkariBootNoRun) {
@@ -79,7 +89,7 @@ if (-not $AkariBootNoRun) {
         else {
             Write-Host "Installing AkariOS $AkariBootVersion to $env:SystemDrive\AkariOS..."
             $exe = Install-AkariBootApp $AkariBootVersion $AkariBootSha256 "$env:SystemDrive\AkariOS"
-            try { New-AkariBootShortcut $exe } catch { Write-Host "No Start menu shortcut: $($_.Exception.Message)" }
+            try { New-AkariBootShortcut $exe } catch { Write-Host "No Start menu or desktop shortcut: $($_.Exception.Message)" }
             # 1.0.0's one-liner unpacked AkariOS here; it is not used any more
             Remove-Item -LiteralPath "$env:LOCALAPPDATA\Akari\app" -Recurse -Force -ErrorAction SilentlyContinue
             Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe)
