@@ -106,9 +106,14 @@ Each step ends with tests green (`tests\Run.ps1`) and a VM check by the user (ru
   appear at once (no long waits on big pages).
 - Guided steps: Next / Back slide the step left / right.
 - Home: the mode cards stagger in on first show; the stats count up when they arrive (`Complete-AkariHomeStats`).
-- Dialogs (`Dialog.xaml`): the card fades and scales 0.96 → 1, the `ModalOverlay` dim fades; closing reverses before
-  the window closes.
-- The update bar, Catalogue restart / Safe Mode bars: slide down when they appear instead of popping in.
+- Dialogs (`Dialog.xaml`): the card fades and scales 0.96 → 1, the `ModalOverlay` dim fades in and out. The card
+  itself closes at once (animating it out would hold the window open after Enter / Esc).
+- The update bar, Catalogue restart / Safe Mode bars: slide into place when they appear instead of popping in.
+- Done (2026-10-31): `Start-AkariEntrance` (hidden now, played at Loaded priority, shown at once if it fails),
+  `Start-AkariStagger`, `Show-` / `Hide-AkariElement`, `Start-AkariCount` in `Motion.ps1`; `Show-Page` decides a
+  page is new (`$script:PageMoved`: another page, or the search starting / ending; typing only refreshes);
+  `Show-AkariSteps` slides by the step's direction. The Shell navigation test runs with motion off; the helpers have
+  their own test with motion on and off.
 
 ### 5. Smooth scrolling
 - The page `ScrollViewer`s scroll by an eased offset instead of jumping per wheel notch: `Enable-AkariSmoothScroll

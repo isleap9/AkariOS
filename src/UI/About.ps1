@@ -271,7 +271,7 @@ function Complete-AkariUpdateCheck($Release, [bool]$Manual) {
     Add-Log "Update check: $($s.Message)"
     $found = $s.Kind -in 'Available', 'Blocked'
     $UpdateText.Text = $s.Message
-    $UpdateBar.Visibility = if ($found) { 'Visible' } else { 'Collapsed' }
+    if ($found) { Show-AkariElement $UpdateBar } else { $UpdateBar.Visibility = 'Collapsed' }
     if ($script:Cat -eq 'About') { Update-AkariAboutUpdate }
     if (-not $Manual -and $s.Kind -eq 'Available' -and $script:Cat -eq 'Home' -and -not $Search.Text) { Show-AkariUpdatePrompt $s }
 }

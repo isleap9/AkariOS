@@ -213,6 +213,8 @@ function Show-AkariCataloguePage([string]$Query) {
     }
     Start-AkariCatalogueStates $list
     Update-AkariCatalogueBars
+    # a new page: its first cards come in one after another (Show-Page decides it is new)
+    if ($script:PageMoved) { Start-AkariStagger $Rows.Children }
 }
 
 # ---- States, read in the background
@@ -395,10 +397,11 @@ foreach ($x in $script:RestartBar.Explorer, $script:RestartBar.Reboot) { [void]$
 function Update-AkariCatalogueBars {
     $on = ($script:Cat -like "$AkariCataloguePrefix*")
     $n = $script:SafePending.Count
-    $script:SafeBar.Bar.Visibility = if ($on -and $n) { 'Visible' } else { 'Collapsed' }
+    # a bar that appears rises into place (Show-AkariElement)
+    if ($on -and $n) { Show-AkariElement $script:SafeBar.Bar 8 } else { $script:SafeBar.Bar.Visibility = 'Collapsed' }
     $script:SafeBar.Text.Text = "$n change$(if ($n -ne 1) { 's' }) need$(if ($n -eq 1) { 's' }) Safe Mode: Akari restarts into it, applies them and restarts back."
     $lines = @(Get-AkariRestartBarText $script:CatExplorer.Count $script:CatReboot.Count)
-    $script:RestartBar.Bar.Visibility = if ($on -and $lines.Count) { 'Visible' } else { 'Collapsed' }
+    if ($on -and $lines.Count) { Show-AkariElement $script:RestartBar.Bar 8 } else { $script:RestartBar.Bar.Visibility = 'Collapsed' }
     $script:RestartBar.Text.Text = $lines -join "`n"
     $script:RestartBar.Explorer.Visibility = if ($script:CatExplorer.Count) { 'Visible' } else { 'Collapsed' }
     $script:RestartBar.Reboot.Visibility = if ($script:CatReboot.Count) { 'Visible' } else { 'Collapsed' }

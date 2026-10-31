@@ -60,8 +60,10 @@ function New-AkariDialog([string]$Message, [string]$Title = 'AkariOS', [string[]
 function Invoke-AkariDialog($Dialog) {
     $overlay = if ($window) { $window.FindName('ModalOverlay') } else { $null }
     if ($window -and $window.IsVisible) { $Dialog.Owner = $window } else { $Dialog.WindowStartupLocation = 'CenterScreen' }
-    if ($overlay) { $overlay.Visibility = 'Visible' }
-    try { [void]$Dialog.ShowDialog() } finally { if ($overlay) { $overlay.Visibility = 'Collapsed' } }
+    # the dim fades in and out; the card pops in (fades and grows from 0.96) once the dialog has loaded
+    if ($overlay) { Show-AkariElement $overlay $null 'Fast' }
+    $Dialog.Add_Loaded({ param($s, $e) Start-AkariMotion $s.Content Pop -Speed Slow })
+    try { [void]$Dialog.ShowDialog() } finally { if ($overlay) { Hide-AkariElement $overlay } }
     $Dialog.Tag.Result
 }
 

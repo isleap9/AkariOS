@@ -107,3 +107,101 @@ function Start-AkariMotion($Element, [string]$Kind, $From = $null, $To = $null, 
         $target.BeginAnimation($dp, $a)
     }
 }
+
+# an element that comes in once it is built: hidden now, its entrance played when the dispatcher reaches Loaded
+# priority (after the build and the first layout, so the first frame shows the start, not a half-built page). Kind:
+# Rise, Fade, Pop, or Slide (a fade plus a slide from -From px). If the entrance fails the element is shown at once;
+# motion off = nothing is hidden or played.
+function Start-AkariEntrance($Element, [string]$Kind = 'Rise', $From = $null, [string]$Speed = 'Slow', [TimeSpan]$Delay = [TimeSpan]::Zero) {
+    if (-not $Element -or -not $script:AkariMotionOn) { return }
+    $Element.BeginAnimation([Windows.UIElement]::OpacityProperty, $null)
+    $Element.Opacity = 0
+    $state = @{ Element = $Element; Kind = $Kind; From = $From; Speed = $Speed; Delay = $Delay }
+    [void]$Element.Dispatcher.BeginInvoke([Windows.Threading.DispatcherPriority]::Loaded, [Action[object]]{
+        param($s)
+        try {
+            if ($s.Kind -eq 'Slide') {
+                Start-AkariMotion $s.Element Fade -Speed $s.Speed -Delay $s.Delay
+                Start-AkariMotion $s.Element Slide $s.From 0 -Speed $s.Speed -Delay $s.Delay
+            } else { Start-AkariMotion $s.Element $s.Kind $s.From -Speed $s.Speed -Delay $s.Delay }
+        } catch { $s.Element.Opacity = 1 }
+    }, $state)
+}
+
+# the first $Max elements come in one after another, Motion.Stagger apart (the rest at once): cards on a page
+function Start-AkariStagger($Elements, [int]$Max = 12, [string]$Kind = 'Rise', $From = 8) {
+    if (-not $script:AkariMotionOn) { return }
+    $gap = $AkariMotion['Motion.Stagger'].TimeSpan
+    $n = 0
+    foreach ($e in @($Elements)) {
+        if ($n -ge $Max) { break }
+        if ($e -isnot [Windows.UIElement] -or $e.Visibility -ne 'Visible') { continue }
+        Start-AkariEntrance $e $Kind $From -Delay ([TimeSpan]::FromTicks($gap.Ticks * $n))
+        $n++
+    }
+}
+
+# a bar or overlay that appears: made Visible and played in (Rise from $From px, or Fade with $From = $null) only when
+# it was not visible; a hide still pending on it is called off
+$script:AkariHiding = @{}
+function Show-AkariElement($Element, $From = -8, [string]$Speed = 'Base') {
+    if (-not $Element) { return }
+    $k = $Element.GetHashCode()
+    if ($script:AkariHiding[$k]) { $script:AkariHiding[$k].Stop(); $script:AkariHiding.Remove($k); $Element.IsHitTestVisible = $true; $Element.Visibility = 'Hidden' }
+    if ($Element.Visibility -eq 'Visible') { return }
+    $Element.Visibility = 'Visible'
+    if ($null -eq $From) { Start-AkariMotion $Element Fade -Speed $Speed } else { Start-AkariMotion $Element Rise $From -Speed $Speed }
+}
+
+# fades an element out, then collapses it; it stops taking clicks at once. Motion off = collapsed at once
+function Hide-AkariElement($Element, [string]$Speed = 'Fast') {
+    if (-not $Element -or $Element.Visibility -ne 'Visible') { return }
+    $k = $Element.GetHashCode()
+    if ($script:AkariHiding[$k]) { return }
+    if (-not $script:AkariMotionOn) { $Element.Visibility = 'Collapsed'; return }
+    $Element.IsHitTestVisible = $false
+    Start-AkariMotion $Element Fade $Element.Opacity 0 -Speed $Speed
+    $tm = [Windows.Threading.DispatcherTimer]::new()
+    $tm.Interval = $AkariMotion["Motion.$Speed"].TimeSpan
+    $tm.Tag = @{ Element = $Element; Key = $k }
+    $script:AkariHiding[$k] = $tm
+    $tm.Add_Tick({
+        param($s, $e)
+        $s.Stop()
+        $x = $s.Tag
+        $script:AkariHiding.Remove($x.Key)
+        $x.Element.Visibility = 'Collapsed'; $x.Element.Opacity = 1; $x.Element.IsHitTestVisible = $true
+    })
+    $tm.Start()
+}
+
+# a number at time $T (0..1) of a count from $From to $To, eased out (cubic): Start-AkariCount's steps
+function Get-AkariCountValue([double]$From, [double]$To, [double]$T) {
+    $T = [Math]::Max([double]0, [Math]::Min([double]1, $T))
+    [Math]::Round($From + ($To - $From) * (1 - [Math]::Pow(1 - $T, 3)))
+}
+
+# a TextBlock's number counts up (or down) to $Value over two Motion.Slow, from the number it shows (0 if none),
+# formatted with $Format; motion off = the number at once
+$script:AkariCounts = @{}
+function Start-AkariCount($Text, [int]$Value, [string]$Format = '{0:N0}') {
+    if (-not $Text) { return }
+    $k = $Text.GetHashCode()
+    if ($script:AkariCounts[$k]) { $script:AkariCounts[$k].Stop(); $script:AkariCounts.Remove($k) }
+    $from = 0
+    [void][int]::TryParse(($Text.Text -replace '[^\d]', ''), [ref]$from)
+    if (-not $script:AkariMotionOn -or $from -eq $Value) { $Text.Text = $Format -f $Value; return }
+    $tm = [Windows.Threading.DispatcherTimer]::new([Windows.Threading.DispatcherPriority]::Render)
+    $tm.Interval = [TimeSpan]::FromMilliseconds(16)
+    $tm.Tag = @{ Text = $Text; Key = $k; From = $from; To = $Value; Format = $Format; Start = [DateTime]::UtcNow
+                 Length = 2 * $AkariMotion['Motion.Slow'].TimeSpan.TotalMilliseconds }
+    $script:AkariCounts[$k] = $tm
+    $tm.Add_Tick({
+        param($s, $e)
+        $c = $s.Tag
+        $t = ([DateTime]::UtcNow - $c.Start).TotalMilliseconds / $c.Length
+        $c.Text.Text = $c.Format -f [int](Get-AkariCountValue $c.From $c.To $t)
+        if ($t -ge 1) { $s.Stop(); $script:AkariCounts.Remove($c.Key) }
+    })
+    $tm.Start()
+}

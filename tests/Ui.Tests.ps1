@@ -311,6 +311,49 @@ $r -join '|'
         }
     }
 
+    It 'counts eased out: fast first, exactly the value at the end' {
+        Get-AkariCountValue 0 100 0 | Should Be 0
+        Get-AkariCountValue 0 100 0.5 | Should Be 88
+        Get-AkariCountValue 0 100 1 | Should Be 100
+        Get-AkariCountValue 0 100 3 | Should Be 100
+        Get-AkariCountValue 50 10 1 | Should Be 10
+    }
+
+    It 'entrances, staggers, shown / hidden bars and counts play once built, and end visible and exact' {
+        $probe = "$TestDrive\entrance.ps1"
+        Set-Content $probe -Value @'
+param($Root, $Motion)
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName PresentationFramework
+$env:AKARI_MOTION = $Motion; . "$Root\UI\Motion.ps1"
+function Wait-Ms($ms) { $fr = [Windows.Threading.DispatcherFrame]::new(); $t = [Windows.Threading.DispatcherTimer]::new(); $t.Interval = [TimeSpan]::FromMilliseconds($ms)
+    $t.add_Tick({ $t.Stop(); $fr.Continue = $false }.GetNewClosure()); $t.Start(); [Windows.Threading.Dispatcher]::PushFrame($fr) }
+$page = [Windows.Controls.StackPanel]::new()
+$cards = foreach ($i in 1..14) { $b = [Windows.Controls.Border]@{ Height = 10 }; [void]$page.Children.Add($b); $b }
+Start-AkariEntrance $page Rise
+$hidden = $page.Opacity
+Start-AkariStagger $page.Children
+$waiting = @($cards | Where-Object { $_.Opacity -eq 0 }).Count
+$bar = [Windows.Controls.Border]@{ Visibility = 'Collapsed' }
+Show-AkariElement $bar
+$shown = $bar.Visibility
+$tx = [Windows.Controls.TextBlock]@{ Text = '-' }
+Start-AkariCount $tx 1234
+Wait-Ms 900
+$r = @("page $hidden>$($page.Opacity)", "stagger $waiting>$(@($cards | Where-Object { $_.Opacity -ne 1 }).Count)", "bar $shown")
+Hide-AkariElement $bar
+$r += "hiding $($bar.IsHitTestVisible)"
+Wait-Ms 400
+$r += "hidden $($bar.Visibility) $($bar.Opacity) $($bar.IsHitTestVisible)"
+$r += "count $($tx.Text)"
+$r -join '|'
+'@
+        $out = @(& powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -Motion on 2>&1 | ForEach-Object { "$_" }) -join "`n"
+        $out | Should Be ('page 0>1|stagger 12>0|bar Visible|hiding False|hidden Collapsed 1 True|count ' + ('{0:N0}' -f 1234))
+        $out = @(& powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -Motion off 2>&1 | ForEach-Object { "$_" }) -join "`n"
+        $out | Should Be ('page 1>1|stagger 0>0|bar Visible|hiding True|hidden Collapsed 1 True|count ' + ('{0:N0}' -f 1234))
+    }
+
     It 'MainWindow.xaml''s styles animate their states too (buttons, tabs, chips, text box, menu row, scroll bar, progress fill)' {
         $probe = "$TestDrive\shellstyles.ps1"
         Set-Content $probe -Value @'
@@ -481,6 +524,8 @@ Describe 'Shell navigation' {
 param($Root, $LogFile, $Install)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework
+# navigation, not motion: values land at once (no dispatcher runs here to play animations)
+$env:AKARI_MOTION = 'off'
 $AkariLogFile = $LogFile
 $AkariPresetDir = Join-Path (Split-Path $LogFile) 'presets'
 foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'Restore', 'Version', 'Update', 'Unattend', 'Presets', 'Iso', 'IsoDownload') { . "$Root\Core\$f.ps1" }

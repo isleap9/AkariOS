@@ -197,6 +197,14 @@ function Show-Page {
     # About, Unattend Generator and ISO Builder: full pages, Back leads home
     $onAbout = (-not $q -and $script:Cat -in 'About', 'Unattend Generator', 'ISO Builder')
     $CatBars.Visibility = 'Collapsed'
+    # a new page (or the search starting / ending) comes in once built: the surface rises, the header fades in; typing
+    # in the search only refreshes the results
+    $script:PageMoved = ("$($script:Cat)|$([bool]$q)" -ne $script:PageMotionKey)
+    if ($script:PageMoved) {
+        $script:PageMotionKey = "$($script:Cat)|$([bool]$q)"
+        Start-AkariEntrance $Page Rise
+        Start-AkariEntrance $PageHeader Fade -Speed Base
+    }
     # Home: the hero is the title
     $PageHeader.Visibility = if (-not $q -and $script:Cat -eq 'Home') { 'Collapsed' } else { 'Visible' }
     Update-AkariTopBar
@@ -217,7 +225,11 @@ function Show-Page {
         return
     }
     $onHome = (-not $q -and $script:Cat -eq 'Home')
-    if ($onHome) { Start-AkariHomeStats }
+    if ($onHome) {
+        Start-AkariHomeStats
+        # the mode cards come in one after another the first time Home is shown
+        if (-not $script:HomeShown) { $script:HomeShown = $true; Start-AkariStagger $HomeTiles.Children }
+    }
     $Rows.Children.Clear()
     if ($q) {
         $Heading.Text = 'Search'
@@ -242,6 +254,7 @@ function Show-Page {
         $msg.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, 'Mu')
         [void]$Rows.Children.Add($msg)
     }
+    if ($script:PageMoved) { Start-AkariStagger $Rows.Children }
 }
 
 # ---- running actions in a background runspace
@@ -523,7 +536,9 @@ foreach ($s in @(@('Tweaks', 'Tweaks'), @('Apps', 'Removable apps'), @('Applied'
 # $Stats: @{ Tweaks; Apps; Applied }, each a count or $null (a dash: not read)
 function Set-AkariHomeStats($Stats) {
     foreach ($k in @($Stats.Keys)) {
-        if ($script:HomeStat[$k]) { $script:HomeStat[$k].Text = if ($null -eq $Stats[$k]) { [string][char]0x2014 } else { '{0:N0}' -f [int]$Stats[$k] } }
+        # a number counts up to its value (Start-AkariCount); unread = a dash
+        if (-not $script:HomeStat[$k]) { continue }
+        if ($null -eq $Stats[$k]) { $script:HomeStat[$k].Text = [string][char]0x2014 } else { Start-AkariCount $script:HomeStat[$k] ([int]$Stats[$k]) }
     }
 }
 

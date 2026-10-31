@@ -535,6 +535,14 @@ function Show-AkariSteps {
     # the Tweaks view is cached: detach it before the body is cleared, so it can be added again
     if ($script:TweaksView -and $script:TweaksView.Parent) { $script:TweaksView.Parent.Children.Remove($script:TweaksView) }
     if ($script:AppsView -and $script:AppsView.Parent) { $script:AppsView.Parent.Children.Remove($script:AppsView) }
+    # a new step comes in once built: from the right after Next, from the left after Back, a fade into another flow
+    $key = "$($script:Mode)|$($script:Step)"
+    if ($key -ne $script:StepMotionKey) {
+        $old = "$($script:StepMotionKey)".Split('|')
+        $script:StepMotionKey = $key
+        $dir = if ($old[0] -eq $script:Mode -and $old.Count -eq 2) { [Math]::Sign($script:Step - [int]$old[1]) } else { 0 }
+        if ($dir) { Start-AkariEntrance $StepBody Slide (32 * $dir) } else { Start-AkariEntrance $StepBody Fade -Speed Base }
+    }
     if ($script:Mode -eq 'Choose') { Show-AkariChooser; return }
     if ($StepFooter) { $StepFooter.Visibility = 'Visible' }
     # the stepper, centred in the footer between Back and Next: numbered steps, the current one crimson, done ones checked
