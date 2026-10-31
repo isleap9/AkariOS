@@ -87,7 +87,7 @@ Core APIs are the behaviour to match).
   fakes; no test touches a real service, task, package, feature or boot setting.
 - No code from Winhance (PolyForm Shield) or AkariOS-Companion. Credit upstream sources in `CREDITS.md`.
 - `bin/` and `obj/` git-ignored. Nullable on, warnings as errors.
-- Building needs the .NET 10 SDK on the developer's machine (not installed on 2026-10-31); tests run with
+- Building needs the .NET 10 SDK (installed 2026-10-31, 10.0.403); tests run with
   `dotnet test app\AkariOS.Native.sln`.
 
 ## Review Focus
@@ -106,7 +106,7 @@ Core APIs are the behaviour to match).
 
 ---
 
-## N0: Scaffold
+## N0: Scaffold (done 2026-10-31: 19 tests; .NET 10's `dotnet test` needs the Microsoft Testing Platform runner, set in `app/global.json`)
 
 **Files:** `app/AkariOS.Native.sln`, `app/Directory.Build.props`, `app/AkariOS.Core/`, `app/AkariOS.Tweaks/`,
 `app/AkariOS.App/` (`app.manifest`: `requireAdministrator`, PerMonitorV2, Windows 10 / 11 supportedOS),

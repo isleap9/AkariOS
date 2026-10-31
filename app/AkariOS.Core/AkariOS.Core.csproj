@@ -1,0 +1,12 @@
+<!-- The engine: reader, Loader, Registry, State, Runner, Presets, Runs in phases. No WPF, no Tweak logic. -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- What the engine reads from src/, embedded so the exe reads nothing next to it. Names keep the src/ path
+       (src/Tweaks/<Section>/<Category>/<file>); Legacy (src/Tweaks/*.ps1, Ported.psd1) is left out (ADR 0004). -->
+  <ItemGroup>
+    <EmbeddedResource Include="$(AkariSrc)Tweaks\*\**\*" LogicalName="src/Tweaks/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="$(AkariSrc)Presets\*.json" LogicalName="src/Presets/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="$(AkariSrc)OneClick\*" LogicalName="src/OneClick/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="$(AkariSrc)Core\Iso\Data\**\*" LogicalName="src/Core/Iso/Data/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="$(AkariSrc)UI\*.psd1" LogicalName="src/UI/%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

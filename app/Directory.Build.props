@@ -1,0 +1,22 @@
+<!-- Shared by every project in app/ (ADR 0007, plan docs/plans/2026-10-31-native-app.md). -->
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <!-- LibraryImport (P/Invoke source generator) needs it -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- the PowerShell app's folder: the native app reads its Tweaks, data lists, presets and look from there -->
+    <AkariSrc>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', 'src'))</AkariSrc>
+    <!-- one version for both apps: $AkariVersion in src/Core/Version.ps1 -->
+    <Version>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(AkariSrc)Core\Version.ps1')), "(?&lt;=AkariVersion = ')[^']+").Value)</Version>
+    <!-- the version as written, without a +commit suffix -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Product>AkariOS</Product>
+    <Company>AkariOS</Company>
+    <Copyright>AkariOS contributors, MIT</Copyright>
+  </PropertyGroup>
+</Project>

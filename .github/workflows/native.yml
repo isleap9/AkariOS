@@ -1,0 +1,41 @@
+# The native app (app/, ADR 0007): build and test on every push or pull request that touches it or the src/ files it
+# reads (Tweaks, data lists, presets, the shared XAML, Assets, the version). Keep the two path lists equal.
+name: Native
+
+on:
+  push:
+    paths:
+      - 'app/**'
+      - 'src/Tweaks/**'
+      - 'src/Presets/**'
+      - 'src/OneClick/**'
+      - 'src/Core/Iso/Data/**'
+      - 'src/Core/Version.ps1'
+      - 'src/UI/*.xaml'
+      - 'src/UI/*.psd1'
+      - 'src/Assets/**'
+      - '.github/workflows/native.yml'
+  pull_request:
+    paths:
+      - 'app/**'
+      - 'src/Tweaks/**'
+      - 'src/Presets/**'
+      - 'src/OneClick/**'
+      - 'src/Core/Iso/Data/**'
+      - 'src/Core/Version.ps1'
+      - 'src/UI/*.xaml'
+      - 'src/UI/*.psd1'
+      - 'src/Assets/**'
+      - '.github/workflows/native.yml'
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: app/global.json
+      - name: Test
+        working-directory: app
+        run: dotnet test --solution AkariOS.Native.sln -c Release

@@ -1,0 +1,23 @@
+<!-- The WPF app and the CLI: AkariOS-Native.exe (the PowerShell app's launcher is AkariOS.exe). -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>AkariOS-Native</AssemblyName>
+    <RootNamespace>AkariOS.App</RootNamespace>
+    <StartupObject>AkariOS.App.Program</StartupObject>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>$(AkariSrc)Assets\AkariLogo.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AkariOS.Core\AkariOS.Core.csproj" />
+    <ProjectReference Include="..\AkariOS.Tweaks\AkariOS.Tweaks.csproj" />
+  </ItemGroup>
+  <!-- The look shared with the PowerShell app (ADR 0006, 0007), loaded as it is through AkariXaml. -->
+  <ItemGroup>
+    <EmbeddedResource Include="$(AkariSrc)UI\Theme.Dark.xaml;$(AkariSrc)UI\Theme.Light.xaml;$(AkariSrc)UI\Icons.xaml;$(AkariSrc)UI\Motion.xaml;$(AkariSrc)UI\Controls.xaml;$(AkariSrc)UI\MainWindow.xaml" LogicalName="src/UI/%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+</Project>

@@ -1,2 +1,7 @@
 # local reference projects, never committed
 _ref/
+# the native app's build output (app/, ADR 0007)
+app/**/bin/
+app/**/obj/
+.vs/
+*.user

@@ -1,0 +1,8 @@
+<!-- N0: an empty window on the shared theme. The shell (top bar, tabs, pages) comes in N2. -->
+<Window x:Class="AkariOS.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="AkariOS" Width="1360" Height="800" WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource Bg}" Foreground="{DynamicResource Tx}">
+  <TextBlock x:Name="VersionText" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="20"/>
+</Window>

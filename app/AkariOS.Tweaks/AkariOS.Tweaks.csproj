@@ -1,0 +1,7 @@
+<!-- One C# class per src/Tweaks file that has script blocks, at <Section>/<Category>/<Name>.cs, registered under that
+     file's id; plus the data-list Group kinds. Metadata comes from the src/Tweaks file, never repeated here. -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\AkariOS.Core\AkariOS.Core.csproj" />
+  </ItemGroup>
+</Project>
