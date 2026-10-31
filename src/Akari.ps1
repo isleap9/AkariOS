@@ -89,11 +89,13 @@ foreach ($c in @($Root, (Split-Path -Parent $Root), "$Root\Tweaks")) {
     if ($c -and (Test-Path "$c\UI\MainWindow.xaml") -and (Test-Path "$c\Tweaks")) { $Root = $c; break }
 }
 # ---- Core: helpers, loader, state and runner (the background job loads the same files)
-foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Appx', 'Winget', 'AppSetup', 'Restore', 'System', 'Presets', 'Phases', 'Version', 'Update', 'Unattend') { . "$Root\Core\$f.ps1" }
+foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Appx', 'Winget', 'AppSetup', 'Restore', 'System', 'Presets', 'Phases', 'Version', 'Update', 'Unattend', 'Iso') { . "$Root\Core\$f.ps1" }
 # the folder an update replaces (the zip's folder, or C:\AkariOS from the one-liner); none when run through iex
 $AkariInstallDir = if ($PSScriptRoot) { $Root } else { '' }
 # after an update: the previous copy (<folder>.old) and the download folder go
 Remove-AkariUpdateLeftover $AkariInstallDir
+# an ISO Builder image left mounted (Akari closed or the PC lost power mid-build) is discarded
+Clear-AkariIsoLeftover
 # covers the whole script, the CLI / -Resume branches above too (a trap applies to its entire scope)
 trap { Write-AkariCrash $_ -Wait:$Resume; exit 1 }
 # remove 'downloaded from the internet' marks so Windows never nags about these files
