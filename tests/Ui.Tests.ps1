@@ -300,11 +300,15 @@ $r += "cat $((Part $cs 'Thumb').RenderTransform.Children[4].X)"
 $r += "check $((Part $ck 'Tick').Opacity) $((Part $ck 'Tick').RenderTransform.ScaleX)"
 $r += "radio $((Part $rd 'Dot').RenderTransform.ScaleX)"
 $i0 = $sg.ItemContainerGenerator.ContainerFromIndex(0); $i1 = $sg.ItemContainerGenerator.ContainerFromIndex(1)
-$r += "seg $((Part $i0 'S').Opacity) $((Part $i1 'S').Opacity)"
+# the segmented pill slid over the second segment, at its width; no pick = no pill
+$pill = Part $sg 'Pill'; $at = $i1.TranslatePoint([Windows.Point]::new(0, 0), $pill.Parent)
+$r += "seg $($pill.Visibility) $([Math]::Round($pill.RenderTransform.Children[-1].X - $at.X)) $([Math]::Round($pill.RenderTransform.Children[-1].Y - $at.Y)) $($pill.Width -eq $i1.ActualWidth) $($pill.Height -eq $i1.ActualHeight)"
+$sg.SelectedIndex = -1
+$r += "none $($pill.Visibility)"
 $r += "step $($sn.RenderTransform.ScaleX)"
 $r -join '|'
 '@
-        $want = 'on 20 0 1 1 On|null 0 10 0.8 0 Unchanged|cat 20|check 1 1|radio 1|seg 0 1|step 1'
+        $want = 'on 20 0 1 1 On|null 0 10 0.8 0 Unchanged|cat 20|check 1 1|radio 1|seg Visible 0 0 True True|none Hidden|step 1'
         foreach ($m in 'on', 'off') {
             $out = @(& powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -Motion $m 2>&1 | ForEach-Object { "$_" }) -join "`n"
             "$m $out" | Should Be "$m $want"

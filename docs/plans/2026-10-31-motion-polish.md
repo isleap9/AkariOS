@@ -74,8 +74,10 @@ Each step ends with tests green (`tests\Run.ps1`) and a VM check by the user (ru
   middle.
 - `Check`: the mark scales 0.6 → 1 and fades in; the fill layer fades. `Radio`: the dot scales from 0.
 - `Combo`: hover layer fades, the chevron rotates 180° while open; `ComboItem` highlight fades.
-- `Segmented` / `SegItem`: the old segment fades out as the new one fades in. (Done this way, not a sliding pill: the
-  segments wrap onto a second line in a narrow card, where one indicator would have to jump rows.)
+- `Segmented` / `SegItem`: one crimson pill under the segments slides and stretches to the picked one
+  (`Update-AkariSegmentPill`, hooked once on every ListBox: a pick glides, a resize or wrap jumps it into place, so
+  Optimize's Sections, the Choice pickers and the Services / Tasks filters all get it with no page code). First done
+  as a crossfade; the slide was asked for after the VM look (2026-10-31).
 - `Accent`, `ModeCard`, `ModeCardHot`: hover lift (`TranslateTransform.Y`: −1 px the button, −3 px the card) and press
   scale; `Accent`'s glow is its own cached layer under the fades. `ModeCardHot` keeps its glow on the button (one
   card, a short hover only).

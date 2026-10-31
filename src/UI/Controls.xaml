@@ -576,8 +576,9 @@
 
   <!-- Segmented picker: a Choice with up to 4 values (UI\Cards.ps1 picks it over Combo), and Optimize's Sections. A
        ListBox of ListBoxItems (never ComboBoxItems: they ignore clicks outside a ComboBox), so the row code is the
-       same as a Combo's: a pill track, the picked segment crimson (the old one fades out as the new one fades in).
-       Segments wrap onto a second line when the card is narrow. -->
+       same as a Combo's: a pill track, the picked segment crimson: one Pill under the items slides and stretches to the
+       picked one (Update-AkariSegmentPill, UI\Motion.ps1, hooked on every ListBox). Segments wrap onto a second line
+       when the card is narrow; the pill follows them there. -->
   <Style x:Key="SegItem" TargetType="ListBoxItem">
     <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
     <Setter Property="Padding" Value="12,5,12,6"/>
@@ -589,7 +590,6 @@
         <ControlTemplate TargetType="ListBoxItem">
           <Grid Background="Transparent">
             <Border x:Name="H" CornerRadius="15" Background="{DynamicResource CtlH}" Opacity="0"/>
-            <Border x:Name="S" CornerRadius="15" Background="{DynamicResource Acc}" Opacity="0"/>
             <Border x:Name="B" CornerRadius="15" Background="Transparent" Padding="{TemplateBinding Padding}">
               <ContentPresenter VerticalAlignment="Center">
                 <ContentPresenter.Resources>
@@ -615,22 +615,10 @@
                 </BeginStoryboard>
               </Trigger.ExitActions>
             </Trigger>
+            <!-- the picked one: light text over the Segmented's sliding pill, no hover tint under it -->
             <Trigger Property="IsSelected" Value="True">
               <Setter Property="Foreground" Value="{DynamicResource AccT}"/>
-              <Trigger.EnterActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="S" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="S" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.ExitActions>
+              <Setter TargetName="H" Property="Visibility" Value="Hidden"/>
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
@@ -656,7 +644,13 @@
         <ControlTemplate TargetType="ListBox">
           <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"
                   CornerRadius="18" Padding="2" HorizontalAlignment="Left">
-            <ItemsPresenter/>
+            <Grid>
+              <!-- the picked segment's pill, placed over it by Update-AkariSegmentPill (hidden until placed) -->
+              <Canvas IsHitTestVisible="False">
+                <Border x:Name="Pill" Width="0" Height="0" CornerRadius="15" Background="{DynamicResource Acc}" Visibility="Hidden"/>
+              </Canvas>
+              <ItemsPresenter/>
+            </Grid>
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsEnabled" Value="False">

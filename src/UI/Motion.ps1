@@ -2,7 +2,7 @@
 # into every file it parses (Get-AkariXaml), and Start-AkariMotion, the only code that starts an animation.
 # Dot-sourced first of the UI files by Akari.ps1. Pure helpers first (tests dot-source this file).
 
-$AkariMotionKinds = @('Fade', 'Rise', 'Pop', 'Scale', 'Slide', 'Fill')
+$AkariMotionKinds = @('Fade', 'Rise', 'Pop', 'Scale', 'Slide', 'SlideY', 'Fill', 'Width', 'Height')
 
 # Motion.xaml's entries (the text between its root tags); $On = $false writes every Duration as 0:0:0
 function Get-AkariMotionEntries([string]$MotionXaml, [bool]$On = $true) {
@@ -30,7 +30,8 @@ function Test-AkariMotionOn {
 
 # what Start-AkariMotion animates for a kind: @{ Property = Opacity|ScaleX|ScaleY|X|Y; From; To }
 # (Fade: opacity; Rise: opacity and Y from 10 px below; Pop: opacity and scale from 0.96; Scale / Slide: scale or X only;
-# Fill: the width scale alone, a bar that grows from its RenderTransformOrigin)
+# Fill: the width scale alone, a bar that grows from its RenderTransformOrigin; SlideY: Y only; Width / Height: the
+# element's own size, only for a small absolutely placed element (it lays out again each frame): the segmented pill)
 function Get-AkariMotionPlan([string]$Kind, $From = $null, $To = $null) {
     switch ($Kind) {
         'Fade'  { @(@{ Property = 'Opacity'; From = $(if ($null -ne $From) { $From } else { 0 }); To = $(if ($null -ne $To) { $To } else { 1 }) }) }
@@ -41,6 +42,9 @@ function Get-AkariMotionPlan([string]$Kind, $From = $null, $To = $null) {
                   @(@{ Property = 'ScaleX'; From = $From; To = $t }, @{ Property = 'ScaleY'; From = $From; To = $t }) }
         'Slide' { @(@{ Property = 'X'; From = $From; To = $(if ($null -ne $To) { $To } else { 0 }) }) }
         'Fill'  { @(@{ Property = 'ScaleX'; From = $From; To = $(if ($null -ne $To) { $To } else { 1 }) }) }
+        'SlideY' { @(@{ Property = 'Y'; From = $From; To = $(if ($null -ne $To) { $To } else { 0 }) }) }
+        'Width'  { @(@{ Property = 'Width'; From = $From; To = $To }) }
+        'Height' { @(@{ Property = 'Height'; From = $From; To = $To }) }
         default { throw "Unknown motion kind '$Kind' (one of $($AkariMotionKinds -join ', '))" }
     }
 }
@@ -81,12 +85,14 @@ function Get-AkariMotionTransform($Element) {
 function Start-AkariMotion($Element, [string]$Kind, $From = $null, $To = $null, [string]$Speed = 'Base', [TimeSpan]$Delay = [TimeSpan]::Zero, [string]$Easing = 'Ease') {
     if (-not $Element) { return }
     $plan = Get-AkariMotionPlan $Kind $From $To
-    $tg = if (@($plan | Where-Object { $_.Property -ne 'Opacity' }).Count) { Get-AkariMotionTransform $Element }
+    $tg = if (@($plan | Where-Object { $_.Property -notin 'Opacity', 'Width', 'Height' }).Count) { Get-AkariMotionTransform $Element }
     $dur = $AkariMotion["Motion.$Speed"]
     $ease = $AkariMotion["Motion.$Easing"]
     foreach ($p in $plan) {
         $target, $dp = switch ($p.Property) {
             'Opacity' { $Element, [Windows.UIElement]::OpacityProperty }
+            'Width'   { $Element, [Windows.FrameworkElement]::WidthProperty }
+            'Height'  { $Element, [Windows.FrameworkElement]::HeightProperty }
             'ScaleX'  { $tg.Children[-2], [Windows.Media.ScaleTransform]::ScaleXProperty }
             'ScaleY'  { $tg.Children[-2], [Windows.Media.ScaleTransform]::ScaleYProperty }
             'X'       { $tg.Children[-1], [Windows.Media.TranslateTransform]::XProperty }
@@ -309,4 +315,45 @@ function Start-AkariStallWatch([scriptblock]$Where) {
         if ($gap -gt 200) { Write-ErrLog ('UI timing: stalled {0:N0} ms on {1}' -f $gap, (& $s.Tag.Where)) }
     })
     $t.Start()
+}
+
+# ---- the segmented pill (UI\Controls.xaml Segmented: its template's Pill) slides and stretches to the picked segment.
+# Hooked once on every ListBox (a pick, the list or a segment resized), so no page code calls it.
+
+# puts the list's Pill over its picked segment: glides there ($Animate, a pill already shown) or jumps (its first
+# placement, a resize); no pick = hidden. A segment not laid out yet (items just added): tried once more at Loaded
+# priority ($Retry)
+function Update-AkariSegmentPill($List, [bool]$Animate = $true, [bool]$Retry = $true) {
+    try {
+        $pill = if ($List.Template) { $List.Template.FindName('Pill', $List) }
+        if (-not $pill) { return }
+        $c = if ($null -ne $List.SelectedItem) { $List.ItemContainerGenerator.ContainerFromItem($List.SelectedItem) }
+        if (-not $c -or $c.ActualWidth -le 0) {
+            if ($null -ne $List.SelectedItem -and $Retry) {
+                [void]$List.Dispatcher.BeginInvoke([Windows.Threading.DispatcherPriority]::Loaded, [Action[object]]{
+                    param($s) Update-AkariSegmentPill $s.List $s.Animate $false }, @{ List = $List; Animate = $Animate })
+            } else { $pill.Visibility = 'Hidden' }
+            return
+        }
+        $p = $c.TranslatePoint([Windows.Point]::new(0, 0), $pill.Parent)
+        $jump = -not $Animate -or $pill.Visibility -ne 'Visible'
+        $pill.Visibility = 'Visible'
+        foreach ($m in @(@('Slide', $p.X), @('SlideY', $p.Y), @('Width', $c.ActualWidth), @('Height', $c.ActualHeight))) {
+            Start-AkariMotion $pill $m[0] $(if ($jump) { $m[1] }) $m[1] -Speed Base
+        }
+    } catch { try { Write-ErrLog "Segment pill: $($_.Exception.Message)" } catch { } }
+}
+
+if (('Windows.EventManager' -as [type]) -and -not $global:AkariSegmentPillHooked) {
+    $global:AkariSegmentPillHooked = $true
+    [Windows.EventManager]::RegisterClassHandler([Windows.Controls.ListBox], [Windows.Controls.Primitives.Selector]::SelectionChangedEvent,
+        [Windows.Controls.SelectionChangedEventHandler]{ param($s, $e) if ($e.OriginalSource -eq $s) { Update-AkariSegmentPill $s $true } })
+    [Windows.EventManager]::RegisterClassHandler([Windows.Controls.ListBox], [Windows.FrameworkElement]::SizeChangedEvent,
+        [Windows.SizeChangedEventHandler]{ param($s, $e) if ($e.OriginalSource -eq $s) { Update-AkariSegmentPill $s $false } })
+    [Windows.EventManager]::RegisterClassHandler([Windows.Controls.ListBoxItem], [Windows.FrameworkElement]::SizeChangedEvent,
+        [Windows.SizeChangedEventHandler]{
+            param($s, $e)
+            $l = [Windows.Controls.ItemsControl]::ItemsControlFromItemContainer($s)
+            if ($l -is [Windows.Controls.ListBox] -and $e.OriginalSource -eq $s) { Update-AkariSegmentPill $l $false }
+        })
 }
