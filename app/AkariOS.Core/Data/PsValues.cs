@@ -10,6 +10,23 @@ public sealed class PsHashtable : IReadOnlyDictionary<string, object?>
     private readonly List<KeyValuePair<string, object?>> _items = [];
     private readonly Dictionary<string, object?> _map = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>A hashtable built in code (an Entry row from its name).</summary>
+    public static PsHashtable Of(params (string Key, object? Value)[] items)
+    {
+        var h = new PsHashtable();
+        foreach (var (k, v) in items) h.TryAdd(k, v);
+        return h;
+    }
+
+    /// <summary>A copy with the key set (added, or replaced in place).</summary>
+    public PsHashtable With(string key, object? value)
+    {
+        var h = new PsHashtable();
+        foreach (var (k, v) in _items) h.TryAdd(k, string.Equals(k, key, StringComparison.OrdinalIgnoreCase) ? value : v);
+        h.TryAdd(key, value);
+        return h;
+    }
+
     internal bool TryAdd(string key, object? value)
     {
         if (!_map.TryAdd(key, value)) return false;

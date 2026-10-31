@@ -1,1 +1,176 @@
-# Tweak ids only one app has (app/tests: the parity test; refresh with AKARI_UPDATE_PARITY=1). N1 fills it in.
+# Tweak ids only one app has (ADR 0007): the native port's checklist. Written by the parity test:
+#   set AKARI_UPDATE_PARITY=1, then dotnet test --solution app\AkariOS.Native.sln
+# PowerShell only = a src/Tweaks file with script blocks (or other code) and no C# class in AkariOS.Tweaks;
+# Native only = a C# class with no src/Tweaks file.
+
+## PowerShell only: 162 Tweaks
+Advanced/Scheduled tasks  advanced-remove-scheduled-tasks
+Advanced/Security  security-defender-off
+Advanced/Security  security-defender-settings
+Advanced/Security  security-defender-tasks-off
+Advanced/Security  security-dep-off
+Advanced/Security  security-open-core-isolation
+Advanced/Services  advanced-services-off
+Advanced/System  system-mmagent-off
+Advanced/System  system-start-search-shell-off
+Apps/Install  install-7-zip
+Apps/Install  install-battle-net
+Apps/Install  install-brave
+Apps/Install  install-custom-resolution-utility
+Apps/Install  install-discord
+Apps/Install  install-electronic-arts
+Apps/Install  install-epic-games
+Apps/Install  install-firefox
+Apps/Install  install-gog-launcher
+Apps/Install  install-google-chrome
+Apps/Install  install-helium
+Apps/Install  install-microsoft-edge
+Apps/Install  install-microsoft-store
+Apps/Install  install-more-clock-tool
+Apps/Install  install-notepad
+Apps/Install  install-nvidia-app
+Apps/Install  install-nvidia-profile-inspector
+Apps/Install  install-occt
+Apps/Install  install-onboard-memory-manager
+Apps/Install  install-remote-desktop-connection
+Apps/Install  install-rufus
+Apps/Install  install-snipping-tool-legacy
+Apps/Install  install-spotify
+Apps/Install  install-steam
+Apps/Install  install-webview2-runtime
+Apps/Install  msi-afterburner
+Apps/Remove  remove-brlapi
+Apps/Remove  remove-edge
+Apps/Remove  remove-gameinput
+Apps/Remove  remove-onedrive
+Apps/Remove  remove-remote-desktop-connection
+Apps/Remove  remove-snipping-tool-legacy
+Apps/Remove  remove-update-for-x64
+Apps/Remove  remove-update-health-tools
+Apps/Remove  remove-webview2
+Customize/Apps  apps-app-actions-off
+Customize/Apps  apps-notepad-no-new-badges
+Customize/Apps  apps-notepad-settings
+Customize/Apps  apps-photos-no-delete-warning
+Customize/Apps  apps-store-settings
+Customize/Apps  apps-terminal-no-close-tabs-warning
+Customize/Context menu  context-add-legacy-settings
+Customize/Context menu  context-add-new-files
+Customize/Context menu  context-add-powershell-cmd
+Customize/Context menu  context-add-ps1-options
+Customize/Context menu  context-add-run-as-admin
+Customize/Context menu  context-add-take-ownership
+Customize/Context menu  context-remove-display
+Customize/Context menu  context-remove-extract-all
+Customize/Context menu  context-remove-personalize
+Customize/Context menu  context-remove-print
+Customize/Explorer  explorer-trim-context-menu
+Customize/Explorer  explorer-windows10-ribbon
+Customize/Input  input-open-pointer-options
+Customize/Notifications  notifications-no-auto-dnd
+Customize/Notifications  notifications-priority-list-empty
+Customize/Sound  sound-loudness-eq-tab
+Customize/Sound  sound-open-classic-panel
+Customize/Start  start-akarios-pins
+Customize/Start  start-akarios-shortcuts
+Customize/Start  start-hide-accessibility-folders
+Customize/Start  start-new-menu
+Customize/System  system-no-boot-ui
+Customize/System  system-open-date-time
+Customize/System  system-open-display-scaling
+Customize/System  system-time-server
+Customize/Taskbar  taskbar-never-small-icons
+Customize/Taskbar  taskbar-quick-settings-unpin
+Customize/Taskbar  taskbar-show-all-tray-icons
+Customize/Taskbar  taskbar-unpin-all
+Customize/Theme  theme-akarios-wallpaper
+Customize/Theme  theme-black-account-pictures
+Customize/Theme  theme-black-lock-screen
+Hardware/Graphics  graphics-amd-settings
+Hardware/Graphics  graphics-amd-ulps-off
+Hardware/Graphics  graphics-hdcp-off
+Hardware/Graphics  graphics-intel-settings
+Hardware/Graphics  graphics-msi-mode
+Hardware/Graphics  graphics-nvidia-rebar-force
+Hardware/Graphics  graphics-nvidia-settings
+Hardware/Graphics  graphics-open-display
+Hardware/Graphics  graphics-p0-state
+Hardware/Graphics  nvidia-legacy-sharpen
+Hardware/Input  input-background-polling-uncapped
+OneClick/Drivers  oneclick-ddu-clean
+OneClick/Finish  oneclick-performance-counters
+OneClick/Finish  oneclick-registry
+OneClick/Prepare  oneclick-allow-scripts
+OneClick/Prepare  oneclick-ddu-prepare
+Optimize/Gaming  gaming-open-game-mode
+Optimize/Gaming  gaming-presence-writer-off
+Optimize/Gaming  gaming-xbox-controller-no-game-bar
+Optimize/Network  network-block-razer-asus
+Optimize/Network  network-ipv4-only
+Optimize/Performance  disable-memory-compression
+Optimize/Performance  performance-bitlocker-off
+Optimize/Performance  performance-clean-temp
+Optimize/Performance  performance-defrag-schedule-off
+Optimize/Performance  performance-open-startup-apps
+Optimize/Performance  performance-open-startup-taskmgr
+Optimize/Performance  performance-timer-resolution
+Optimize/Performance  performance-write-cache-flushing-off
+Optimize/Power  power-device-power-saving-off
+Optimize/Power  power-hibernate-off
+Optimize/Power  power-mode-best-performance
+Optimize/Power  power-network-adapter-power-saving-off
+Optimize/Power  power-no-sign-in-after-sleep
+Optimize/Power  power-ultimate-plan
+Optimize/Privacy  privacy-app-permissions
+Optimize/Update  update-defer-policy
+Optimize/Update  update-pause-one-year
+Optimize/Update  update-prevent-os-upgrade
+Tools/Check  tools-autoruns
+Tools/Check  tools-bios-check
+Tools/Check  tools-bufferbloat-test
+Tools/Check  tools-controller-polling-test
+Tools/Check  tools-furmark
+Tools/Check  tools-gpu-check
+Tools/Check  tools-installed-programs
+Tools/Check  tools-monitor-test
+Tools/Check  tools-mouse-polling-test
+Tools/Check  tools-occt
+Tools/Check  tools-optional-features
+Tools/Check  tools-ram-check
+Tools/Check  tools-storage-check
+Tools/Check  tools-windows-features
+Tools/Cleanup  cleanup-disk-cleanup
+Tools/Cleanup  cleanup-event-logs
+Tools/Cleanup  cleanup-nvidia-shader-cache
+Tools/Cleanup  cleanup-old-drivers
+Tools/Cleanup  cleanup-temp-files
+Tools/Cleanup  cleanup-windows-logs
+Tools/Cleanup  cleanup-windows-old
+Tools/Cleanup  oneclick-startup-cleanup
+Tools/Drivers  tools-controller-overclock
+Tools/Drivers  tools-ddu-clean
+Tools/Drivers  tools-ddu-manual
+Tools/Drivers  tools-driver-amd
+Tools/Drivers  tools-driver-amd-debloat
+Tools/Drivers  tools-driver-intel
+Tools/Drivers  tools-driver-intel-debloat
+Tools/Drivers  tools-driver-nvidia
+Tools/Drivers  tools-driver-nvidia-debloat
+Tools/Refresh  tools-factory-reset
+Tools/Refresh  tools-gaming-repair
+Tools/Refresh  tools-local-account
+Tools/Refresh  tools-network-driver
+Tools/Refresh  tools-reinstall-windows-10
+Tools/Refresh  tools-reinstall-windows-11
+Tools/Refresh  tools-restart-to-bios
+Tools/Setup  oneclick-restore-point
+Tools/Setup  tools-activation
+Tools/Setup  tools-home-to-pro
+
+## PowerShell only: 4 Groups whose kind the native engine lacks
+Apps/Install  store  (StoreInstall)
+Apps/Remove  appx  (AppxRemove)
+Apps/Remove  capability  (CapabilityRemove)
+Apps/Remove  feature  (FeatureDisable)
+
+## Native only: 0

@@ -93,8 +93,9 @@ Core APIs are the behaviour to match).
 ## Review Focus
 
 1. **The reader against the real files.** A test loads every file under `src/Tweaks` (and every shared data list):
-   zero Problems, the same ids, Sections, Categories and Registry rows the PowerShell loader reports (a fixture
-   exported once by a PowerShell test, `tests/Fixtures/Native/tweaks.json`, refreshed when tweaks change).
+   zero Problems, the same ids, Sections, Categories and Registry rows the PowerShell loader reports (read live:
+   `app/tests/AkariOS.Core.Tests/Oracle/*.ps1` run the PowerShell app's own readers and Loader, so nothing goes stale;
+   decided 2026-10-31 instead of a checked-in fixture).
 2. **Registry rows compare as Core compares them.** Hex DWords unsigned, ExpandString expanded, Binary from hex
    text, key rows (`'Key'` / `$null`), per-OS Defaults, `(default)` values, `HKLM:\SOFTWARE\Classes\*` taken
    literally. Shared fixtures: the same rows give the same State in both apps.
@@ -139,6 +140,12 @@ The engine of `src/Core` for Toggles, Choices and Actions without the GUI. TDD, 
    without a revert path rejected, `Requires` known, kebab-case unique ids, one owner per registry value with the
    owner index), Groups and Entries (`New-AkariEntry`, `Keep` / `KeepNames`), `ITweakBehaviour` registered by id from
    `AkariOS.Tweaks`. The parity test and `app/parity.txt`.
+   Done 2026-10-31 (`AkariOS.Core/Tweaks/`, `AkariOS.Core/Sources/`): every rule of `Loader.ps1`; the C# is
+   `ITweakCode` + `[TweakCode("id")]` (its members come with State and the Runner); the files come through
+   `ISourceFiles` (embedded, a folder, memory). Checked against `Get-AkariTweaks` on the real tree: the same Tweaks
+   in the same order with the same fields, Groups and Problems. A registry row with code in it (a `foreach`,
+   `(& $w11 'Key')`) is the C#'s to give, so the native owner check doesn't see it (the PowerShell one does).
+   `parity.txt`: 162 Tweaks and the 4 data-list Groups (their kinds come in N5).
 4. **Registry engine**: `IRegistry` over `Microsoft.Win32.Registry` (64-bit view), the real user's hive
    (`UserHive`), rows Apply / Revert / State, key rows, `ITrustedInstaller` (the TrustedInstaller service's token,
    impersonated on one thread) for rows an admin can't write.
