@@ -5,3 +5,5 @@ app/**/bin/
 app/**/obj/
 .vs/
 *.user
+# the native exe built for a VM test (dotnet publish ... -o app\publish)
+app/publish/

@@ -120,7 +120,7 @@ Core APIs are the behaviour to match).
 - `AkariOS.App` builds an empty window with the shared resources merged, and `--version` prints the version.
 - Done when: the solution builds and its (empty) tests pass in Actions; nothing is run on this machine.
 
-## N1: Core engine and CLI (done 2026-10-31 but the VM check; 239 tests)
+## N1: Core engine and CLI (done 2026-10-31, passed on the VM; 239 tests)
 
 The engine of `src/Core` for Toggles, Choices and Actions without the GUI. TDD, one area per batch.
 
