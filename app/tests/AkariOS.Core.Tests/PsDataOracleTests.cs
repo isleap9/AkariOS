@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -15,7 +14,7 @@ public class PsDataOracleTests
     /// <summary>The shared files by their src/ path: one-file Tweaks, and every .psd1 the native app reads.</summary>
     internal static IReadOnlyList<string> SharedFiles { get; } = FindSharedFiles();
 
-    private static readonly Lazy<JsonElement> Oracle = new(RunOracle);
+    private static readonly Lazy<JsonElement> PowerShell = new(RunOracle);
 
     private static List<string> FindSharedFiles()
     {
@@ -36,25 +35,7 @@ public class PsDataOracleTests
 
     internal static PsFile Read(string rel) => PsData.Parse(File.ReadAllText(FullPath(rel)));
 
-    private static JsonElement RunOracle()
-    {
-        var out_ = Path.Combine(Path.GetTempPath(), $"akari-psdata-{Guid.NewGuid():N}.json");
-        var script = Path.Combine(Repo.Root, "app", "tests", "AkariOS.Core.Tests", "Oracle", "Export-PsData.ps1");
-        var psi = new ProcessStartInfo("powershell.exe")
-        {
-            ArgumentList = { "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script, "-Src", Repo.Src, "-Out", out_ },
-            RedirectStandardError = true,
-            RedirectStandardOutput = true,
-            UseShellExecute = false,
-        };
-        using var p = Process.Start(psi)!;
-        var stderr = p.StandardError.ReadToEndAsync();
-        var stdout = p.StandardOutput.ReadToEndAsync();
-        if (!p.WaitForExit(TimeSpan.FromMinutes(5))) { p.Kill(); throw new TimeoutException("Export-PsData.ps1 took over 5 minutes"); }
-        if (p.ExitCode != 0 || !File.Exists(out_)) throw new InvalidOperationException($"Export-PsData.ps1 failed ({p.ExitCode}): {stderr.Result}{stdout.Result}");
-        try { return JsonDocument.Parse(File.ReadAllText(out_)).RootElement.GetProperty("Files").Clone(); }
-        finally { File.Delete(out_); }
-    }
+    private static JsonElement RunOracle() => Oracle.Run("Export-PsData.ps1", "-Src", Repo.Src).GetProperty("Files");
 
     [Fact]
     public void Every_shared_file_reads()
@@ -93,7 +74,7 @@ public class PsDataOracleTests
     [Fact]
     public void PowerShell_reads_the_same_values()
     {
-        var oracle = Oracle.Value;
+        var oracle = PowerShell.Value;
         var diffs = new List<string>();
         foreach (var rel in SharedFiles)
         {

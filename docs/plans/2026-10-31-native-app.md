@@ -130,6 +130,9 @@ The engine of `src/Core` for Toggles, Choices and Actions without the GUI. TDD, 
    every value agrees. Of the 388 one-file Tweaks, 226 are data only, 162 have code (all of Tools, Hardware and
    OneClick; Apps 35, Customize 38, Optimize 23, Advanced 9).
 2. **`RegReader`**: `.reg` text (REGEDIT5 and 4, hex, hex(2) / (7) / (b), `-` deletes, line continuations).
+   Done 2026-10-31 (`AkariOS.Core/Data/RegReader.cs`): every hex(n) type (a Store app's own types kept as bytes),
+   UTF-16 or UTF-8 files, paths as Tweak rows write them. Checked against the PowerShell app's readers on
+   `reg.reg` (tests/RegFile.ps1) and the Store settings (`ConvertFrom-AkariRegExport`).
 3. **Loader**: `Tweak` (Id, Name, Description, Section, Category, Kind, Risk, Reboot, Restarts, SafeMode, Explorer,
    Requires, AkariOS, Guided, Button, Confirm, Registry rows, Choices, Recommended, Default, Editable, Winget,
    WingetSource, AppType, EntryKind, ...: the §7 fields), the loader rules (folder = Section / Category, Toggle

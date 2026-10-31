@@ -46,7 +46,7 @@ public sealed record PsFile(object? Value, IReadOnlyDictionary<string, object?> 
     public bool HasCode => HasTopLevelCode || PsData.HasCode(Value);
 }
 
-/// <summary>Text PsData can't read, with its position (1-based).</summary>
+/// <summary>Shared data text that can't be read (PsData, RegReader), with its position (1-based).</summary>
 public sealed class PsDataException(string message, int line, int column)
     : Exception($"line {line}, column {column}: {message}")
 {
