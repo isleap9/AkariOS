@@ -120,7 +120,7 @@ Core APIs are the behaviour to match).
 - `AkariOS.App` builds an empty window with the shared resources merged, and `--version` prints the version.
 - Done when: the solution builds and its (empty) tests pass in Actions; nothing is run on this machine.
 
-## N1: Core engine and CLI
+## N1: Core engine and CLI (done 2026-10-31 but the VM check; 239 tests)
 
 The engine of `src/Core` for Toggles, Choices and Actions without the GUI. TDD, one area per batch.
 
@@ -175,6 +175,9 @@ The engine of `src/Core` for Toggles, Choices and Actions without the GUI. TDD, 
    is the GUI's (N3): a preset file read into Guided.
 9. **CLI** in `AkariOS-Native.exe` (attached to the parent console): `--list`, `--apply id,id`, `--revert id,id`,
    `--preset <name|file>`, `--revert-preset`, exit 1 on any Failed; tests use `--list` and fake ids only.
+   Done 2026-10-31 (`AkariOS.App/Cli.cs`, `AkariOS.Core/Engine.cs`): also a Native column in `--list`; a preset in more
+   than one phase is refused until N7. Tests run it in-process on fixture Tweaks and a test key; the exe is never
+   started. The self-contained single-file publish builds (about 92 MB).
 
 Done when: the whole `src/Tweaks` tree loads with zero Problems; the data-only Toggles and Choices Apply, Revert and
 report State against the test key; presets round-trip with the PowerShell fixtures. VM: `--list`, then `--apply` /

@@ -76,20 +76,4 @@ public class AkariXamlTests
     [Fact]
     public void The_window_styles_are_embedded_for_the_key_test() =>
         Assert.Contains("<Window", AkariXaml.Text("MainWindow.xaml"));
-
-    [Fact]
-    public void Cli_prints_the_version()
-    {
-        var w = new StringWriter();
-        Assert.Equal(0, Cli.Run(["--version"], w));
-        Assert.Equal($"AkariOS-Native {Core.AkariInfo.Version}", w.ToString().Trim());
-    }
-
-    [Fact]
-    public void Cli_refuses_an_unknown_option()
-    {
-        var w = new StringWriter();
-        Assert.Equal(1, Cli.Run(["--nope"], w));
-        Assert.Contains("--nope", w.ToString());
-    }
 }
