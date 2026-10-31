@@ -57,6 +57,10 @@ public sealed partial class ShellViewModel : ObservableObject
     [ObservableProperty]
     public partial double? Progress { get; set; }
 
+    /// <summary>The window's width (Home's columns follow it).</summary>
+    [ObservableProperty]
+    public partial double Width { get; set; } = 1360;
+
     /// <summary>The Optimize page seen last: where the Optimize tab goes.</summary>
     public string LastOptimize { get; private set; } = "Optimize";
 

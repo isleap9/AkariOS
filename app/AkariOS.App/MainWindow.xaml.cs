@@ -141,6 +141,7 @@ public partial class MainWindow : Window
     // goes and the tabs take their short labels
     private void UpdateWidth(double width)
     {
+        _vm.Width = width;
         _narrow = ShellLayout.Narrow(width);
         TitleText.Visibility = ShellLayout.Wordmark(width) ? Visibility.Visible : Visibility.Collapsed;
         var (icons, _) = ShellLayout.TabLayout(width);

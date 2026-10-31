@@ -42,6 +42,19 @@ public static partial class Program
             motion);
         theme.Apply(theme.Saved());
         var shell = new Shell.ShellViewModel(AkariInfo.Version);
-        return app.Run(new MainWindow(theme, shell, Shell.Placeholder.For));
+        var services = new Shell.AppServices { Engine = engine, Shell = shell, Theme = theme, Open = new Shell.ShellOpen(), Log = appLog };
+        var window = new MainWindow(theme, shell, Pages.PageFactory.For(services));
+        services.Dialogs = Shell.Dialogs.For(window, appLog);
+        Shell.OptionsMenu.Attach(window.MenuBtn, Shell.OptionsMenu.Build(services));
+        foreach (var p in engine.Loaded.Problems) appLog.WriteFile($"{p.Level}: {p.File}: {p.Message}");
+        // an error inside a click: in akari.log and a message, instead of closing the app
+        app.DispatcherUnhandledException += (_, e) =>
+        {
+            e.Handled = true;
+            appLog.WriteFile($"Error: UI: {e.Exception}");
+            services.Dialogs.Message($"Something went wrong: {e.Exception.Message}\n\nThe details are in akari.log.", "Error");
+            shell.SetBusy(false);
+        };
+        return app.Run(window);
     }
 }
