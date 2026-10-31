@@ -379,6 +379,7 @@ public sealed partial class Loader(ISourceFiles files, IReadOnlyDictionary<strin
             Keep = keep,
             Group = g.Id,
             Package = name,
+            EntryKind = g.EntryKind,
             StoreId = Text(row.Get("StoreId")),
             AppType = g.AppType,
             Source = g.Source,

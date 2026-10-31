@@ -6,11 +6,14 @@ using AkariOS.Core.Machine;
 namespace AkariOS.Core.Tweaks;
 
 /// <summary>What a Tweak's C# works with: the registry, the machine, the shared files, its own file's folder.</summary>
-public sealed class TweakContext(RegistryEngine registry, ISystemInfo system, ISourceFiles files)
+public sealed class TweakContext(RegistryEngine registry, ISystemInfo system, ISourceFiles files, IAkariLog? log = null)
 {
     public RegistryEngine Registry { get; } = registry;
     public ISystemInfo System { get; } = system;
     public ISourceFiles Files { get; } = files;
+
+    /// <summary>What a block would have written to the log.</summary>
+    public IAkariLog Log { get; } = log ?? new MemoryLog();
 
     /// <summary>The src/ folder of a Tweak's file ($AkariTweakDir): its Files/ are next to it.</summary>
     public static string FolderOf(Tweak t) => SourceFilesExtensions.Folder(t.Source);
@@ -19,7 +22,7 @@ public sealed class TweakContext(RegistryEngine registry, ISystemInfo system, IS
 /// <summary>
 /// The C# behind a Tweak whose src/Tweaks file has script blocks (ADR 0007): one class per Tweak in AkariOS.Tweaks,
 /// marked [TweakCode("its-id")]; its metadata stays in the file. A class gives what its file's blocks do, nothing
-/// else: the members it doesn't override are never called for it. Apply / Revert come with the Runner batch.
+/// else: the members it doesn't override are never called for it.
 /// </summary>
 public interface ITweakCode
 {
@@ -31,6 +34,18 @@ public interface ITweakCode
 
     /// <summary>The Registry rows a file builds with code (a foreach, a helper block): all of them.</summary>
     IReadOnlyList<RegistryRow> Rows(Tweak tweak, TweakContext c) => throw new NotSupportedException($"{tweak.Id} has no Rows in C#");
+
+    /// <summary>The file's Apply block. Value: a Choice over many settings' picked value ($AkariValue).</summary>
+    void Apply(Tweak tweak, TweakContext c, object? value) => throw new NotSupportedException($"{tweak.Id} has no Apply in C#");
+
+    /// <summary>The file's Revert block. Value: a Choice over many settings' Windows default.</summary>
+    void Revert(Tweak tweak, TweakContext c, object? value) => throw new NotSupportedException($"{tweak.Id} has no Revert in C#");
+
+    /// <summary>A registry Toggle's After block: one more step after its rows, both ways ($AkariMode).</summary>
+    void After(Tweak tweak, TweakContext c, TweakMode mode) => throw new NotSupportedException($"{tweak.Id} has no After in C#");
+
+    /// <summary>A SafeMode Tweak's Prepare block, in normal mode before the restart into Safe Mode (a download).</summary>
+    void Prepare(Tweak tweak, TweakContext c) => throw new NotSupportedException($"{tweak.Id} has no Prepare in C#");
 }
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]

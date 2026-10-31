@@ -164,6 +164,10 @@ The engine of `src/Core` for Toggles, Choices and Actions without the GUI. TDD, 
 7. **Runner**: `Run(items) → Outcome[]` (Requires → Skipped, Already, Failed with the message, PC restarts last,
    Explorer once at the end, progress events), `Log` (`akari.log`), restore point (`IRestorePoint`: WMI
    `SystemRestore`, the 24 h throttle lifted once).
+   Done 2026-10-31 (`AkariOS.Core/Runs/`, `Log.cs`): `Runner` (Invoke-AkariTweak and Invoke-AkariPlan), `ITweakCode`'s
+   Apply / Revert / After / Prepare, `RestorePoints` over `ISystemRestore`, `AkariLog`. What the native engine can't do
+   yet is a Failed Outcome that says so: a Tweak whose C# is missing, winget installs and the list kinds (N5), the
+   restart into Safe Mode (`ISafeModeHandoff`, N7).
 8. **Presets**: read / save the same JSON (bare id, `{id: value}`, `{id: "Default"}`, `<group>/*`, Phases), resolve,
    Last used, Export (`Get-AkariExportItems`' rules) and Import.
 9. **CLI** in `AkariOS-Native.exe` (attached to the parent console): `--list`, `--apply id,id`, `--revert id,id`,

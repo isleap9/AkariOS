@@ -71,6 +71,9 @@ public sealed class Tweak
     /// <summary>Entries: the Group's id, the package or feature name, the keep-list mark.</summary>
     public string? Group { get; init; }
     public string? Package { get; init; }
+
+    /// <summary>An Entry's kind (what the engine does to it), from its Group.</summary>
+    public EntryKind? EntryKind { get; init; }
     public bool Keep { get; init; }
 
     /// <summary>The script blocks the file has, by field name.</summary>
