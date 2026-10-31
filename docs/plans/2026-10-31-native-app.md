@@ -88,7 +88,7 @@ Core APIs are the behaviour to match).
 - No code from Winhance (PolyForm Shield) or AkariOS-Companion. Credit upstream sources in `CREDITS.md`.
 - `bin/` and `obj/` git-ignored. Nullable on, warnings as errors.
 - Building needs the .NET 10 SDK (installed 2026-10-31, 10.0.403); tests run with
-  `dotnet test app\AkariOS.Native.sln`.
+  `dotnet test --solution app\AkariOS.Native.sln`.
 
 ## Review Focus
 
