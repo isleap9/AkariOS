@@ -11,8 +11,8 @@ public enum OutcomeKind { Applied, Reverted, Already, Skipped, Failed }
 
 public sealed record Outcome(string Id, TweakMode Mode, OutcomeKind Kind, bool Reboot = false, string Message = "");
 
-/// <summary>One change of a Run: Apply or Revert, a Choice's value (null = Recommended).</summary>
-public sealed record PlanItem(string Id, TweakMode Mode, object? Value = null);
+/// <summary>One change of a Run: Apply or Revert, a Choice's value (null = Recommended), its preset Phase (index).</summary>
+public sealed record PlanItem(string Id, TweakMode Mode, object? Value = null, int Phase = 0);
 
 /// <summary>How far a Run is (the status bar: "label (n of total): step").</summary>
 public sealed record RunProgress(int Done, int Total, string Step);

@@ -170,6 +170,9 @@ The engine of `src/Core` for Toggles, Choices and Actions without the GUI. TDD, 
    restart into Safe Mode (`ISafeModeHandoff`, N7).
 8. **Presets**: read / save the same JSON (bare id, `{id: value}`, `{id: "Default"}`, `<group>/*`, Phases), resolve,
    Last used, Export (`Get-AkariExportItems`' rules) and Import.
+   Done 2026-10-31 (`AkariOS.Core/Presets/`): `PresetStore`. Checked against `Presets.ps1`: the built-in AkariOS
+   preset resolves to the same items (Apply, Revert, phases), and each app reads the preset the other saved. Import
+   is the GUI's (N3): a preset file read into Guided.
 9. **CLI** in `AkariOS-Native.exe` (attached to the parent console): `--list`, `--apply id,id`, `--revert id,id`,
    `--preset <name|file>`, `--revert-preset`, exit 1 on any Failed; tests use `--list` and fake ids only.
 
