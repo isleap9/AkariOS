@@ -4,7 +4,9 @@ PowerShell 5.1 + WPF app that debloats and optimizes Windows 10 22H2 / 11 for ga
 
 - Vocabulary: [`docs/GLOSSARY.md`](docs/GLOSSARY.md). Use its terms in code, comments and docs (Tweak, Toggle, Choice, Action, Group, Entry, Apply, Revert, Default, State, Preset, Run, Outcome).
 - Plan and target architecture: [`docs/PLAN.md`](docs/PLAN.md). Decisions: [`docs/adr/`](docs/adr/).
-- Repo root: `README.md`, `LICENSE`, `CREDITS.md`, this file; `src/` = what Akari runs from and the release zip ships (every path below without a folder is under `src/`: `Akari.ps1`, `Core/`, `UI/`, `Tweaks/`, `Presets/`, `OneClick/`, `Assets/`); `tests/` (Pester; fixtures in `tests/Fixtures/`); `build/` (`Bootstrap.ps1`, `Launcher.cs` + `Launcher.manifest` = `AkariOS.exe`, `Icons.ps1` = `src/UI/Icons.xaml`, `AppIcons.ps1` = `src/Assets/Apps/`, dev-only); `docs/`; `.github/`; `graphify-out/` (the graphify knowledge graph, kept in the repo).
+- Repo root: `README.md`, `LICENSE`, `CREDITS.md`, this file; `src/` = what Akari runs from and the release zip ships (every path below without a folder is under `src/`: `Akari.ps1`, `Core/`, `UI/`, `Tweaks/`, `Presets/`, `OneClick/`, `Assets/`); `tests/` (Pester; fixtures in `tests/Fixtures/`); `build/` (`Bootstrap.ps1`, `Launcher.cs` + `Launcher.manifest` = `AkariOS.exe`, `Icons.ps1` = `src/UI/Icons.xaml`, `AppIcons.ps1` = `src/Assets/Apps/`, dev-only); `docs/`; `.github/`; `graphify-out/` (the graphify knowledge graph, kept in the repo); `app/` (the native app, below).
+
+Two apps share this repo (ADR 0007): **the PowerShell app** (`src/`, everything under "Current layout") and **the native app** (`app/`, C# WPF on .NET 10, no PowerShell engine; plan `docs/plans/2026-10-31-native-app.md`). Both ship in the same `v<version>` release. The native app reads `src/` data as it is, so a change there can break it: see "Native app" below.
 
 ## Current layout (transitional)
 
@@ -66,6 +68,22 @@ The port is in progress (M1 Engine, M2a Manual steps, M3 Windows port + Presets 
 
 Target layout (`UI/*.ps1`, `Presets/`, `Build/`, `Core/Phases`, `Core/Presets`, …) is in plan §6. Update this section whenever the layout changes.
 
+## Native app (`app/`)
+
+Planned, not scaffolded yet (milestones N0-N10 in `docs/plans/2026-10-31-native-app.md`). Target layout:
+
+- `app/AkariOS.Native.sln`, `Directory.Build.props` (`net10.0-windows10.0.19041.0`, nullable, warnings as errors, `Version` read from `src/Core/Version.ps1`, the `src/` files below embedded as linked resources). `bin/` and `obj/` are git-ignored. Build and test: `dotnet test app\AkariOS.Native.sln` (needs the .NET 10 SDK).
+- `AkariOS.Core`: the engine, no WPF, no Tweak logic. `PsData` (reads the PowerShell data subset of `src/Tweaks/**/*.ps1` and the `.psd1` lists; a script block is kept as opaque text), `RegReader` (`.reg` text), Loader (the §7 rules, Problems), Registry engine (`IRegistry`, the real user's hive, `ITrustedInstaller`), State, Runner (Outcomes), Presets, Runs in phases, Log. Every native tool or system API behind an interface that tests fake: `IBcdEdit`, `IPowerCfg`, `IShutdown`, `IWinget`, `IW32tm`, `IWevtutil`, `ICleanMgr`, `IPnpUtil`, `IOscdimg`, `IExe`, `IServiceManager`, `ITaskScheduler`, `IPackageManager`, `IDism`, `IRestorePoint`, `IGitHub`, `IHttp`.
+- `AkariOS.Tweaks`: one C# class per `src/Tweaks` file that has script blocks, at `<Section>/<Category>/<Name>.cs`, registered under that file's id; its metadata comes from the file, never repeated in C#. Also the data-list Group kinds (AppxRemove, CapabilityRemove, FeatureDisable, StoreInstall).
+- `AkariOS.App`: WPF, MVVM (CommunityToolkit.Mvvm), `app.manifest` requireAdministrator; the CLI (`--list`, `--apply`, `--revert`, `--preset`, `--revert-preset`, `--resume`). Look shared with `src/UI`: `Theme.Dark.xaml`, `Theme.Light.xaml`, `Icons.xaml`, `Motion.xaml`, `Controls.xaml` loaded as they are through `AkariXaml` (the `Get-AkariXaml` port); `MainWindow.xaml`'s window styles copied to `Styles/Window.xaml` (a test keeps the keys equal); fonts and logos from `src/Assets`. Same UI rules as `src/UI` (brushes by key only, Opacity and transforms only, animations only through the motion service).
+- `app/tests/` (xUnit v3): `AkariOS.Core.Tests`, `AkariOS.Tweaks.Tests`, `AkariOS.App.Tests`. They load every `src/Tweaks` file and shared list (zero Problems), compare with `tests/Fixtures/Native/tweaks.json` (the PowerShell loader's view), and run the parity test.
+- `app/parity.txt` (checked in): Tweak ids only one app has. PowerShell only = a script-block Tweak with no C# class (the porting checklist); Native only = a C# Tweak with no `src/Tweaks` file. Refresh it with `AKARI_UPDATE_PARITY=1`.
+- `app/ThirdParty/UnattendGenerator/`: Christoph Schneegans' generator (C#, MIT) at a pinned commit (N9).
+- Release: `AkariOS-Native.exe` (self-contained single file, win-x64), attached to the same release as the zip by `.github/workflows/release.yml`; `.github/workflows/native.yml` builds and tests on push. Portable; it updates itself from About.
+- User data: presets shared in `%LOCALAPPDATA%\Akari\presets`; the rest in `%LOCALAPPDATA%\AkariOS.Native` and `%ProgramData%\AkariOS.Native` (log, state, settings, `run.json`, the exe copy a Run in phases resumes from, files written out for tools).
+
+When changing `src/`: a new field or syntax in a Tweak file or `.psd1` list needs `PsData` / the native Loader in the same change; a new script-block Tweak shows up in `app/parity.txt` (refresh it); a renamed style key in `MainWindow.xaml` needs `Styles/Window.xaml`; a new brush goes in both themes as before (both apps read them). The native app never reads Legacy (`Tweaks/*.ps1`, `Ported.psd1`).
+
 ## Rules
 
 1. One tweak per file. If a file passes ~150 lines, split it. Data-list Groups (same-shape Entries) may be one data file (ADR 0002).
@@ -79,4 +97,5 @@ Target layout (`UI/*.ps1`, `Presets/`, `Build/`, `Core/Phases`, `Core/Presets`, 
 9. Never copy code from Winhance (PolyForm Shield). Ideas and layout only.
 10. Update this file in the same change whenever the layout or a Core API changes.
 11. `_ref/` is reference only: read a file there only when the task names it; never scan it whole, never commit or bundle it.
-12. Never launch the GUI or run the CLI on the developer's real machine, in tests or by hand. Tests use fixture tweaks, `HKCU:\Software\AkariTest\<guid>` and `TestDrive:`; CLI tests use `-List` or fake ids. The user does all real testing on a VM — never on the developer's machine. System-changing native commands (`bcdedit`, `shutdown`, …) are called only through a PowerShell function (e.g. `Invoke-AkariBcdEdit`) and tests mock that function, asserting the mock was hit: Pester 3 does not reliably mock a native command (a `Mock cmd` let the real `bcdedit` run once).
+12. Never launch the GUI or run the CLI on the developer's real machine, in tests or by hand. Tests use fixture tweaks, `HKCU:\Software\AkariTest\<guid>` and `TestDrive:`; CLI tests use `-List` or fake ids. The user does all real testing on a VM — never on the developer's machine. System-changing native commands (`bcdedit`, `shutdown`, …) are called only through a PowerShell function (e.g. `Invoke-AkariBcdEdit`) and tests mock that function, asserting the mock was hit: Pester 3 does not reliably mock a native command (a `Mock cmd` let the real `bcdedit` run once). The native app follows the same rule: each tool or system API through one interface, faked in tests.
+13. The native app shares the PowerShell app's vocabulary, Tweak ids and rules 1-12. No code from Winhance or AkariOS-Companion.
