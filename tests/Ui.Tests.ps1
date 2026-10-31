@@ -394,6 +394,34 @@ $r -join '|'
         $out | Should Be 'page True True|inner False|touchpad False|top 0'
     }
 
+    It 'a debug run ($env:AKARI_UI_TIMING) logs page builds, the launch and UI-thread stalls; a normal run logs nothing' {
+        $probe = "$TestDrive\timing.ps1"
+        Set-Content $probe -Value @'
+param($Root, $Log, $Timing)
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName PresentationFramework
+$AkariLogFile = $Log; . "$Root\Core\Log.ps1"
+$env:AKARI_UI_TIMING = $Timing; . "$Root\UI\Motion.ps1"
+function Wait-Ms($ms) { $fr = [Windows.Threading.DispatcherFrame]::new(); $t = [Windows.Threading.DispatcherTimer]::new(); $t.Interval = [TimeSpan]::FromMilliseconds($ms)
+    $t.add_Tick({ $t.Stop(); $fr.Continue = $false }.GetNewClosure()); $t.Start(); [Windows.Threading.Dispatcher]::PushFrame($fr) }
+$tm = Start-AkariUiTimer 'page Test'; Stop-AkariUiTimer $tm
+Start-AkariStallWatch { 'Test page' }
+Wait-Ms 120
+Start-Sleep -Milliseconds 450
+Wait-Ms 120
+'@
+        foreach ($m in '1', '') {
+            $log = "$TestDrive\akari-$m.log"
+            & powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -Log $log -Timing $m 2>&1 | Out-Null
+            $text = if (Test-Path $log) { Get-Content $log -Raw } else { '' }
+            if ($m) {
+                $text | Should Match 'UI timing: page Test \d+ ms'
+                $text | Should Match 'UI timing: window loaded'
+                $text | Should Match 'UI timing: stalled [\d.,]+ ms on Test page'
+            } else { $text | Should BeNullOrEmpty }
+        }
+    }
+
     It 'MainWindow.xaml''s styles animate their states too (buttons, tabs, chips, text box, menu row, scroll bar, progress fill)' {
         $probe = "$TestDrive\shellstyles.ps1"
         Set-Content $probe -Value @'

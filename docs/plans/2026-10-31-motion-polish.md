@@ -125,8 +125,10 @@ Each step ends with tests green (`tests\Run.ps1`) and a VM check by the user (ru
   new page at the top (before, a page opened where the last one had been scrolled).
 
 ### 6. Stalls (what motion can't hide)
-- Measure first: a `Measure-AkariUi <label> { … }` timer that logs to akari.log in a debug run (`$env:AKARI_UI_TIMING`),
-  around page builds and event handlers. Fix the slowest ones, in order.
+- Measure first: a debug run (`$env:AKARI_UI_TIMING = 1`) logs to akari.log every page build (`Show-Page`, through
+  `Start-` / `Stop-AkariUiTimer`), the launch time, and every UI-thread stall over 200 ms with the page it happened on
+  (`Start-AkariStallWatch`). Fix the slowest ones, in order. (Done 2026-10-31: the measuring. The fixes below wait for
+  the numbers from a VM run.)
 - Expected: Catalogue page build (cards cached already: check the first build), Services / Scheduled tasks "Show all"
   (hundreds of rows built in PowerShell: build in chunks at `Background` priority so the first screen shows at once and
   the rest fills in while the page stays responsive), the Unattend page's ~2 s first build (show a skeleton, build in

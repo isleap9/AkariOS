@@ -278,3 +278,35 @@ function Reset-AkariScroll($Viewer) {
     if ($st) { $st.Active = $false; $st.Target = 0.0 }
     $Viewer.ScrollToTop()
 }
+
+# ---- UI timing, for a debug run ($env:AKARI_UI_TIMING = 1; plan step 6): what makes the window stall goes to
+# akari.log as "UI timing: ..." lines. Off (the default), these do nothing.
+$script:UiTiming = [bool]$env:AKARI_UI_TIMING
+$script:UiLoadWatch = [Diagnostics.Stopwatch]::StartNew()
+
+# a timer for one piece of UI work; Stop-AkariUiTimer logs how long it took
+function Start-AkariUiTimer([string]$Label) {
+    if ($script:UiTiming) { @{ Label = $Label; Watch = [Diagnostics.Stopwatch]::StartNew() } }
+}
+function Stop-AkariUiTimer($Timer) {
+    if ($Timer) { Write-ErrLog ('UI timing: {0} {1} ms' -f $Timer.Label, $Timer.Watch.ElapsedMilliseconds) }
+}
+
+# from the window's Loaded: how long the launch took (process start, and the UI files' load), then a watch on the
+# UI thread: a 50 ms tick that arrives over 200 ms late means the window froze that long ($Where says on what page)
+function Start-AkariStallWatch([scriptblock]$Where) {
+    if (-not $script:UiTiming) { return }
+    $since = try { ([DateTime]::Now - [Diagnostics.Process]::GetCurrentProcess().StartTime).TotalMilliseconds } catch { 0 }
+    Write-ErrLog ('UI timing: window loaded {0:N0} ms after the process started, {1:N0} ms after the UI files' -f $since, $script:UiLoadWatch.ElapsedMilliseconds)
+    $t = [Windows.Threading.DispatcherTimer]::new([Windows.Threading.DispatcherPriority]::Normal)
+    $t.Interval = [TimeSpan]::FromMilliseconds(50)
+    $t.Tag = @{ Last = [DateTime]::UtcNow; Where = $Where }
+    $t.Add_Tick({
+        param($s, $e)
+        $now = [DateTime]::UtcNow
+        $gap = ($now - $s.Tag.Last).TotalMilliseconds - 50
+        $s.Tag.Last = $now
+        if ($gap -gt 200) { Write-ErrLog ('UI timing: stalled {0:N0} ms on {1}' -f $gap, (& $s.Tag.Where)) }
+    })
+    $t.Start()
+}

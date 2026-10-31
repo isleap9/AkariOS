@@ -192,7 +192,13 @@ function Add-Log([string]$m) {
     Write-ErrLog $m
 }
 
+# shows the current page ($script:Cat, or the search's results); a debug run logs how long each build took
 function Show-Page {
+    $tm = Start-AkariUiTimer "page $($script:Cat)$(if ($Search.Text.Trim()) { ' (search)' })"
+    try { Show-AkariPageNow } finally { Stop-AkariUiTimer $tm }
+}
+
+function Show-AkariPageNow {
     $q = $Search.Text.Trim()
     # Install AkariOS and the apps flows: the search filters the current step instead of searching the Legacy pages
     $onSteps = ($script:Cat -eq 'Install AkariOS' -or $AkariAppFlows.Contains($script:Cat))
@@ -607,6 +613,8 @@ $HomeTiles.Margin = [Windows.Thickness]::new(-8)
 
 # ---- go
 $window.Add_Loaded({
+    # a debug run ($env:AKARI_UI_TIMING): launch time and UI-thread stalls to akari.log (UI\Motion.ps1)
+    Start-AkariStallWatch { $script:Cat }
     Select-AkariPage $script:Cat
     Write-AkariProblems $loaded.Problems { param($m) Add-Log $m }
     Add-Log 'Ready.'
