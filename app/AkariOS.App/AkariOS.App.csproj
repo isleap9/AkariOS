@@ -13,6 +13,11 @@
     <ProjectReference Include="..\AkariOS.Core\AkariOS.Core.csproj" />
     <ProjectReference Include="..\AkariOS.Tweaks\AkariOS.Tweaks.csproj" />
   </ItemGroup>
+  <!-- Fonts (SIL OFL) and logos from src/Assets, as WPF resources: pack://application:,,,/AkariOS-Native;component/Assets/... -->
+  <ItemGroup>
+    <Resource Include="$(AkariSrc)Assets\Fonts\*.ttf" Link="Assets\Fonts\%(Filename)%(Extension)" />
+    <Resource Include="$(AkariSrc)Assets\AkariLogo-dark.png;$(AkariSrc)Assets\AkariLogo-light.png;$(AkariSrc)Assets\AkariLogo.png;$(AkariSrc)Assets\AkariLogo.ico" Link="Assets\%(Filename)%(Extension)" />
+  </ItemGroup>
   <!-- The look shared with the PowerShell app (ADR 0006, 0007), loaded as it is through AkariXaml. -->
   <ItemGroup>
     <EmbeddedResource Include="$(AkariSrc)UI\Theme.Dark.xaml;$(AkariSrc)UI\Theme.Light.xaml;$(AkariSrc)UI\Icons.xaml;$(AkariSrc)UI\Motion.xaml;$(AkariSrc)UI\Controls.xaml;$(AkariSrc)UI\MainWindow.xaml" LogicalName="src/UI/%(Filename)%(Extension)" />

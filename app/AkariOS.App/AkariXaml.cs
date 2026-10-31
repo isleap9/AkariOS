@@ -65,12 +65,37 @@ public static partial class AkariXaml
         return XamlReader.Parse(xaml);
     }
 
-    /// <summary>The app's resources in their order: Motion, the theme, Icons, Controls.</summary>
+    [GeneratedRegex(@"(?s)<Window\.Resources>(.*)</Window\.Resources>")]
+    private static partial Regex WindowResources();
+
+    [GeneratedRegex(@"(?s)^<Window\b([^>]*)>")]
+    private static partial Regex WindowTag();
+
+    /// <summary>
+    /// MainWindow.xaml's window styles (Btn, BtnP, Ghost, Flat, Tab, Chip, Cap, the focus rings, menus, scroll bars,
+    /// tooltips...) read out of its Window.Resources as a dictionary of their own, with its namespaces and the Motion
+    /// entries: the native window shares them instead of a copy.
+    /// </summary>
+    public static ResourceDictionary WindowStyles(bool motionOn)
+    {
+        var xaml = Text("MainWindow.xaml");
+        var body = WindowResources().Match(xaml);
+        if (!body.Success) throw new InvalidDataException("MainWindow.xaml has no Window.Resources");
+        var namespaces = Regex.Matches(WindowTag().Match(xaml.TrimStart()).Groups[1].Value, @"xmlns(:\w+)?=""[^""]*""").Select(m => m.Value);
+        var dict = $"<ResourceDictionary {string.Join(' ', namespaces)}>{MotionEntries(Text("Motion.xaml"), motionOn)}{body.Groups[1].Value}</ResourceDictionary>";
+        return (ResourceDictionary)XamlReader.Parse(dict);
+    }
+
+    /// <summary>The theme's position in <see cref="SharedResources"/> (ThemeService swaps it).</summary>
+    public const int ThemeIndex = 1;
+
+    /// <summary>The app's resources in their order: Motion, the theme, Icons, the window styles, Controls.</summary>
     public static IEnumerable<ResourceDictionary> SharedResources(string theme, bool motionOn)
     {
         yield return (ResourceDictionary)Load("Motion.xaml", motionOn);
         yield return (ResourceDictionary)Load($"Theme.{theme}.xaml", motionOn);
         yield return (ResourceDictionary)Load("Icons.xaml", motionOn);
+        yield return WindowStyles(motionOn);
         yield return (ResourceDictionary)Load("Controls.xaml", motionOn);
     }
 }

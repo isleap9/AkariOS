@@ -27,9 +27,18 @@ public static partial class Program
             return Cli.Run(args, output, error, () => Engine.Live(TweaksAssembly.Codes, log));
         }
 
+        var appLog = new AkariLog(AkariPaths.LogFile);
+        var engine = Engine.Live(TweaksAssembly.Codes, appLog);
         var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
-        foreach (var d in AkariXaml.SharedResources("Dark", AkariXaml.MotionOn()))
+        var motion = AkariXaml.MotionOn();
+        foreach (var d in AkariXaml.SharedResources("Dark", motion))
             app.Resources.MergedDictionaries.Add(d);
-        return app.Run(new MainWindow());
+        Look.Assets.AddFonts(app.Resources);
+        // System follows the real user's app mode (rule 6: their hive, not the elevated account's)
+        var theme = new Look.ThemeService(app.Resources, new Look.SettingsFile(Path.Combine(AkariPaths.UserFolder, "settings.json")),
+            () => engine.Registry.GetValue(@"HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "AppsUseLightTheme") is uint v ? (int)v : null,
+            motion);
+        theme.Apply(theme.Saved());
+        return app.Run(new MainWindow(theme));
     }
 }

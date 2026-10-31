@@ -20,8 +20,7 @@ The two share data instead of drifting:
   `run.json`, so neither app resumes the other's Run in phases.
 - **Look**: `src/UI/Theme.Dark.xaml`, `Theme.Light.xaml`, `Icons.xaml`, `Motion.xaml` and `Controls.xaml` loaded as
   they are (a C# port of `Get-AkariXaml`, which also respects Windows' animation-effects setting), plus
-  `src/Assets` (fonts, logos, app icons). The window's own styles in `MainWindow.xaml` are copied once into `app/`;
-  a test keeps their keys equal.
+  `src/Assets` (fonts, logos, app icons). The window's own styles are read out of `MainWindow.xaml` too (its `Window.Resources`).
 - **A parity test** lists the Tweak ids each app has that the other lacks (`app/parity.txt`, checked in): the
   PowerShell-only side is the native port's checklist.
 

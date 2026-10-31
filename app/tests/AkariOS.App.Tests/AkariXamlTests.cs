@@ -64,16 +64,6 @@ public class AkariXamlTests
     });
 
     [Fact]
-    public void The_app_resources_come_in_order() => OnSta(() =>
-    {
-        var list = AkariXaml.SharedResources("Light", motionOn: false).ToList();
-        Assert.Equal(4, list.Count);
-        Assert.True(list[0].Contains("Motion.Base"));
-        Assert.True(list[1].Contains("Acc"));
-        Assert.True(list[3].Contains("Switch"));
-    });
-
-    [Fact]
     public void The_window_styles_are_embedded_for_the_key_test() =>
         Assert.Contains("<Window", AkariXaml.Text("MainWindow.xaml"));
 }

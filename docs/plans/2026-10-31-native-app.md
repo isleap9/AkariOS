@@ -51,8 +51,8 @@ Core APIs are the behaviour to match).
 - **Shared look.** Loaded as they are from `src/UI`: `Theme.Dark.xaml`, `Theme.Light.xaml`, `Icons.xaml`,
   `Motion.xaml`, `Controls.xaml`, through `AkariXaml.Load` (a port of `Get-AkariXaml`: the Motion entries first, every
   Duration `0:0:0` when Windows' animation effects are off or `AKARI_MOTION=off`). `MainWindow.xaml`'s window styles
-  (`Btn`, `BtnP`, `Ghost`, `Flat`, `Tab`, `Chip`, `FocusRing`, `FocusBox`, menus, scroll bars, tooltips) are copied
-  once into `AkariOS.App/Styles/Window.xaml`; a test keeps the two sets of style keys equal. Fonts and logos from
+  (`Btn`, `BtnP`, `Ghost`, `Flat`, `Tab`, `Chip`, `FocusRing`, `FocusBox`, menus, scroll bars, tooltips) are read
+  out of its `Window.Resources` at startup (`AkariXaml.WindowStyles`; decided 2026-10-31 instead of a copy). Fonts and logos from
   `src/Assets`. Same rules as the PowerShell UI: brushes only through `DynamicResource` / `SetResourceReference`,
   animations only on Opacity and transforms, only through `Motion` (`Fade`, `Rise`, `Pop`, `Scale`, `Slide`, `Fill`,
   entrance, stagger, smooth scroll, sliding pills).
@@ -185,7 +185,10 @@ report State against the test key; presets round-trip with the PowerShell fixtur
 
 ## N2: Shell and look
 
-- `App.xaml` resources in order: Motion, the theme, Icons, `Styles/Window.xaml`, Controls (through `AkariXaml`);
+Batches: 1 window styles, fonts, theme (done 2026-10-31); 2 the motion service; 3 the shell (top bar, tabs, page
+host, status bar); 4 dialogs; 5 Home and About. The VM check comes at the end.
+
+- The app resources in order: Motion, the theme, Icons, the window styles, Controls (through `AkariXaml`);
   `ThemeService` (System / Dark / Light, `AppsUseLightTheme` followed through `WM_SETTINGCHANGE`, Mica and the dark
   frame on Windows 11 dark, solid elsewhere; `settings.json`).
 - `MotionService`: the PowerShell `Motion.ps1` API in C# (`Start`, `Entrance`, `Stagger`, `Show` / `Hide`, `Count`,
