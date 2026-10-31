@@ -13,7 +13,7 @@ $AkariDialogIcons = @{
 
 # builds the dialog without showing it: its window, Tag.Result = the pressed button's text ($null = closed with Esc)
 function New-AkariDialog([string]$Message, [string]$Title = 'AkariOS', [string[]]$Buttons = @('OK'), [string]$Icon = 'Info', [switch]$TextBox) {
-    $d = [Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Dialog.xaml" -Raw))
+    $d = Get-AkariXaml "$Root\UI\Dialog.xaml"
     # the main window's brushes and button styles
     if ($window) { $d.Resources.MergedDictionaries.Add($window.Resources) }
     $d.Tag = @{ Result = $null }

@@ -2,11 +2,11 @@
 # the background job and the timer that drains the log queue. Dot-sourced by Akari.ps1 after UI\Steps.ps1.
 
 # ---- window
-$window = [Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\MainWindow.xaml" -Raw))
+$window = Get-AkariXaml "$Root\UI\MainWindow.xaml"
 # WinUI-style controls for Install AkariOS (switch, combobox, setting card, ...)
-$window.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Controls.xaml" -Raw)))
+$window.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Controls.xaml"))
 # the Lucide icons (Ic.<name> geometries, built by build\Icons.ps1)
-$window.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Icons.xaml" -Raw)))
+$window.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Icons.xaml"))
 foreach ($n in 'Tabs', 'Search', 'SearchBox', 'SearchBtn', 'SearchHint', 'SubNav', 'Sections', 'Chips', 'RemoveApps', 'Heading', 'Rows', 'Page', 'Logo', 'HomePanel',
                'Shell', 'Body', 'Main', 'TopBar', 'HomeTiles', 'HeaderIcon', 'HeaderSub', 'StatusDot', 'StatusRing', 'StatusText', 'StatusBar', 'StatusFill', 'StatusLoop',
                'CapMin', 'CapMax', 'CapMaxGlyph', 'CapClose', 'StepsPanel', 'StepDots', 'StepBody', 'StepFooter', 'StepBack', 'StepNext',
@@ -81,7 +81,7 @@ function Update-AkariLogo {
 function Set-AkariTheme([string]$Theme = 'System', [switch]$Save) {
     if ($Theme -notin $AkariThemes) { $Theme = 'System' }
     $name = Resolve-AkariTheme $Theme
-    $d = [Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Theme.$name.xaml" -Raw))
+    $d = Get-AkariXaml "$Root\UI\Theme.$name.xaml"
     $md = $window.Resources.MergedDictionaries
     if ($script:ThemeDict) { [void]$md.Remove($script:ThemeDict) }
     $md.Insert(0, $d)

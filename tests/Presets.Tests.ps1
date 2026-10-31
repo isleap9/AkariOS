@@ -125,8 +125,9 @@ $script:Tweaks = @(
 foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps') { . "$Root\UI\$f.ps1" }
 function Get-AkariAppxInstalled { @('Akari.Test.One', 'Akari.Test.Two') }; function Start-AkariFeatureRead { }; function Add-Log($m) { }
 $res = [Windows.Controls.StackPanel]::new()
-$res.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Controls.xaml" -Raw)))
-$res.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Icons.xaml" -Raw)))
+. "$Root\UI\Motion.ps1"
+$res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Controls.xaml"))
+$res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Icons.xaml"))
 $StepDots = [Windows.Controls.StackPanel]::new(); $StepBody = [Windows.Controls.StackPanel]::new()
 $StepBack = [Windows.Controls.Button]::new(); $StepNext = [Windows.Controls.Button]::new(); $Search = [Windows.Controls.TextBox]::new()
 $StepFooter = [Windows.Controls.Border]::new()

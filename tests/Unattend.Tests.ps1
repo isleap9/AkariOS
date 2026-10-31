@@ -1,4 +1,4 @@
-$Root = Join-Path (Split-Path $PSScriptRoot) 'src'
+﻿$Root = Join-Path (Split-Path $PSScriptRoot) 'src'
 . "$Root\Core\Unattend.ps1"
 
 # a document compared without its comment (the bookmark URL) and his build stamp (s:Build/s:Commit)
@@ -124,7 +124,8 @@ function Canon([string]$Xml) {
 function Pick($field, $value) { @($script:UaBindings | Where-Object { $_.Field -eq $field })[0].Options[$value].IsChecked = $true }
 function Box($field) { @($script:UaBindings | Where-Object { $_.Field -eq $field })[0].Control }
 $res = [Windows.Controls.StackPanel]::new()
-$res.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Controls.xaml" -Raw)))
+. "$Root\UI\Motion.ps1"
+$res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Controls.xaml"))
 $StepDots = [Windows.Controls.StackPanel]::new(); $StepBody = [Windows.Controls.StackPanel]::new()
 [void]$res.Children.Add($StepBody)
 $StepBack = [Windows.Controls.Button]::new(); $StepNext = [Windows.Controls.Button]::new()

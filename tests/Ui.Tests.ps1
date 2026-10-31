@@ -1,4 +1,4 @@
-$Root = Join-Path (Split-Path $PSScriptRoot) 'src'
+﻿$Root = Join-Path (Split-Path $PSScriptRoot) 'src'
 
 # Parses XAML in a child STA PowerShell (WPF needs STA). No window is created or shown.
 function Test-XamlInChild([string]$Script) {
@@ -27,7 +27,7 @@ Describe 'UI files' {
     }
 
     It 'MainWindow.xaml parses' {
-        $s = "Add-Type -AssemblyName PresentationFramework; [void][Windows.Markup.XamlReader]::Parse((Get-Content '$Root\UI\MainWindow.xaml' -Raw)); 'ok'"
+        $s = "Add-Type -AssemblyName PresentationFramework; . '$Root\UI\Motion.ps1'; [void](Get-AkariXaml '$Root\UI\MainWindow.xaml'); 'ok'"
         Test-XamlInChild $s | Should Be 'ok'
     }
 
@@ -43,7 +43,7 @@ Describe 'UI files' {
     }
 
     It 'Controls.xaml parses and defines every style' {
-        $s = "Add-Type -AssemblyName PresentationFramework; `$d = [Windows.Markup.XamlReader]::Parse((Get-Content '$Root\UI\Controls.xaml' -Raw)); " +
+        $s = "Add-Type -AssemblyName PresentationFramework; . '$Root\UI\Motion.ps1'; `$d = Get-AkariXaml '$Root\UI\Controls.xaml'; " +
              "`$miss = @('Switch', 'Combo', 'ComboItem', 'Segmented', 'SegItem', 'Check', 'SettingCard', 'CategoryCard', 'Accent', 'StepNum', 'ModeCard' | Where-Object { -not `$d.Contains(`$_) }); " +
              "if (`$miss) { 'missing: ' + (`$miss -join ', ') } else { 'ok' }"
         Test-XamlInChild $s | Should Be 'ok'
@@ -146,7 +146,7 @@ Describe 'Themes (UI\Theme.Dark.xaml, UI\Theme.Light.xaml)' {
     $light = @(& $keys "$Root\UI\Theme.Light.xaml" | Sort-Object)
 
     It 'both parse as WPF resource dictionaries' {
-        $s = "Add-Type -AssemblyName PresentationFramework; foreach (`$n in 'Dark', 'Light') { [void][Windows.Markup.XamlReader]::Parse((Get-Content ('$Root\UI\Theme.' + `$n + '.xaml') -Raw)) }; 'ok'"
+        $s = "Add-Type -AssemblyName PresentationFramework; . '$Root\UI\Motion.ps1'; foreach (`$n in 'Dark', 'Light') { [void](Get-AkariXaml ('$Root\UI\Theme.' + `$n + '.xaml')) }; 'ok'"
         Test-XamlInChild $s | Should Be 'ok'
     }
 
@@ -180,6 +180,91 @@ Describe 'Themes (UI\Theme.Dark.xaml, UI\Theme.Light.xaml)' {
     }
 }
 
+Describe 'Motion (UI\Motion.ps1, UI\Motion.xaml)' {
+    . "$Root\UI\Motion.ps1"
+    $motion = Get-Content "$Root\UI\Motion.xaml" -Raw
+    $xamlFiles = @(Get-ChildItem "$Root\UI\*.xaml" | Where-Object { $_.Name -notin 'Icons.xaml', 'Motion.xaml' })
+
+    It 'takes the entries between the root tags, every Duration 0:0:0 with motion off' {
+        $on = Get-AkariMotionEntries $motion $true
+        $on | Should Match 'x:Key="Motion.Fast">0:0:0.12<'
+        $on | Should Not Match '<ResourceDictionary'
+        $off = Get-AkariMotionEntries $motion $false
+        [regex]::Matches($off, '<Duration\b[^>]*>0:0:0</Duration>').Count | Should Be ([regex]::Matches($on, '<Duration\b').Count)
+        $off | Should Match 'Motion.Ease'
+    }
+    It 'puts the entries first in a root ResourceDictionary or the first X.Resources, else leaves the XAML alone' {
+        Add-AkariMotionXaml '<ResourceDictionary a="1"><S/></ResourceDictionary>' '<M/>' | Should Be '<ResourceDictionary a="1"><M/><S/></ResourceDictionary>'
+        Add-AkariMotionXaml '<Window><Window.Resources><S/></Window.Resources></Window>' '<M/>' | Should Be '<Window><Window.Resources><M/><S/></Window.Resources></Window>'
+        Add-AkariMotionXaml '<Border/>' '<M/>' | Should Be '<Border/>'
+    }
+    It 'plans each kind: Fade, Rise, Pop, Scale, Slide' {
+        ((Get-AkariMotionPlan Fade) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'Opacity 0>1'
+        ((Get-AkariMotionPlan Rise) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'Opacity 0>1, Y 10>0'
+        ((Get-AkariMotionPlan Pop) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'Opacity 0>1, ScaleX 0.96>1, ScaleY 0.96>1'
+        ((Get-AkariMotionPlan Scale 1 0.97) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'ScaleX 1>0.97, ScaleY 1>0.97'
+        ((Get-AkariMotionPlan Slide $null 40) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'X >40'
+        { Get-AkariMotionPlan Wobble } | Should Throw
+    }
+    It 'Motion off: Windows'' animation effects, or AKARI_MOTION' {
+        $old = $env:AKARI_MOTION
+        try { $env:AKARI_MOTION = 'off'; Test-AkariMotionOn | Should Be $false; $env:AKARI_MOTION = 'on'; Test-AkariMotionOn | Should Be $true }
+        finally { $env:AKARI_MOTION = $old }
+    }
+
+    # an animation's Duration is a Motion token; only a busy loop (its Storyboard repeats Forever) keeps its own
+    It 'animations take their Duration from the Motion tokens' {
+        $bad = foreach ($f in $xamlFiles) {
+            $x = [xml](Get-Content $f.FullName -Raw)
+            foreach ($a in $x.SelectNodes("//*[contains(local-name(), 'Animation') and @Duration]")) {
+                if ($a.Duration -like '{StaticResource Motion.*}') { continue }
+                $loop = $false; $p = $a.ParentNode
+                while ($p -and $p.NodeType -eq 'Element') { if ($p.LocalName -eq 'Storyboard' -and $p.GetAttribute('RepeatBehavior') -eq 'Forever') { $loop = $true }; $p = $p.ParentNode }
+                if (-not $loop) { "$($f.Name): $($a.LocalName) $($a.Duration)" }
+            }
+        }
+        @($bad) -join '; ' | Should Be ''
+    }
+    It 'never animates a colour (the brushes are shared DynamicResources): Opacity and transforms only' {
+        @($xamlFiles | Where-Object { (Get-Content $_.FullName -Raw) -match '<ColorAnimation' } | ForEach-Object Name) -join ', ' | Should Be ''
+    }
+    It 'every trigger that animates in animates back out' {
+        $bad = foreach ($f in $xamlFiles) {
+            $x = [xml](Get-Content $f.FullName -Raw)
+            foreach ($t in $x.SelectNodes("//*[substring(local-name(), string-length(local-name()) - 12) = '.EnterActions']")) {
+                $exit = $t.LocalName -replace 'EnterActions$', 'ExitActions'
+                if (-not @($t.ParentNode.ChildNodes | Where-Object { $_.LocalName -eq $exit }).Count) { "$($f.Name): $($t.ParentNode.LocalName)" }
+            }
+        }
+        @($bad) -join '; ' | Should Be ''
+    }
+    It 'every UI XAML file is read through Get-AkariXaml, every animation started by Start-AkariMotion' {
+        $ps = @(Get-ChildItem "$Root\UI\*.ps1" | Where-Object Name -ne 'Motion.ps1')
+        @($ps | Where-Object { (Get-Content $_.FullName -Raw) -match 'XamlReader\]::Parse\(\(Get-Content' } | ForEach-Object Name) -join ', ' | Should Be ''
+        @($ps | Where-Object { (Get-Content $_.FullName -Raw) -match '\.BeginAnimation\(' } | ForEach-Object Name) -join ', ' | Should Be ''
+    }
+
+    It 'parses every UI XAML file with motion on and off; Start-AkariMotion animates, or sets the end values' {
+        $probe = "$TestDrive\motion.ps1"
+        Set-Content $probe -Value @'
+param($Root)
+Add-Type -AssemblyName PresentationFramework
+$r = @()
+foreach ($m in 'on', 'off') {
+    $env:AKARI_MOTION = $m; . "$Root\UI\Motion.ps1"
+    foreach ($f in Get-ChildItem "$Root\UI\*.xaml" | Where-Object Name -ne 'Motion.xaml') { try { [void](Get-AkariXaml $f.FullName) } catch { $r += "$m $($f.Name): $($_.Exception.Message)" } }
+    $r += "$m fast=$($AkariMotion['Motion.Fast'].TimeSpan.TotalMilliseconds)"
+    $b = [Windows.Controls.Border]::new(); Start-AkariMotion $b Rise -Delay ([TimeSpan]::FromMilliseconds(30))
+    $g1 = $b.RenderTransform; Start-AkariMotion $b Slide $null 40
+    $r += "$m rise op=$($b.Opacity) y=$($b.RenderTransform.Children[-1].Y) x=$($b.RenderTransform.Children[-1].X) anim=$($b.HasAnimatedProperties) same=$([object]::ReferenceEquals($g1, $b.RenderTransform))"
+}
+$r -join '|'
+'@
+        $out = @(& powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root 2>&1 | ForEach-Object { "$_" }) -join "`n"
+        $out | Should Be 'on fast=120|on rise op=1 y=0 x=40 anim=True same=True|off fast=0|off rise op=1 y=0 x=40 anim=False same=True'
+    }
+}
+
 Describe 'Get-AkariMasonry' {
     . "$Root\UI\Cards.ps1"
     It 'puts each card in the shortest column, leftmost on ties' {
@@ -199,8 +284,9 @@ foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
 . "$Root\UI\Selection.ps1"
 . "$Root\UI\Cards.ps1"
 $host_ = [Windows.Controls.StackPanel]::new()
-$host_.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Controls.xaml" -Raw)))
-$host_.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Icons.xaml" -Raw)))
+. "$Root\UI\Motion.ps1"
+$host_.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Controls.xaml"))
+$host_.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Icons.xaml"))
 function Show($e) { [void]$host_.Children.Add($e.Row); $host_.Measure([Windows.Size]::new(400, 2000)); [void]$e.Control.ApplyTemplate() }
 $tog = ConvertTo-AkariTweak @{ Id = 'tog'; Name = 'Tog'; Description = 'D'; Risk = 'Safe'; Reboot = $true } 'x' $false
 $adv = ConvertTo-AkariTweak @{ Id = 'adv'; Name = 'Adv'; Description = 'D'; Risk = 'Advanced' } 'x' $false
@@ -329,7 +415,7 @@ $script:Groups = @(); $script:RowCache = @{}; $script:Cat = 'Home'; $script:Busy
 $script:Queue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
 $loaded = @{ Problems = @() }
 function Get-AkariAppxInstalled { @() }; function Start-AkariFeatureRead { }
-foreach ($f in 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows', 'CataloguePage', 'ServicesPage', 'TasksPage', 'About', 'UnattendForm', 'Unattend', 'IsoBuilder', 'ImportExport') { . "$Root\UI\$f.ps1" }
+foreach ($f in 'Motion', 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows', 'CataloguePage', 'ServicesPage', 'TasksPage', 'About', 'UnattendForm', 'Unattend', 'IsoBuilder', 'ImportExport') { . "$Root\UI\$f.ps1" }
 $timer.Stop()
 # the Catalogue reads its States in a job: recorded, never run (no real job, no Safe Mode read)
 function Test-AkariSafeMode { $false }

@@ -1,4 +1,4 @@
-$Root = Join-Path (Split-Path $PSScriptRoot) 'src'
+﻿$Root = Join-Path (Split-Path $PSScriptRoot) 'src'
 
 Describe 'Get-AkariStepGroups' {
     foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
@@ -80,8 +80,9 @@ foreach ($f in 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps') { . "$Root\UI
 # no real AppX read in tests: no app installed, no data-list Group
 function Get-AkariAppxInstalled { @() }; function Start-AkariFeatureRead { }; $script:Groups = @()
 $res = [Windows.Controls.StackPanel]::new()
-$res.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Controls.xaml" -Raw)))
-$res.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Icons.xaml" -Raw)))
+. "$Root\UI\Motion.ps1"
+$res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Controls.xaml"))
+$res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Icons.xaml"))
 $StepDots = [Windows.Controls.StackPanel]::new(); $StepBody = [Windows.Controls.StackPanel]::new()
 [void]$res.Children.Add($StepDots); [void]$res.Children.Add($StepBody)
 $StepBack = [Windows.Controls.Button]::new(); $StepNext = [Windows.Controls.Button]::new()
@@ -238,7 +239,8 @@ $script:Busy = $false; $script:Queue = [Collections.Concurrent.ConcurrentQueue[s
 function Set-Busy($b, $l) { $script:Busy = $b }
 function Add-Log($m) { }
 $res = [Windows.Controls.StackPanel]::new()
-$res.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Controls.xaml" -Raw)))
+. "$Root\UI\Motion.ps1"
+$res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Controls.xaml"))
 $StepDots = [Windows.Controls.StackPanel]::new(); $StepBody = [Windows.Controls.StackPanel]::new()
 [void]$res.Children.Add($StepDots); [void]$res.Children.Add($StepBody)
 $StepBack = [Windows.Controls.Button]::new(); $StepNext = [Windows.Controls.Button]::new(); $Search = [Windows.Controls.TextBox]::new()
@@ -477,7 +479,8 @@ function Get-AkariAppxInstalled { @('Akari.Test.Safe', 'Akari.Test.Opt', 'Akari.
 # no real feature read: the probe hands fake names to Complete-AkariFeatureRead itself, later
 function Start-AkariFeatureRead { }
 $res = [Windows.Controls.StackPanel]::new()
-$res.Resources.MergedDictionaries.Add([Windows.Markup.XamlReader]::Parse((Get-Content "$Root\UI\Controls.xaml" -Raw)))
+. "$Root\UI\Motion.ps1"
+$res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Controls.xaml"))
 $StepDots = [Windows.Controls.StackPanel]::new(); $StepBody = [Windows.Controls.StackPanel]::new()
 [void]$res.Children.Add($StepBody)
 $StepBack = [Windows.Controls.Button]::new(); $StepNext = [Windows.Controls.Button]::new(); $Search = [Windows.Controls.TextBox]::new()
