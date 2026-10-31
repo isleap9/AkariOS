@@ -16,7 +16,7 @@ $Version = '0.460.0'
 # every icon the UI uses (New-AkariIcon '<name>', the $Pages and $AkariCategoryGlyphs tables, XAML Ic.<name>)
 $Names = @(
     # pages, Home tiles, mode cards
-    'house', 'zap', 'sliders-horizontal', 'download', 'trash-2', 'usb', 'info', 'activity', 'refresh-cw', 'wrench',
+    'house', 'zap', 'sliders-horizontal', 'download', 'trash-2', 'usb', 'disc-3', 'info', 'activity', 'refresh-cw', 'wrench',
     'monitor', 'app-window', 'cpu', 'flask-conical', 'list-checks', 'arrow-left-right', 'history', 'settings',
     # Categories
     'gamepad-2', 'gauge', 'sliders-vertical', 'lock', 'panel-bottom', 'layout-grid', 'folder', 'palette', 'cloud-download',

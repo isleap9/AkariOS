@@ -204,24 +204,30 @@ function Get-AkariIsoMarker {
     if (-not (Test-Path -LiteralPath $AkariIsoMarker)) { return $null }
     try { Get-Content -LiteralPath $AkariIsoMarker -Raw | ConvertFrom-Json } catch { $null }
 }
-function Set-AkariIsoMarker([string]$Mount) {
+# what is mounted: the folder, and which edition of which image (0 / '' = boot.wim or not known)
+function Set-AkariIsoMarker([string]$Mount, [string]$Image = '', [int]$Index = 0) {
     New-Item -Path (Split-Path $AkariIsoMarker) -ItemType Directory -Force | Out-Null
-    @{ Mount = $Mount } | ConvertTo-Json | Set-Content -LiteralPath $AkariIsoMarker -Encoding UTF8
+    @{ Mount = $Mount; Image = $Image; Index = $Index } | ConvertTo-Json | Set-Content -LiteralPath $AkariIsoMarker -Encoding UTF8
 }
 function Clear-AkariIsoMarker { Remove-Item -LiteralPath $AkariIsoMarker -Force -ErrorAction SilentlyContinue }
 
-function Test-AkariIsoMounted($Work) {
+# $true when this edition ($Image, $Index) is the one mounted in $Work; without $Image, any mount there counts
+function Test-AkariIsoMounted($Work, [string]$Image = '', [int]$Index = 0) {
     $m = Get-AkariIsoMarker
-    [bool]($m -and $m.Mount -eq $Work.Mount)
+    if (-not $m -or $m.Mount -ne $Work.Mount) { return $false }
+    if (-not $Image) { return $true }
+    [bool]($m.Image -eq $Image -and [int]$m.Index -eq $Index)
 }
 
-# the chosen edition exported to <out>\AkariIso\install.wim and mounted (once: the page mounts it to read its apps)
+# the chosen edition exported to <out>\AkariIso\install.wim and mounted (once: the page mounts it to read its apps;
+# another edition mounted there is discarded first)
 function Mount-AkariIsoEdition($Work, [string]$Image, [int]$Index) {
-    if (Test-AkariIsoMounted $Work) { return }
+    if (Test-AkariIsoMounted $Work $Image $Index) { return }
+    if (Get-AkariIsoMarker) { Clear-AkariIsoLeftover }
     Remove-Item -LiteralPath $Work.Wim -Force -ErrorAction SilentlyContinue
     Export-AkariWim $Image $Index $Work.Wim 'fast'
     New-Item -Path $Work.Mount -ItemType Directory -Force | Out-Null
-    Set-AkariIsoMarker $Work.Mount
+    Set-AkariIsoMarker $Work.Mount $Image $Index
     try { Mount-AkariWim $Work.Wim 1 $Work.Mount }
     catch { Undo-AkariWim $Work.Mount; Clear-AkariIsoMarker; throw }
 }

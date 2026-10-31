@@ -95,7 +95,7 @@ Initialize-AkariSteps
 
 # every page: its icon (a Lucide name, UI\Icons.xaml) and the subtitle under the page title. The tabs open Home,
 # Install AkariOS, Optimize (its sub-header: the Catalogue's pages and the Legacy ones, $AkariLegacyPages), Downloads
-# and Unattend Generator; About is in the options menu.
+# Unattend Generator and ISO Builder; About is in the options menu.
 $Pages = [ordered]@{
     Home       = @{ Glyph = 'house'; Sub = 'Choose how you want to optimize Windows' }
     # Install AkariOS: One-click, or Guided (pick the Tweaks, review, apply once)
@@ -106,6 +106,8 @@ $Pages = [ordered]@{
     'Remove apps' = @{ Glyph = 'trash-2'; Sub = 'Store apps, optional features, Windows features and legacy apps to remove' }
     # Unattend Generator (UI\Unattend.ps1): the Home tile, Schneegans' unattend generator on one long page
     'Unattend Generator' = @{ Glyph = 'usb'; Sub = 'An autounattend.xml for a Windows install USB, after Schneegans'' generator' }
+    # ISO Builder (UI\IsoBuilder.ps1): the Home tile, a custom Windows 11 ISO after zISO Tweaker
+    'ISO Builder' = @{ Glyph = 'disc-3'; Sub = 'A custom Windows 11 ISO: apps removed and settings written in before it installs, after zISO Tweaker' }
     # About & Updates (UI\About.ps1): the Home link and the update bar open it
     About      = @{ Glyph = 'info'; Sub = 'Version, updates and credits' }
     # Legacy pages: the frozen AkariOS-Ultimate tweaks (ADR 0004)
@@ -192,8 +194,8 @@ function Show-Page {
     $q = $Search.Text.Trim()
     # Install AkariOS and the apps flows: the search filters the current step instead of searching the Legacy pages
     $onSteps = ($script:Cat -eq 'Install AkariOS' -or $AkariAppFlows.Contains($script:Cat))
-    # About and Unattend Generator: full pages, Back leads home
-    $onAbout = (-not $q -and $script:Cat -in 'About', 'Unattend Generator')
+    # About, Unattend Generator and ISO Builder: full pages, Back leads home
+    $onAbout = (-not $q -and $script:Cat -in 'About', 'Unattend Generator', 'ISO Builder')
     $CatBars.Visibility = 'Collapsed'
     # Home: the hero is the title
     $PageHeader.Visibility = if (-not $q -and $script:Cat -eq 'Home') { 'Collapsed' } else { 'Visible' }
@@ -209,7 +211,7 @@ function Show-Page {
         $Heading.Text = $script:Cat
         $HeaderSub.Text = $Pages[$script:Cat].Sub
         Set-AkariIcon $HeaderIcon ([string]$Pages[$script:Cat].Glyph)
-        if ($onAbout) { if ($script:Cat -eq 'About') { Show-AkariAbout } else { Show-AkariUnattend }; return }
+        if ($onAbout) { switch ($script:Cat) { 'About' { Show-AkariAbout } 'ISO Builder' { Show-AkariIsoBuilder } default { Show-AkariUnattend } }; return }
         Enter-AkariFlow $script:Cat
         Show-AkariSteps
         return
@@ -301,6 +303,8 @@ $timer.Add_Tick({
         Set-Busy $false
         if ($j.Kind -eq 'Apply') { Complete-AkariApply $j.Shared }
         if ($j.Kind -eq 'Export') { Complete-AkariExport $j.Shared }
+        # the ISO Builder's jobs (UI\IsoBuilder.ps1): after Set-Busy, so a finished step can start the next
+        if ("$($j.Kind)" -like 'Iso*') { Complete-AkariIsoJob $j }
         # a Catalogue change updates its card only (the page stays as it is)
         # Home's stats are read again the next time it shows
         $script:StatsFresh = $false
@@ -318,11 +322,11 @@ function Confirm-Run([string]$text) {
 
 # ---- top bar: the tabs, Optimize's sub-header (Sections, Category chips, Remove apps) and the search
 # the tabs and their icons; Optimize opens the Optimize page seen last (Get-AkariOptimizeTarget)
-$AkariTabs = [ordered]@{ Home = 'house'; 'Install AkariOS' = 'zap'; Optimize = 'sliders-horizontal'; Downloads = 'download'; 'Unattend Generator' = 'usb' }
+$AkariTabs = [ordered]@{ Home = 'house'; 'Install AkariOS' = 'zap'; Optimize = 'sliders-horizontal'; Downloads = 'download'; 'Unattend Generator' = 'usb'; 'ISO Builder' = 'disc-3' }
 
 # the tab page $Page belongs to ('' = none: About). Pure.
 function Get-AkariTab([string]$Page) {
-    if ($Page -in 'Home', 'Install AkariOS', 'Downloads', 'Unattend Generator') { return $Page }
+    if ($Page -in 'Home', 'Install AkariOS', 'Downloads', 'Unattend Generator', 'ISO Builder') { return $Page }
     if ($Page -like "$AkariCataloguePrefix*" -or $Page -in $AkariLegacyPages -or $Page -in 'Optimize', 'Remove apps') { return 'Optimize' }
     ''
 }
@@ -369,10 +373,15 @@ function New-AkariPill([string]$Style, [string]$Tag, [string]$Label, [string]$Ic
     $rb
 }
 
-$script:TabIcons = @()
+# six tabs fit the narrow window with these labels (the Tag keeps the page name)
+$AkariTabShort = @{ 'Install AkariOS' = 'Install'; 'Unattend Generator' = 'Unattend'; 'ISO Builder' = 'ISO' }
+# the tabs at $Width: icons from 1440 px, short labels under 1000. Pure.
+function Get-AkariTabLayout([double]$Width) { @{ Icons = ($Width -ge 1440); Short = ($Width -lt 1000) } }
+$script:TabIcons = @(); $script:TabLabels = @()
 foreach ($t in $AkariTabs.Keys) {
     $rb = New-AkariPill 'Tab' $t $t $AkariTabs[$t] 'tabs'
     $script:TabIcons += $rb.Content.Children[0]
+    $script:TabLabels += $rb.Content.Children[1]
     [void]$Tabs.Children.Add($rb)
 }
 
@@ -459,12 +468,15 @@ function Open-AkariSearch {
     [void]$Search.Focus()
     $Search.SelectAll()
 }
+# Home's five mode cards: all in a row, three under 1320 px, two under 1000. Pure.
+function Get-AkariHomeColumns([double]$Width) { if ($Width -lt 1000) { 2 } elseif ($Width -lt 1320) { 3 } else { 5 } }
 function Update-AkariWidth([double]$Width) {
     $script:Narrow = ($Width -lt 1320)
     $TitleText.Visibility = if ($Width -lt 1000) { 'Collapsed' } else { 'Visible' }
-    foreach ($i in $script:TabIcons) { $i.Visibility = if ($script:Narrow) { 'Collapsed' } else { 'Visible' } }
-    # Home's mode cards: four in a row, two under 1000 px
-    $HomeTiles.Columns = if ($Width -lt 1000) { 2 } else { 4 }
+    $tl = Get-AkariTabLayout $Width
+    foreach ($i in $script:TabIcons) { $i.Visibility = if ($tl.Icons) { 'Visible' } else { 'Collapsed' } }
+    foreach ($l in $script:TabLabels) { $tag = $l.Parent.Parent.Tag; $l.Text = if ($tl.Short -and $AkariTabShort.ContainsKey($tag)) { $AkariTabShort[$tag] } else { $tag } }
+    $HomeTiles.Columns = Get-AkariHomeColumns $Width
     Set-AkariSearchOpen ([bool]$Search.Text -or $Search.IsKeyboardFocusWithin)
 }
 $window.Add_SizeChanged({ Update-AkariWidth $window.ActualWidth })
@@ -548,7 +560,7 @@ try { `$AkariShared.Applied = @(Get-AkariExportItems @(`$loaded.Tweaks)).Count }
 }
 function Complete-AkariHomeStats($Shared) { Set-AkariHomeStats @{ Apps = $Shared.Apps; Applied = $Shared.Applied } }
 
-# ---- Home: the mode cards under the hero: Optimize, Downloads, Unattend Generator, Import / Export
+# ---- Home: the mode cards under the hero: Optimize, Downloads, Unattend Generator, ISO Builder, Import / Export
 $tile = New-AkariModeCard 'sliders-horizontal' 'Optimize' 'Manual, in-depth optimization for Windows. Recommended for power users.' $true
 # the Optimize tab's page
 $tile.Add_Click({ Select-AkariPage 'Optimize' })
@@ -560,6 +572,10 @@ $tile.Add_Click({ Select-AkariPage 'Downloads' })
 # Unattend Generator: Schneegans' unattend generator, an autounattend.xml for a Windows install USB (UI\Unattend.ps1)
 $tile = New-AkariModeCard 'usb' 'Unattend Generator' 'Prepare a Windows install USB: an autounattend.xml with accounts, language, edition, disk and setup choices, after Schneegans'' generator.' $true
 $tile.Add_Click({ Select-AkariPage 'Unattend Generator' })
+[void]$HomeTiles.Children.Add($tile)
+# ISO Builder: a custom Windows 11 ISO, after zISO Tweaker (UI\IsoBuilder.ps1)
+$tile = New-AkariModeCard 'disc-3' 'ISO Builder' 'Build your own Windows 11 ISO: apps removed, updates, Defender and AI your way, AkariOS on the desktop. Downloads the ISO too.' $true
+$tile.Add_Click({ Select-AkariPage 'ISO Builder' })
 [void]$HomeTiles.Children.Add($tile)
 $tile = New-AkariModeCard 'arrow-left-right' 'Import / Export settings' 'Save this PC''s settings to a file, or load them on another PC and review them in Guided.' $true
 $tile.Add_Click({ Show-AkariImportExport })

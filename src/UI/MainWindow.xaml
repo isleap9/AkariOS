@@ -582,7 +582,7 @@
               <TextBlock Text="MORE TOOLS" FontFamily="{DynamicResource FontDisplay}" FontSize="11" FontWeight="SemiBold"
                          Foreground="{DynamicResource Mu}" Margin="8,0,0,12"/>
               <!-- columns follow the window's width (Update-AkariWidth) -->
-              <UniformGrid x:Name="HomeTiles" Columns="4"/>
+              <UniformGrid x:Name="HomeTiles" Columns="5"/>
             </StackPanel>
 
             <StackPanel x:Name="Rows"/>

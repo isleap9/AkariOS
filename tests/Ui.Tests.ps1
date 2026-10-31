@@ -313,7 +313,7 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework
 $AkariLogFile = $LogFile
 $AkariPresetDir = Join-Path (Split-Path $LogFile) 'presets'
-foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'Restore', 'Version', 'Update', 'Unattend', 'Presets') { . "$Root\Core\$f.ps1" }
+foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'Restore', 'Version', 'Update', 'Unattend', 'Presets', 'Iso', 'IsoDownload') { . "$Root\Core\$f.ps1" }
 # the Unattend Generator page reads no drive and no PC setting here
 function Get-AkariSetupDrives { }
 function Get-AkariUnattendDefaults { @{} }
@@ -329,7 +329,7 @@ $script:Groups = @(); $script:RowCache = @{}; $script:Cat = 'Home'; $script:Busy
 $script:Queue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
 $loaded = @{ Problems = @() }
 function Get-AkariAppxInstalled { @() }; function Start-AkariFeatureRead { }
-foreach ($f in 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows', 'CataloguePage', 'ServicesPage', 'TasksPage', 'About', 'UnattendForm', 'Unattend', 'ImportExport') { . "$Root\UI\$f.ps1" }
+foreach ($f in 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows', 'CataloguePage', 'ServicesPage', 'TasksPage', 'About', 'UnattendForm', 'Unattend', 'IsoBuilder', 'ImportExport') { . "$Root\UI\$f.ps1" }
 $timer.Stop()
 # the Catalogue reads its States in a job: recorded, never run (no real job, no Safe Mode read)
 function Test-AkariSafeMode { $false }
@@ -389,6 +389,25 @@ Click $StepBack; "aboutBack=$script:Cat"
 "tiles=$(($HomeTiles.Children | ForEach-Object { $_.Content.Children[1].Text }) -join ',')|$($HomeTiles.Columns)"
 Click $HomeTiles.Children[2]; "usbFile=$script:Cat|$($Heading.Text)|$(TabOn)|$($StepNext.Visibility)|$($null -ne $script:UnattendParts.Drive)"
 Click $StepBack; "usbFileBack=$script:Cat"
+# the ISO Builder tile (fourth of five): full window, zISO's ten options, the edition list empty until an ISO is open
+Click $HomeTiles.Children[3]; "isoPage=$script:Cat|$($Heading.Text)|$(TabOn)|$($StepNext.Visibility)|$($script:IsoParts.Options.Count)|$($script:IsoParts.Edition.IsEnabled)"
+Start-AkariIsoBuild; "isoNoEdition=$($script:IsoParts.Error.Text -match 'Open the ISO')"
+$o = $script:IsoParts.Options; $o.DisableUpdates.IsChecked = $true; Update-AkariIsoOptions
+"isoExclusive=$($o.SecurityOnly.IsEnabled)|$($o.DisableVersionUpgrade.IsEnabled)|$($o.DisableUpdates.IsEnabled)|$($o.RemoveAI.IsEnabled)"
+$o.DisableUpdates.IsChecked = $false; Update-AkariIsoOptions; "isoFreed=$($o.SecurityOnly.IsEnabled)"
+Complete-AkariIsoJob @{ Kind = 'IsoOpen'; Shared = @{ Result = @{ Image = 'X:\AkariIso\Media\sources\install.wim'; Editions = @(@{ Index = 1; Name = 'Windows 10 Pro'; Version = '10.0.19045.1'; Supported = $false }, @{ Index = 6; Name = 'Windows 11 Pro'; Version = '10.0.26200.1'; Supported = $true }) } } }
+"isoOpened=$($script:IsoParts.Edition.Items.Count)|$($script:IsoParts.Edition.IsEnabled)|$($script:IsoParts.Edition.SelectedItem.Content)"
+Complete-AkariIsoJob @{ Kind = 'IsoRead'; Shared = @{ Apps = @(@{ Name = 'Microsoft.BingNews'; Package = 'Microsoft.BingNews_1_x64__8wekyb3d8bbwe' }); Capabilities = @(@{ Name = 'App.StepsRecorder~~~~0.0.1.0' }); Features = @(); Packages = @() } }
+"isoLists=$($script:IsoParts.Lists.Apps.Children.Count)|$($script:IsoParts.Lists.Apps.Tag.Head.Text)|$($script:IsoParts.Lists.Features.Tag.Head.Visibility)"
+$script:IsoParts.Lists.Apps.Children[0].IsChecked = $true; $o.RemoveAI.IsChecked = $true
+$realConfirm = ${function:Confirm-AkariDialog}; function Confirm-AkariDialog { $true }
+$script:Jobs = @(); Start-AkariIsoBuild
+$c = $script:Jobs[-1].Shared.Choices
+"isoBuild=$($script:Job.Kind)|$($c.Index)|$($c.Edition)|$($c.Options -join ',')|$($c.Apps -join ',')|$($c.AkariDir -eq $Root)|$([Text.Encoding]::ASCII.GetString($c.Unattend) -match '<Name>Admin</Name>')"
+${function:Confirm-AkariDialog} = $realConfirm; $script:Job = $null; Set-Busy $false
+Complete-AkariIsoJob @{ Kind = 'IsoUup'; Shared = @{ Result = @{ Ok = $true; Path = 'D:\Windows11_25H2_Pro_en-us.iso' } } }
+"isoUupDone=$($script:IsoParts.IsoPath.Text)|$($script:IsoParts.SrcFile.IsChecked)"
+Click $StepBack; "isoBack=$script:Cat"
 "title=$($window.FindName('TitleText').Text)"
 $fam = { param($e) "$($e.FontFamily.Source)".Split(',')[0] }
 "fonts=$(& $fam $window)|$(& $fam $Heading)|$($Heading.FontSize)|$(& $fam $window.FindName('TitleText'))|$(& $fam $AppVersionText)"
@@ -470,13 +489,13 @@ Click $StepBack; "catDownloadsBack=$script:Cat"
 # under 1100 px: the search is an icon button that opens the box, the tabs lose their icons
 Update-AkariWidth 1100; "narrow=$($SearchBox.Visibility)|$($SearchBtn.Visibility)|$($script:TabIcons[0].Visibility)|$($TitleText.Visibility)"
 Click $SearchBtn; "narrowOpen=$($SearchBox.Visibility)|$($SearchBtn.Visibility)"
-Update-AkariWidth 900; "narrowest=$($TitleText.Visibility)"
-Update-AkariWidth 1400; "wide=$($SearchBox.Visibility)|$($SearchBtn.Visibility)|$($script:TabIcons[0].Visibility)|$($TitleText.Visibility)"
+Update-AkariWidth 900; "narrowest=$($TitleText.Visibility)|$(($script:TabLabels | ForEach-Object { $_.Text }) -join ',')"
+Update-AkariWidth 1500; "wide=$($SearchBox.Visibility)|$($SearchBtn.Visibility)|$($script:TabIcons[0].Visibility)|$($TitleText.Visibility)"
 # the caption buttons fit at every width from the window's MinWidth up (the tabs give way, never the buttons)
 $fit = @(); $tabsFit = @()
 $window.Content = $null; $hostB = [Windows.Controls.Border]::new(); foreach ($k in $window.Resources.Keys) { $hostB.Resources[$k] = $window.Resources[$k] }
 foreach ($m in $window.Resources.MergedDictionaries) { $hostB.Resources.MergedDictionaries.Add($m) }; $hostB.Child = $Shell
-foreach ($w in $window.MinWidth, 1000, 1100, 1200, 1319, 1320, 1400) {
+foreach ($w in $window.MinWidth, 1000, 1100, 1200, 1319, 1320, 1400, 1440) {
     Update-AkariWidth $w
     $hostB.Measure([Windows.Size]::new($w, 720)); $hostB.Arrange([Windows.Rect]::new(0, 0, $w, 720)); $hostB.UpdateLayout()
     $x = $CapClose.TranslatePoint([Windows.Point]::new($CapClose.ActualWidth, 0), $hostB).X
@@ -503,7 +522,7 @@ $Sections.SelectedItem = $Sections.Items[2]
     }
 
     It 'builds without errors' { $out['error'] | Should BeNullOrEmpty }
-    It 'the top bar has five tabs' { $out.tabs | Should Be 'Home,Install AkariOS,Optimize,Downloads,Unattend Generator' }
+    It 'the top bar has six tabs' { $out.tabs | Should Be 'Home,Install AkariOS,Optimize,Downloads,Unattend Generator,ISO Builder' }
     It 'Home checks its tab, with no sub-header' { $out.home | Should Be 'Visible|Home|Collapsed|Search Legacy' }
     It 'the Home hero replaces the page header; Tweaks are counted at once, the other stats in one background read' {
         $out.homeStats | Should Be 'Collapsed|1|True|3|8212'
@@ -542,9 +561,33 @@ $Sections.SelectedItem = $Sections.Items[2]
         $out.aboutBack | Should Be 'Home'
     }
     It 'the Unattend Generator tile opens its form full window, and Back goes Home' {
-        $out.tiles | Should Be 'Optimize,Downloads,Unattend Generator,Import / Export settings|4'
+        $out.tiles | Should Be 'Optimize,Downloads,Unattend Generator,ISO Builder,Import / Export settings|5'
         $out.usbFile | Should Be 'Unattend Generator|Unattend Generator|Unattend Generator|Collapsed|True'
         $out.usbFileBack | Should Be 'Home'
+    }
+
+    It 'the ISO Builder tile opens its page full window with zISO''s options, and Back goes Home' {
+        $out.isoPage | Should Be 'ISO Builder|ISO Builder|ISO Builder|Collapsed|10|False'
+        $out.isoNoEdition | Should Be 'True'
+        $out.isoBack | Should Be 'Home'
+    }
+
+    It 'the ISO Builder greys out the update options Disable all updates rules out, and frees them again' {
+        $out.isoExclusive | Should Be 'False|False|True|True'
+        $out.isoFreed | Should Be 'True'
+    }
+
+    It 'the ISO Builder lists only the Windows 11 editions, then the image''s apps and features' {
+        $out.isoOpened | Should Be '1|True|Windows 11 Pro (10.0.26200.1)'
+        $out.isoLists | Should Be '1|Store apps (1)|Visible'
+    }
+
+    It 'the ISO Builder hands its choices and a local account answer file to the build job' {
+        $out.isoBuild | Should Be 'IsoBuild|6|Windows 11 Pro|RemoveAI|Microsoft.BingNews_1_x64__8wekyb3d8bbwe|True|True'
+    }
+
+    It 'a downloaded ISO becomes the source, ready to open' {
+        $out.isoUupDone | Should Be 'D:\Windows11_25H2_Pro_en-us.iso|True'
     }
     It 'About lists the links (a link without a URL is hidden), the credits and the license' {
         $out.aboutLinks | Should Be 'GitHub,Report a bug,Discord,Open log folder'
@@ -591,17 +634,17 @@ $Sections.SelectedItem = $Sections.Items[2]
         $out.catDownloads | Should Be 'Downloads|Downloads|Catalogue:Advanced/Security'
         $out.catDownloadsBack | Should Be 'Catalogue:Advanced/Security'
     }
-    It 'under 1320 px the search is an icon button that opens the box and the tabs show text only; under 1000 no wordmark' {
+    It 'under 1320 px the search is an icon button that opens the box; tab icons only from 1440; under 1000 no wordmark and short tab labels' {
         $out.narrow | Should Be 'Collapsed|Visible|Collapsed|Visible'
         $out.narrowOpen | Should Be 'Visible|Collapsed'
-        $out.narrowest | Should Be 'Collapsed'
+        $out.narrowest | Should Be 'Collapsed|Home,Install,Optimize,Downloads,Unattend,ISO'
         $out.wide | Should Be 'Visible|Collapsed|Visible|Visible'
     }
     It 'keeps the caption buttons in the window at every width' {
-        $out.capsFit | Should Be '860=True,1000=True,1100=True,1200=True,1319=True,1320=True,1400=True'
+        $out.capsFit | Should Be '860=True,1000=True,1100=True,1200=True,1319=True,1320=True,1400=True,1440=True'
     }
     It 'shows every tab whole at every width' {
-        $out.tabsFit | Should Be '860=True,1000=True,1100=True,1200=True,1319=True,1320=True,1400=True'
+        $out.tabsFit | Should Be '860=True,1000=True,1100=True,1200=True,1319=True,1320=True,1400=True,1440=True'
     }
     It 'search lists every Catalogue match under its Section › Category' {
         $out.catSearch | Should Be 'Search|Customize > Taskbar,Advanced > Security|2'

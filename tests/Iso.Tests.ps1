@@ -492,3 +492,85 @@ Describe 'Invoke-AkariIsoBuild with options and removals' {
         Assert-MockCalled Install-AkariAdk -Times 0 -Exactly -Scope It
     }
 }
+
+Describe 'ISO Builder page helpers (UI\IsoBuilder.ps1)' {
+    . Initialize-IsoTest
+    . "$Core\Unattend.ps1"
+    $window = $null
+    . "$Root\UI\IsoBuilder.ps1"
+    $defaults = (Import-PowerShellDataFile "$Root\UI\Unattend.psd1").Defaults
+
+    It 'makes a local account answer file that creates the administrator and wipes no disk' {
+        $xml = [Text.Encoding]::UTF8.GetString((New-AkariUnattend (Get-AkariIsoAnswerFields $defaults 'Gamer' 'pw' $true)))
+        $xml | Should Match '<Name>Gamer</Name>'
+        $xml | Should Not Match 'diskpart'
+        $xml | Should Not Match '<DiskConfiguration>'
+    }
+
+    It 'leaves the account to setup when the setup questions stay' {
+        $f = Get-AkariIsoAnswerFields $defaults 'Gamer' 'pw' $false
+        $f.UserAccountMode | Should Be 'InteractiveLocal'
+        $xml = [Text.Encoding]::UTF8.GetString((New-AkariUnattend $f))
+        $xml | Should Not Match '<Name>Gamer</Name>'
+    }
+
+    It 'calls the account Admin when no name is given, and drops the partitioning fields' {
+        $f = Get-AkariIsoAnswerFields $defaults '  ' '' $true
+        $f.AccountName0 | Should Be 'Admin'
+        $f.PEMode | Should Be 'Default'
+        @($f.Keys | Where-Object { $_ -match '^(Partition|TargetDisk|InstallFrom)' }).Count | Should Be 0
+    }
+
+    It 'recommends the image''s apps Win11Debloat marks Safe, not the keep-list or the rest' {
+        $tweaks = @(
+            @{ Id = 'appx/Microsoft.BingNews'; Risk = 'Safe' }
+            @{ Id = 'appx/Microsoft.WindowsCalculator'; Risk = 'Safe'; Keep = $true }
+            @{ Id = 'appx/Microsoft.XboxApp'; Risk = 'Caution' }
+        )
+        $apps = @(
+            @{ Name = 'Microsoft.BingNews'; Package = 'news' }, @{ Name = 'Microsoft.WindowsCalculator'; Package = 'calc' },
+            @{ Name = 'Microsoft.XboxApp'; Package = 'xbox' }, @{ Name = 'Microsoft.Unknown'; Package = 'u' }
+        )
+        (Get-AkariIsoRecommendedApps $apps $tweaks) -join ',' | Should Be 'news'
+    }
+
+    It 'rules out the options a picked one excludes' {
+        $all = Get-AkariIsoOptions
+        (Get-AkariIsoBlocked @('DisableUpdates') $all) -join ',' | Should Be 'DisableVersionUpgrade,SecurityOnly'
+        (Get-AkariIsoBlocked @('SecurityOnly', 'DisableVersionUpgrade') $all) -join ',' | Should Be 'DisableUpdates'
+        @(Get-AkariIsoBlocked @('RemoveAI') $all).Count | Should Be 0
+    }
+
+    It 'lists Massgrave''s products in page order and a product''s languages' {
+        $items = @(@{ Product = 'B'; Language = 'English' }, @{ Product = 'A'; Language = 'English' }, @{ Product = 'B'; Language = 'German' })
+        (Get-AkariMassgraveProducts $items) -join ',' | Should Be 'B,A'
+        (Get-AkariMassgraveFiles $items 'B' | ForEach-Object { $_.Language }) -join ',' | Should Be 'English,German'
+    }
+}
+
+Describe 'Mount-AkariIsoEdition' {
+    . Initialize-IsoTest
+    $w = Get-AkariIsoWork (Join-Path $TestDrive 'out')
+    Mock Export-AkariWim { }
+    Mock Mount-AkariWim { }
+    Mock Undo-AkariWim { }
+    Mock Invoke-AkariRegExe { 0 }
+    Mock Write-ErrLog { }
+
+    It 'mounts an edition once' {
+        Clear-AkariIsoMarker
+        Mount-AkariIsoEdition $w 'X:\install.wim' 6
+        Mount-AkariIsoEdition $w 'X:\install.wim' 6
+        Assert-MockCalled Mount-AkariWim -Times 1 -Exactly -Scope It
+        Assert-MockCalled Undo-AkariWim -Times 0 -Exactly -Scope It
+    }
+
+    It 'discards the edition mounted to read its apps when another one is picked' {
+        Clear-AkariIsoMarker
+        Mount-AkariIsoEdition $w 'X:\install.wim' 6
+        Mount-AkariIsoEdition $w 'X:\install.wim' 1
+        Assert-MockCalled Undo-AkariWim -Times 1 -Exactly -Scope It
+        Assert-MockCalled Mount-AkariWim -Times 2 -Exactly -Scope It
+        Test-AkariIsoMounted $w 'X:\install.wim' 1 | Should Be $true
+    }
+}
