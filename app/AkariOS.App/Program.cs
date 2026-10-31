@@ -31,6 +31,8 @@ public static partial class Program
         var engine = Engine.Live(TweaksAssembly.Codes, appLog);
         var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
         var motion = AkariXaml.MotionOn();
+        Look.Motion.Initialize(motion);
+        Look.Motion.HookSegmentPills();
         foreach (var d in AkariXaml.SharedResources("Dark", motion))
             app.Resources.MergedDictionaries.Add(d);
         Look.Assets.AddFonts(app.Resources);

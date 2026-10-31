@@ -185,7 +185,7 @@ report State against the test key; presets round-trip with the PowerShell fixtur
 
 ## N2: Shell and look
 
-Batches: 1 window styles, fonts, theme (done 2026-10-31); 2 the motion service; 3 the shell (top bar, tabs, page
+Batches: 1 window styles, fonts, theme (done 2026-10-31); 2 the motion service (done 2026-10-31); 3 the shell (top bar, tabs, page
 host, status bar); 4 dialogs; 5 Home and About. The VM check comes at the end.
 
 - The app resources in order: Motion, the theme, Icons, the window styles, Controls (through `AkariXaml`);
