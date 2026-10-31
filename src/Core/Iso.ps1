@@ -15,6 +15,9 @@ $AkariIsoHives = [ordered]@{
     NTUSER   = 'Users\Default\NTUSER.DAT'
 }
 $AkariIsoMinFree = 25GB
+# where the loaded hives are, as a provider path prefix (tests point it at a test key under HKCU)
+if (-not $AkariIsoRegRoot) { $AkariIsoRegRoot = 'HKLM:\AkariIso_' }
+. (Join-Path $PSScriptRoot 'Iso\Image.ps1')
 
 # ---- wrappers (tests mock these)
 
@@ -107,27 +110,35 @@ function ConvertTo-AkariIsoRows($Rows) {
         $hive, $rest = $r.Path -split '\\', 2
         if ($hive -notin $AkariIsoHives.Keys) { throw "Unknown hive in ISO row: $($r.Path)" }
         $h = $r.Clone()
-        $h.Path = "HKLM:\AkariIso_$hive\$rest"
+        $h.Path = "$AkariIsoRegRoot$hive\$rest"
         $h.Hive = $hive
+        # binary values are hex text in the data files
+        if ($h.Type -eq 'Binary' -and $h.Value -is [string]) { $h.Value = ConvertFrom-AkariHex $h.Value }
         $h
     }
 }
 
 function Get-AkariIsoData([string]$Name) { Import-PowerShellDataFile (Join-Path $AkariIsoData "$Name.psd1") }
 
-# the build's ordered steps: @{ Id; Text }
-function New-AkariIsoPlan([hashtable]$Choices) {
+# the build's ordered steps: @{ Id; Text }. $Picked = the picked options' data (Get-AkariIsoPicked). Pure.
+function New-AkariIsoPlan([hashtable]$Choices, $Picked = @()) {
     $s = [System.Collections.Generic.List[object]]::new()
     $add = { param($id, $text) $s.Add(@{ Id = $id; Text = $text }) }
     & $add 'Adk' 'Getting the ISO tool ready (Windows ADK)'
     & $add 'Mount' "Mounting $($Choices.Edition)"
+    if ((Get-AkariIsoList $Choices.Apps).Count -or @($Picked | Where-Object { $_.Apps }).Count) { & $add 'Apps' 'Removing apps' }
+    if ((Get-AkariIsoList $Choices.Features).Count -or @($Picked | Where-Object { $_.Features }).Count) { & $add 'Features' 'Removing Windows features' }
+    if ((Get-AkariIsoList $Choices.Capabilities).Count) { & $add 'Capabilities' 'Removing optional features (capabilities)' }
+    if ((Get-AkariIsoList $Choices.Packages).Count) { & $add 'Packages' 'Removing OS packages' }
     & $add 'Registry' 'Writing settings into the image''s registry'
     & $add 'Files' 'Removing files from the image'
+    if ($Choices.AkariDir) { & $add 'AkariOS' 'Adding AkariOS to the image' }
     & $add 'NetFx3' 'Adding .NET Framework 3.5'
     & $add 'Cleanup' 'Cleaning up the component store'
     & $add 'Commit' 'Saving the image'
     & $add 'Compress' 'Compressing install.wim'
     & $add 'Boot' 'Skipping the Windows 11 requirements in setup (boot.wim)'
+    if ($Choices.Unattend) { & $add 'Answer' 'Adding the answer file (autounattend.xml)' }
     & $add 'Iso' 'Building the ISO'
     & $add 'Tidy' 'Removing the work folder'
     , $s.ToArray()
@@ -254,19 +265,39 @@ function Dismount-AkariOfflineHives([string[]]$Names = @($AkariIsoHives.Keys)) {
 # goes again as TrustedInstaller (as do rows marked Trusted)
 function Write-AkariIsoRegistry($Rows, [string[]]$Loaded) {
     $trusted = [System.Collections.Generic.List[hashtable]]::new()
-    foreach ($r in @(ConvertTo-AkariIsoRows $Rows)) {
+    $version = $null
+    foreach ($r in @(ConvertTo-AkariIsoRows (Merge-AkariIsoRows $Rows))) {
         if ($r.Hive -notin $Loaded) { continue }
+        # {DisplayVersion} = the image's own version (Disable version upgrades)
+        if ($r.Value -eq '{DisplayVersion}') {
+            if (-not $version) { $version = Get-AkariRegValue "$($AkariIsoRegRoot)SOFTWARE\Microsoft\Windows NT\CurrentVersion" 'DisplayVersion' }
+            if (-not $version) { Write-Log "The image has no DisplayVersion: $($r.Name) left out"; continue }
+            $r.Value = $version
+        }
         if ($r.Trusted) { $trusted.Add($r); continue }
         try { Invoke-AkariRegistry @($r) 'Apply' }
-        catch { if ($r.ContainsKey('Name')) { $trusted.Add($r) } else { Write-Log "Could not change $($r.Path): $($_.Exception.Message)" } }
+        catch {
+            if ($r.ContainsKey('Name')) { $trusted.Add($r) }
+            elseif ($null -eq $r.Value) { Remove-AkariIsoKeyTrusted ('HKEY_LOCAL_MACHINE\' + $r.Path.Substring(6)) }
+            else { Write-Log "Could not change $($r.Path): $($_.Exception.Message)" }
+        }
     }
     if ($trusted.Count) { Invoke-AkariRegistryTrusted $trusted.ToArray() 'Apply' }
 }
 
-# loads the hives, writes the rows, unloads them
-function Invoke-AkariIsoRegistry([string]$Mount, $Rows) {
+# deletes a key ('HKEY_LOCAL_MACHINE\...') with its contents as TrustedInstaller (Defender's services, for one)
+function Remove-AkariIsoKeyTrusted([string]$Key) {
+    if ($Key -notlike 'HKEY_LOCAL_MACHINE\*') { return }
+    Run-Trusted "Remove-Item -LiteralPath 'Registry::$($Key -replace "'", "''")' -Recurse -Force -ErrorAction SilentlyContinue"
+}
+
+# loads the hives, writes the rows and deletes the wildcard keys, unloads them
+function Invoke-AkariIsoRegistry([string]$Mount, $Rows, [string[]]$Keys = @()) {
     $loaded = Mount-AkariOfflineHives $Mount
-    try { Write-AkariIsoRegistry $Rows $loaded }
+    try {
+        Write-AkariIsoRegistry $Rows $loaded
+        if ($Keys) { Remove-AkariIsoKeys $Keys $loaded }
+    }
     finally { Dismount-AkariOfflineHives $loaded }
 }
 
@@ -284,13 +315,19 @@ function Remove-AkariImagePaths([string]$Mount, [string[]]$Paths) {
 
 # ---- the build
 
-# $Choices: @{ OutDir; Iso (the source file, for the name); Image (from Open-AkariIsoSource); Index; Edition }.
+# $Choices: @{ OutDir; Iso (the source file, for the name); Image (from Open-AkariIsoSource); Index; Edition;
+# Options (option ids); Apps (provisioned package names); Features; Capabilities; Packages (names); AkariDir (this
+# AkariOS's folder, to copy into the image; none = left out); Unattend ([byte[]] autounattend.xml; none = left out) }.
 # Returns @{ Ok; Path; Message }; on a failure the image is discarded, never left mounted.
 function Invoke-AkariIsoBuild([hashtable]$Choices) {
+    $all = Get-AkariIsoOptions
+    $bad = Test-AkariIsoOptions $Choices.Options $all
+    if ($bad) { return @{ Ok = $false; Path = $null; Message = $bad } }
+    $picked = Get-AkariIsoPicked $Choices $all
     $w = Get-AkariIsoWork $Choices.OutDir
     $out = Join-Path $Choices.OutDir (Get-AkariIsoOutName $Choices.Iso)
     $always = Get-AkariIsoData 'Always'
-    $steps = New-AkariIsoPlan $Choices
+    $steps = New-AkariIsoPlan $Choices $picked
     $oscdimg = $null
     try {
         for ($i = 0; $i -lt $steps.Count; $i++) {
@@ -300,8 +337,26 @@ function Invoke-AkariIsoBuild([hashtable]$Choices) {
             switch ($s.Id) {
                 'Adk' { $oscdimg = Install-AkariAdk }
                 'Mount' { Mount-AkariIsoEdition $w $Choices.Image $Choices.Index }
-                'Registry' { Invoke-AkariIsoRegistry $w.Mount (@($always.Requirements) + @($always.Registry)) }
-                'Files' { [void](Remove-AkariImagePaths $w.Mount $always.Remove) }
+                'Apps' {
+                    # the user's picks plus the image's apps an option names (Defender's Security app, the AI apps)
+                    $pats = @($picked | ForEach-Object { $_.Apps } | Where-Object { $_ })
+                    $fromOptions = @(Get-AkariImageApps $w.Mount | Where-Object { $n = $_.Name; @($pats | Where-Object { $n -like $_ }).Count } | ForEach-Object { $_.Package })
+                    Remove-AkariImageApps $w.Mount (Resolve-AkariIsoNames ((Get-AkariIsoList $Choices.Apps) + $fromOptions) @() @())
+                }
+                'Features' {
+                    $pats = @($picked | ForEach-Object { $_.Features } | Where-Object { $_ })
+                    $have = if ($pats) { @(Get-AkariImageFeatures $w.Mount | ForEach-Object { $_.Name }) } else { @() }
+                    Remove-AkariImageItems $w.Mount 'Feature' (Resolve-AkariIsoNames (Get-AkariIsoList $Choices.Features) $pats $have)
+                }
+                'Capabilities' { Remove-AkariImageItems $w.Mount 'Capability' (Get-AkariIsoList $Choices.Capabilities) }
+                'Packages' { Remove-AkariImageItems $w.Mount 'Package' (Get-AkariIsoList $Choices.Packages) }
+                'Registry' {
+                    $rows = @($always.Requirements) + @($always.Registry) + @($picked | ForEach-Object { $_.Registry } | Where-Object { $_ })
+                    Invoke-AkariIsoRegistry $w.Mount $rows @($picked | ForEach-Object { $_.RemoveKeys } | Where-Object { $_ })
+                }
+                'Files' { [void](Remove-AkariImagePaths $w.Mount (@($always.Remove) + @($picked | ForEach-Object { $_.Remove } | Where-Object { $_ }))) }
+                'AkariOS' { Copy-AkariToImage $w.Mount $Choices.AkariDir }
+                'Answer' { [IO.File]::WriteAllBytes((Join-Path $w.Media 'autounattend.xml'), [byte[]]$Choices.Unattend) }
                 'NetFx3' {
                     $sxs = Join-Path $w.Media 'sources\sxs'
                     if (-not (Test-Path -LiteralPath $sxs)) { Write-Log 'No sources\sxs on the ISO: .NET Framework 3.5 left out'; break }

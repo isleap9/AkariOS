@@ -74,7 +74,7 @@ commit, export with max compression; `boot.wim` index 2 gets the requirement byp
 
 1. **Engine** (done 2026-10-31): copy-out, editions, mount / commit / discard, offline hives, always-on settings, NetFx 3.5, boot.wim,
    compression, oscdimg + ADK, leftover cleanup. Tests mock every wrapper and check the plan and the call order.
-2. **Options and removals**: the ten options as data, app / feature / capability / package removal, AkariOS copy,
+2. **Options and removals** (done 2026-10-31): the ten options as data, app / feature / capability / package removal, AkariOS copy,
    answer file at the root.
 3. **Downloads**: UUP Dump (API mocked, converter mocked) and the Massgrave catalogue (parser on a fixture).
 4. **The page**: tab, Home tile, `$Pages` entry, the sections, background reads, the build job and its result.
