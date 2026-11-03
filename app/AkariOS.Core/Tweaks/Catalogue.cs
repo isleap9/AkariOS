@@ -1,5 +1,6 @@
 using AkariOS.Core.Data;
 using AkariOS.Core.Machine;
+using AkariOS.Core.Registry;
 
 namespace AkariOS.Core.Tweaks;
 
@@ -8,6 +9,9 @@ public sealed record CataloguePage(string Key, string Category);
 
 /// <summary>A Section of the Catalogue: its name, the header it shows, its Category pages by name.</summary>
 public sealed record CatalogueSection(string Section, string Header, IReadOnlyList<CataloguePage> Pages);
+
+/// <summary>A Safe Mode change waiting for "Restart and apply": Apply or Revert, a Choice value other than Recommended.</summary>
+public sealed record SafeChange(TweakMode Mode, object? Value);
 
 /// <summary>What a Catalogue card is doing: its State is being read, its change waits in the queue or runs.</summary>
 public enum CatalogueBusy { None, Reading, Waiting, Running }
@@ -78,6 +82,21 @@ public static class Catalogue
         }
         return catalogue.Where(t => Key(t.Section, t.Category) == key).ToList();
     }
+
+    /// <summary>A Safe Mode Tweak was switched to a mode while its State is <paramref name="state"/> (Set-AkariSafePending):
+    /// it waits for Safe Mode, or leaves the list when that is where it already is (switched back before the restart).
+    /// Value: a Choice value other than Recommended; current: the Choice's value now.</summary>
+    public static void SetSafePending(IDictionary<string, SafeChange> pending, Tweak t, TweakState state, TweakMode mode, object? value = null, object? current = null)
+    {
+        var done = value is not null
+            ? current is not null && RegistryEngine.Matches(current, value)
+            : (mode == TweakMode.Apply && state == TweakState.Optimized) || (mode == TweakMode.Revert && state == TweakState.Default);
+        if (done) pending.Remove(t.Id); else pending[t.Id] = new SafeChange(mode, value);
+    }
+
+    /// <summary>The Safe Mode bar's line.</summary>
+    public static string SafeBarText(int n) =>
+        $"{n} change{(n != 1 ? "s" : "")} need{(n == 1 ? "s" : "")} Safe Mode: Akari restarts into it, applies them and restarts back.";
 
     /// <summary>The restart bar's lines: Explorer changes and changes a PC restart finishes (Get-AkariRestartBarText).</summary>
     public static IReadOnlyList<string> RestartBarText(int explorer, int reboot)

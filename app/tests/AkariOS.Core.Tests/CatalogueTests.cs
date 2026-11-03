@@ -70,4 +70,25 @@ public class CatalogueTests
     [InlineData(TweakKind.Toggle, TweakState.Default, CatalogueBusy.Running, false, "Applying…")]
     public void State_lines(TweakKind kind, TweakState state, CatalogueBusy busy, bool safe, string text) =>
         Assert.Equal(text, Catalogue.StateText(T("x", "Optimize", "Gaming", kind), state, busy, safe));
+
+    [Fact]
+    public void A_safe_mode_change_waits_unless_it_is_where_it_already_is()
+    {
+        var pending = new Dictionary<string, SafeChange>();
+        var t = T("x", "Advanced", "Security");
+        Catalogue.SetSafePending(pending, t, TweakState.Default, TweakMode.Apply);
+        Assert.Equal(new SafeChange(TweakMode.Apply, null), pending["x"]);
+        // switched back before the restart: nothing waits
+        Catalogue.SetSafePending(pending, t, TweakState.Default, TweakMode.Revert);
+        Assert.Empty(pending);
+        Catalogue.SetSafePending(pending, t, TweakState.Optimized, TweakMode.Apply);
+        Assert.Empty(pending);
+        // a Choice value: waits unless the value is already there
+        Catalogue.SetSafePending(pending, t, TweakState.Custom, TweakMode.Apply, 3, 2);
+        Assert.Equal(new SafeChange(TweakMode.Apply, 3), pending["x"]);
+        Catalogue.SetSafePending(pending, t, TweakState.Custom, TweakMode.Apply, 2, 2);
+        Assert.Empty(pending);
+        Assert.Equal("1 change needs Safe Mode: Akari restarts into it, applies them and restarts back.", Catalogue.SafeBarText(1));
+        Assert.Equal("2 changes need Safe Mode: Akari restarts into it, applies them and restarts back.", Catalogue.SafeBarText(2));
+    }
 }

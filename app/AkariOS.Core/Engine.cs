@@ -26,6 +26,10 @@ public sealed class Engine
     public required Func<bool> IsAdmin { get; init; }
     public ISystemRestore? SystemRestore { get; init; }
     public ISafeModeHandoff? SafeMode { get; init; }
+    public IShutdown? Shutdown { get; init; }
+
+    /// <summary>Windows runs in Safe Mode (it sets SAFEBOOT_OPTION then; Test-AkariSafeMode).</summary>
+    public Func<bool> InSafeMode { get; init; } = () => !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SAFEBOOT_OPTION"));
 
     private LoadResult? _loaded;
 
@@ -36,7 +40,7 @@ public sealed class Engine
 
     public States States => new(Context, Remembered);
 
-    public Runner Runner => new(Context, States, Remembered, Explorer, SafeMode);
+    public Runner Runner => new(Context, States, Remembered, Explorer, SafeMode, InSafeMode);
 
     public RestorePoints? RestorePoints => SystemRestore is null ? null : new(SystemRestore, Registry, Log);
 
@@ -59,6 +63,7 @@ public sealed class Engine
             Codes = codes,
             IsAdmin = () => new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator),
             SystemRestore = new WmiSystemRestore(),
+            Shutdown = new ShutdownExe(),
         };
     }
 }

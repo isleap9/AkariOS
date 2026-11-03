@@ -97,8 +97,11 @@ public sealed class States(TweakContext context, IRememberedState remembered)
     }
 
     /// <summary>A Tweak's Default for this machine: one value, or the Win10 / Win11 one of a per-OS map.</summary>
-    public object? DefaultFor(Tweak t) =>
+    public object? DefaultFor(Tweak t) => DefaultOn(t, context.System.Build);
+
+    /// <summary>A Tweak's Default on a Windows build (Resolve-AkariDefault).</summary>
+    public static object? DefaultOn(Tweak t, int build) =>
         t.Default is PsHashtable h && (h.ContainsKey("Win10") || h.ContainsKey("Win11"))
-            ? new OsValue(h.Get("Win10"), h.Get("Win11")).For(context.System.Build)
+            ? new OsValue(h.Get("Win10"), h.Get("Win11")).For(build)
             : t.Default;
 }

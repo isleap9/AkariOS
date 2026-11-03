@@ -36,6 +36,33 @@ public sealed class AppServices
         });
     };
 
+    /// <summary>The Catalogue's page (one per run: its cards, queue and bars), made by PageFactory.</summary>
+    public Pages.CatalogueView? Catalogue { get; set; }
+
+    /// <summary>Where the Catalogue's bars go: the window's CatBars, under the page surface (none in some tests).</summary>
+    public System.Windows.Controls.Panel? Bars { get; set; }
+
+    /// <summary>The session's restore point is made, or was declined: not asked again (Get-AkariRestoreChoice).</summary>
+    public bool RestoreDone { get; set; }
+
+    /// <summary>Whether the changes about to run get a restore point first (Get-AkariRestoreChoice): Downloads (app
+    /// installs only) never; the rest once per session; when an AkariOS restore point exists already, the user
+    /// decides. Either way it is not asked again. False when there is no System Restore to ask (tests).</summary>
+    public bool RestoreChoice(string flow)
+    {
+        if (flow == "Downloads" || RestoreDone || Engine.RestorePoints is not { } points) return false;
+        if (points.Latest() is { } point)
+        {
+            var when = point.Date is { } d ? $" on {d:g}" : "";
+            if (Dialogs?.Confirm($"AkariOS already made a restore point{when}.\n\nCreate another restore point before these changes?", "Create one", "Skip", "Question", "Restore point") != true)
+            {
+                RestoreDone = true;
+                return false;
+            }
+        }
+        return true;
+    }
+
     /// <summary>A message saying what isn't in the native app yet, and when it comes.</summary>
     public void NotYet(string what, string milestone) =>
         Dialogs?.Message($"{what} isn't in the native app yet: it comes with {milestone} (docs/plans/2026-10-31-native-app.md). The PowerShell app has it today.", "Info", "Not yet");

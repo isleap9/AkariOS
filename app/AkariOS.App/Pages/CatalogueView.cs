@@ -1,90 +1,53 @@
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using AkariOS.App.Look;
 using AkariOS.App.Shell;
-using AkariOS.Core.Registry;
 using AkariOS.Core.Runs;
 using AkariOS.Core.Tweaks;
 
 namespace AkariOS.App.Pages;
 
 /// <summary>
-/// One setting card (New-AkariCatalogueCard): name, the id in mono with its badges, the description, the State line,
-/// restart / Safe Mode marks, and its control: a switch for a Toggle (empty for Custom / Unknown), a dropdown for a
-/// Choice, a button for an Action. Made once per Tweak and kept.
-/// </summary>
-public sealed class CatalogueCard
-{
-    public required Tweak Tweak { get; init; }
-    public required Border Card { get; init; }
-    public required Control Control { get; init; }
-    public required TextBlock StateLine { get; init; }
-    public TweakState State { get; set; } = TweakState.Unknown;
-    public object? Current { get; set; }
-    public CatalogueBusy Busy { get; set; }
-    public string Error { get; set; } = "";
-
-    /// <summary>Why the native app can't change it yet (its control is off), or null.</summary>
-    public string? NotNative { get; init; }
-
-    // the control is being set from the State: no change comes of it
-    internal bool Muted;
-
-    /// <summary>The State line and the control after a change of State, Busy or Error (Set-AkariCatalogueCard).</summary>
-    public void Update(bool safePending = false)
-    {
-        if (Error.Length > 0)
-        {
-            StateLine.Text = $"Failed: {Error}";
-            StateLine.SetResourceReference(TextBlock.ForegroundProperty, "Bad");
-        }
-        else
-        {
-            StateLine.Text = Catalogue.StateText(Tweak, State, Busy, safePending);
-            StateLine.SetResourceReference(TextBlock.ForegroundProperty, safePending ? "Warn" : "Ter");
-        }
-        StateLine.Visibility = StateLine.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-        Control.IsEnabled = Busy == CatalogueBusy.None && NotNative is null;
-        Muted = true;
-        try
-        {
-            switch (Control)
-            {
-                case ToggleButton sw:
-                    sw.IsChecked = State switch { TweakState.Optimized => true, TweakState.Default => false, _ => null };
-                    break;
-                case ComboBox box:
-                    var item = Current is null ? null : box.Items.OfType<ComboBoxItem>().FirstOrDefault(i => RegistryEngine.Matches(Current, i.Tag));
-                    if (item is null) box.SelectedIndex = -1; else box.SelectedItem = item;
-                    break;
-            }
-        }
-        finally { Muted = false; }
-    }
-}
-
-/// <summary>
 /// Optimize › Advanced, the Catalogue's page (src/UI/CataloguePage.ps1): a Category page or the search results, its
-/// cards (kept per Tweak), a Refresh button, the States read in the background one by one. A change made on a card
-/// goes to <see cref="Change"/>.
+/// cards (kept per Tweak), a Refresh button, the States read in the background one by one. A change acts right away:
+/// confirmed when needed, then queued and run one at a time, the session's restore point first; a Safe Mode Tweak
+/// outside Safe Mode waits in the Safe Mode bar instead; Explorer and PC restarts collect in the restart bar.
 /// </summary>
-public sealed class CatalogueView(AppServices s)
+public sealed class CatalogueView
 {
+    private readonly AppServices s;
     private readonly Dictionary<string, CatalogueCard> _cards = [];
+    private readonly Queue<(CatalogueCard Card, TweakMode Mode, object? Value)> _queue = new();
+    private readonly HashSet<string> _explorer = [];
+    private readonly HashSet<string> _reboot = [];
+    private readonly CatalogueBars _bars;
     private IReadOnlyList<Tweak>? _tweaks;
     private Panel? _shown;
     private string _shownKey = "";
     private string _movedKey = "";
 
+    public CatalogueView(AppServices services)
+    {
+        s = services;
+        _bars = new CatalogueBars(SafeRun, RestartExplorer, RestartPc);
+        s.Shell.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(ShellViewModel.Page)) UpdateBars(); };
+    }
+
     /// <summary>The Tweaks it lists (this PC's).</summary>
     public IReadOnlyList<Tweak> Tweaks => _tweaks ??= Catalogue.Tweaks(s.Engine.Loaded.Tweaks, s.Engine.System);
 
-    /// <summary>A card's control was used: the Tweak, Apply or Revert, a Choice value other than Recommended.</summary>
-    public Action<Tweak, TweakMode, object?>? Change { get; set; }
+    /// <summary>Safe Mode changes waiting for "Restart and apply" (N7 runs them).</summary>
+    public Dictionary<string, SafeChange> SafePending { get; } = [];
+
+    /// <summary>A change runs now (one at a time, Explorer's and the PC's restart included).</summary>
+    public bool Running { get; private set; }
+
+    public CatalogueBars Bars => _bars;
 
     /// <summary>A card, made the first time.</summary>
-    public CatalogueCard Card(Tweak t) => _cards.TryGetValue(t.Id, out var c) ? c : _cards[t.Id] = NewCard(t);
+    public CatalogueCard Card(Tweak t) =>
+        _cards.TryGetValue(t.Id, out var c) ? c : _cards[t.Id] = CatalogueCard.Make(t, s.Engine.States.DefaultFor(t), (card, mode, value) => Change(card.Tweak, mode, value));
 
     /// <summary>Show-AkariCataloguePage: a page (key) or, with a query, the search's results across the Catalogue.
     /// The Services and Scheduled tasks pages keep their Tweaks while the search waits for their lists (N6).</summary>
@@ -123,7 +86,7 @@ public sealed class CatalogueView(AppServices s)
             }
             var c = Card(t);
             panel.Children.Add(c.Card);
-            c.Update();
+            Show(c);
         }
         if (list.Count == 0) panel.Children.Add(Parts.Text(query.Length > 0 ? "No tweak matches." : "Nothing here yet.", 13, "Mu"));
         if (lists)
@@ -140,8 +103,13 @@ public sealed class CatalogueView(AppServices s)
         if (shown != _shownKey) ReadStates(list);
         if (moved != _movedKey) Motion.Stagger(panel.Children.OfType<UIElement>());
         (_shownKey, _movedKey) = (shown, moved);
+        UpdateBars();
         return panel;
     }
+
+    private void Show(CatalogueCard c) => c.Update(SafePending.GetValueOrDefault(c.Tweak.Id));
+
+    // ---- States, read in the background
 
     /// <summary>Start-AkariCatalogueStates: the Toggles' and Choices' States, read off the UI thread one after another
     /// (a card says "Reading…" until its own arrives); cards busy with a change are left alone.</summary>
@@ -154,7 +122,7 @@ public sealed class CatalogueView(AppServices s)
             if (c.Busy != CatalogueBusy.None) continue;
             c.Busy = CatalogueBusy.Reading;
             c.Error = "";
-            c.Update();
+            Show(c);
             queue.Enqueue(c);
         }
         ReadNext(queue);
@@ -169,7 +137,7 @@ public sealed class CatalogueView(AppServices s)
             if (c.Busy == CatalogueBusy.Reading)
             {
                 (c.State, c.Current, c.Busy) = (read.State, read.Current, CatalogueBusy.None);
-                c.Update();
+                Show(c);
             }
             ReadNext(queue);
         });
@@ -187,100 +155,135 @@ public sealed class CatalogueView(AppServices s)
         return new StateRead(state, current);
     }
 
-    private CatalogueCard NewCard(Tweak t)
+    // ---- changes: right away, one at a time
+
+    /// <summary>A card's control was used (Invoke-AkariCatalogueChange): asks first when the change needs it, then
+    /// queues it; a Safe Mode Tweak outside Safe Mode waits in the Safe Mode bar instead. Value: a Choice value other
+    /// than Recommended.</summary>
+    public void Change(Tweak t, TweakMode mode, object? value = null)
     {
-        var card = new Border { Tag = t.Id, Margin = new Thickness(0, 0, 0, 8) };
-        card.SetResourceReference(FrameworkElement.StyleProperty, "SettingCard");
-        var dp = new DockPanel();
-        var notNative = Runner.NotNative(t);
-        CatalogueCard? entry = null;
-        Control ctl;
-        switch (t.Kind)
+        var c = Card(t);
+        if (c.Busy != CatalogueBusy.None || c.NotNative is not null) { Show(c); return; }
+        if (mode == TweakMode.Apply)
         {
-            case TweakKind.Toggle:
-                var sw = new ToggleButton();
-                sw.SetResourceReference(FrameworkElement.StyleProperty, "CatSwitch");
-                sw.Click += (_, _) => Changed(entry!, sw.IsChecked == true ? TweakMode.Apply : TweakMode.Revert, null);
-                ctl = sw;
-                break;
-            case TweakKind.Choice:
-                var box = new ComboBox { Width = 220 };
-                box.SetResourceReference(FrameworkElement.StyleProperty, "Combo");
-                var def = s.Engine.States.DefaultFor(t);
-                foreach (var c in t.Choices)
+            var target = t.Kind == TweakKind.Choice ? value ?? t.Recommended : Selection.Optimized;
+            if (Selection.ConfirmText(t, target, c.WindowsDefault) is { } q && s.Dialogs?.Confirm(q, "Continue") != true) { Show(c); return; }
+        }
+        c.Error = "";
+        if (t.SafeMode && !s.Engine.InSafeMode())
+        {
+            Catalogue.SetSafePending(SafePending, t, c.State, mode, value, c.Current);
+            Show(c);
+            UpdateBars();
+            return;
+        }
+        c.Busy = CatalogueBusy.Waiting;
+        Show(c);
+        _queue.Enqueue((c, mode, value));
+        Next();
+    }
+
+    private sealed record ChangeDone(Outcome? Outcome, StateRead Read);
+
+    // Start-AkariCatalogueNext: the Runner, then the State read back; the session's first change gets an AkariOS
+    // restore point first (not a Check / Open button), and goes on without one when Windows refuses
+    private void Next()
+    {
+        if (Running || !_queue.TryDequeue(out var it)) return;
+        var (c, mode, value) = it;
+        var t = c.Tweak;
+        Running = true;
+        c.Busy = CatalogueBusy.Running;
+        Show(c);
+        var restore = !(t.Kind == TweakKind.Action && t.Button is "Check" or "Open") && s.RestoreChoice("Optimize");
+        if (restore) s.RestoreDone = true;
+        var verb = t.Kind == TweakKind.Action ? t.Button.ToLowerInvariant() : mode == TweakMode.Apply ? "apply" : "revert";
+        var label = $"{t.Name}: {verb}";
+        s.Shell.SetBusy(true, label, locked: false);
+        s.Log.Write(label);
+        s.Background(() =>
+        {
+            if (restore && s.Engine.RestorePoints?.Create("AkariOS") is { Ok: false })
+                s.Log.Write("Warning: going on without a restore point");
+            Outcome? o = null;
+            try { o = s.Engine.Runner.Run(t, mode, value); }
+            catch (Exception e) { s.Log.WriteFile($"Error: {t.Id}: {e}"); }
+            return new ChangeDone(o, Read(t));
+        }, r =>
+        {
+            Running = false;
+            s.Shell.SetBusy(false);
+            c.Busy = CatalogueBusy.None;
+            if (r is ChangeDone d)
+            {
+                (c.State, c.Current) = (d.Read.State, d.Read.Current);
+                if (d.Outcome is null) c.Error = "it stopped before its change (see the log)";
+                else if (d.Outcome.Kind == OutcomeKind.Failed) c.Error = d.Outcome.Message;
+                else if (d.Outcome.Kind is OutcomeKind.Applied or OutcomeKind.Reverted)
                 {
-                    var label = c.Label.Length > 0 ? c.Label : $"{c.Value}";
-                    if (RegistryEngine.Matches(c.Value, t.Recommended)) label += " (Recommended)";
-                    else if (RegistryEngine.Matches(c.Value, def)) label += " (Windows default)";
-                    box.Items.Add(new ComboBoxItem { Content = label, Tag = c.Value });
+                    if (t.Explorer) _explorer.Add(t.Id);
+                    if (t.Reboot) _reboot.Add(t.Id);
                 }
-                box.SelectionChanged += (_, _) =>
-                {
-                    if (entry!.Muted || box.SelectedItem is not ComboBoxItem { Tag: var v }) return;
-                    if (RegistryEngine.Matches(v, s.Engine.States.DefaultFor(t))) Changed(entry, TweakMode.Revert, null);
-                    else if (RegistryEngine.Matches(v, t.Recommended)) Changed(entry, TweakMode.Apply, null);
-                    else Changed(entry, TweakMode.Apply, v);
-                };
-                ctl = box;
-                break;
-            default:
-                var btn = new Button { Content = t.Button, MinWidth = 96 };
-                btn.SetResourceReference(FrameworkElement.StyleProperty, "Btn");
-                btn.Click += (_, _) => Changed(entry!, TweakMode.Apply, null);
-                ctl = btn;
-                break;
-        }
-        ctl.Tag = t.Id;
-        ctl.VerticalAlignment = VerticalAlignment.Center;
-        ctl.Margin = new Thickness(16, 0, 0, 0);
-        if (notNative is not null) ctl.ToolTip = $"Not in the native app yet: {notNative}";
-        DockPanel.SetDock(ctl, Dock.Right);
-        dp.Children.Add(ctl);
-
-        var marks = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        DockPanel.SetDock(marks, Dock.Right);
-        if (t.Reboot) marks.Children.Add(Parts.Glyph("rotate-ccw", "Mu", "Restart required"));
-        if (t.SafeMode) marks.Children.Add(Parts.Glyph("shield", "Mu", "Runs in Safe Mode: Akari restarts into it and back"));
-        dp.Children.Add(marks);
-
-        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        var name = Parts.Text(t.Name, 14);
-        name.FontWeight = FontWeights.SemiBold;
-        text.Children.Add(name);
-        var meta = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
-        var id = Parts.Text(t.Id, 12, "Ter");
-        id.SetResourceReference(TextBlock.FontFamilyProperty, "FontMono");
-        id.Margin = new Thickness(0, 0, 10, 0);
-        id.VerticalAlignment = VerticalAlignment.Center;
-        meta.Children.Add(id);
-        if (t.AkariOS) meta.Children.Add(Parts.Badge("AkariOS"));
-        if (t.Risk is Risk.Caution or Risk.Advanced) meta.Children.Add(Parts.Badge(t.Risk.ToString()));
-        text.Children.Add(meta);
-        if (!string.IsNullOrEmpty(t.Description))
-        {
-            var d = Parts.Text(t.Description, 13, "Mu");
-            d.Margin = new Thickness(0, 6, 0, 0);
-            text.Children.Add(d);
-        }
-        var line = Parts.Text("", 12, "Ter");
-        line.Margin = new Thickness(0, 4, 0, 0);
-        text.Children.Add(line);
-        if (notNative is not null)
-        {
-            var nn = Parts.Text("Not in the native app yet: the PowerShell app can change it today.", 12, "Ter");
-            nn.Margin = new Thickness(0, 4, 0, 0);
-            text.Children.Add(nn);
-        }
-        dp.Children.Add(text);
-        card.Child = dp;
-        entry = new CatalogueCard { Tweak = t, Card = card, Control = ctl, StateLine = line, NotNative = notNative };
-        return entry;
+            }
+            else c.Error = "it stopped before its change (see the log)";
+            // Home's "changes applied" is read again
+            s.AppliedCount = null;
+            Show(c);
+            UpdateBars();
+            Next();
+        });
     }
 
-    // the control shows what was there until the change runs (batch c: the queue)
-    private void Changed(CatalogueCard c, TweakMode mode, object? value)
+    // ---- the bars
+
+    private void UpdateBars() =>
+        _bars.Update(s.Bars, Catalogue.Split(s.Shell.Page) is not null, SafePending.Count,
+            Catalogue.RestartBarText(_explorer.Count, _reboot.Count), _explorer.Count > 0, _reboot.Count > 0);
+
+    private void SafeRun() => s.NotYet("Restart and apply (changes that run in Safe Mode)", "N7");
+
+    private void RestartExplorer()
     {
-        Change?.Invoke(c.Tweak, mode, value);
-        c.Update();
+        if (Running) return;
+        Running = true;
+        s.Shell.SetBusy(true, "Restarting Explorer", locked: false);
+        s.Background(() => { s.Engine.Explorer.Restart(); return null; }, _ =>
+        {
+            Running = false;
+            s.Shell.SetBusy(false);
+            _explorer.Clear();
+            UpdateBars();
+            Next();
+        });
     }
+
+    private void RestartPc()
+    {
+        if (Running) return;
+        if (s.Engine.Shutdown is not { } shutdown) { s.NotYet("Restarting the PC from here", "N7"); return; }
+        if (s.Dialogs?.Confirm("Restart the PC now? Save your work first.", "Restart now", "Cancel", "Warning", "Restart") != true) return;
+        Running = true;
+        s.Shell.SetBusy(true, "Restarting the PC", locked: false);
+        s.Background(() => { shutdown.Restart(); return null; }, _ => { Running = false; s.Shell.SetBusy(false); });
+    }
+
+    // ---- closing
+
+    /// <summary>The window is closing: a change still running asks first; Safe Mode changes waiting ask to be applied
+    /// (one restart, N7) or discarded. False keeps the window open.</summary>
+    public bool CanClose()
+    {
+        if (Running && s.Dialogs?.Confirm("A change is still running. Close AkariOS anyway? It may be left half done.", "Close anyway", "Wait", "Warning") != true)
+            return false;
+        if (Running || SafePending.Count == 0) return true;
+        var n = SafePending.Count;
+        var r = s.Dialogs?.Show($"{n} change{(n != 1 ? "s are" : " is")} waiting for Safe Mode. Restart and apply {(n != 1 ? "them" : "it")} now, or discard {(n != 1 ? "them" : "it")}?",
+            "AkariOS", ["Discard", "Restart and apply"], "Question");
+        if (r != "Restart and apply") return true;
+        SafeRun();
+        return false;
+    }
+
+    /// <summary>For the window: closing asks <see cref="CanClose"/>.</summary>
+    public void OnClosing(object? sender, CancelEventArgs e) { if (!CanClose()) e.Cancel = true; }
 }

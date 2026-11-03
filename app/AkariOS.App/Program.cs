@@ -45,6 +45,9 @@ public static partial class Program
         var services = new Shell.AppServices { Engine = engine, Shell = shell, Theme = theme, Open = new Shell.ShellOpen(), Log = appLog };
         var window = new MainWindow(theme, shell, Pages.PageFactory.For(services));
         services.Dialogs = Shell.Dialogs.For(window, appLog);
+        services.Bars = window.CatBars;
+        // a change running, Safe Mode changes waiting: closing asks first
+        window.Closing += (s, e) => services.Catalogue?.OnClosing(s, e);
         Shell.OptionsMenu.Attach(window.MenuBtn, Shell.OptionsMenu.Build(services));
         foreach (var p in engine.Loaded.Problems) appLog.WriteFile($"{p.Level}: {p.File}: {p.Message}");
         // an error inside a click: in akari.log and a message, instead of closing the app

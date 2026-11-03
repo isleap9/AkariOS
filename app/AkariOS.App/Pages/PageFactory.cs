@@ -10,11 +10,7 @@ public static class PageFactory
 {
     public static Func<string, UIElement> For(AppServices s)
     {
-        var catalogue = new CatalogueView(s)
-        {
-            // batch c brings the queue
-            Change = (_, _, _) => s.NotYet("Changing a setting from the Catalogue", "N3 batch c"),
-        };
+        var catalogue = s.Catalogue ??= new CatalogueView(s);
         return page =>
         {
             var q = s.Shell.Search.Trim();

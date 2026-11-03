@@ -148,9 +148,13 @@
       <!-- the page's surface: one rounded, bordered panel; PageScroll glides on the wheel and starts at the top -->
       <Border Grid.Row="2" CornerRadius="20" BorderThickness="1"
               BorderBrush="{DynamicResource Bd}" Background="{DynamicResource Surf}">
-        <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-          <ContentControl x:Name="Page" Margin="24,20,24,20" Focusable="False"/>
-        </ScrollViewer>
+        <DockPanel>
+          <!-- the Catalogue's bars (Safe Mode changes waiting, restarts), pinned under the page: Pages/CatalogueBars -->
+          <StackPanel x:Name="CatBars" DockPanel.Dock="Bottom" Visibility="Collapsed"/>
+          <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ContentControl x:Name="Page" Margin="24,20,24,20" Focusable="False"/>
+          </ScrollViewer>
+        </DockPanel>
       </Border>
     </Grid>
 
