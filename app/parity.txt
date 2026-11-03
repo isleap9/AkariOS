@@ -3,7 +3,7 @@
 # PowerShell only = a src/Tweaks file with script blocks (or other code) and no C# class in AkariOS.Tweaks;
 # Native only = a C# class with no src/Tweaks file.
 
-## PowerShell only: 111 Tweaks
+## PowerShell only: 101 Tweaks
 Advanced/Scheduled tasks  advanced-remove-scheduled-tasks
 Advanced/Security  security-defender-off
 Advanced/Security  security-defender-settings
@@ -48,16 +48,6 @@ Apps/Remove  remove-snipping-tool-legacy
 Apps/Remove  remove-update-for-x64
 Apps/Remove  remove-update-health-tools
 Apps/Remove  remove-webview2
-Customize/Context menu  context-add-legacy-settings
-Customize/Context menu  context-add-new-files
-Customize/Context menu  context-add-powershell-cmd
-Customize/Context menu  context-add-ps1-options
-Customize/Context menu  context-add-run-as-admin
-Customize/Context menu  context-add-take-ownership
-Customize/Context menu  context-remove-display
-Customize/Context menu  context-remove-extract-all
-Customize/Context menu  context-remove-personalize
-Customize/Context menu  context-remove-print
 Hardware/Graphics  graphics-amd-settings
 Hardware/Graphics  graphics-amd-ulps-off
 Hardware/Graphics  graphics-hdcp-off

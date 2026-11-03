@@ -5,6 +5,8 @@
 #   "powercfg <args>", "bcdedit <args>", "bcd <id>" (Read-AkariBcd), "w32tm <args>", "regimport <text>",
 #   "set <path>|<name>|<value>|<type>" (a [byte[]] value as 'ab,01' hex), "remove <path>|<name>",
 #   "row <path>|<name>|<value>|<default>" (each row handed to Get-AkariRegistryState), "result <text>" (Detect's),
+#   "registry <Mode> <row>" / "trusted <Mode> <row>" (Invoke-AkariRegistry / Invoke-AkariRegistryTrusted, a row as
+#   above; Get-AkariRegKey reads the test key),
 #   "appread <family>", "appimport <family>|<reg text>" (Read- / Import-AkariAppSettings), "stop <process>",
 #   "open <target>" (Start-Process), "sleep <seconds>", "delete <path under -UserFolder>" (Remove-Item), and with
 #   -UserFolder, after each block, "file <path under it>|<text>" for every file there.
@@ -42,6 +44,10 @@ function Resolve-AkariRegPath([string]$Path) {
     if ($Path -match '^(HKCU|HKLM):\\?(.*)$') { return "Registry::HKEY_CURRENT_USER\$TestRoot\$($Matches[1])\$($Matches[2])" }
     $Path
 }
+function Invoke-AkariRegistry($Rows, $Mode) { foreach ($e in @($Rows)) { $script:Calls.Add("registry $Mode $($e.Path)|$($e.Name)|$(Format-Value $e.Value)|$(Format-Value $e.Default)") } }
+function Invoke-AkariRegistryTrusted($Rows, $Mode) { foreach ($e in @($Rows)) { $script:Calls.Add("trusted $Mode $($e.Path)|$($e.Name)|$(Format-Value $e.Value)|$(Format-Value $e.Default)") } }
+# a key read on the test key (-TestRoot), never the real hives
+function Get-AkariRegKey([string]$Path) { if ($TestRoot) { Test-Path -LiteralPath (Resolve-AkariRegPath $Path) } else { $false } }
 function Get-AkariOSBuild { 26100 }
 function Get-AkariUserFolder([string]$Name) { $script:Users }
 function Read-AkariAppSettings([string]$Family) {

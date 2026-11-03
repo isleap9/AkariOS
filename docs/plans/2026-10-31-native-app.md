@@ -242,7 +242,11 @@ rows, inline .reg text, stopped programs and messages out of its blocks; Termina
 blocks oracle records Read- / Import-AkariAppSettings and stands in for Stop-Process, Start-Process, Start-Sleep and
 Remove-Item, with a temp user folder; the PowerShell app-actions block puts a space before its 2nd and 3rd .reg value
 lines (`+` before `-join`), the C# text has none: the VM check confirms all three values land), g7 Customize/Context
-menu, g8 Hardware/Graphics, g9 Hardware/Input and Advanced Security / System (not Safe Mode ones). Services-off and
+menu (done 2026-11-03: 10 classes, parity 111 -> 101; `RowScript` reads rows a file builds with code (helper script
+blocks with params and switches, foreach, if, assignments) through PsData instead of copying them, checked by the rows
+oracle; the two desktop entries' rows read out of their blocks and written as TrustedInstaller; Print's verbs from
+Files/PrintVerbs.ps1's function, keys tested on the registry; the blocks oracle records Invoke-AkariRegistry /
+-Trusted and reads Get-AkariRegKey on the test key), g8 Hardware/Graphics, g9 Hardware/Input and Advanced Security / System (not Safe Mode ones). Services-off and
 Scheduled tasks wait for N6, the Defender Safe Mode Toggles for N7.
 
 - Optimize › Advanced (the Catalogue, ADR 0005): Section › Category pages, search, setting cards (switch, Choice
