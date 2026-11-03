@@ -28,6 +28,9 @@ public sealed class Engine
     public ISafeModeHandoff? SafeMode { get; init; }
     public IShutdown? Shutdown { get; init; }
 
+    /// <summary>What Tweak classes reach beyond the registry (the hosts file, network bindings, ...).</summary>
+    public TweakServices Services { get; init; } = new();
+
     /// <summary>Windows runs in Safe Mode (it sets SAFEBOOT_OPTION then; Test-AkariSafeMode).</summary>
     public Func<bool> InSafeMode { get; init; } = () => !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SAFEBOOT_OPTION"));
 
@@ -36,7 +39,7 @@ public sealed class Engine
     /// <summary>The Tweaks, read once.</summary>
     public LoadResult Loaded => _loaded ??= new Loader(Files, Codes).Load();
 
-    public TweakContext Context => new(Registry, System, Files, Log);
+    public TweakContext Context => new(Registry, System, Files, Log, Services);
 
     public States States => new(Context, Remembered);
 
@@ -50,7 +53,8 @@ public sealed class Engine
     /// <summary>The real machine (guarded: never in a test). Codes: AkariOS.Tweaks' classes.</summary>
     public static Engine Live(IReadOnlyDictionary<string, ITweakCode> codes, IAkariLog log)
     {
-        var registry = new RegistryEngine(new LiveRegistryPaths(new RealUserSid()), new TrustedInstaller());
+        var trusted = new TrustedInstaller();
+        var registry = new RegistryEngine(new LiveRegistryPaths(new RealUserSid()), trusted);
         return new Engine
         {
             Files = new EmbeddedSourceFiles(),
@@ -64,6 +68,7 @@ public sealed class Engine
             IsAdmin = () => new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator),
             SystemRestore = new WmiSystemRestore(),
             Shutdown = new ShutdownExe(),
+            Services = TweakServices.Live(trusted),
         };
     }
 }

@@ -25,6 +25,9 @@ public interface ISystemInfo
 
     /// <summary>The display adapters' device instance ids (PCI\VEN_...), for values under Enum\&lt;id&gt;.</summary>
     IReadOnlyList<string> GpuDevices { get; }
+
+    /// <summary>The Windows version this PC runs (DisplayVersion: 24H2, 22H2…), null when it doesn't say.</summary>
+    string? DisplayVersion => null;
 }
 
 /// <summary>The WMI reads: the chassis types, the display devices. The real one is <see cref="WmiHardware"/>.</summary>
@@ -50,6 +53,7 @@ public sealed partial class MachineInfo : ISystemInfo
     private readonly Lazy<Chassis> _chassis;
     private readonly Lazy<IReadOnlyList<Gpu>> _gpus;
     private readonly Lazy<IReadOnlyList<string>> _devices;
+    private readonly Lazy<string?> _displayVersion;
 
     public MachineInfo(RegistryEngine registry, IHardware hardware, int? build = null)
     {
@@ -58,6 +62,7 @@ public sealed partial class MachineInfo : ISystemInfo
         _chassis = new(() => Safe(hardware.ChassisTypes).Any(Portable.Contains) ? Chassis.Laptop : Chassis.Desktop);
         _gpus = new(() => ReadGpus(registry));
         _devices = new(() => Safe(hardware.DisplayDeviceIds));
+        _displayVersion = new(() => PsSemantics.Text(registry.GetValue(@"HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "DisplayVersion")) is { Length: > 0 } v ? v : null);
     }
 
     public int Build { get; }
@@ -65,6 +70,7 @@ public sealed partial class MachineInfo : ISystemInfo
     public Chassis Chassis => _chassis.Value;
     public IReadOnlyList<Gpu> Gpus => _gpus.Value;
     public IReadOnlyList<string> GpuDevices => _devices.Value;
+    public string? DisplayVersion => _displayVersion.Value;
 
     private static IReadOnlyList<T> Safe<T>(Func<IReadOnlyList<T>> read)
     {

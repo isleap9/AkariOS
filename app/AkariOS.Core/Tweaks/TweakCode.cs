@@ -5,9 +5,12 @@ using AkariOS.Core.Machine;
 
 namespace AkariOS.Core.Tweaks;
 
-/// <summary>What a Tweak's C# works with: the registry, the machine, the shared files, its own file's folder.</summary>
-public sealed class TweakContext(RegistryEngine registry, ISystemInfo system, ISourceFiles files, IAkariLog? log = null)
+/// <summary>What a Tweak's C# works with: the registry, the machine, the shared files, its own file's folder, and the
+/// rest of the system through <see cref="TweakServices"/>.</summary>
+public sealed class TweakContext(RegistryEngine registry, ISystemInfo system, ISourceFiles files, IAkariLog? log = null, TweakServices? services = null)
 {
+    public TweakServices Services { get; } = services ?? new TweakServices();
+
     public RegistryEngine Registry { get; } = registry;
     public ISystemInfo System { get; } = system;
     public ISourceFiles Files { get; } = files;

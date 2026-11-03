@@ -8,6 +8,11 @@
     <ProjectReference Include="..\..\AkariOS.Tweaks\AkariOS.Tweaks.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <!-- shared with the Core tests: the PowerShell oracle runner and the test registry key -->
+    <Compile Include="..\AkariOS.Core.Tests\Oracle\Oracle.cs" Link="Shared\Oracle.cs" />
+    <Compile Include="..\AkariOS.Core.Tests\TestKey.cs" Link="Shared\TestKey.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="xunit.v3" Version="4.0.2" />
   </ItemGroup>
 </Project>
