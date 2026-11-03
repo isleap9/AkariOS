@@ -60,8 +60,13 @@ internal sealed class AppHarness : IDisposable
     internal sealed class FakeRestore : ISystemRestore
     {
         public List<RestorePoint> Points { get; } = [];
+        public bool Refuse { get; set; }
         public IReadOnlyList<RestorePoint> List() => Points;
-        public void Create(string description) => Points.Add(new(description, DateTime.Now, (uint)Points.Count + 1));
+        public void Create(string description)
+        {
+            if (Refuse) throw new InvalidOperationException("System Protection is off.");
+            Points.Add(new(description, DateTime.Now, (uint)Points.Count + 1));
+        }
         public void EnableProtection() { }
     }
 
@@ -132,6 +137,7 @@ internal sealed class AppHarness : IDisposable
         .Add("src/Tweaks/Optimize/Test/Asking.ps1", Toggle("fix-asking", "Asking", "Confirm = 'Really change it?'"))
         .Add("src/Tweaks/Optimize/Test/Safe.ps1", Toggle("fix-safe", "Safe", "SafeMode = $true"))
         .Add("src/Tweaks/Optimize/Test/Reboots.ps1", Toggle("fix-reboots", "Reboots", "Reboot = $true"))
+        .Add("src/Tweaks/Optimize/Test/Restarts.ps1", Toggle("fix-restarts", "Restarts", "Restarts = $true"))
         .Add("src/Tweaks/Customize/Hidden/Hidden.ps1", Toggle("fix-hidden", "Hidden", "Guided = $false", "Customize", "Hidden"))
         .Add("src/Tweaks/Optimize/Test/Pick.ps1", """
             @{

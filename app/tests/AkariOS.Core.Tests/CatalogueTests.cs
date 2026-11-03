@@ -1,3 +1,4 @@
+using AkariOS.Core.Runs;
 using AkariOS.Core.Tweaks;
 
 namespace AkariOS.Core.Tests;
@@ -118,4 +119,25 @@ public class CatalogueTests
         // each card adds its size + 2: after three cards the columns hold 5, 3, 4, so the 4th goes in column 1 (7),
         // the 5th in column 2 (4 is now the shortest)
         Assert.Equal([0, 1, 2, 1, 2], Selection.Masonry([3, 1, 2, 2, 1], 3));
+
+    [Fact]
+    public void The_restart_note_and_the_run_summary()
+    {
+        var restarts = new Tweak { Id = "r", Name = "Restarter", Source = "src/Tweaks/Optimize/Gaming/r.ps1", Section = "Optimize", Category = "Gaming", Restarts = true };
+        var other = new Tweak { Id = "q", Name = "Other", Source = "src/Tweaks/Optimize/Gaming/q.ps1", Section = "Optimize", Category = "Gaming", Restarts = true };
+        var plain = T("p", "Optimize", "Gaming");
+        var find = new Dictionary<string, Tweak> { ["r"] = restarts, ["q"] = other, ["p"] = plain };
+        Pending P(string id, TweakMode mode = TweakMode.Apply) => new(id, find[id].Name, mode, null, false, "", "");
+        Assert.Null(Selection.RestartNote([P("p")], find.GetValueOrDefault));
+        // a Revert doesn't restart
+        Assert.Null(Selection.RestartNote([P("r", TweakMode.Revert)], find.GetValueOrDefault));
+        Assert.Equal("Restarter restarts the PC (into Safe Mode for some), so it runs last, after every other change.", Selection.RestartNote([P("p"), P("r")], find.GetValueOrDefault));
+        Assert.Equal("These restart the PC: Restarter, Other. Only Restarter runs now, last; the others are skipped: select them again after the restart.",
+            Selection.RestartNote([P("r"), P("q")], find.GetValueOrDefault));
+
+        Assert.Equal(("2 applied, 1 already, 1 failed", true), Selection.RunSummary([
+            new("a", TweakMode.Apply, OutcomeKind.Failed), new("b", TweakMode.Apply, OutcomeKind.Applied, Reboot: true),
+            new("c", TweakMode.Apply, OutcomeKind.Already), new("d", TweakMode.Apply, OutcomeKind.Applied)]));
+        Assert.Equal(("", false), Selection.RunSummary([]));
+    }
 }

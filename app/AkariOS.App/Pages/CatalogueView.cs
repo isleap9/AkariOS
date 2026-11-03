@@ -107,6 +107,9 @@ public sealed class CatalogueView
         return panel;
     }
 
+    /// <summary>The PC changed outside this page (a Guided Run): the next page shown reads its States again.</summary>
+    public void Stale() => _shownKey = "";
+
     private void Show(CatalogueCard c) => c.Update(SafePending.GetValueOrDefault(c.Tweak.Id));
 
     // ---- States, read in the background

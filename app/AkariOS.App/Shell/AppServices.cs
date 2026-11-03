@@ -36,6 +36,11 @@ public sealed class AppServices
         });
     };
 
+    /// <summary>Runs an action on the UI thread from background work (a Run's progress; tests run it at once).</summary>
+    public Action<Action> Post { get; init; } = System.Windows.Application.Current is { } app
+        ? a => app.Dispatcher.BeginInvoke(a)
+        : a => a();
+
     /// <summary>The Catalogue's page (one per run: its cards, queue and bars), made by PageFactory.</summary>
     public Pages.CatalogueView? Catalogue { get; set; }
 

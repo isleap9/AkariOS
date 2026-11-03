@@ -48,8 +48,12 @@ public static partial class Program
         services.Bars = window.CatBars;
         services.Footer = new Pages.StepFooter(window.StepFooter, window.StepBack, window.StepDots, window.StepNext);
         services.Install?.Attach(services.Footer);
-        // a change running, Safe Mode changes waiting: closing asks first
-        window.Closing += (s, e) => services.Catalogue?.OnClosing(s, e);
+        // a Run or a change running, Safe Mode changes waiting: closing asks first
+        window.Closing += (s, e) =>
+        {
+            if (services.Install?.CanClose() == false) { e.Cancel = true; return; }
+            services.Catalogue?.OnClosing(s, e);
+        };
         Shell.OptionsMenu.Attach(window.MenuBtn, Shell.OptionsMenu.Build(services));
         foreach (var p in engine.Loaded.Problems) appLog.WriteFile($"{p.Level}: {p.File}: {p.Message}");
         // an error inside a click: in akari.log and a message, instead of closing the app

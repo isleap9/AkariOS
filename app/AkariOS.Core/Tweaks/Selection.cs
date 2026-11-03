@@ -165,6 +165,26 @@ public static class Selection
         return uint.TryParse(s, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : null;
     }
 
+    /// <summary>Review's note about changes that restart the PC (Get-AkariRestartNote): they run last, and only the
+    /// first of several runs in one go. Null when there is none.</summary>
+    public static string? RestartNote(IEnumerable<Pending> sel, Func<string, Tweak?> find)
+    {
+        var names = sel.Where(p => find(p.Id) is { } t && Runner.Restarts(t, p.Mode)).Select(p => p.Name).ToList();
+        if (names.Count == 0) return null;
+        if (names.Count == 1) return $"{names[0]} restarts the PC (into Safe Mode for some), so it runs last, after every other change.";
+        return $"These restart the PC: {string.Join(", ", names)}. Only {names[0]} runs now, last; the others are skipped: select them again after the restart.";
+    }
+
+    /// <summary>A Run's counts per Outcome in Glossary order as one line, and whether a restart is needed
+    /// (Get-AkariRunSummary).</summary>
+    public static (string Text, bool Reboot) RunSummary(IReadOnlyList<Outcome> outcomes)
+    {
+        var parts = new[] { OutcomeKind.Applied, OutcomeKind.Reverted, OutcomeKind.Already, OutcomeKind.Skipped, OutcomeKind.Failed }
+            .Select(k => (k, n: outcomes.Count(o => o.Kind == k))).Where(x => x.n > 0)
+            .Select(x => $"{x.n} {x.k.ToString().ToLowerInvariant()}");
+        return (string.Join(", ", parts), outcomes.Any(o => o.Reboot));
+    }
+
     /// <summary>The Selection as the Runner's items (Get-AkariPlanItems).</summary>
     public static IReadOnlyList<PlanItem> PlanItems(IEnumerable<Pending> sel) =>
         sel.Select(p => new PlanItem(p.Id, p.Mode, p.HasValue ? p.Value : null)).ToList();

@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using AkariOS.App.Look;
 using AkariOS.App.Shell;
+using System.IO;
 using AkariOS.Core.Tweaks;
 
 namespace AkariOS.App.Pages;
@@ -12,9 +13,9 @@ public sealed record StepFooter(Border Bar, Button Back, Panel Dots, Button Next
 
 /// <summary>
 /// The Install AkariOS page (src/UI/Steps.ps1): a chooser (One-click comes with N7, or Guided), then Guided's steps
-/// Apps (N5) → Tweaks → Review &amp; Apply (batch e), with the stepper in the footer and the step in the page header.
-/// Nothing changes while choosing: the rows write into <see cref="Selection"/>. One per run: its state stays when
-/// another page is shown.
+/// Apps (N5) → Tweaks → Review &amp; Apply → the result, with the stepper in the footer and the step in the page header.
+/// Nothing changes while choosing: the rows write into <see cref="Selection"/>; Apply runs it once, in the background,
+/// after the session's restore point. One per run: its state stays when another page is shown.
 /// </summary>
 public sealed class InstallPage
 {
@@ -37,7 +38,7 @@ public sealed class InstallPage
     public InstallPage(AppServices services)
     {
         s = services;
-        Tweaks = new TweaksStep(s, Selection, UpdateFooter);
+        Tweaks = NewTweaks();
         s.Shell.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(ShellViewModel.Page)) UpdateFooter(); };
     }
 
@@ -50,7 +51,15 @@ public sealed class InstallPage
     /// <summary>The pending changes, by Tweak id, in Review's order.</summary>
     public OrderedDictionary<string, Pending> Selection { get; } = [];
 
-    public TweaksStep Tweaks { get; }
+    public TweaksStep Tweaks { get; private set; }
+
+    /// <summary>A Run is applying the Selection now.</summary>
+    public bool Running { get; private set; }
+
+    /// <summary>The last Run's Outcomes (the result screen).</summary>
+    public IReadOnlyList<Core.Runs.Outcome> Outcomes { get; private set; } = [];
+
+    private TweaksStep NewTweaks() => new(s, Selection, UpdateFooter);
 
     /// <summary>The page (the same element each time), on the current step; the search filters the Tweaks step.</summary>
     public UIElement Build(string query)
@@ -79,8 +88,8 @@ public sealed class InstallPage
     {
         switch (Step)
         {
-            case 2: s.NotYet("Review & Apply", "N3 batch e"); break;
-            case 3: Go("Choose", 0); s.Shell.Open("Home"); break;
+            case 2: Apply(); break;
+            case 3: Reset(); s.Shell.Open("Home"); break;
             default: Go(Mode, Step + 1); break;
         }
     }
@@ -102,7 +111,8 @@ public sealed class InstallPage
             {
                 0 => Note("Removing and installing apps comes with N5 (docs/plans/2026-10-31-native-app.md). The PowerShell app has it today. Go on to the Tweaks."),
                 1 => Tweaks.View(_query),
-                _ => Note($"Review & Apply comes with N3 batch e. {Selection.Count} change{(Selection.Count == 1 ? "" : "s")} picked so far."),
+                2 => ReviewStep.Review(Selection.Values, s.Engine.Find),
+                _ => ReviewStep.Result(Outcomes, s.Engine.Find),
             };
         }
         if (_root.Child != body)
@@ -121,6 +131,81 @@ public sealed class InstallPage
             else Motion.Entrance(body, MotionKind.Fade, speed: "Base");
         }
         UpdateFooter();
+    }
+
+    // ---- Apply: one Run in the background, the restore point first
+
+    /// <summary>Start-AkariApply: the Selection as one Run (the Runner: Explorer restarted once, changes that restart
+    /// the PC last), after the session's restore point; Windows refusing it asks whether to go on without one.</summary>
+    public void Apply(bool skipRestore = false)
+    {
+        if (Running || Selection.Count == 0) return;
+        if (s.Catalogue is { Running: true }) { s.Dialogs?.Message("A change from Optimize is still running. Apply these when it is done."); return; }
+        var plan = Core.Tweaks.Selection.PlanItems(Selection.Values);
+        var restore = !skipRestore && s.RestoreChoice(Mode);
+        var label = $"Applying {plan.Count} change{(plan.Count == 1 ? "" : "s")}";
+        Running = true;
+        s.Shell.SetBusy(true, label);
+        s.Log.Write(label);
+        UpdateFooter();
+        var progress = new Posted(s, p => s.Shell.SetProgress(p.Done, p.Total, p.Step));
+        s.Background(() =>
+        {
+            if (restore && s.Engine.RestorePoints?.Create("AkariOS") is { Ok: false } refused) return refused;
+            return s.Engine.Runner.Run(plan, s.Engine.Find, progress);
+        }, r => Applied(r, plan, restore));
+    }
+
+    private void Applied(object? r, IReadOnlyList<Core.Runs.PlanItem> plan, bool restore)
+    {
+        Running = false;
+        s.Shell.SetBusy(false);
+        if (r is Core.Runs.RestoreResult refused)
+        {
+            // stopped before any change: ask, then go on without one (Cancel: the next Apply tries again)
+            UpdateFooter();
+            if (s.Dialogs?.Confirm($"Akari could not create a restore point:\n\n{refused.Message}\n\nApply the changes without a restore point?", "Apply anyway", "Cancel", "Warning", "Restore point") == true)
+            {
+                s.RestoreDone = true;
+                Apply(skipRestore: true);
+            }
+            return;
+        }
+        if (restore) s.RestoreDone = true;
+        if (r is not IReadOnlyList<Core.Runs.Outcome> outcomes)
+        {
+            s.Dialogs?.Message("The changes stopped before they ran. The details are in akari.log.", "Error");
+            UpdateFooter();
+            return;
+        }
+        Outcomes = outcomes;
+        // Last used (Quick select): what the Guided Run was asked to do
+        try { s.Engine.Presets.SaveLastUsed(plan); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { s.Log.Write($"Warning: Last used not saved ({e.Message})"); }
+        // what this PC has now: Home's count and the Catalogue's cards are read again
+        s.AppliedCount = null;
+        s.Catalogue?.Stale();
+        Go(Mode, 3);
+    }
+
+    /// <summary>Done (Reset-AkariSteps): the Selection forgotten, the chooser next time, every State read again.</summary>
+    public void Reset()
+    {
+        Selection.Clear();
+        Outcomes = [];
+        Tweaks = NewTweaks();
+        (Mode, Step) = ("Choose", 0);
+        _root.Child = null;
+    }
+
+    /// <summary>The window is closing: a Run still applying asks first.</summary>
+    public bool CanClose() =>
+        !Running || s.Dialogs?.Confirm("Changes are still being applied. Close AkariOS anyway? They may be left half done.", "Close anyway", "Wait", "Warning") == true;
+
+    // a Run's progress, handed to the UI thread
+    private sealed class Posted(AppServices s, Action<Core.Runs.RunProgress> show) : IProgress<Core.Runs.RunProgress>
+    {
+        public void Report(Core.Runs.RunProgress value) => s.Post(() => show(value));
     }
 
     private UIElement Chooser()
@@ -148,6 +233,7 @@ public sealed class InstallPage
         if (!here) return;
         f.Dots.Children.Clear();
         f.Back.Visibility = Visibility.Visible;
+        f.Back.IsEnabled = !Running;
         if (Mode == "Choose") { f.Next.Visibility = Visibility.Collapsed; return; }
         f.Next.Visibility = Visibility.Visible;
         var n = Selection.Count;
@@ -155,7 +241,7 @@ public sealed class InstallPage
         {
             0 => ("Next", true),
             1 => ($"Review ({n})", n > 0),
-            2 => ("Apply", n > 0),
+            2 => ("Apply", n > 0 && !Running),
             _ => ((object)"Done", true),
         };
         if (Step == 3) f.Back.Visibility = Visibility.Hidden;

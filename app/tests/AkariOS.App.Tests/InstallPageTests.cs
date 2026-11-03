@@ -199,4 +199,79 @@ public sealed class InstallPageTests : IDisposable
         t.Install.Build("");
         Assert.Equal(Visibility.Visible, Row(t, "fix-plain").Row.Visibility);
     });
+
+    // ---- Review & Apply, the result
+
+    [Fact]
+    public void Review_lists_the_changes_and_says_what_restarts_the_pc() => LookTests.OnSta(() =>
+    {
+        var t = OnTweaks(apply: true);
+        Tick(Row(t, "fix-plain"));
+        Tick(Row(t, "fix-restarts"));
+        ((ListBox)Row(t, "fix-pick").Control).SelectedIndex = 1;
+        Click(t.Footer.Next);
+        var texts = Texts((FrameworkElement)t.Install.Build(""));
+        Assert.Equal(("Review & Apply", "Apply", true), (t.S.Shell.Heading, t.Footer.Next.Content, t.Footer.Next.IsEnabled));
+        Assert.Contains("Restarts restarts the PC (into Safe Mode for some), so it runs last, after every other change.", texts);
+        Assert.Contains("Optimized → Default", texts);
+        Assert.Contains("Default → Optimized", texts);
+        Assert.Contains("State unknown → One", texts);
+        Assert.Equal(["Apps=Done", "Tweaks=Done", "Review & Apply=Current"], Steps(t));
+    });
+
+    [Fact]
+    public void Apply_runs_once_after_a_restore_point_then_shows_the_outcomes_and_saves_last_used() => LookTests.OnSta(() =>
+    {
+        var t = OnTweaks();
+        Tick(Row(t, "fix-plain"));
+        Tick(Row(t, "fix-reboots"));
+        Click(t.Footer.Next);
+        Click(t.Footer.Next);
+        Assert.Equal((1u, 1u), (Fix(t.S, "Plain"), Fix(t.S, "Reboots")));
+        Assert.Equal(["AkariOS"], t.Restore.Points.Select(p => p.Description));
+        // Explorer = $true: restarted once, at the end of the Run
+        Assert.Equal(1, t.Explorer.Restarts);
+        var texts = Texts((FrameworkElement)t.Install.Build(""));
+        Assert.Equal(("Done", "Done", Visibility.Hidden), (t.S.Shell.Heading, t.Footer.Next.Content, t.Footer.Back.Visibility));
+        Assert.Contains("2 applied", texts);
+        Assert.Contains("Restart Windows to finish.", texts);
+        Assert.Equal(["Apps=Done", "Tweaks=Done", "Review & Apply=Done"], Steps(t));
+        Assert.Equal(["fix-plain", "fix-reboots"], t.S.Engine.Presets.LastUsed()!.Entries.Select(e => e.Id));
+        Assert.Equal(("Ready", false), (t.S.Shell.StatusText, t.Install.Running));
+
+        // Done: Home, and the chooser with nothing picked next time
+        Click(t.Footer.Next);
+        Assert.Equal(("Home", "Choose", 0), (t.S.Shell.Page, t.Install.Mode, t.Install.Selection.Count));
+    });
+
+    [Fact]
+    public void A_refused_restore_point_asks_and_cancel_changes_nothing() => LookTests.OnSta(() =>
+    {
+        var t = OnTweaks();
+        t.Restore.Refuse = true;
+        Tick(Row(t, "fix-plain"));
+        Click(t.Footer.Next);
+        Click(t.Footer.Next);
+        Assert.StartsWith("Akari could not create a restore point:", t.Asked[^1]);
+        Assert.Equal((null, 2), (Fix(t.S, "Plain"), t.Install.Step));
+        // Apply again: it tries again and asks again; Apply anyway goes on without one, and the session asks no more
+        t.Answers.Enqueue("Apply anyway");
+        Click(t.Footer.Next);
+        Assert.Equal(2, t.Asked.Count(a => a.StartsWith("Akari could not create a restore point:", StringComparison.Ordinal)));
+        Assert.Equal((1u, 3, true), (Fix(t.S, "Plain"), t.Install.Step, t.S.RestoreDone));
+    });
+
+    [Fact]
+    public void A_presets_hidden_tweaks_are_reviewed_apart_and_applied() => LookTests.OnSta(() =>
+    {
+        var t = OnTweaks();
+        Directory.CreateDirectory(Path.Combine(_h.Dir, "presets"));
+        File.WriteAllText(Path.Combine(_h.Dir, "presets", "Mine.json"), """{ "Name": "Mine", "Tweaks": [ "fix-plain", "fix-hidden" ] }""");
+        t.Install.Tweaks.QuickSelect(t.S.Engine.Presets.Find("Mine")!);
+        Click(t.Footer.Next);
+        var texts = Texts((FrameworkElement)t.Install.Build(""));
+        Assert.True(texts.IndexOf("Advanced settings (Optimize › Advanced)") > texts.IndexOf("Plain"));
+        Click(t.Footer.Next);
+        Assert.Equal((1u, 1u), (Fix(t.S, "Plain"), Fix(t.S, "Hidden")));
+    });
 }
