@@ -2,7 +2,8 @@
 # on the shared .reg files, written as JSON for RegReaderTests. Read-AkariRegFile (tests\RegFile.ps1) on
 # OneClick\reg.reg; ConvertFrom-AkariRegExport (Core\AppSetup.ps1, with ConvertFrom-AkariHex from Core\Registry.ps1:
 # only those two functions are defined, nothing else in the files runs) on the Store settings with {0} = 00.
-param([Parameter(Mandatory)][string]$Repo, [Parameter(Mandatory)][string]$Out)
+# -Export: a reg export of an app's hive (as Read-AkariAppSettings reads it, root HKEY_LOCAL_MACHINE\AkariAppRead).
+param([Parameter(Mandatory)][string]$Repo, [Parameter(Mandatory)][string]$Out, [string]$Export = '')
 $ErrorActionPreference = 'Stop'
 
 . (Join-Path $Repo 'tests\RegFile.ps1')
@@ -29,5 +30,7 @@ function ConvertTo-PlainMap($map) {
 $reg = Read-AkariRegFile (Join-Path $Repo 'src\OneClick\reg.reg')
 $storeText = (Get-Content -LiteralPath (Join-Path $Repo 'src\Tweaks\Customize\Apps\Files\store-settings.reg') -Raw).Replace('{0}', '00')
 $store = ConvertFrom-AkariRegExport $storeText 'HKEY_LOCAL_MACHINE\AkariAppHive'
-$json = ConvertTo-Json @{ RegReg = (ConvertTo-PlainMap $reg); Store = (ConvertTo-PlainMap $store) } -Depth 20 -Compress
+$result = @{ RegReg = (ConvertTo-PlainMap $reg); Store = (ConvertTo-PlainMap $store) }
+if ($Export) { $result.Export = ConvertTo-PlainMap (ConvertFrom-AkariRegExport (Get-Content -LiteralPath $Export -Raw) 'HKEY_LOCAL_MACHINE\AkariAppRead') }
+$json = ConvertTo-Json $result -Depth 20 -Compress
 [IO.File]::WriteAllText($Out, $json, [Text.UTF8Encoding]::new($false))

@@ -235,7 +235,13 @@ that builds rows), g5 Customize System / Notifications / Sound / Input (done 202
 `IBcdEdit` (N7's Safe Mode uses it too), `IW32tm`; the blocks oracle now also runs Detect and After blocks, records
 bcdedit, w32tm, reg import and registry-state rows, and points the PowerShell blocks' registry reads at the C# test's
 key; the priority list's .reg fragment is written through the registry engine, not reg.exe; a `System` folder's
-classes use the namespace `SystemTweaks`), g6 Customize/Apps, g7 Customize/Context
+classes use the namespace `SystemTweaks`), g6 Customize/Apps (done 2026-11-03: 6 classes, parity 117 -> 111;
+`IAppSettings` (a Store app's settings.dat through reg.exe load / import / export / unload; `AppSettings.Parse` =
+ConvertFrom-AkariRegExport, `AppSettings.State` = Get-AkariAppSettingState), `AppHive` reads each file's family, Detect
+rows, inline .reg text, stopped programs and messages out of its blocks; Terminal's settings.json edited as text; the
+blocks oracle records Read- / Import-AkariAppSettings and stands in for Stop-Process, Start-Process, Start-Sleep and
+Remove-Item, with a temp user folder; the PowerShell app-actions block puts a space before its 2nd and 3rd .reg value
+lines (`+` before `-join`), the C# text has none: the VM check confirms all three values land), g7 Customize/Context
 menu, g8 Hardware/Graphics, g9 Hardware/Input and Advanced Security / System (not Safe Mode ones). Services-off and
 Scheduled tasks wait for N6, the Defender Safe Mode Toggles for N7.
 

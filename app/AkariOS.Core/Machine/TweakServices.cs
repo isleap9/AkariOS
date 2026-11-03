@@ -8,7 +8,7 @@ namespace AkariOS.Core.Machine;
 /// <summary>
 /// What a Tweak's C# reaches beyond the registry, each behind an interface that tests fake (rule 12): the hosts file,
 /// the network adapters' bindings, a settings page, services, scheduled tasks, programs, the memory agent, BitLocker,
-/// the boot store, w32tm, TrustedInstaller, the system folders, the clock. A part left null (or a folder left "") is one the engine doesn't
+/// the boot store, w32tm, Store apps' settings files, TrustedInstaller, the system folders, the clock. A part left null (or a folder left "") is one the engine doesn't
 /// have (a test that doesn't need it): using it fails the Tweak.
 /// </summary>
 public sealed class TweakServices
@@ -28,6 +28,7 @@ public sealed class TweakServices
     public IDesktop? Desktop { get; init; }
     public IBcdEdit? BcdEdit { get; init; }
     public IW32tm? W32tm { get; init; }
+    public IAppSettings? AppSettings { get; init; }
     public ITrustedInstaller? Trusted { get; init; }
 
     /// <summary>%ProgramData% (tests: a temp folder).</summary>
@@ -70,6 +71,7 @@ public sealed class TweakServices
             Services = services,
             BcdEdit = new BcdEdit(),
             W32tm = new W32tm(services),
+            AppSettings = new RegExeAppSettings(),
             Tasks = new TaskScheduler(),
             Exe = new ExeRunner(),
             Memory = new WmiMemoryAgent(),
@@ -174,7 +176,7 @@ public sealed class WmiNetBindings : INetBindings
     }
 }
 
-/// <summary>Opens a URI through the shell: a Settings page (ms-settings:).</summary>
+/// <summary>Opens a URI through the shell: a Settings page (ms-settings:) or the Store's (ms-windows-store:).</summary>
 public interface ILauncher
 {
     void Open(string uri);
@@ -187,7 +189,8 @@ public sealed class ShellLauncher : ILauncher
 
     public void Open(string uri)
     {
-        if (!uri.StartsWith("ms-settings:", StringComparison.OrdinalIgnoreCase)) throw new ArgumentException($"not a Settings page: {uri}");
+        if (!uri.StartsWith("ms-settings:", StringComparison.OrdinalIgnoreCase) && !uri.StartsWith("ms-windows-store:", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException($"not a Settings page: {uri}");
         Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true })?.Dispose();
     }
 }

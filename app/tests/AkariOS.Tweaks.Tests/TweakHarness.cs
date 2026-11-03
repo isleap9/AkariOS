@@ -1,4 +1,5 @@
 using AkariOS.Core;
+using AkariOS.Core.Data;
 using AkariOS.Core.Machine;
 using AkariOS.Core.Presets;
 using AkariOS.Core.Registry;
@@ -55,6 +56,7 @@ namespace AkariOS.Tweaks.Tests
         public FakeTrusted Trusted { get; } = new();
         public FakeBcd Bcd { get; } = new();
         public FakeW32tm W32tm { get; } = new();
+        public FakeAppSettings Apps { get; } = new();
         public FakePc Pc { get; } = new();
         public DateTime Now { get; set; } = new(2026, 11, 3, 12, 0, 0, DateTimeKind.Utc);
         public Engine Engine { get; }
@@ -80,7 +82,7 @@ namespace AkariOS.Tweaks.Tests
                 {
                     Hosts = Hosts, Bindings = Bindings, Launcher = Launcher, Services = Services, Tasks = Tasks, Exe = Exe,
                     Memory = Memory, BitLocker = BitLocker, PowerCfg = PowerCfg, Trusted = Trusted,
-                    Processes = Processes, Explorer = Explorer, Shortcuts = Shortcuts, Desktop = Desktop, BcdEdit = Bcd, W32tm = W32tm,
+                    Processes = Processes, Explorer = Explorer, Shortcuts = Shortcuts, Desktop = Desktop, BcdEdit = Bcd, W32tm = W32tm, AppSettings = Apps,
                     ProgramData = Folder("ProgramData"), Windows = Folder("Windows"), SystemDrive = Folder("C"), FilesFolder = Folder("Files"),
                     UtcNow = () => Now, Sleep = _ => { },
                 },
@@ -250,6 +252,47 @@ namespace AkariOS.Tweaks.Tests
     {
         public List<string> Calls { get; } = [];
         public IReadOnlyList<string> Run(params string[] arguments) { Calls.Add($"w32tm {string.Join(" ", arguments)}"); return []; }
+    }
+
+    /// <summary>Store apps' settings hives by package family (the folder above Settings\settings.dat): their values, the
+    /// ones the app holds (unreadable, refused), the imports ("family|text"). An import needs the settings.dat file, as
+    /// the real one does, and its .reg text changes the values, so a Detect after it reads what it wrote.</summary>
+    internal sealed class FakeAppSettings : IAppSettings
+    {
+        public Dictionary<string, Dictionary<string, byte[]>> Hives { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> Held { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public List<string> Imports { get; } = [];
+
+        public static string Family(string dat) => Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(dat)))!;
+
+        private Dictionary<string, byte[]> Values(string family) =>
+            Hives.TryGetValue(family, out var v) ? v : Hives[family] = new(StringComparer.OrdinalIgnoreCase);
+
+        public bool Import(string dat, string regText)
+        {
+            var family = Family(dat);
+            if (!File.Exists(dat) || Held.Contains(family)) return false;
+            Imports.Add($"{family}|{regText}");
+            var values = Values(family);
+            foreach (var key in RegReader.Parse(regText).Keys)
+            {
+                var rel = key.Path.Length == AppSettings.ImportRoot.Length ? "" : key.Path[(AppSettings.ImportRoot.Length + 1)..];
+                foreach (var v in key.Values)
+                {
+                    var name = rel.Length == 0 ? v.Name : $@"{rel}\{v.Name}";
+                    if (v.Delete) values.Remove(name);
+                    else values[name] = v.Raw ?? (byte[])v.Data!;
+                }
+            }
+            return true;
+        }
+
+        public IReadOnlyDictionary<string, byte[]>? Read(string dat)
+        {
+            var family = Family(dat);
+            if (Held.Contains(family)) return null;
+            return File.Exists(dat) ? new Dictionary<string, byte[]>(Values(family), StringComparer.OrdinalIgnoreCase) : new Dictionary<string, byte[]>();
+        }
     }
 
     /// <summary>Runs the work at once and counts it (what ran as TrustedInstaller).</summary>

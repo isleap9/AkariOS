@@ -98,8 +98,33 @@ public class RegReaderTests
 
     // ---- the shared files, against the PowerShell app's readers
 
+    // what reg export writes for a Store app's hive (UTF-16), with what ConvertFrom-AkariRegExport skips or joins
+    private const string Export =
+        "Windows Registry Editor Version 5.00\r\n\r\n" +
+        "[HKEY_LOCAL_MACHINE\\AkariAppRead]\r\n\"Top\"=hex(5f5e10b):01,02\r\n\r\n" +
+        "[HKEY_LOCAL_MACHINE\\AkariAppRead\\LocalState]\r\n" +
+        "\"Long\"=hex(5f5e104):01,00,00,00,d1,55,24,57,\\\r\n  d1,84,db,01\r\n" +
+        "\"Quo\\\"te\"=hex(5f5e10b):00,42\r\n\"Empty\"=hex(5f5e10b):\r\n\"Plain\"=hex:0a,0B\r\n" +
+        "\"Word\"=dword:00000001\r\n\"Text\"=\"x\"\r\n\r\n" +
+        "[HKEY_LOCAL_MACHINE\\AkariAppRead\\LocalState\\PersistentSettings]\r\n\"Deep\"=hex(5f5e10b):00,0d\r\n\r\n" +
+        "[HKEY_LOCAL_MACHINE\\Other]\r\n\"Skip\"=hex:01\r\n";
+
     private static readonly Lazy<JsonElement> PowerShell = new(() =>
-        Oracle.Run("Export-RegFile.ps1", "-Repo", Repo.Root));
+    {
+        var file = Path.Combine(Path.GetTempPath(), $"akari-export-{Guid.NewGuid():N}.reg");
+        File.WriteAllText(file, Export, Encoding.Unicode);
+        try { return Oracle.Run("Export-RegFile.ps1", "-Repo", Repo.Root, "-Export", file); }
+        finally { File.Delete(file); }
+    });
+
+    [Fact]
+    public void An_app_hive_export_reads_as_ConvertFrom_AkariRegExport_reads_it()
+    {
+        var mine = AkariOS.Core.Machine.AppSettings.Parse(Export, AkariOS.Core.Machine.AppSettings.ReadRoot)
+            .ToDictionary(p => p.Key, p => (object?)p.Value, StringComparer.OrdinalIgnoreCase);
+        Assert.Equal(6, mine.Count);
+        Compare(PowerShell.Value.GetProperty("Export"), mine);
+    }
 
     private static string Shared(string rel) => File.ReadAllText(Path.Combine(Repo.Root, rel));
 
