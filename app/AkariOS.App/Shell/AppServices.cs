@@ -36,6 +36,9 @@ public sealed class AppServices
         });
     };
 
+    /// <summary>The file dialogs (Import / Export; set by Program, a fake in tests).</summary>
+    public IFilePicker? Picker { get; init; }
+
     /// <summary>Runs an action on the UI thread from background work (a Run's progress; tests run it at once).</summary>
     public Action<Action> Post { get; init; } = System.Windows.Application.Current is { } app
         ? a => app.Dispatcher.BeginInvoke(a)

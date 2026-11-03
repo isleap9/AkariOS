@@ -72,6 +72,13 @@ public sealed class InstallPage
     /// <summary>Guided's first step (Home's "Choose changes").</summary>
     public void Guide() => Go("Guided", 0);
 
+    /// <summary>Guided's Tweaks step with a preset's changes picked (Import).</summary>
+    public void GuideTweaks(Core.Presets.Preset preset)
+    {
+        Go("Guided", 1);
+        Tweaks.QuickSelect(preset);
+    }
+
     private void Go(string mode, int step)
     {
         (Mode, Step) = (mode, step);

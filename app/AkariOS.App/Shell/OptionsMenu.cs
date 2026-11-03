@@ -51,8 +51,8 @@ public static class OptionsMenu
     {
         // 220 px wide plus the 12 px shadow margin on each side, so it can be right-aligned when it opens
         var menu = new ContextMenu { Width = 244 };
-        menu.Items.Add(Item("Import settings", "file-input", null, "N3"));
-        menu.Items.Add(Item("Export settings", "file-output", null, "N3"));
+        menu.Items.Add(Item("Import settings", "file-input", _ => Pages.ImportExport.Import(s)));
+        menu.Items.Add(Item("Export settings", "file-output", _ => Pages.ImportExport.Export(s)));
         menu.Items.Add(Item("System Restore", "history", _ => s.Open.Program(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "rstrui.exe"))));
         menu.Items.Add(Item(ThemeLabels[s.Theme.Setting], "sun-moon", it =>
         {

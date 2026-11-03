@@ -28,7 +28,14 @@ public sealed class LookTests : IDisposable
     internal static void OnSta(Action action)
     {
         ExceptionDispatchInfo? error = null;
-        var t = new Thread(() => { try { action(); } catch (Exception e) { error = ExceptionDispatchInfo.Capture(e); } });
+        // the thread's WPF dispatcher is shut down when the test ends: one left behind on a dead thread can hang the
+        // process's exit (WPF's shutdown listeners)
+        var t = new Thread(() =>
+        {
+            try { action(); }
+            catch (Exception e) { error = ExceptionDispatchInfo.Capture(e); }
+            finally { System.Windows.Threading.Dispatcher.CurrentDispatcher.InvokeShutdown(); }
+        });
         t.SetApartmentState(ApartmentState.STA);
         t.Start();
         t.Join();

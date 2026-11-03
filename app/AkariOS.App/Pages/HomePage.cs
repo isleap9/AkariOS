@@ -92,7 +92,8 @@ public static class HomePage
         {
             var card = Parts.ModeCard(icon, title, text);
             card.Margin = new Thickness(8);
-            card.Click += (_, _) => { if (page is null) s.NotYet(title, "N3"); else s.Shell.Open(page); };
+            // the one tile with no page: Import / Export's dialog
+            card.Click += (_, _) => { if (page is null) ImportExport.Show(s); else s.Shell.Open(page); };
             grid.Children.Add(card);
         }
         root.Children.Add(grid);

@@ -34,6 +34,7 @@ public sealed class TweaksStep(AppServices s, IDictionary<string, Pending> sel, 
     private bool _reading;
     private int _cols;
     private string _query = "";
+    private Preset? _pending;
 
     /// <summary>"Show current state": rows start on the State read from this PC (Win11Debloat's "Show currently
     /// applied tweaks").</summary>
@@ -66,6 +67,7 @@ public sealed class TweaksStep(AppServices s, IDictionary<string, Pending> sel, 
             Build(groups, r as Dictionary<string, StateRead> ?? []);
             _host.Child = _view;
             Filter(_query);
+            if (_pending is { } p) { _pending = null; QuickSelect(p); }
         });
     }
 
@@ -195,7 +197,8 @@ public sealed class TweaksStep(AppServices s, IDictionary<string, Pending> sel, 
     public void QuickSelect(Preset preset)
     {
         Ensure();
-        if (_view is null) return;
+        // the States are still being read: picked once the view is built
+        if (_view is null) { _pending = preset; return; }
         var plan = PresetStore.Resolve(preset, s.Engine.Loaded.Tweaks);
         Reset();
         sel.Clear();

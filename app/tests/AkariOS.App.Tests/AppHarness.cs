@@ -20,7 +20,8 @@ namespace AkariOS.App.Tests;
 /// a test key, background work run at once, dialogs answered by the test (in order; none = Esc; "text|button" types
 /// the text first), System Restore, Explorer and the PC's restart faked.</summary>
 internal sealed record AppTest(AppServices S, CatalogueView Page, InstallPage Install, StepFooter Footer, List<string> Asked,
-    Queue<string> Answers, AppHarness.FakeExplorer Explorer, AppHarness.FakeShutdown Shutdown, AppHarness.FakeRestore Restore, StackPanel Bars);
+    Queue<string> Answers, AppHarness.FakeExplorer Explorer, AppHarness.FakeShutdown Shutdown, AppHarness.FakeRestore Restore, StackPanel Bars,
+    AppHarness.FakePicker Picker);
 
 /// <summary>Makes <see cref="AppTest"/>s; one per test class instance, cleaning its test key and folder after.</summary>
 internal sealed class AppHarness : IDisposable
@@ -70,6 +71,16 @@ internal sealed class AppHarness : IDisposable
         public void EnableProtection() { }
     }
 
+    /// <summary>The file dialogs: the paths they "pick" (null = cancelled), and the names Save suggested.</summary>
+    internal sealed class FakePicker : IFilePicker
+    {
+        public string? SavePath { get; set; }
+        public string? OpenPath { get; set; }
+        public List<string> Suggested { get; } = [];
+        public string? Save(string suggested) { Suggested.Add(suggested); return SavePath; }
+        public string? Open() => OpenPath;
+    }
+
     private sealed class NoOpen : IShellOpen
     {
         public void Url(string url) { }
@@ -103,23 +114,31 @@ internal sealed class AppHarness : IDisposable
         var asked = new List<string>();
         var answers = new Queue<string>();
         var bars = new StackPanel();
+        var picker = new FakePicker();
         var s = new AppServices
         {
             Engine = engine, Shell = new ShellViewModel("1"), Open = new NoOpen(), Log = log, LogFolder = Dir,
             Theme = new ThemeService(resources, new SettingsFile(Path.Combine(Dir, "settings.json")), () => null, false),
             Background = (work, done) => done(work()),
             Bars = bars,
+            Picker = picker,
+            Post = a => a(),
         };
         s.Dialogs = new Dialogs(() => resources, log)
         {
             Runner = d =>
             {
                 asked.Add(((TextBlock)d.FindName("DlgText")).Text);
-                if (!answers.TryDequeue(out var a)) return null;
-                var bar = a.IndexOf('|');
-                if (bar < 0) return a;
-                ((TextBox)d.FindName("DlgInput")).Text = a[..bar];
-                return a[(bar + 1)..];
+                // the dialog is never shown: closed once answered
+                try
+                {
+                    if (!answers.TryDequeue(out var a)) return null;
+                    var bar = a.IndexOf('|');
+                    if (bar < 0) return a;
+                    ((TextBox)d.FindName("DlgInput")).Text = a[..bar];
+                    return a[(bar + 1)..];
+                }
+                finally { d.Close(); }
             },
         };
         var footer = new StepFooter(new Border(), new Button(), new StackPanel(), new Button());
@@ -128,7 +147,7 @@ internal sealed class AppHarness : IDisposable
         s.Install = new InstallPage(s);
         s.Install.Attach(footer);
         Assert.Equal("", string.Join(" / ", engine.Loaded.Problems.Select(p => $"{p.File}: {p.Message}")));
-        return new AppTest(s, s.Catalogue, s.Install, footer, asked, answers, explorer, shutdown, restore, bars);
+        return new AppTest(s, s.Catalogue, s.Install, footer, asked, answers, explorer, shutdown, restore, bars, picker);
     }
 
     /// <summary>Fixture Tweaks in one Category (Optimize › Test): HKCU rows under Software\AkariFix.</summary>

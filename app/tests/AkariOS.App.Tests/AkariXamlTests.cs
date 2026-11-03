@@ -9,15 +9,7 @@ namespace AkariOS.App.Tests;
 public class AkariXamlTests
 {
     // WPF objects need an STA thread; xUnit's are MTA
-    private static void OnSta(Action action)
-    {
-        ExceptionDispatchInfo? error = null;
-        var t = new Thread(() => { try { action(); } catch (Exception e) { error = ExceptionDispatchInfo.Capture(e); } });
-        t.SetApartmentState(ApartmentState.STA);
-        t.Start();
-        t.Join();
-        error?.Throw();
-    }
+    private static void OnSta(Action action) => LookTests.OnSta(action);
 
     [Fact]
     public void Motion_off_writes_every_duration_as_zero()

@@ -127,7 +127,7 @@ public sealed class PagesTests : IDisposable
         Click(Button(home, "Import / Export settings"));
         Click(All<Button>(home).First(b => b.ToolTip as string == "The full AkariOS setup in one go, with restarts handled for you"));
         Assert.Equal(2, messages.Count);
-        Assert.Contains("N3", messages[0]);
+        Assert.StartsWith("Export saves the settings this PC has", messages[0]);
         Assert.Contains("One-click isn't in the native app yet: it comes with N7", messages[1]);
         Click(Button(home, "Choose changes"));
         Assert.Equal("Install AkariOS", vm.Page);
@@ -160,8 +160,8 @@ public sealed class PagesTests : IDisposable
         var menu = OptionsMenu.Build(s);
         var items = menu.Items.OfType<MenuItem>().ToList();
         Assert.Equal(["Import settings", "Export settings", "System Restore", "Theme: Follow Windows", "GitHub", "Report a bug", "Discord", "Logs", "About"], items.Select(i => (string)i.Header));
-        Assert.False(items[0].IsEnabled);
-        Assert.Equal("Coming with N3", items[0].ToolTip);
+        // Import / Export work now (ImportExportTests); every row is enabled
+        Assert.All(items, i => Assert.True(i.IsEnabled));
 
         var theme = items[3];
         Click(theme);
