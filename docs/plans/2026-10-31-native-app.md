@@ -231,7 +231,11 @@ classes, parity 145 -> 139, every Optimize Tweak native; `IPowerCfg`; the powerc
 against the PowerShell blocks run with recorders, Oracle/Invoke-TweakBlocks.ps1), g4 Customize Taskbar /
 Start / Explorer / Theme (done 2026-11-03: 13 classes, parity 139 -> 126; `IProcesses`, `IShortcuts`, `IDesktop`,
 Explorer on the services, REG_NONE values, System.Drawing for the black images; the rows oracle now covers every class
-that builds rows), g5 Customize System / Notifications / Sound / Input, g6 Customize/Apps, g7 Customize/Context
+that builds rows), g5 Customize System / Notifications / Sound / Input (done 2026-11-03: 9 classes, parity 126 -> 117;
+`IBcdEdit` (N7's Safe Mode uses it too), `IW32tm`; the blocks oracle now also runs Detect and After blocks, records
+bcdedit, w32tm, reg import and registry-state rows, and points the PowerShell blocks' registry reads at the C# test's
+key; the priority list's .reg fragment is written through the registry engine, not reg.exe; a `System` folder's
+classes use the namespace `SystemTweaks`), g6 Customize/Apps, g7 Customize/Context
 menu, g8 Hardware/Graphics, g9 Hardware/Input and Advanced Security / System (not Safe Mode ones). Services-off and
 Scheduled tasks wait for N6, the Defender Safe Mode Toggles for N7.
 

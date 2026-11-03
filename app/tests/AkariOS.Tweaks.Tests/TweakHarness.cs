@@ -53,6 +53,8 @@ namespace AkariOS.Tweaks.Tests
         public FakeShortcuts Shortcuts { get; } = new();
         public FakeDesktop Desktop { get; } = new();
         public FakeTrusted Trusted { get; } = new();
+        public FakeBcd Bcd { get; } = new();
+        public FakeW32tm W32tm { get; } = new();
         public FakePc Pc { get; } = new();
         public DateTime Now { get; set; } = new(2026, 11, 3, 12, 0, 0, DateTimeKind.Utc);
         public Engine Engine { get; }
@@ -78,7 +80,7 @@ namespace AkariOS.Tweaks.Tests
                 {
                     Hosts = Hosts, Bindings = Bindings, Launcher = Launcher, Services = Services, Tasks = Tasks, Exe = Exe,
                     Memory = Memory, BitLocker = BitLocker, PowerCfg = PowerCfg, Trusted = Trusted,
-                    Processes = Processes, Explorer = Explorer, Shortcuts = Shortcuts, Desktop = Desktop,
+                    Processes = Processes, Explorer = Explorer, Shortcuts = Shortcuts, Desktop = Desktop, BcdEdit = Bcd, W32tm = W32tm,
                     ProgramData = Folder("ProgramData"), Windows = Folder("Windows"), SystemDrive = Folder("C"), FilesFolder = Folder("Files"),
                     UtcNow = () => Now, Sleep = _ => { },
                 },
@@ -98,6 +100,9 @@ namespace AkariOS.Tweaks.Tests
             _key.Dispose();
             if (Directory.Exists(Dir)) Directory.Delete(Dir, recursive: true);
         }
+
+        /// <summary>The test key under HKCU (Software\AkariTest\&lt;guid&gt;), for the PowerShell side of a test.</summary>
+        public string KeyRoot => _key.Root;
 
         public static IReadOnlyList<Tweak> All => Loaded.Value.Tweaks;
 
@@ -229,6 +234,22 @@ namespace AkariOS.Tweaks.Tests
         public List<string> Decrypting { get; } = [];
         public IReadOnlyList<BitLockerVolume>? Volumes() => All;
         public void Decrypt(BitLockerVolume volume) => Decrypting.Add(volume.MountPoint);
+    }
+
+    /// <summary>bcdedit: the calls ("bcdedit &lt;args&gt;", "bcd &lt;id&gt;" for a read), what /enum prints, the exit code.</summary>
+    internal sealed class FakeBcd : IBcdEdit
+    {
+        public List<string> Calls { get; } = [];
+        public List<string> Lines { get; set; } = [];
+        public int ExitCode { get; set; }
+        public IReadOnlyList<string> Read(string id) { Calls.Add($"bcd {id}"); return Lines.ToList(); }
+        public int Run(string arguments) { Calls.Add($"bcdedit {arguments}"); return ExitCode; }
+    }
+
+    internal sealed class FakeW32tm : IW32tm
+    {
+        public List<string> Calls { get; } = [];
+        public IReadOnlyList<string> Run(params string[] arguments) { Calls.Add($"w32tm {string.Join(" ", arguments)}"); return []; }
     }
 
     /// <summary>Runs the work at once and counts it (what ran as TrustedInstaller).</summary>

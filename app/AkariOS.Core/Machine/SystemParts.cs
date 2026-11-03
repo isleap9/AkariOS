@@ -295,3 +295,74 @@ public sealed class WmiBitLocker : IBitLocker
                 if ((string)v["DeviceID"] == volume.Id) { using var _ = v.InvokeMethod("Decrypt", null, null); }
     }
 }
+
+/// <summary>The boot store (Read-AkariBcd, Invoke-AkariBcdEdit): the only bcdedit calls. N7's Safe Mode restarts use it too.</summary>
+public interface IBcdEdit
+{
+    /// <summary>An entry as bcdedit /enum prints it ({current}, {globalsettings}…), errors as text; read only.</summary>
+    IReadOnlyList<string> Read(string id);
+
+    /// <summary>A change (/set …, /deletevalue …): bcdedit's exit code.</summary>
+    int Run(string arguments);
+}
+
+/// <summary>The real one: %SystemRoot%\System32\bcdedit.exe (guarded).</summary>
+public sealed class BcdEdit : IBcdEdit
+{
+    public BcdEdit() => SystemGuard.Check("bcdedit");
+
+    private static string Exe => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "bcdedit.exe");
+
+    public IReadOnlyList<string> Read(string id) =>
+        Tool.Lines(Tool.Run(Exe, ["/enum", id]).Output);
+
+    public int Run(string arguments) =>
+        Tool.Run(Exe, Tool.Split(arguments)).ExitCode;
+}
+
+/// <summary>The only w32tm call (Invoke-AkariW32tm): the Windows Time service started first (w32tm /config needs it),
+/// then w32tm; its output lines.</summary>
+public interface IW32tm
+{
+    IReadOnlyList<string> Run(params string[] arguments);
+}
+
+/// <summary>The real one: %SystemRoot%\System32\w32tm.exe, W32Time through the service control manager (guarded).</summary>
+public sealed class W32tm : IW32tm
+{
+    private readonly IServiceManager _services;
+
+    public W32tm(IServiceManager services)
+    {
+        SystemGuard.Check("w32tm");
+        _services = services;
+    }
+
+    public IReadOnlyList<string> Run(params string[] arguments)
+    {
+        _services.Start("W32Time");
+        return Tool.Lines(Tool.Run(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "w32tm.exe"), arguments).Output);
+    }
+}
+
+/// <summary>A console tool run and waited for, its output and errors captured.</summary>
+internal static class Tool
+{
+    public static ExeResult Run(string exe, IEnumerable<string> arguments)
+    {
+        var psi = new ProcessStartInfo(exe) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+        foreach (var a in arguments) psi.ArgumentList.Add(a);
+        using var p = Process.Start(psi) ?? throw new InvalidOperationException($"{Path.GetFileName(exe)} did not start");
+        var err = p.StandardError.ReadToEndAsync();
+        var output = p.StandardOutput.ReadToEnd();
+        p.WaitForExit();
+        return new ExeResult(p.ExitCode, output + err.Result);
+    }
+
+    public static IReadOnlyList<string> Lines(string text) =>
+        text.Split(["\r\n", "\n"], StringSplitOptions.None).Where(l => l.Length > 0).ToList();
+
+    /// <summary>bcdedit's arguments as one line ('/set {globalsettings} bootuxdisabled on'): split on spaces.</summary>
+    public static IReadOnlyList<string> Split(string arguments) =>
+        arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+}

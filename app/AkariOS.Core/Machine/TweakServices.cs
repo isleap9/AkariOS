@@ -8,7 +8,7 @@ namespace AkariOS.Core.Machine;
 /// <summary>
 /// What a Tweak's C# reaches beyond the registry, each behind an interface that tests fake (rule 12): the hosts file,
 /// the network adapters' bindings, a settings page, services, scheduled tasks, programs, the memory agent, BitLocker,
-/// TrustedInstaller, the system folders, the clock. A part left null (or a folder left "") is one the engine doesn't
+/// the boot store, w32tm, TrustedInstaller, the system folders, the clock. A part left null (or a folder left "") is one the engine doesn't
 /// have (a test that doesn't need it): using it fails the Tweak.
 /// </summary>
 public sealed class TweakServices
@@ -26,6 +26,8 @@ public sealed class TweakServices
     public IExplorer? Explorer { get; init; }
     public IShortcuts? Shortcuts { get; init; }
     public IDesktop? Desktop { get; init; }
+    public IBcdEdit? BcdEdit { get; init; }
+    public IW32tm? W32tm { get; init; }
     public ITrustedInstaller? Trusted { get; init; }
 
     /// <summary>%ProgramData% (tests: a temp folder).</summary>
@@ -59,12 +61,15 @@ public sealed class TweakServices
     public static TweakServices Live(ITrustedInstaller trusted, IUserSid user, IExplorer explorer)
     {
         var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        var services = new ServiceManager();
         return new()
         {
             Hosts = new HostsFile(),
             Bindings = new WmiNetBindings(),
             Launcher = new ShellLauncher(),
-            Services = new ServiceManager(),
+            Services = services,
+            BcdEdit = new BcdEdit(),
+            W32tm = new W32tm(services),
             Tasks = new TaskScheduler(),
             Exe = new ExeRunner(),
             Memory = new WmiMemoryAgent(),
