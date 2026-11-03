@@ -40,12 +40,3 @@ public sealed class AppServices
     public void NotYet(string what, string milestone) =>
         Dialogs?.Message($"{what} isn't in the native app yet: it comes with {milestone} (docs/plans/2026-10-31-native-app.md). The PowerShell app has it today.", "Info", "Not yet");
 }
-
-/// <summary>The Catalogue's Tweaks (Get-AkariCatalogueTweaks): one-file Toggles, Choices and Actions this PC meets, no
-/// Entries, not Apps or OneClick. N3 builds the Catalogue's pages on them; Home counts them.</summary>
-public static class Catalogue
-{
-    public static IReadOnlyList<Tweak> Tweaks(IEnumerable<Tweak> loaded, ISystemInfo pc) =>
-        loaded.Where(t => t.Group is null && t.EntryKind is null && t.Section is not ("Apps" or "OneClick")
-            && t.Kind is TweakKind.Toggle or TweakKind.Choice or TweakKind.Action && Requirements.Check(t, pc) is null).ToList();
-}

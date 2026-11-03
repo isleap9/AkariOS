@@ -83,12 +83,7 @@ public sealed class PagesTests : IDisposable
         return (s, open, messages, vm);
     }
 
-    private static string RepoRoot()
-    {
-        for (var d = new DirectoryInfo(AppContext.BaseDirectory); d != null; d = d.Parent)
-            if (File.Exists(Path.Combine(d.FullName, "AGENTS.md"))) return d.FullName;
-        throw new DirectoryNotFoundException();
-    }
+    private static string RepoRoot() => LookTests.RepoRoot();
 
     private static IEnumerable<T> All<T>(DependencyObject root) where T : DependencyObject
     {

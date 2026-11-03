@@ -1,3 +1,6 @@
+using AkariOS.App.Look;
+using AkariOS.Core.Tweaks;
+
 namespace AkariOS.App.Shell;
 
 /// <summary>A page's header: its Lucide icon and the line under its title.</summary>
@@ -6,7 +9,7 @@ public sealed record PageInfo(string Glyph, string Sub);
 /// <summary>The shell's rules (src/UI/Shell.ps1), pure: tabs, widths, which tab a page is on, the search hint.</summary>
 public static class ShellLayout
 {
-    public const string CataloguePrefix = "Catalogue:";
+    public const string CataloguePrefix = Catalogue.Prefix;
 
     /// <summary>The tabs and their icons ($AkariTabs). Optimize opens the Optimize page seen last.</summary>
     public static IReadOnlyList<(string Name, string Icon)> Tabs { get; } =
@@ -45,10 +48,25 @@ public static class ShellLayout
     /// <summary>The search box's placeholder: what the search looks through there. Get-AkariSearchHint.</summary>
     public static string SearchHint(string page)
     {
+        if (Catalogue.Lists.TryGetValue(page, out var hint)) return hint;
         if (page.StartsWith(CataloguePrefix, StringComparison.Ordinal) || page == "Optimize") return "Search Optimize";
         if (page is "Downloads" or "Remove apps") return "Search apps";
         if (page == "Install AkariOS") return "Filter this step";
         return "Search Optimize";
+    }
+
+    /// <summary>The page header (Show-Page, Show-AkariCataloguePage): a Catalogue page's Category, its Section and
+    /// icon; the search's results; else the page's own. A page with a list of its own (Services, Scheduled tasks)
+    /// keeps its header while the search filters that list.</summary>
+    public static (string Heading, string Sub, string Glyph) Header(string page, string query)
+    {
+        var cat = Catalogue.Split(page);
+        var filters = Catalogue.Lists.ContainsKey(page);
+        if (query.Length > 0 && !filters)
+            return ("Search", cat is null ? $"Results for \"{query}\"" : $"Results for \"{query}\" in Optimize › Advanced", "search");
+        if (cat is { } c) return (c.Category, $"{Catalogue.HeaderOf(c.Section)}. Each change applies right away.", Icons.Category(c.Category));
+        var info = Pages.GetValueOrDefault(page) ?? new PageInfo("settings", "");
+        return (page, info.Sub, info.Glyph);
     }
 
     /// <summary>The tabs at a width: icons from 1440 px, short labels under 1000. Get-AkariTabLayout.</summary>

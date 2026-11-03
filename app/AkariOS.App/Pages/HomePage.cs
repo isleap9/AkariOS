@@ -6,6 +6,7 @@ using AkariOS.App.Look;
 using AkariOS.App.Shell;
 using AkariOS.Core;
 using AkariOS.Core.Presets;
+using AkariOS.Core.Tweaks;
 
 namespace AkariOS.App.Pages;
 

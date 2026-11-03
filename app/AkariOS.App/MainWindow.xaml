@@ -91,6 +91,7 @@
     <Grid x:Name="Main" Grid.Row="1" Margin="20,8,20,0">
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
         <RowDefinition Height="*"/>
       </Grid.RowDefinitions>
 
@@ -122,8 +123,30 @@
         </StackPanel>
       </Grid>
 
+      <!-- Optimize's sub-header (src/UI/MainWindow.xaml's): the Catalogue's Sections as a segmented row, the Section's
+           Categories as chips under it over the current one's crimson pill (ChipPill, Motion.PillGroup), Remove apps
+           on the right. Only on Catalogue pages; built in code from ShellViewModel.Optimize. -->
+      <DockPanel x:Name="SubNav" Grid.Row="1" Margin="0,0,0,10" Visibility="Collapsed">
+        <Button x:Name="RemoveApps" DockPanel.Dock="Right" Style="{StaticResource Btn}" VerticalAlignment="Top" Margin="12,0,0,0"
+                ToolTip="Store apps, optional features, Windows features and legacy apps to remove">
+          <StackPanel Orientation="Horizontal">
+            <Viewbox Width="16" Height="16" Margin="0,0,8,0"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.trash-2}"/></Canvas></Viewbox>
+            <TextBlock Text="Remove apps"/>
+          </StackPanel>
+        </Button>
+        <StackPanel>
+          <ListBox x:Name="Sections" Style="{DynamicResource Segmented}" HorizontalAlignment="Left" Margin="0,0,0,10"/>
+          <Grid HorizontalAlignment="Left">
+            <Canvas IsHitTestVisible="False">
+              <Border x:Name="ChipPill" Width="0" Height="0" CornerRadius="15" Background="{DynamicResource Acc}" Visibility="Hidden"/>
+            </Canvas>
+            <WrapPanel x:Name="Chips"/>
+          </Grid>
+        </StackPanel>
+      </DockPanel>
+
       <!-- the page's surface: one rounded, bordered panel; PageScroll glides on the wheel and starts at the top -->
-      <Border Grid.Row="1" CornerRadius="20" BorderThickness="1"
+      <Border Grid.Row="2" CornerRadius="20" BorderThickness="1"
               BorderBrush="{DynamicResource Bd}" Background="{DynamicResource Surf}">
         <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <ContentControl x:Name="Page" Margin="24,20,24,20" Focusable="False"/>

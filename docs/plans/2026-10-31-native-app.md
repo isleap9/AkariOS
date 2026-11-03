@@ -204,6 +204,18 @@ at the end.
 
 ## N3: Registry Toggles and Choices (most of the catalogue)
 
+Batches (decided 2026-11-03): a the Catalogue's pure part and Optimize's sub-header (done 2026-11-03: Core
+`Catalogue`, checked against Catalogue.ps1 on two made-up PCs; inside one page the search keeps the page's order,
+since 5.1's Sort-Object isn't stable); b the Catalogue page (setting cards, States in the background, Refresh; a
+Tweak with no C# yet says so); c changes acting right away (one queue, restore point first, confirm, the restart bar,
+closing with changes waiting; Safe Mode's "Restart and apply" waits for N7); d Install AkariOS › Guided's Tweaks step
+(chooser, Sections, masonry, Quick select, Clear, Show current state); e Review & Apply, the result, Last used;
+f Import / Export; g the script-block Toggles and Choices as C# classes, small Categories together: g1 Optimize
+Gaming / Network / Privacy / Update, g2 Optimize/Performance, g3 Optimize/Power (`IPowerCfg`), g4 Customize Taskbar /
+Start / Explorer / Theme, g5 Customize System / Notifications / Sound / Input, g6 Customize/Apps, g7 Customize/Context
+menu, g8 Hardware/Graphics, g9 Hardware/Input and Advanced Security / System (not Safe Mode ones). Services-off and
+Scheduled tasks wait for N6, the Defender Safe Mode Toggles for N7.
+
 - Optimize › Advanced (the Catalogue, ADR 0005): Section › Category pages, search, setting cards (switch, Choice
   dropdown or segmented, Action button, badges, State line), States read in the background, changes acting right
   away through one queue, the restore point first, the restart bar.

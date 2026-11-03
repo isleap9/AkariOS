@@ -40,6 +40,8 @@ public partial class MainWindow : Window
 
         BuildTabs();
         Motion.PillGroup(Tabs, TabPill);
+        BuildSections();
+        Motion.PillGroup(Chips, ChipPill);
         Motion.SmoothScroll(PageScroll);
         CapMin.Click += (_, _) => SystemCommands.MinimizeWindow(this);
         CapMax.Click += (_, _) => { if (WindowState == WindowState.Maximized) SystemCommands.RestoreWindow(this); else SystemCommands.MaximizeWindow(this); };
@@ -58,6 +60,7 @@ public partial class MainWindow : Window
         Icons.Set(HeaderIcon, vm.Glyph);
         ShowPage();
         SyncTabs();
+        SyncSubNav();
     }
 
     private void UpdateLogo()
@@ -87,6 +90,61 @@ public partial class MainWindow : Window
         }));
     }
 
+    // Optimize's sub-header: a segment per Section (picking one opens its first page), Remove apps
+    private void BuildSections()
+    {
+        foreach (var sec in _vm.Optimize)
+            // a ListBoxItem: a ComboBoxItem in a ListBox ignores clicks
+            Sections.Items.Add(new ListBoxItem { Content = sec.Header, Tag = sec.Section });
+        Sections.SelectionChanged += (_, _) =>
+        {
+            if (_sync || Sections.SelectedItem is not ListBoxItem { Tag: string name }) return;
+            var sec = _vm.Optimize.FirstOrDefault(s => s.Section == name);
+            if (sec is { Pages.Count: > 0 }) _vm.Open(sec.Pages[0].Key);
+        };
+        Chips.AddHandler(ToggleButton.CheckedEvent, new RoutedEventHandler((_, e) =>
+        {
+            if (!_sync && e.OriginalSource is RadioButton { Tag: string page }) _vm.Open(page);
+        }));
+        RemoveApps.Click += (_, _) => _vm.Open("Remove apps");
+    }
+
+    // the Section picked, its Categories as chips (rebuilt for another Section: the pill jumps there), the page checked
+    private string _chipSection = "";
+    private void SyncSubNav()
+    {
+        SubNav.Visibility = _vm.Section.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        var sec = _vm.Optimize.FirstOrDefault(s => s.Section == _vm.Section);
+        if (sec is null) return;
+        _sync = true;
+        try
+        {
+            Sections.SelectedItem = Sections.Items.OfType<ListBoxItem>().FirstOrDefault(i => (string)i.Tag == sec.Section);
+            if (_chipSection != sec.Section)
+            {
+                _chipSection = sec.Section;
+                Chips.Children.Clear();
+                foreach (var p in sec.Pages) Chips.Children.Add(Pill("Chip", p.Key, p.Category, Icons.Category(p.Category), "chips", 14));
+            }
+            foreach (var c in Chips.Children.OfType<RadioButton>()) c.IsChecked = (string)c.Tag == _vm.Page;
+        }
+        finally { _sync = false; }
+    }
+
+    // a pill with an icon and a label in the control's text colour (New-AkariPill)
+    private static RadioButton Pill(string style, string tag, string label, string icon, string group, double size)
+    {
+        var ic = Icons.Make(icon, size, "Inherit");
+        ic.VerticalAlignment = VerticalAlignment.Center;
+        ic.Margin = new Thickness(0, 0, 8, 0);
+        var content = new StackPanel { Orientation = Orientation.Horizontal };
+        content.Children.Add(ic);
+        content.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+        var rb = new RadioButton { Content = content, Tag = tag, GroupName = group };
+        rb.SetResourceReference(StyleProperty, style);
+        return rb;
+    }
+
     private void SyncTabs()
     {
         _sync = true;
@@ -99,6 +157,7 @@ public partial class MainWindow : Window
         switch (e.PropertyName)
         {
             case nameof(ShellViewModel.Tab): SyncTabs(); break;
+            case nameof(ShellViewModel.Page) or nameof(ShellViewModel.Section): SyncSubNav(); break;
             case nameof(ShellViewModel.Glyph): Icons.Set(HeaderIcon, _vm.Glyph); break;
             case nameof(ShellViewModel.Busy):
                 StatusDot.Visibility = _vm.Busy ? Visibility.Collapsed : Visibility.Visible;

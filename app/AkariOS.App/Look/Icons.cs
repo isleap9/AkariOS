@@ -22,6 +22,21 @@ public static class Icons
         return new Viewbox { Width = size, Height = size, Child = c, Tag = name };
     }
 
+    /// <summary>A Category's icon ($AkariCategoryGlyphs, src/UI/Cards.ps1); settings for the others.</summary>
+    public static IReadOnlyDictionary<string, string> Categories { get; } = new Dictionary<string, string>
+    {
+        ["Gaming"] = "gamepad-2", ["Performance"] = "gauge", ["Tuning"] = "sliders-vertical", ["Privacy"] = "lock",
+        ["Check"] = "activity", ["Refresh"] = "refresh-cw", ["Setup"] = "wrench", ["Graphics"] = "monitor",
+        ["Windows"] = "app-window", ["Hardware"] = "cpu", ["Advanced"] = "flask-conical",
+        ["Taskbar"] = "panel-bottom", ["Start"] = "layout-grid", ["Explorer"] = "folder", ["Theme"] = "palette",
+        ["Update"] = "cloud-download", ["Power"] = "power", ["Network"] = "wifi", ["Notifications"] = "bell", ["Input"] = "mouse",
+        ["Accessibility"] = "accessibility", ["Sound"] = "volume-2", ["System"] = "settings-2",
+        ["Security"] = "shield-check", ["Display"] = "monitor", ["Apps"] = "app-window", ["Cleanup"] = "eraser", ["Drivers"] = "hard-drive",
+        ["Context menu"] = "menu", ["Services"] = "activity", ["Scheduled tasks"] = "history",
+    };
+
+    public static string Category(string category) => Categories.GetValueOrDefault(category) ?? "settings";
+
     /// <summary>Points an icon (a Viewbox from Make, or a Path in XAML) at another icon.</summary>
     public static void Set(FrameworkElement icon, string name)
     {

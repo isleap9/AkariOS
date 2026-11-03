@@ -17,6 +17,14 @@ public sealed class LookTests : IDisposable
         if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true);
     }
 
+    /// <summary>The repo's root folder (where AGENTS.md is).</summary>
+    internal static string RepoRoot()
+    {
+        for (var d = new DirectoryInfo(AppContext.BaseDirectory); d != null; d = d.Parent)
+            if (File.Exists(Path.Combine(d.FullName, "AGENTS.md"))) return d.FullName;
+        throw new DirectoryNotFoundException();
+    }
+
     internal static void OnSta(Action action)
     {
         ExceptionDispatchInfo? error = null;

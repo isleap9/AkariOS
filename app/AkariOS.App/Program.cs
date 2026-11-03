@@ -41,7 +41,7 @@ public static partial class Program
             () => engine.Registry.GetValue(@"HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "AppsUseLightTheme") is uint v ? (int)v : null,
             motion);
         theme.Apply(theme.Saved());
-        var shell = new Shell.ShellViewModel(AkariInfo.Version);
+        var shell = new Shell.ShellViewModel(AkariInfo.Version, Core.Tweaks.Catalogue.Pages(Core.Tweaks.Catalogue.Tweaks(engine.Loaded.Tweaks, engine.System)));
         var services = new Shell.AppServices { Engine = engine, Shell = shell, Theme = theme, Open = new Shell.ShellOpen(), Log = appLog };
         var window = new MainWindow(theme, shell, Pages.PageFactory.For(services));
         services.Dialogs = Shell.Dialogs.For(window, appLog);

@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using AkariOS.Core.Tweaks;
 
 namespace AkariOS.App.Shell;
 
@@ -9,11 +10,21 @@ namespace AkariOS.App.Shell;
 /// </summary>
 public sealed partial class ShellViewModel : ObservableObject
 {
-    public ShellViewModel(string version)
+    /// <param name="optimize">The Catalogue's Sections (Optimize's sub-header; the Optimize tab opens the first page).</param>
+    public ShellViewModel(string version, IReadOnlyList<CatalogueSection>? optimize = null)
     {
         Version = $"AkariOS {version}";
+        Optimize = optimize ?? [];
+        LastOptimize = Optimize.SelectMany(s => s.Pages).Select(p => p.Key).FirstOrDefault() ?? "Optimize";
         Refresh();
     }
+
+    /// <summary>Optimize's Sections and their Category pages (Get-AkariOptimizeSections; no Legacy here).</summary>
+    public IReadOnlyList<CatalogueSection> Optimize { get; }
+
+    /// <summary>On a Catalogue page: its Section (the sub-header's picked segment), else "" (no sub-header).</summary>
+    [ObservableProperty]
+    public partial string Section { get; set; } = "";
 
     public string Version { get; }
 
@@ -61,8 +72,8 @@ public sealed partial class ShellViewModel : ObservableObject
     [ObservableProperty]
     public partial double Width { get; set; } = 1360;
 
-    /// <summary>The Optimize page seen last: where the Optimize tab goes.</summary>
-    public string LastOptimize { get; private set; } = "Optimize";
+    /// <summary>The Catalogue page seen last (at first the Catalogue's first page): where the Optimize tab goes.</summary>
+    public string LastOptimize { get; private set; }
 
     /// <summary>A new page or the search starting / ending: the page comes in again (not on every keystroke).</summary>
     public event Action? PageMoved;
@@ -92,16 +103,12 @@ public sealed partial class ShellViewModel : ObservableObject
     {
         var q = Search.Trim();
         Tab = ShellLayout.TabOf(Page);
-        if (Tab == "Optimize") LastOptimize = Page;
+        var cat = Catalogue.Split(Page);
+        if (cat is not null) LastOptimize = Page;
+        Section = cat?.Section ?? "";
         SearchHint = ShellLayout.SearchHint(Page);
         HeaderVisible = q.Length > 0 || Page != "Home";
-        if (q.Length > 0) (Heading, Sub, Glyph) = ("Search", $"Results for \"{q}\"", "search");
-        else
-        {
-            var info = ShellLayout.Pages.GetValueOrDefault(Page) ?? new PageInfo("settings", "");
-            var title = Page.StartsWith(ShellLayout.CataloguePrefix, StringComparison.Ordinal) ? Page[(Page.LastIndexOf('/') + 1)..] : Page;
-            (Heading, Sub, Glyph) = (title, info.Sub, info.Glyph);
-        }
+        (Heading, Sub, Glyph) = ShellLayout.Header(Page, q);
         var key = $"{Page}|{q.Length > 0}";
         if (key != _motionKey)
         {
