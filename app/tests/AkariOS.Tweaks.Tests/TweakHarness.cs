@@ -252,8 +252,26 @@ namespace AkariOS.Tweaks.Tests
 
     internal sealed class FakeMemory : IMemoryAgent
     {
-        public bool MemoryCompression { get; set; } = true;
-        public void SetMemoryCompression(bool on) => MemoryCompression = on;
+        /// <summary>Each feature on or off (Windows' own to start with), the operation recorder's file count, and the
+        /// calls in the blocks oracle's words ("mmagent enable|disable &lt;feature&gt;", "mmagent set MaxOperationAPIFiles &lt;n&gt;").</summary>
+        public Dictionary<string, bool> On { get; } = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ApplicationLaunchPrefetching"] = true, ["ApplicationPreLaunch"] = true, ["OperationAPI"] = true, ["PageCombining"] = false, ["MemoryCompression"] = true,
+        };
+        public uint MaxFiles { get; set; } = 512;
+        public List<string> Calls { get; } = [];
+        public bool MemoryCompression => On["MemoryCompression"];
+
+        public MemoryAgentState Get() => new(On["ApplicationLaunchPrefetching"], On["ApplicationPreLaunch"], On["OperationAPI"], On["PageCombining"], On["MemoryCompression"], MaxFiles);
+
+        public void Set(string feature, bool on)
+        {
+            if (!On.ContainsKey(feature)) throw new ArgumentException(feature);
+            Calls.Add($"mmagent {(on ? "enable" : "disable")} {feature}");
+            On[feature] = on;
+        }
+
+        public void SetMaxOperationAPIFiles(uint count) { Calls.Add($"mmagent set MaxOperationAPIFiles {count}"); MaxFiles = count; }
     }
 
     internal sealed class FakeBitLocker : IBitLocker

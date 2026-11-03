@@ -3,16 +3,11 @@
 # PowerShell only = a src/Tweaks file with script blocks (or other code) and no C# class in AkariOS.Tweaks;
 # Native only = a C# class with no src/Tweaks file.
 
-## PowerShell only: 91 Tweaks
+## PowerShell only: 85 Tweaks
 Advanced/Scheduled tasks  advanced-remove-scheduled-tasks
 Advanced/Security  security-defender-off
 Advanced/Security  security-defender-settings
-Advanced/Security  security-defender-tasks-off
-Advanced/Security  security-dep-off
-Advanced/Security  security-open-core-isolation
 Advanced/Services  advanced-services-off
-Advanced/System  system-mmagent-off
-Advanced/System  system-start-search-shell-off
 Apps/Install  install-7-zip
 Apps/Install  install-battle-net
 Apps/Install  install-brave
@@ -48,7 +43,6 @@ Apps/Remove  remove-snipping-tool-legacy
 Apps/Remove  remove-update-for-x64
 Apps/Remove  remove-update-health-tools
 Apps/Remove  remove-webview2
-Hardware/Input  input-background-polling-uncapped
 OneClick/Drivers  oneclick-ddu-clean
 OneClick/Finish  oneclick-performance-counters
 OneClick/Finish  oneclick-registry

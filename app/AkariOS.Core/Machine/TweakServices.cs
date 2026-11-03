@@ -192,20 +192,23 @@ public sealed class WmiNetBindings : INetBindings
     }
 }
 
-/// <summary>Opens a URI through the shell: a Settings page (ms-settings:) or the Store's (ms-windows-store:).</summary>
+/// <summary>Opens a URI through the shell: a Settings page (ms-settings:), the Store's (ms-windows-store:) or Windows
+/// Security's (windowsdefender:).</summary>
 public interface ILauncher
 {
     void Open(string uri);
 }
 
-/// <summary>The real one (guarded); only ms-settings: pages.</summary>
+/// <summary>The real one (guarded); only Settings, Store and Windows Security pages.</summary>
 public sealed class ShellLauncher : ILauncher
 {
+    private static readonly string[] Schemes = ["ms-settings:", "ms-windows-store:", "windowsdefender:"];
+
     public ShellLauncher() => SystemGuard.Check("Opening Settings pages");
 
     public void Open(string uri)
     {
-        if (!uri.StartsWith("ms-settings:", StringComparison.OrdinalIgnoreCase) && !uri.StartsWith("ms-windows-store:", StringComparison.OrdinalIgnoreCase))
+        if (!Schemes.Any(s => uri.StartsWith(s, StringComparison.OrdinalIgnoreCase)))
             throw new ArgumentException($"not a Settings page: {uri}");
         Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true })?.Dispose();
     }

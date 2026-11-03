@@ -12,8 +12,14 @@
 #   "delete <path under -UserFolder>" (Remove-Item), "delkey <path>" / "newkey <path>" (Remove-Item / New-Item of a
 #   key under -TestRoot, written back as HKCU:\ / HKLM:\; nothing is changed), "download <name>|<out file>"
 #   (Save-AkariFile), "shortcut <name>|<target>" (New-AkariShortcut), "unblock <path under -ProgramData>"
-#   (Unblock-File), "remembered <id>" / "remember <id> <True|False>" (Get- / Set-AkariRememberedState), and with
-#   -UserFolder, after each block, "file <path under it>|<text>" for every file there.
+#   (Unblock-File), "remembered <id>" / "remember <id> <True|False>" (Get- / Set-AkariRememberedState),
+#   "mmagent enable|disable <feature>" / "mmagent set MaxOperationAPIFiles <n>" (Enable- / Disable- / Set-MMAgent),
+#   "task <path>|<name>|<True|False>" (Set-AkariScheduledTask), "stopservice <name>" / "startservice <name>",
+#   "own <path>" (Grant-AkariOwnership) and "move <from>|<to>" (Move-Item: done, inside -SystemRoot only), paths
+#   under -SystemRoot written as %SystemRoot%\…, "sleepms <n>", and with -UserFolder, after each block,
+#   "file <path under it>|<text>" for every file there.
+# Get-MMAgent answers -MMAgent ('ApplicationLaunchPrefetching=True;…;MaxOperationAPIFiles=512'). -SystemRoot: the
+# blocks' $env:SystemRoot (a temp folder the C# test laid out).
 # Get-AkariGpus answers -Gpus ('Vendor|Path;…'), Get-AkariGpuDevices -GpuDevices ('id;…'), Get-AkariRememberedState
 # -Remembered ('true' = Applied). -ProgramFiles, -ProgramFilesX86, -ProgramData: the blocks' $env: folders (temp
 # folders the C# test filled), set once the Tweaks are loaded.
@@ -26,7 +32,8 @@
 # temp folder the C# test filled; without it, a folder that doesn't exist).
 param([Parameter(Mandatory)][string]$Src, [Parameter(Mandatory)][string]$Out, [string]$Ids = '', [string]$PlanList = '',
     [string]$BcdLines = '', [string]$TestRoot = '', [string]$AppValues = '', [string]$UserFolder = '', [string]$Gpus = '',
-    [string]$GpuDevices = '', [string]$Remembered = '', [string]$ProgramFiles = '', [string]$ProgramFilesX86 = '', [string]$ProgramData = '')
+    [string]$GpuDevices = '', [string]$Remembered = '', [string]$ProgramFiles = '', [string]$ProgramFilesX86 = '', [string]$ProgramData = '',
+    [string]$MMAgent = '', [string]$SystemRoot = '')
 $ErrorActionPreference = 'Stop'
 . (Join-Path $Src 'Core\Loader.ps1')
 . (Join-Path $Src 'Core\Registry.ps1')
@@ -75,7 +82,51 @@ function Start-Process {
     [CmdletBinding()] param([string]$FilePath, [string[]]$ArgumentList, [switch]$Wait)
     if ($ArgumentList) { $script:Calls.Add("run $FilePath|$($ArgumentList -join ' ')") } else { $script:Calls.Add("open $FilePath") }
 }
-function Start-Sleep { [CmdletBinding()] param([int]$Seconds) $script:Calls.Add("sleep $Seconds") }
+function Start-Sleep {
+    [CmdletBinding()] param([int]$Seconds, [int]$Milliseconds)
+    if ($Milliseconds) { $script:Calls.Add("sleepms $Milliseconds") } else { $script:Calls.Add("sleep $Seconds") }
+}
+function Stop-Service { [CmdletBinding()] param([string]$Name, [switch]$Force) $script:Calls.Add("stopservice $Name") }
+function Start-Service { [CmdletBinding()] param([string]$Name) $script:Calls.Add("startservice $Name") }
+function Set-AkariScheduledTask([string]$TaskPath, [string]$TaskName, [bool]$Enabled) { $script:Calls.Add("task $TaskPath|$TaskName|$Enabled"); $true }
+# a path under -SystemRoot as %SystemRoot%\…, else $null
+function Get-RootPath([string]$Path) {
+    if (-not $SystemRoot -or -not $Path.StartsWith($SystemRoot, 'OrdinalIgnoreCase')) { return $null }
+    "%SystemRoot%$($Path.Substring($SystemRoot.TrimEnd('\').Length))"
+}
+function Grant-AkariOwnership([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+    $p = Get-RootPath $Path
+    if (-not $p) { throw "not a test path: $Path" }
+    $script:Calls.Add("own $p")
+}
+function Move-Item {
+    [CmdletBinding()] param([string]$LiteralPath, [string]$Destination, [switch]$Force)
+    $from = Get-RootPath $LiteralPath; $to = Get-RootPath $Destination
+    if (-not $from -or -not $to) { throw "not a test path: $LiteralPath" }
+    $script:Calls.Add("move $from|$to")
+    if ([IO.Directory]::Exists($LiteralPath)) { [IO.Directory]::Move($LiteralPath, $Destination) } else { [IO.File]::Move($LiteralPath, $Destination) }
+}
+function Get-MMAgent {
+    $o = [ordered]@{}
+    foreach ($p in @($MMAgent.Split(';') | Where-Object { $_ })) {
+        $k, $v = $p.Split('=', 2)
+        $o[$k] = if ($v -in 'True', 'False') { $v -eq 'True' } else { [uint32]$v }
+    }
+    [pscustomobject]$o
+}
+function Write-MMAgentCall([string]$Verb, [hashtable]$Bound) {
+    foreach ($k in @($Bound.Keys | Where-Object { $_ -notin 'ErrorAction' })) { $script:Calls.Add("mmagent $Verb $k") }
+}
+function Enable-MMAgent {
+    [CmdletBinding()] param([switch]$ApplicationLaunchPrefetching, [switch]$ApplicationPreLaunch, [switch]$OperationAPI, [switch]$PageCombining, [switch]$MemoryCompression)
+    Write-MMAgentCall 'enable' $PSBoundParameters
+}
+function Disable-MMAgent {
+    [CmdletBinding()] param([switch]$ApplicationLaunchPrefetching, [switch]$ApplicationPreLaunch, [switch]$OperationAPI, [switch]$PageCombining, [switch]$MemoryCompression)
+    Write-MMAgentCall 'disable' $PSBoundParameters
+}
+function Set-MMAgent { [CmdletBinding()] param([uint32]$MaxOperationAPIFiles) $script:Calls.Add("mmagent set MaxOperationAPIFiles $MaxOperationAPIFiles") }
 # a key under -TestRoot as the block named it (HKCU:\… / HKLM:\…), else $null
 function Get-TestKeyPath([string]$Path) {
     if (-not $TestRoot) { return $null }
@@ -122,6 +173,7 @@ $none = Join-Path $env:TEMP "akari-none-$([guid]::NewGuid().ToString('N'))"
 $env:ProgramFiles = if ($ProgramFiles) { $ProgramFiles } else { $none }
 ${env:ProgramFiles(x86)} = if ($ProgramFilesX86) { $ProgramFilesX86 } else { $none }
 $env:ProgramData = if ($ProgramData) { $ProgramData } else { $none }
+if ($SystemRoot) { $env:SystemRoot = $SystemRoot }
 $result = [ordered]@{}
 foreach ($id in @($Ids.Split(',') | Where-Object { $_ })) {
     $t = $tweaks | Where-Object { $_.Id -eq $id } | Select-Object -First 1

@@ -252,7 +252,12 @@ Files/PrintVerbs.ps1's function, keys tested on the registry; the blocks oracle 
 the Files folder; per-GPU Detects drop an adapter whose key is missing, as Get-AkariRegValue outputs nothing there (only
 the MSI keys can be missing on a real PC: no key = Unknown); the blocks oracle answers Get-AkariGpus /
 Get-AkariGpuDevices with the C# test's PC, records downloads, shortcuts, Unblock-File, the remembered state and key
-create / delete on the test key, and points the blocks' $env: Program Files / ProgramData at temp folders), g9 Hardware/Input and Advanced Security / System (not Safe Mode ones). Services-off and
+create / delete on the test key, and points the blocks' $env: Program Files / ProgramData at temp folders), g9 Hardware/Input and Advanced Security / System (not Safe Mode ones; done
+2026-11-03: 6 classes, parity 91 -> 85; `IMemoryAgent` covers every MMAgent feature and the operation recorder's file
+count; `ILauncher` opens windowsdefender: pages; StartSearchShell reads its folder names, moves and programs to stop
+out of the file, takes the folders over with takeown / icacls through `IExe` and moves them under the Windows folder;
+the blocks oracle records the MMAgent cmdlets, Set-AkariScheduledTask, services and Grant-AkariOwnership, and does the
+moves in its own copy of the folders (-SystemRoot); the tests' oracle helpers are shared, BlockLines.cs). Services-off and
 Scheduled tasks wait for N6, the Defender Safe Mode Toggles for N7.
 
 - Optimize › Advanced (the Catalogue, ADR 0005): Section › Category pages, search, setting cards (switch, Choice

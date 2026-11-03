@@ -212,37 +212,55 @@ public sealed class PowerCfg : IPowerCfg
     }
 }
 
-/// <summary>Windows' memory manager agent (Get- / Enable- / Disable-MMAgent): memory compression.</summary>
+/// <summary>What Get-MMAgent prints.</summary>
+public sealed record MemoryAgentState(bool ApplicationLaunchPrefetching, bool ApplicationPreLaunch, bool OperationAPI, bool PageCombining,
+    bool MemoryCompression, uint MaxOperationAPIFiles);
+
+/// <summary>Windows' memory manager agent (Get- / Enable- / Disable- / Set-MMAgent).</summary>
 public interface IMemoryAgent
 {
-    bool MemoryCompression { get; }
+    MemoryAgentState Get();
 
-    void SetMemoryCompression(bool on);
+    /// <summary>Enable- / Disable-MMAgent -&lt;feature&gt;: ApplicationLaunchPrefetching, ApplicationPreLaunch,
+    /// OperationAPI, PageCombining, MemoryCompression.</summary>
+    void Set(string feature, bool on);
+
+    /// <summary>Set-MMAgent -MaxOperationAPIFiles.</summary>
+    void SetMaxOperationAPIFiles(uint count);
 }
 
 /// <summary>The real one: what the MMAgent cmdlets call, PS_MMAgent's static methods (root\Microsoft\Windows\PS_MMAgent; guarded).</summary>
 public sealed class WmiMemoryAgent : IMemoryAgent
 {
+    public static readonly string[] Features = ["ApplicationLaunchPrefetching", "ApplicationPreLaunch", "OperationAPI", "PageCombining", "MemoryCompression"];
+
     public WmiMemoryAgent() => SystemGuard.Check("The memory agent");
 
     private static ManagementClass Class() => new(@"root\Microsoft\Windows\PS_MMAgent", "PS_MMAgent", null);
 
-    public bool MemoryCompression
-    {
-        get
-        {
-            using var c = Class();
-            using var result = c.InvokeMethod("Get", null, null);
-            return result["CmdletOutput"] is ManagementBaseObject o && o["MemoryCompression"] is true;
-        }
-    }
-
-    public void SetMemoryCompression(bool on)
+    public MemoryAgentState Get()
     {
         using var c = Class();
-        var method = on ? "Enable" : "Disable";
+        using var result = c.InvokeMethod("Get", null, null);
+        var o = result["CmdletOutput"] as ManagementBaseObject ?? throw new InvalidOperationException("Get-MMAgent printed nothing");
+        bool On(string name) => o[name] is true;
+        return new(On("ApplicationLaunchPrefetching"), On("ApplicationPreLaunch"), On("OperationAPI"), On("PageCombining"), On("MemoryCompression"),
+            Convert.ToUInt32(o["MaxOperationAPIFiles"] ?? 0u, System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    public void Set(string feature, bool on)
+    {
+        if (!Features.Contains(feature)) throw new ArgumentException($"not a memory agent feature: {feature}");
+        Invoke(on ? "Enable" : "Disable", feature, true);
+    }
+
+    public void SetMaxOperationAPIFiles(uint count) => Invoke("Set", "MaxOperationAPIFiles", count);
+
+    private static void Invoke(string method, string parameter, object value)
+    {
+        using var c = Class();
         using var args = c.GetMethodParameters(method);
-        args["MemoryCompression"] = true;
+        args[parameter] = value;
         using var _ = c.InvokeMethod(method, args, null);
     }
 }

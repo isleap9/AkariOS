@@ -43,37 +43,11 @@ public sealed class GraphicsTests : IDisposable
         return Oracle.Run("Invoke-TweakBlocks.ps1", [.. args]);
     }
 
-    private static List<string> Lines(JsonElement e, string id, string block) =>
-        e.GetProperty(id).GetProperty(block).EnumerateArray().Select(l => l.GetString()!).ToList();
+    private static List<string> Lines(JsonElement e, string id, string block) => BlockLines.Lines(e, id, block);
 
-    private static string Hex(object? v) => v is byte[] b ? string.Join(",", b.Select(x => x.ToString("x2"))) : PsSemantics.Text(v) ?? "";
+    private static string Result(JsonElement e, string id) => BlockLines.Result(e, id);
 
-    private static string Result(JsonElement e, string id) => Lines(e, id, "Detect").Single(l => l.StartsWith("result ", StringComparison.Ordinal))[7..];
-
-    // what the PowerShell block wrote holds in the test key now: values set (and their kind), values removed, keys
-    // deleted or made (the last of the two counts)
-    private void AssertWrites(IReadOnlyList<string> ps)
-    {
-        Assert.Contains(ps, l => l.Split(' ')[0] is "set" or "remove" or "delkey" or "newkey");
-        var keys = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-        foreach (var l in ps)
-        {
-            if (l.StartsWith("set ", StringComparison.Ordinal))
-            {
-                var p = l[4..].Split('|');
-                Assert.True(Hex(_h.Get(p[0], p[1])) == p[2], $"{p[0]}\\{p[1]}: {Hex(_h.Get(p[0], p[1]))}, not {p[2]}");
-                Assert.Equal(p[3], _h.Engine.Registry.GetKind(p[0], p[1])?.ToString());
-            }
-            else if (l.StartsWith("remove ", StringComparison.Ordinal))
-            {
-                var p = l[7..].Split('|');
-                Assert.True(_h.Get(p[0], p[1]) is null, $"{p[0]}\\{p[1]} is still there");
-            }
-            else if (l.StartsWith("delkey ", StringComparison.Ordinal)) keys[l[7..]] = false;
-            else if (l.StartsWith("newkey ", StringComparison.Ordinal)) keys[l[7..]] = true;
-        }
-        foreach (var (k, exists) in keys) Assert.True(_h.Engine.Registry.KeyExists(k) == exists, $"{k} {(exists ? "missing" : "still there")}");
-    }
+    private void AssertWrites(IReadOnlyList<string> ps) => BlockLines.AssertWrites(_h, ps);
 
     private void AssertSameDetect(IEnumerable<string> ids)
     {

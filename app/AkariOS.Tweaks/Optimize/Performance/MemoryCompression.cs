@@ -8,9 +8,9 @@ namespace AkariOS.Tweaks.Optimize.Performance;
 public sealed class MemoryCompression : ITweakCode
 {
     public TweakState Detect(Tweak tweak, TweakContext c) =>
-        FileData.Need(c.Services.Memory, "memory agent").MemoryCompression ? TweakState.Default : TweakState.Optimized;
+        FileData.Need(c.Services.Memory, "memory agent").Get().MemoryCompression ? TweakState.Default : TweakState.Optimized;
 
-    public void Apply(Tweak tweak, TweakContext c, object? value) => FileData.Need(c.Services.Memory, "memory agent").SetMemoryCompression(false);
+    public void Apply(Tweak tweak, TweakContext c, object? value) => FileData.Need(c.Services.Memory, "memory agent").Set("MemoryCompression", false);
 
-    public void Revert(Tweak tweak, TweakContext c, object? value) => FileData.Need(c.Services.Memory, "memory agent").SetMemoryCompression(true);
+    public void Revert(Tweak tweak, TweakContext c, object? value) => FileData.Need(c.Services.Memory, "memory agent").Set("MemoryCompression", true);
 }
