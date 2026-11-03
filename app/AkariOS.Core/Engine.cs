@@ -54,7 +54,8 @@ public sealed class Engine
     public static Engine Live(IReadOnlyDictionary<string, ITweakCode> codes, IAkariLog log)
     {
         var trusted = new TrustedInstaller();
-        var registry = new RegistryEngine(new LiveRegistryPaths(new RealUserSid()), trusted);
+        var user = new RealUserSid();
+        var registry = new RegistryEngine(new LiveRegistryPaths(user), trusted);
         return new Engine
         {
             Files = new EmbeddedSourceFiles(),
@@ -68,7 +69,7 @@ public sealed class Engine
             IsAdmin = () => new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator),
             SystemRestore = new WmiSystemRestore(),
             Shutdown = new ShutdownExe(),
-            Services = TweakServices.Live(trusted),
+            Services = TweakServices.Live(trusted, user),
         };
     }
 }

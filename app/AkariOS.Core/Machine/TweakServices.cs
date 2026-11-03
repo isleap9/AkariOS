@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Management;
-using System.ServiceProcess;
 using System.Text;
 using AkariOS.Core.Registry;
 
@@ -8,35 +7,71 @@ namespace AkariOS.Core.Machine;
 
 /// <summary>
 /// What a Tweak's C# reaches beyond the registry, each behind an interface that tests fake (rule 12): the hosts file,
-/// the network adapters' bindings, a settings page, a service, TrustedInstaller, the ProgramData folder, the clock.
-/// A part left null is one the engine doesn't have (a test that doesn't need it): using it fails the Tweak.
+/// the network adapters' bindings, a settings page, services, scheduled tasks, programs, the memory agent, BitLocker,
+/// TrustedInstaller, the system folders, the clock. A part left null (or a folder left "") is one the engine doesn't
+/// have (a test that doesn't need it): using it fails the Tweak.
 /// </summary>
 public sealed class TweakServices
 {
     public IHostsFile? Hosts { get; init; }
     public INetBindings? Bindings { get; init; }
     public ILauncher? Launcher { get; init; }
-    public IServiceStopper? Services { get; init; }
+    public IServiceManager? Services { get; init; }
+    public ITaskScheduler? Tasks { get; init; }
+    public IExe? Exe { get; init; }
+    public IMemoryAgent? Memory { get; init; }
+    public IBitLocker? BitLocker { get; init; }
     public ITrustedInstaller? Trusted { get; init; }
 
     /// <summary>%ProgramData% (tests: a temp folder).</summary>
     public string ProgramData { get; init; } = "";
 
+    /// <summary>%SystemRoot% (C:\Windows).</summary>
+    public string Windows { get; init; } = "";
+
+    /// <summary>%SystemDrive%\ (C:\).</summary>
+    public string SystemDrive { get; init; } = "";
+
+    /// <summary>Where files a Tweak hands to a tool are written out first (%ProgramData%\AkariOS.Native\Files).</summary>
+    public string FilesFolder { get; init; } = "";
+
+    /// <summary>The logged-in user's SID (their profile folder, when Shell Folders doesn't say).</summary>
+    public string? UserSid { get; init; }
+
     public Func<DateTime> UtcNow { get; init; } = () => DateTime.UtcNow;
+
+    /// <summary>A pause a block takes (Start-Sleep); tests take none.</summary>
+    public Action<TimeSpan> Sleep { get; init; } = Thread.Sleep;
 
     public static T Need<T>(T? part, string what) where T : class =>
         part ?? throw new NotSupportedException($"this engine has no {what}");
 
+    /// <summary>A folder, or a failure when the engine has none.</summary>
+    public static string Folder(string folder, string what) =>
+        folder.Length > 0 ? folder : throw new NotSupportedException($"this engine has no {what} folder");
+
     /// <summary>The real ones (guarded).</summary>
-    public static TweakServices Live(ITrustedInstaller trusted) => new()
+    public static TweakServices Live(ITrustedInstaller trusted, IUserSid user)
     {
-        Hosts = new HostsFile(),
-        Bindings = new WmiNetBindings(),
-        Launcher = new ShellLauncher(),
-        Services = new ServiceStopper(),
-        Trusted = trusted,
-        ProgramData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-    };
+        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        return new()
+        {
+            Hosts = new HostsFile(),
+            Bindings = new WmiNetBindings(),
+            Launcher = new ShellLauncher(),
+            Services = new ServiceManager(),
+            Tasks = new TaskScheduler(),
+            Exe = new ExeRunner(),
+            Memory = new WmiMemoryAgent(),
+            BitLocker = new WmiBitLocker(),
+            Trusted = trusted,
+            UserSid = user.Sid,
+            ProgramData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            Windows = windows,
+            SystemDrive = Path.GetPathRoot(windows) ?? @"C:\",
+            FilesFolder = Path.Combine(AkariPaths.MachineFolder, "Files"),
+        };
+    }
 }
 
 /// <summary>The hosts file's lines ($AkariHostsPath).</summary>
@@ -139,31 +174,5 @@ public sealed class ShellLauncher : ILauncher
     {
         if (!uri.StartsWith("ms-settings:", StringComparison.OrdinalIgnoreCase)) throw new ArgumentException($"not a Settings page: {uri}");
         Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true })?.Dispose();
-    }
-}
-
-/// <summary>Stops a service (Stop-Service -Force); N6 brings the Services page's whole IServiceManager.</summary>
-public interface IServiceStopper
-{
-    /// <summary>False when the service isn't on this PC or won't stop (the PowerShell app goes on silently too).</summary>
-    bool Stop(string name);
-}
-
-/// <summary>The real one, through the service control manager (guarded).</summary>
-public sealed class ServiceStopper : IServiceStopper
-{
-    public ServiceStopper() => SystemGuard.Check("Stopping services");
-
-    public bool Stop(string name)
-    {
-        try
-        {
-            using var sc = new ServiceController(name);
-            if (sc.Status == ServiceControllerStatus.Stopped) return true;
-            sc.Stop(stopDependentServices: true);
-            sc.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(15));
-            return true;
-        }
-        catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception or System.ServiceProcess.TimeoutException) { return false; }
     }
 }

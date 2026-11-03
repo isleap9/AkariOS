@@ -3,7 +3,7 @@
 # PowerShell only = a src/Tweaks file with script blocks (or other code) and no C# class in AkariOS.Tweaks;
 # Native only = a C# class with no src/Tweaks file.
 
-## PowerShell only: 153 Tweaks
+## PowerShell only: 145 Tweaks
 Advanced/Scheduled tasks  advanced-remove-scheduled-tasks
 Advanced/Security  security-defender-off
 Advanced/Security  security-defender-settings
@@ -102,14 +102,6 @@ OneClick/Finish  oneclick-performance-counters
 OneClick/Finish  oneclick-registry
 OneClick/Prepare  oneclick-allow-scripts
 OneClick/Prepare  oneclick-ddu-prepare
-Optimize/Performance  disable-memory-compression
-Optimize/Performance  performance-bitlocker-off
-Optimize/Performance  performance-clean-temp
-Optimize/Performance  performance-defrag-schedule-off
-Optimize/Performance  performance-open-startup-apps
-Optimize/Performance  performance-open-startup-taskmgr
-Optimize/Performance  performance-timer-resolution
-Optimize/Performance  performance-write-cache-flushing-off
 Optimize/Power  power-device-power-saving-off
 Optimize/Power  power-hibernate-off
 Optimize/Power  power-mode-best-performance

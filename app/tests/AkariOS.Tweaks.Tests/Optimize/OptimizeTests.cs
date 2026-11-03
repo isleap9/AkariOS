@@ -35,7 +35,11 @@ public sealed class OptimizeTests : IDisposable
         Assert.Throws<InvalidOperationException>(() => new HostsFile());
         Assert.Throws<InvalidOperationException>(() => new WmiNetBindings());
         Assert.Throws<InvalidOperationException>(() => new ShellLauncher());
-        Assert.Throws<InvalidOperationException>(() => new ServiceStopper());
+        Assert.Throws<InvalidOperationException>(() => new ServiceManager());
+        Assert.Throws<InvalidOperationException>(() => new AkariOS.Core.Machine.TaskScheduler());
+        Assert.Throws<InvalidOperationException>(() => new ExeRunner());
+        Assert.Throws<InvalidOperationException>(() => new WmiMemoryAgent());
+        Assert.Throws<InvalidOperationException>(() => new WmiBitLocker());
     }
 
     // ---- rows built with code: the same as PowerShell's
@@ -170,11 +174,11 @@ public sealed class OptimizeTests : IDisposable
         foreach (var f in new[] { "CapabilityConsentStorage.db", "CapabilityConsentStorage.db-wal", "other.db" }) File.WriteAllText(Path.Combine(dir, f), "");
         Assert.Equal(OutcomeKind.Applied, _h.Run("privacy-app-permissions", TweakMode.Apply).Kind);
         Assert.Equal("Deny", _h.Get(@"HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\contacts", "Value"));
-        Assert.Equal(["camsvc"], _h.Stopper.Stopped);
+        Assert.Equal(["camsvc"], _h.Services.Stopped);
         Assert.Equal(["other.db"], Directory.GetFiles(dir).Select(Path.GetFileName));
         Assert.Equal(1, _h.Trusted.Runs);
         Assert.Equal(OutcomeKind.Reverted, _h.Run("privacy-app-permissions", TweakMode.Revert).Kind);
-        Assert.Equal((2, "Allow"), (_h.Stopper.Stopped.Count, (string?)_h.Get(@"HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\contacts", "Value")));
+        Assert.Equal((2, "Allow"), (_h.Services.Stopped.Count, (string?)_h.Get(@"HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\contacts", "Value")));
     }
 
     // ---- Update

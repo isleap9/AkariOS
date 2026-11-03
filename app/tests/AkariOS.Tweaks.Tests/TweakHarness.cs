@@ -42,7 +42,11 @@ namespace AkariOS.Tweaks.Tests
         public FakeHosts Hosts { get; } = new();
         public FakeBindings Bindings { get; } = new();
         public FakeLauncher Launcher { get; } = new();
-        public FakeStopper Stopper { get; } = new();
+        public FakeServices Services { get; } = new();
+        public FakeTasks Tasks { get; } = new();
+        public FakeExe Exe { get; } = new();
+        public FakeMemory Memory { get; } = new();
+        public FakeBitLocker BitLocker { get; } = new();
         public FakeTrusted Trusted { get; } = new();
         public FakePc Pc { get; } = new();
         public DateTime Now { get; set; } = new(2026, 11, 3, 12, 0, 0, DateTimeKind.Utc);
@@ -67,10 +71,20 @@ namespace AkariOS.Tweaks.Tests
                 InSafeMode = () => false,
                 Services = new TweakServices
                 {
-                    Hosts = Hosts, Bindings = Bindings, Launcher = Launcher, Services = Stopper, Trusted = Trusted,
-                    ProgramData = Path.Combine(Dir, "ProgramData"), UtcNow = () => Now,
+                    Hosts = Hosts, Bindings = Bindings, Launcher = Launcher, Services = Services, Tasks = Tasks, Exe = Exe,
+                    Memory = Memory, BitLocker = BitLocker, Trusted = Trusted,
+                    ProgramData = Folder("ProgramData"), Windows = Folder("Windows"), SystemDrive = Folder("C"), FilesFolder = Folder("Files"),
+                    UtcNow = () => Now, Sleep = _ => { },
                 },
             };
+        }
+
+        /// <summary>A folder under the test's temp folder, made now.</summary>
+        public string Folder(string name)
+        {
+            var p = Path.Combine(Dir, name);
+            Directory.CreateDirectory(p);
+            return p;
         }
 
         public void Dispose()
@@ -134,10 +148,46 @@ namespace AkariOS.Tweaks.Tests
         public void Open(string uri) => Opened.Add(uri);
     }
 
-    internal sealed class FakeStopper : IServiceStopper
+    /// <summary>Services by name: their start type; what was asked of them, in order.</summary>
+    internal sealed class FakeServices : IServiceManager
     {
-        public List<string> Stopped { get; } = [];
-        public bool Stop(string name) { Stopped.Add(name); return true; }
+        public Dictionary<string, string> Installed { get; } = [];
+        public List<string> Calls { get; } = [];
+        public List<string> Stopped => Calls.Where(c => c.StartsWith("stop ", StringComparison.Ordinal)).Select(c => c[5..]).ToList();
+        public string? StartType(string name) => Installed.GetValueOrDefault(name);
+        public bool Stop(string name) { Calls.Add($"stop {name}"); return true; }
+        public bool Start(string name) { Calls.Add($"start {name}"); return Installed.ContainsKey(name); }
+        public void Create(string name, string binaryPath, bool automatic) { Calls.Add($"create {name} {binaryPath}"); Installed[name] = automatic ? "Automatic" : "Manual"; }
+        public void Delete(string name) { Calls.Add($"delete {name}"); Installed.Remove(name); }
+    }
+
+    internal sealed class FakeTasks : ITaskScheduler
+    {
+        public Dictionary<ScheduledTask, bool> All { get; } = [];
+        public IReadOnlyList<ScheduledTask> Find(Func<string, bool> name) => All.Keys.Where(t => name(t.Name)).ToList();
+        public void SetEnabled(ScheduledTask task, bool enabled) => All[task] = enabled;
+    }
+
+    /// <summary>Programs run: "path args"; Result decides what each returns (csc writes its out file).</summary>
+    internal sealed class FakeExe : IExe
+    {
+        public List<string> Runs { get; } = [];
+        public Func<string, string, ExeResult> Result { get; set; } = (_, _) => new(0, "");
+        public ExeResult Run(string path, string arguments, bool wait = true) { Runs.Add($"{Path.GetFileName(path)} {arguments}"); return Result(path, arguments); }
+    }
+
+    internal sealed class FakeMemory : IMemoryAgent
+    {
+        public bool MemoryCompression { get; set; } = true;
+        public void SetMemoryCompression(bool on) => MemoryCompression = on;
+    }
+
+    internal sealed class FakeBitLocker : IBitLocker
+    {
+        public List<BitLockerVolume>? All { get; set; } = [];
+        public List<string> Decrypting { get; } = [];
+        public IReadOnlyList<BitLockerVolume>? Volumes() => All;
+        public void Decrypt(BitLockerVolume volume) => Decrypting.Add(volume.MountPoint);
     }
 
     /// <summary>Runs the work at once and counts it (what ran as TrustedInstaller).</summary>
