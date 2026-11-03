@@ -4,4 +4,8 @@
   <ItemGroup>
     <ProjectReference Include="..\AkariOS.Core\AkariOS.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- the black account pictures and lock screen (GDI+, as the PowerShell blocks draw them) -->
+    <PackageReference Include="System.Drawing.Common" Version="10.0.14" />
+  </ItemGroup>
 </Project>

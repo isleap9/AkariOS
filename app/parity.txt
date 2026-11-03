@@ -3,7 +3,7 @@
 # PowerShell only = a src/Tweaks file with script blocks (or other code) and no C# class in AkariOS.Tweaks;
 # Native only = a C# class with no src/Tweaks file.
 
-## PowerShell only: 139 Tweaks
+## PowerShell only: 126 Tweaks
 Advanced/Scheduled tasks  advanced-remove-scheduled-tasks
 Advanced/Security  security-defender-off
 Advanced/Security  security-defender-settings
@@ -64,28 +64,15 @@ Customize/Context menu  context-remove-display
 Customize/Context menu  context-remove-extract-all
 Customize/Context menu  context-remove-personalize
 Customize/Context menu  context-remove-print
-Customize/Explorer  explorer-trim-context-menu
-Customize/Explorer  explorer-windows10-ribbon
 Customize/Input  input-open-pointer-options
 Customize/Notifications  notifications-no-auto-dnd
 Customize/Notifications  notifications-priority-list-empty
 Customize/Sound  sound-loudness-eq-tab
 Customize/Sound  sound-open-classic-panel
-Customize/Start  start-akarios-pins
-Customize/Start  start-akarios-shortcuts
-Customize/Start  start-hide-accessibility-folders
-Customize/Start  start-new-menu
 Customize/System  system-no-boot-ui
 Customize/System  system-open-date-time
 Customize/System  system-open-display-scaling
 Customize/System  system-time-server
-Customize/Taskbar  taskbar-never-small-icons
-Customize/Taskbar  taskbar-quick-settings-unpin
-Customize/Taskbar  taskbar-show-all-tray-icons
-Customize/Taskbar  taskbar-unpin-all
-Customize/Theme  theme-akarios-wallpaper
-Customize/Theme  theme-black-account-pictures
-Customize/Theme  theme-black-lock-screen
 Hardware/Graphics  graphics-amd-settings
 Hardware/Graphics  graphics-amd-ulps-off
 Hardware/Graphics  graphics-hdcp-off

@@ -229,7 +229,9 @@ the files through `FileData`, code-built rows and the hosts list checked against
 `IExe`, `IMemoryAgent`, `IBitLocker`, the system folders and `UserFolders`), g3 Optimize/Power (done 2026-11-03: 6
 classes, parity 145 -> 139, every Optimize Tweak native; `IPowerCfg`; the powercfg calls and registry writes checked
 against the PowerShell blocks run with recorders, Oracle/Invoke-TweakBlocks.ps1), g4 Customize Taskbar /
-Start / Explorer / Theme, g5 Customize System / Notifications / Sound / Input, g6 Customize/Apps, g7 Customize/Context
+Start / Explorer / Theme (done 2026-11-03: 13 classes, parity 139 -> 126; `IProcesses`, `IShortcuts`, `IDesktop`,
+Explorer on the services, REG_NONE values, System.Drawing for the black images; the rows oracle now covers every class
+that builds rows), g5 Customize System / Notifications / Sound / Input, g6 Customize/Apps, g7 Customize/Context
 menu, g8 Hardware/Graphics, g9 Hardware/Input and Advanced Security / System (not Safe Mode ones). Services-off and
 Scheduled tasks wait for N6, the Defender Safe Mode Toggles for N7.
 

@@ -15,7 +15,10 @@ public sealed class OptimizeTests : IDisposable
 
     public void Dispose() => _h.Dispose();
 
-    private static readonly string[] CodeRows = ["gaming-xbox-controller-no-game-bar", "update-defer-policy"];
+    // every Tweak whose rows its C# builds (RowsAreCode): checked against what PowerShell builds from the same file
+    private static readonly string[] CodeRows = TweakHarness.All.Where(t => t.RowsAreCode && t.Code is not null).Select(t => t.Id).ToArray();
+
+    public static TheoryData<string> CodeRowIds => [.. CodeRows];
 
     private static readonly Lazy<JsonElement> PowerShell = new(() =>
         Oracle.Run("Export-TweakRows.ps1", "-Src", Repo.Src, "-Ids", string.Join(",", CodeRows)));
@@ -44,17 +47,19 @@ public sealed class OptimizeTests : IDisposable
 
     // ---- rows built with code: the same as PowerShell's
 
-    [Theory]
-    [InlineData("gaming-xbox-controller-no-game-bar")]
-    [InlineData("update-defer-policy")]
+    [Fact]
+    public void The_rows_check_covers_every_class_that_builds_rows() =>
+        Assert.Superset(new HashSet<string> { "gaming-xbox-controller-no-game-bar", "update-defer-policy", "explorer-trim-context-menu", "explorer-windows10-ribbon", "start-new-menu" }, CodeRows.ToHashSet());
+
+    [Theory, MemberData(nameof(CodeRowIds))]
     public void Rows_built_with_code_are_the_ones_powershell_builds(string id)
     {
         var t = _h.Tweak(id);
         Assert.True(t.RowsAreCode);
         var ps = PowerShell.Value.GetProperty("Rows").GetProperty(id).EnumerateArray().Select(r =>
-            $"{r.GetProperty("Path").GetString()} | {S(r, "Name")} | {S(r, "Type")} | {S(r, "Value")} | {S(r, "Default")}");
+            $"{r.GetProperty("Path").GetString()} | {S(r, "Name")} | {S(r, "Type")} | {S(r, "Value")} | {S(r, "Default")} | {S(r, "Default10")}");
         var mine = t.Code!.Rows(t, _h.Engine.Context).Select(r =>
-            $"{r.Path} | {r.Name} | {r.Type} | {PsSemantics.Text(r.Value)} | {PsSemantics.Text(r.Default.Win11)}");
+            $"{r.Path} | {r.Name} | {r.Type} | {PsSemantics.Text(r.Value)} | {PsSemantics.Text(r.Default.Win11)} | {PsSemantics.Text(r.Default.Win10)}");
         Assert.Equal(ps, mine);
     }
 

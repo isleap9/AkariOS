@@ -48,6 +48,10 @@ namespace AkariOS.Tweaks.Tests
         public FakeMemory Memory { get; } = new();
         public FakeBitLocker BitLocker { get; } = new();
         public FakePowerCfg PowerCfg { get; } = new();
+        public FakeProcesses Processes { get; } = new();
+        public CountingExplorer Explorer { get; } = new();
+        public FakeShortcuts Shortcuts { get; } = new();
+        public FakeDesktop Desktop { get; } = new();
         public FakeTrusted Trusted { get; } = new();
         public FakePc Pc { get; } = new();
         public DateTime Now { get; set; } = new(2026, 11, 3, 12, 0, 0, DateTimeKind.Utc);
@@ -74,6 +78,7 @@ namespace AkariOS.Tweaks.Tests
                 {
                     Hosts = Hosts, Bindings = Bindings, Launcher = Launcher, Services = Services, Tasks = Tasks, Exe = Exe,
                     Memory = Memory, BitLocker = BitLocker, PowerCfg = PowerCfg, Trusted = Trusted,
+                    Processes = Processes, Explorer = Explorer, Shortcuts = Shortcuts, Desktop = Desktop,
                     ProgramData = Folder("ProgramData"), Windows = Folder("Windows"), SystemDrive = Folder("C"), FilesFolder = Folder("Files"),
                     UtcNow = () => Now, Sleep = _ => { },
                 },
@@ -183,6 +188,33 @@ namespace AkariOS.Tweaks.Tests
         public List<string> Calls { get; } = [];
         public Func<string[], IReadOnlyList<string>> Answer { get; set; } = _ => [];
         public IReadOnlyList<string> Run(params string[] arguments) { Calls.Add($"powercfg {string.Join(" ", arguments)}"); return Answer(arguments); }
+    }
+
+    internal sealed class FakeProcesses : IProcesses
+    {
+        public List<string> Stopped { get; } = [];
+        public void Stop(string name) => Stopped.Add(name);
+    }
+
+    internal sealed class CountingExplorer : IExplorer
+    {
+        public int Restarts { get; private set; }
+        public void Restart() => Restarts++;
+    }
+
+    /// <summary>Shortcuts made: link -> target (the .lnk file written empty, so it exists).</summary>
+    internal sealed class FakeShortcuts : IShortcuts
+    {
+        public Dictionary<string, string> Made { get; } = [];
+        public void Create(string link, string target) { Made[link] = target; File.WriteAllText(link, ""); }
+    }
+
+    internal sealed class FakeDesktop : IDesktop
+    {
+        public List<string> Wallpapers { get; } = [];
+        public (int Width, int Height) Size { get; set; } = (64, 36);
+        public void SetWallpaper(string path) => Wallpapers.Add(path);
+        public (int Width, int Height) ScreenSize() => Size;
     }
 
     internal sealed class FakeMemory : IMemoryAgent

@@ -46,6 +46,16 @@ public static partial class FileData
     /// <summary>A key row: the key exists (created empty) on Apply, deleted with its contents on Revert.</summary>
     public static RegistryRow KeyRow(string path) => new(path, null, null, "Key", OsValue.Both(null), IsKeyRow: true);
 
+    /// <summary>A removed key: deleted on Apply, made again on Revert (Windows has it).</summary>
+    public static RegistryRow RemovedKeyRow(string path, OsValue windowsDefault) => new(path, null, null, null, windowsDefault, IsKeyRow: true);
+
+    /// <summary>A removed value: deleted on Apply, Windows' own value written back on Revert.</summary>
+    public static RegistryRow RemovedRow(string path, string name, string type, OsValue windowsDefault) => new(path, name, type, null, windowsDefault, IsKeyRow: false);
+
+    /// <summary>The real user's folder (Shell Folders name: AppData, Local AppData, Programs…), or a failure.</summary>
+    public static string UserFolder(TweakContext c, string name) =>
+        UserFolders.Get(c.Registry, name, c.Services.UserSid) ?? throw new NotSupportedException($"the user's {name} folder isn't known");
+
     /// <summary>The Tweak's services part, or a failure saying the engine has none.</summary>
     public static T Need<T>(T? part, string what) where T : class => TweakServices.Need(part, what);
 }

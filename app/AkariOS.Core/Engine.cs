@@ -55,6 +55,7 @@ public sealed class Engine
     {
         var trusted = new TrustedInstaller();
         var user = new RealUserSid();
+        var explorer = new ExplorerShell();
         var registry = new RegistryEngine(new LiveRegistryPaths(user), trusted);
         return new Engine
         {
@@ -63,13 +64,13 @@ public sealed class Engine
             System = new MachineInfo(registry, new WmiHardware()),
             Log = log,
             Remembered = new JsonRememberedState(AkariPaths.StateFile),
-            Explorer = new ExplorerShell(),
+            Explorer = explorer,
             Presets = new PresetStore(new EmbeddedSourceFiles(), AkariPaths.PresetFolder, Path.Combine(AkariPaths.UserFolder, "lastused.json"), log),
             Codes = codes,
             IsAdmin = () => new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator),
             SystemRestore = new WmiSystemRestore(),
             Shutdown = new ShutdownExe(),
-            Services = TweakServices.Live(trusted, user),
+            Services = TweakServices.Live(trusted, user, explorer),
         };
     }
 }

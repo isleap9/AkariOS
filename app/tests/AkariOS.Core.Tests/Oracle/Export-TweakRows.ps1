@@ -10,7 +10,11 @@ foreach ($id in @($Ids.Split(',') | Where-Object { $_ })) {
     $file = Get-ChildItem $root -Recurse -Filter *.ps1 | Where-Object { (Get-Content -LiteralPath $_.FullName -Raw) -match "Id\s*=\s*'$([regex]::Escape($id))'" } | Select-Object -First 1
     $h = & $file.FullName
     $rows[$id] = @(foreach ($r in @($h.Registry)) {
-        [ordered]@{ Path = $r.Path; Name = $(if ($r.ContainsKey('Name')) { [string]$r.Name } else { $null }); Type = & $text $r.Type; Value = & $text $r.Value; Default = & $text $r.Default }
+        # a per-OS Default (@{ Win10; Win11 }): each OS's value
+        $d = $r.Default
+        $os = $d -is [hashtable] -and ($d.ContainsKey('Win10') -or $d.ContainsKey('Win11'))
+        [ordered]@{ Path = $r.Path; Name = $(if ($r.ContainsKey('Name')) { [string]$r.Name } else { $null }); Type = & $text $r.Type; Value = & $text $r.Value
+            Default = & $text $(if ($os) { $d.Win11 } else { $d }); Default10 = & $text $(if ($os) { $d.Win10 } else { $d }) }
     })
 }
 . (Join-Path $root 'Optimize\Network\Files\RazerAsusHosts.ps1')

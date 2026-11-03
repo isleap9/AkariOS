@@ -22,6 +22,10 @@ public sealed class TweakServices
     public IMemoryAgent? Memory { get; init; }
     public IBitLocker? BitLocker { get; init; }
     public IPowerCfg? PowerCfg { get; init; }
+    public IProcesses? Processes { get; init; }
+    public IExplorer? Explorer { get; init; }
+    public IShortcuts? Shortcuts { get; init; }
+    public IDesktop? Desktop { get; init; }
     public ITrustedInstaller? Trusted { get; init; }
 
     /// <summary>%ProgramData% (tests: a temp folder).</summary>
@@ -52,7 +56,7 @@ public sealed class TweakServices
         folder.Length > 0 ? folder : throw new NotSupportedException($"this engine has no {what} folder");
 
     /// <summary>The real ones (guarded).</summary>
-    public static TweakServices Live(ITrustedInstaller trusted, IUserSid user)
+    public static TweakServices Live(ITrustedInstaller trusted, IUserSid user, IExplorer explorer)
     {
         var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
         return new()
@@ -66,6 +70,10 @@ public sealed class TweakServices
             Memory = new WmiMemoryAgent(),
             BitLocker = new WmiBitLocker(),
             PowerCfg = new PowerCfg(),
+            Processes = new Processes(),
+            Explorer = explorer,
+            Shortcuts = new Shortcuts(),
+            Desktop = new Desktop(),
             Trusted = trusted,
             UserSid = user.Sid,
             ProgramData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),

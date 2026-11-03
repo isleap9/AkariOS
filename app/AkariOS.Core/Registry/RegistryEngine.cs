@@ -44,13 +44,17 @@ public sealed class RegistryEngine(IRegistryPaths paths, ITrustedInstaller? trus
 
     public bool KeyExists(string path) => Use(path, write: false, k => k != null);
 
+    /// <summary>The names of a key's values (empty when it is missing); the unnamed one is '(default)'.</summary>
+    public IReadOnlyList<string> ValueNames(string path) =>
+        Use(path, write: false, k => (IReadOnlyList<string>?)k?.GetValueNames().Select(n => n.Length == 0 ? "(default)" : n).ToList() ?? []);
+
     /// <summary>The names of a key's subkeys (empty when it is missing).</summary>
     public IReadOnlyList<string> SubKeys(string path) => Use(path, write: false, k => (IReadOnlyList<string>?)k?.GetSubKeyNames() ?? []);
 
     // ---- writes
 
     /// <summary>Writes a value (Set-Reg), creating the key. Type: DWord, QWord, String, ExpandString, MultiString,
-    /// Binary (a byte[], a list of numbers, or 'ab,01' hex text).</summary>
+    /// Binary (a byte[], a list of numbers, or 'ab,01' hex text), None (REG_NONE bytes, empty by default).</summary>
     public void SetValue(string path, string name, object? value, string type)
     {
         var kind = KindOf(type);
@@ -176,6 +180,7 @@ public sealed class RegistryEngine(IRegistryPaths paths, ITrustedInstaller? trus
         "expandstring" => RegistryValueKind.ExpandString,
         "multistring" => RegistryValueKind.MultiString,
         "binary" => RegistryValueKind.Binary,
+        "none" => RegistryValueKind.None,
         _ => throw new ArgumentException($"unknown registry type '{type}'"),
     };
 
@@ -203,6 +208,8 @@ public sealed class RegistryEngine(IRegistryPaths paths, ITrustedInstaller? trus
                     object?[] a => a.Select(x => System.Convert.ToByte(x, CultureInfo.InvariantCulture)).ToArray(),
                     _ => throw new ArgumentException("not bytes"),
                 },
+                // REG_NONE: bytes, empty for a marker value (Windows' unpinned quick settings tiles)
+                RegistryValueKind.None => value as byte[] ?? [],
                 _ => throw new ArgumentException($"can't write {kind}"),
             };
         }
