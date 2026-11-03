@@ -206,8 +206,10 @@ at the end.
 
 Batches (decided 2026-11-03): a the Catalogue's pure part and Optimize's sub-header (done 2026-11-03: Core
 `Catalogue`, checked against Catalogue.ps1 on two made-up PCs; inside one page the search keeps the page's order,
-since 5.1's Sort-Object isn't stable); b the Catalogue page (setting cards, States in the background, Refresh; a
-Tweak with no C# yet says so); c changes acting right away (one queue, restore point first, confirm, the restart bar,
+since 5.1's Sort-Object isn't stable); b the Catalogue page (done 2026-11-03: `CatalogueView`, setting cards kept
+per Tweak, States read in the background one by one, Refresh; a Tweak with no C# yet has its control off and says
+so; a Choice is a dropdown, as in the PowerShell Catalogue (the segmented control is the Guided rows'); the search
+looks through the Catalogue from any page that doesn't filter its own list); c changes acting right away (one queue, restore point first, confirm, the restart bar,
 closing with changes waiting; Safe Mode's "Restart and apply" waits for N7); d Install AkariOS › Guided's Tweaks step
 (chooser, Sections, masonry, Quick select, Clear, Show current state); e Review & Apply, the result, Last used;
 f Import / Export; g the script-block Toggles and Choices as C# classes, small Categories together: g1 Optimize

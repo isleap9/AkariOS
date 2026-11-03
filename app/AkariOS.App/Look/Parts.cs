@@ -79,6 +79,34 @@ public static class Parts
         return b;
     }
 
+    /// <summary>A badge (New-AkariBadge): AkariOS (crimson tint), Caution (amber outline), Advanced (amber fill).</summary>
+    public static Border Badge(string kind)
+    {
+        var (fg, bg, bd) = kind switch
+        {
+            "AkariOS" => ("AccText", "AccSoft", null),
+            "Caution" => ("Warn", "WarnSoft", "Warn"),
+            _ => ("WarnT", "Warn", (string?)null),
+        };
+        var b = new Border { CornerRadius = new CornerRadius(10), Padding = new Thickness(8, 1, 8, 2), Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center, Tag = kind };
+        b.SetResourceReference(Border.BackgroundProperty, bg);
+        if (bd is not null) { b.BorderThickness = new Thickness(1); b.SetResourceReference(Border.BorderBrushProperty, bd); }
+        var t = new TextBlock { Text = kind, FontSize = 12, FontWeight = FontWeights.SemiBold };
+        t.SetResourceReference(TextBlock.ForegroundProperty, fg);
+        b.Child = t;
+        return b;
+    }
+
+    /// <summary>A 14 px mark with a tooltip (New-AkariGlyph): restart required, Safe Mode.</summary>
+    public static FrameworkElement Glyph(string icon, string brush, string tip)
+    {
+        var g = Icons.Make(icon, 14, brush);
+        g.Margin = new Thickness(6, 0, 0, 0);
+        g.VerticalAlignment = VerticalAlignment.Center;
+        g.ToolTip = tip;
+        return g;
+    }
+
     /// <summary>A card with a title (the About cards): the card and the panel its body goes in.</summary>
     public static (Border Card, StackPanel Body) Card(string title)
     {

@@ -64,7 +64,8 @@ public class ShellLayoutTests
     [InlineData("Catalogue:Optimize/Gaming", "dvr", "Search", "Results for \"dvr\" in Optimize › Advanced", "search")]
     [InlineData("Catalogue:Advanced/Services", "xbox", "Services", "Advanced. Each change applies right away.", "activity")]
     [InlineData("Downloads", "", "Downloads", "Install apps, runtimes and tools, from winget where possible", "download")]
-    [InlineData("Home", "dvr", "Search", "Results for \"dvr\"", "search")]
+    [InlineData("Home", "dvr", "Search", "Results for \"dvr\" in Optimize › Advanced", "search")]
+    [InlineData("Downloads", "vlc", "Downloads", "Install apps, runtimes and tools, from winget where possible", "download")]
     public void Page_headers(string page, string query, string heading, string sub, string glyph) =>
         Assert.Equal((heading, sub, glyph), ShellLayout.Header(page, query));
 
@@ -145,11 +146,13 @@ public class ShellViewModelTests
         var vm = new ShellViewModel("1");
         var moves = 0;
         vm.PageMoved += () => moves++;
+        var typed = 0;
+        vm.SearchTyped += () => typed++;
         vm.Search = "d";
         vm.Search = "dv";
         vm.Search = "dvr";
-        Assert.Equal(1, moves);
-        Assert.Equal(("Search", "Results for \"dvr\"", true), (vm.Heading, vm.Sub, vm.HeaderVisible));
+        Assert.Equal((1, 2), (moves, typed));
+        Assert.Equal(("Search", "Results for \"dvr\" in Optimize › Advanced", true), (vm.Heading, vm.Sub, vm.HeaderVisible));
         vm.Search = "";
         Assert.Equal(2, moves);
         vm.Search = "x";
@@ -206,6 +209,10 @@ public sealed class MainWindowTests
         vm.Open("About");
         Assert.DoesNotContain(tabs, t => t.IsChecked == true);
         Assert.Equal(["Home", "Downloads", "Catalogue:Optimize/Gaming", "About"], shown);
+        // the search starting moves the page; each key after it builds it again
+        vm.Search = "d";
+        vm.Search = "dv";
+        Assert.Equal(["About", "About"], shown.Skip(4));
 
         vm.SetBusy(true, "Applying");
         Assert.Equal((Visibility.Visible, Visibility.Collapsed, false), (window.StatusRing.Visibility, window.StatusDot.Visibility, window.Page.IsEnabled));

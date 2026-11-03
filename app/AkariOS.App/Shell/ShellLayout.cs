@@ -55,15 +55,17 @@ public static class ShellLayout
         return "Search Optimize";
     }
 
+    /// <summary>Pages whose search filters their own list (a step, the apps, the Services / Scheduled tasks lists);
+    /// anywhere else the search looks through the Catalogue.</summary>
+    public static bool OwnSearch(string page) => page is "Install AkariOS" or "Downloads" or "Remove apps" || Catalogue.Lists.ContainsKey(page);
+
     /// <summary>The page header (Show-Page, Show-AkariCataloguePage): a Catalogue page's Category, its Section and
     /// icon; the search's results; else the page's own. A page with a list of its own (Services, Scheduled tasks)
-    /// keeps its header while the search filters that list.</summary>
+    /// keeps its header while the search filters that list (OwnSearch).</summary>
     public static (string Heading, string Sub, string Glyph) Header(string page, string query)
     {
         var cat = Catalogue.Split(page);
-        var filters = Catalogue.Lists.ContainsKey(page);
-        if (query.Length > 0 && !filters)
-            return ("Search", cat is null ? $"Results for \"{query}\"" : $"Results for \"{query}\" in Optimize › Advanced", "search");
+        if (query.Length > 0 && !OwnSearch(page)) return ("Search", $"Results for \"{query}\" in Optimize › Advanced", "search");
         if (cat is { } c) return (c.Category, $"{Catalogue.HeaderOf(c.Section)}. Each change applies right away.", Icons.Category(c.Category));
         var info = Pages.GetValueOrDefault(page) ?? new PageInfo("settings", "");
         return (page, info.Sub, info.Glyph);

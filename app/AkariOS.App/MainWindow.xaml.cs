@@ -57,6 +57,7 @@ public partial class MainWindow : Window
 
         vm.PropertyChanged += OnViewModelChanged;
         vm.PageMoved += ShowPage;
+        vm.SearchTyped += () => Page.Content = _pages(_vm.Page);
         Icons.Set(HeaderIcon, vm.Glyph);
         ShowPage();
         SyncTabs();

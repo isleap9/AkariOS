@@ -78,7 +78,11 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>A new page or the search starting / ending: the page comes in again (not on every keystroke).</summary>
     public event Action? PageMoved;
 
+    /// <summary>The search changed but the page didn't move: the page is built again, with no entrance.</summary>
+    public event Action? SearchTyped;
+
     private string _motionKey = "";
+    private string _query = "";
     private string _busyLabel = "Ready";
 
     private bool _opening;
@@ -113,7 +117,13 @@ public sealed partial class ShellViewModel : ObservableObject
         if (key != _motionKey)
         {
             _motionKey = key;
+            _query = q;
             PageMoved?.Invoke();
+        }
+        else if (q != _query)
+        {
+            _query = q;
+            SearchTyped?.Invoke();
         }
     }
 
