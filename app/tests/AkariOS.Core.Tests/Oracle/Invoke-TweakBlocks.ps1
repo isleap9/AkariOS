@@ -8,8 +8,15 @@
 #   "registry <Mode> <row>" / "trusted <Mode> <row>" (Invoke-AkariRegistry / Invoke-AkariRegistryTrusted, a row as
 #   above; Get-AkariRegKey reads the test key),
 #   "appread <family>", "appimport <family>|<reg text>" (Read- / Import-AkariAppSettings), "stop <process>",
-#   "open <target>" (Start-Process), "sleep <seconds>", "delete <path under -UserFolder>" (Remove-Item), and with
+#   "open <target>" (Start-Process), "run <target>|<arguments>" (Start-Process -ArgumentList), "sleep <seconds>",
+#   "delete <path under -UserFolder>" (Remove-Item), "delkey <path>" / "newkey <path>" (Remove-Item / New-Item of a
+#   key under -TestRoot, written back as HKCU:\ / HKLM:\; nothing is changed), "download <name>|<out file>"
+#   (Save-AkariFile), "shortcut <name>|<target>" (New-AkariShortcut), "unblock <path under -ProgramData>"
+#   (Unblock-File), "remembered <id>" / "remember <id> <True|False>" (Get- / Set-AkariRememberedState), and with
 #   -UserFolder, after each block, "file <path under it>|<text>" for every file there.
+# Get-AkariGpus answers -Gpus ('Vendor|Path;…'), Get-AkariGpuDevices -GpuDevices ('id;…'), Get-AkariRememberedState
+# -Remembered ('true' = Applied). -ProgramFiles, -ProgramFilesX86, -ProgramData: the blocks' $env: folders (temp
+# folders the C# test filled), set once the Tweaks are loaded.
 # Answers: powercfg /list with -PlanList (one GUID per line, as powercfg prints them), Read-AkariBcd with -BcdLines
 # ('|'-separated), Read-AkariAppSettings with -AppValues ('Key\Name=hex;…' for every family, 'held' = $null);
 # Get-AkariAppSettingState is the real one (only that function is read out of Core\AppSetup.ps1). Only the blocks of
@@ -18,7 +25,8 @@
 # Get-ChildItem reads the test key, never the real hives. -UserFolder: Get-AkariUserFolder's answer for every name (a
 # temp folder the C# test filled; without it, a folder that doesn't exist).
 param([Parameter(Mandatory)][string]$Src, [Parameter(Mandatory)][string]$Out, [string]$Ids = '', [string]$PlanList = '',
-    [string]$BcdLines = '', [string]$TestRoot = '', [string]$AppValues = '', [string]$UserFolder = '')
+    [string]$BcdLines = '', [string]$TestRoot = '', [string]$AppValues = '', [string]$UserFolder = '', [string]$Gpus = '',
+    [string]$GpuDevices = '', [string]$Remembered = '', [string]$ProgramFiles = '', [string]$ProgramFilesX86 = '', [string]$ProgramData = '')
 $ErrorActionPreference = 'Stop'
 . (Join-Path $Src 'Core\Loader.ps1')
 . (Join-Path $Src 'Core\Registry.ps1')
@@ -63,14 +71,43 @@ function Import-AkariAppSettings([string]$Family, [string]$RegText) {
 }
 # stand-ins for the cmdlets the blocks call: nothing stops, opens or waits, and only the test's own files are deleted
 function Stop-Process { [CmdletBinding()] param([string[]]$Name, [switch]$Force) foreach ($n in $Name) { $script:Calls.Add("stop $n") } }
-function Start-Process { [CmdletBinding()] param([string]$FilePath) $script:Calls.Add("open $FilePath") }
+function Start-Process {
+    [CmdletBinding()] param([string]$FilePath, [string[]]$ArgumentList, [switch]$Wait)
+    if ($ArgumentList) { $script:Calls.Add("run $FilePath|$($ArgumentList -join ' ')") } else { $script:Calls.Add("open $FilePath") }
+}
 function Start-Sleep { [CmdletBinding()] param([int]$Seconds) $script:Calls.Add("sleep $Seconds") }
+# a key under -TestRoot as the block named it (HKCU:\… / HKLM:\…), else $null
+function Get-TestKeyPath([string]$Path) {
+    if (-not $TestRoot) { return $null }
+    $root = "Registry::HKEY_CURRENT_USER\$TestRoot\"
+    if (-not $Path.StartsWith($root, 'OrdinalIgnoreCase')) { return $null }
+    $hive, $rest = $Path.Substring($root.Length).Split('\', 2)
+    "$($hive):\$rest"
+}
 function Remove-Item {
-    [CmdletBinding()] param([string]$LiteralPath, [switch]$Force)
+    [CmdletBinding()] param([string]$LiteralPath, [switch]$Recurse, [switch]$Force)
+    if ($key = Get-TestKeyPath $LiteralPath) { $script:Calls.Add("delkey $key"); return }
     if (-not $UserFolder -or -not $LiteralPath.StartsWith($UserFolder, 'OrdinalIgnoreCase')) { throw "not a test file: $LiteralPath" }
     $script:Calls.Add("delete $($LiteralPath.Substring($UserFolder.Length).TrimStart('\'))")
     [IO.File]::Delete($LiteralPath)
 }
+function New-Item {
+    [CmdletBinding()] param([string]$Path, [switch]$Force)
+    if ($key = Get-TestKeyPath $Path) { $script:Calls.Add("newkey $key"); return }
+    throw "not a test key: $Path"
+}
+function Unblock-File {
+    [CmdletBinding()] param([Parameter(ValueFromPipeline)]$InputObject)
+    process { $script:Calls.Add("unblock $($InputObject.FullName.Substring($ProgramData.Length).TrimStart('\'))") }
+}
+function Save-AkariFile([string]$Name, [string]$OutFile) { $script:Calls.Add("download $Name|$OutFile"); $OutFile }
+function New-AkariShortcut([string]$Name, [string]$Target) { $script:Calls.Add("shortcut $Name|$Target") }
+function Get-AkariRememberedState([string]$Id) { $script:Calls.Add("remembered $Id"); $Remembered -eq 'true' }
+function Set-AkariRememberedState([string]$Id, [bool]$Applied) { $script:Calls.Add("remember $Id $Applied") }
+function Get-AkariGpus {
+    foreach ($g in @($Gpus.Split(';') | Where-Object { $_ })) { $v, $p = $g.Split('|', 2); [pscustomobject]@{ Path = $p; Name = ''; Vendor = $v } }
+}
+function Get-AkariGpuDevices { @($GpuDevices.Split(';') | Where-Object { $_ }) }
 function Add-Files {
     if (-not $UserFolder) { return }
     foreach ($f in @(Get-ChildItem -LiteralPath $UserFolder -Recurse -File | Sort-Object FullName)) {
@@ -80,6 +117,11 @@ function Add-Files {
 
 $root = Join-Path $Src 'Tweaks'
 $tweaks = (Get-AkariTweaks $root).Tweaks
+# the blocks' folders: the C# test's temp ones (never the real ones: the blocks look for files there)
+$none = Join-Path $env:TEMP "akari-none-$([guid]::NewGuid().ToString('N'))"
+$env:ProgramFiles = if ($ProgramFiles) { $ProgramFiles } else { $none }
+${env:ProgramFiles(x86)} = if ($ProgramFilesX86) { $ProgramFilesX86 } else { $none }
+$env:ProgramData = if ($ProgramData) { $ProgramData } else { $none }
 $result = [ordered]@{}
 foreach ($id in @($Ids.Split(',') | Where-Object { $_ })) {
     $t = $tweaks | Where-Object { $_.Id -eq $id } | Select-Object -First 1

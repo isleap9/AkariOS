@@ -57,6 +57,8 @@ namespace AkariOS.Tweaks.Tests
         public FakeBcd Bcd { get; } = new();
         public FakeW32tm W32tm { get; } = new();
         public FakeAppSettings Apps { get; } = new();
+        public FakeDownloads Downloads { get; } = new();
+        public JsonRememberedState Remembered { get; }
         public FakePc Pc { get; } = new();
         public DateTime Now { get; set; } = new(2026, 11, 3, 12, 0, 0, DateTimeKind.Utc);
         public Engine Engine { get; }
@@ -66,13 +68,14 @@ namespace AkariOS.Tweaks.Tests
         {
             Directory.CreateDirectory(Dir);
             var files = new FolderSourceFiles(Repo.Root);
+            Remembered = new JsonRememberedState(Path.Combine(Dir, "state.json"));
             Engine = new Engine
             {
                 Files = files,
                 Registry = new RegistryEngine(_key.Paths, Trusted),
                 System = Pc,
                 Log = Log,
-                Remembered = new JsonRememberedState(Path.Combine(Dir, "state.json")),
+                Remembered = Remembered,
                 Explorer = new NoExplorer(),
                 Presets = new PresetStore(files, Path.Combine(Dir, "presets"), Path.Combine(Dir, "lastused.json"), Log),
                 Codes = TweaksAssembly.Codes,
@@ -83,7 +86,9 @@ namespace AkariOS.Tweaks.Tests
                     Hosts = Hosts, Bindings = Bindings, Launcher = Launcher, Services = Services, Tasks = Tasks, Exe = Exe,
                     Memory = Memory, BitLocker = BitLocker, PowerCfg = PowerCfg, Trusted = Trusted,
                     Processes = Processes, Explorer = Explorer, Shortcuts = Shortcuts, Desktop = Desktop, BcdEdit = Bcd, W32tm = W32tm, AppSettings = Apps,
+                    Downloads = Downloads, Remembered = Remembered,
                     ProgramData = Folder("ProgramData"), Windows = Folder("Windows"), SystemDrive = Folder("C"), FilesFolder = Folder("Files"),
+                    ProgramFiles = Folder("Program Files"), ProgramFilesX86 = Folder("Program Files (x86)"),
                     UtcNow = () => Now, Sleep = _ => { },
                 },
             };
@@ -213,7 +218,28 @@ namespace AkariOS.Tweaks.Tests
     internal sealed class FakeShortcuts : IShortcuts
     {
         public Dictionary<string, string> Made { get; } = [];
-        public void Create(string link, string target) { Made[link] = target; File.WriteAllText(link, ""); }
+        public Dictionary<string, string?> WorkingFolders { get; } = [];
+
+        public void Create(string link, string target, string? workingDirectory = null)
+        {
+            Made[link] = target;
+            WorkingFolders[link] = workingDirectory;
+            Directory.CreateDirectory(Path.GetDirectoryName(link)!);
+            File.WriteAllText(link, "");
+        }
+    }
+
+    /// <summary>AkariOS-Files downloads: "name|out file", each writing an empty file there (so the program exists).</summary>
+    internal sealed class FakeDownloads : IDownloads
+    {
+        public List<string> Saved { get; } = [];
+
+        public void Save(string name, string outFile)
+        {
+            Saved.Add($"{name}|{outFile}");
+            Directory.CreateDirectory(Path.GetDirectoryName(outFile)!);
+            File.WriteAllText(outFile, "");
+        }
     }
 
     internal sealed class FakeDesktop : IDesktop

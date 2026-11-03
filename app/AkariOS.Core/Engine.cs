@@ -57,20 +57,21 @@ public sealed class Engine
         var user = new RealUserSid();
         var explorer = new ExplorerShell();
         var registry = new RegistryEngine(new LiveRegistryPaths(user), trusted);
+        var remembered = new JsonRememberedState(AkariPaths.StateFile);
         return new Engine
         {
             Files = new EmbeddedSourceFiles(),
             Registry = registry,
             System = new MachineInfo(registry, new WmiHardware()),
             Log = log,
-            Remembered = new JsonRememberedState(AkariPaths.StateFile),
+            Remembered = remembered,
             Explorer = explorer,
             Presets = new PresetStore(new EmbeddedSourceFiles(), AkariPaths.PresetFolder, Path.Combine(AkariPaths.UserFolder, "lastused.json"), log),
             Codes = codes,
             IsAdmin = () => new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator),
             SystemRestore = new WmiSystemRestore(),
             Shutdown = new ShutdownExe(),
-            Services = TweakServices.Live(trusted, user, explorer),
+            Services = TweakServices.Live(trusted, user, explorer, remembered),
         };
     }
 }

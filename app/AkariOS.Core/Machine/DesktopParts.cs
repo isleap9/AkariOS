@@ -24,10 +24,10 @@ public sealed class Processes : IProcesses
     }
 }
 
-/// <summary>A .lnk shortcut (WScript.Shell's CreateShortcut).</summary>
+/// <summary>A .lnk shortcut (WScript.Shell's CreateShortcut); a working folder when given (New-AkariShortcut sets it).</summary>
 public interface IShortcuts
 {
-    void Create(string link, string target);
+    void Create(string link, string target, string? workingDirectory = null);
 }
 
 /// <summary>The real one: WScript.Shell through COM (guarded).</summary>
@@ -35,11 +35,12 @@ public sealed class Shortcuts : IShortcuts
 {
     public Shortcuts() => SystemGuard.Check("Shortcuts");
 
-    public void Create(string link, string target)
+    public void Create(string link, string target, string? workingDirectory = null)
     {
         dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell", throwOnError: true)!)!;
         dynamic s = shell.CreateShortcut(link);
         s.TargetPath = target;
+        if (workingDirectory is not null) s.WorkingDirectory = workingDirectory;
         s.Save();
     }
 }

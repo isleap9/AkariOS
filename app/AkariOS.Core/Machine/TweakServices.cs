@@ -2,14 +2,16 @@ using System.Diagnostics;
 using System.Management;
 using System.Text;
 using AkariOS.Core.Registry;
+using AkariOS.Core.Tweaks;
 
 namespace AkariOS.Core.Machine;
 
 /// <summary>
 /// What a Tweak's C# reaches beyond the registry, each behind an interface that tests fake (rule 12): the hosts file,
 /// the network adapters' bindings, a settings page, services, scheduled tasks, programs, the memory agent, BitLocker,
-/// the boot store, w32tm, Store apps' settings files, TrustedInstaller, the system folders, the clock. A part left null (or a folder left "") is one the engine doesn't
-/// have (a test that doesn't need it): using it fails the Tweak.
+/// the boot store, w32tm, Store apps' settings files, downloads, what Akari last did, TrustedInstaller, the system
+/// folders, the clock. A part left null (or a folder left "") is one the engine doesn't have (a test that doesn't need
+/// it): using it fails the Tweak.
 /// </summary>
 public sealed class TweakServices
 {
@@ -30,6 +32,10 @@ public sealed class TweakServices
     public IW32tm? W32tm { get; init; }
     public IAppSettings? AppSettings { get; init; }
     public ITrustedInstaller? Trusted { get; init; }
+    public IDownloads? Downloads { get; init; }
+
+    /// <summary>What Akari last did to a Tweak it can't read back (state.json): the Engine's own.</summary>
+    public IRememberedState? Remembered { get; init; }
 
     /// <summary>%ProgramData% (tests: a temp folder).</summary>
     public string ProgramData { get; init; } = "";
@@ -39,6 +45,12 @@ public sealed class TweakServices
 
     /// <summary>%SystemDrive%\ (C:\).</summary>
     public string SystemDrive { get; init; } = "";
+
+    /// <summary>%ProgramFiles% (C:\Program Files).</summary>
+    public string ProgramFiles { get; init; } = "";
+
+    /// <summary>%ProgramFiles(x86)% (C:\Program Files (x86)).</summary>
+    public string ProgramFilesX86 { get; init; } = "";
 
     /// <summary>Where files a Tweak hands to a tool are written out first (%ProgramData%\AkariOS.Native\Files).</summary>
     public string FilesFolder { get; init; } = "";
@@ -59,7 +71,7 @@ public sealed class TweakServices
         folder.Length > 0 ? folder : throw new NotSupportedException($"this engine has no {what} folder");
 
     /// <summary>The real ones (guarded).</summary>
-    public static TweakServices Live(ITrustedInstaller trusted, IUserSid user, IExplorer explorer)
+    public static TweakServices Live(ITrustedInstaller trusted, IUserSid user, IExplorer explorer, IRememberedState remembered)
     {
         var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
         var services = new ServiceManager();
@@ -82,10 +94,14 @@ public sealed class TweakServices
             Shortcuts = new Shortcuts(),
             Desktop = new Desktop(),
             Trusted = trusted,
+            Downloads = new AkariFiles(),
+            Remembered = remembered,
             UserSid = user.Sid,
             ProgramData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
             Windows = windows,
             SystemDrive = Path.GetPathRoot(windows) ?? @"C:\",
+            ProgramFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+            ProgramFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
             FilesFolder = Path.Combine(AkariPaths.MachineFolder, "Files"),
         };
     }
