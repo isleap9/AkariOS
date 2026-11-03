@@ -187,6 +187,31 @@ public sealed class ExeRunner : IExe
     }
 }
 
+/// <summary>The only powercfg call (Invoke-AkariPowerCfg): its output lines, errors included as text (a setting this PC
+/// doesn't have is no failure).</summary>
+public interface IPowerCfg
+{
+    IReadOnlyList<string> Run(params string[] arguments);
+}
+
+/// <summary>The real one: %SystemRoot%\System32\powercfg.exe (guarded).</summary>
+public sealed class PowerCfg : IPowerCfg
+{
+    public PowerCfg() => SystemGuard.Check("powercfg");
+
+    public IReadOnlyList<string> Run(params string[] arguments)
+    {
+        var psi = new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "powercfg.exe"))
+        { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+        foreach (var a in arguments) psi.ArgumentList.Add(a);
+        using var p = Process.Start(psi) ?? throw new InvalidOperationException("powercfg did not start");
+        var err = p.StandardError.ReadToEndAsync();
+        var output = p.StandardOutput.ReadToEnd();
+        p.WaitForExit();
+        return (output + err.Result).Split(["\r\n", "\n"], StringSplitOptions.None).Where(l => l.Length > 0).ToList();
+    }
+}
+
 /// <summary>Windows' memory manager agent (Get- / Enable- / Disable-MMAgent): memory compression.</summary>
 public interface IMemoryAgent
 {

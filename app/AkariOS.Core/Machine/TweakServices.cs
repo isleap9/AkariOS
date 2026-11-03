@@ -21,6 +21,7 @@ public sealed class TweakServices
     public IExe? Exe { get; init; }
     public IMemoryAgent? Memory { get; init; }
     public IBitLocker? BitLocker { get; init; }
+    public IPowerCfg? PowerCfg { get; init; }
     public ITrustedInstaller? Trusted { get; init; }
 
     /// <summary>%ProgramData% (tests: a temp folder).</summary>
@@ -64,6 +65,7 @@ public sealed class TweakServices
             Exe = new ExeRunner(),
             Memory = new WmiMemoryAgent(),
             BitLocker = new WmiBitLocker(),
+            PowerCfg = new PowerCfg(),
             Trusted = trusted,
             UserSid = user.Sid,
             ProgramData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),

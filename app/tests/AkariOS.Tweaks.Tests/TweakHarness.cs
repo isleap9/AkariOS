@@ -47,6 +47,7 @@ namespace AkariOS.Tweaks.Tests
         public FakeExe Exe { get; } = new();
         public FakeMemory Memory { get; } = new();
         public FakeBitLocker BitLocker { get; } = new();
+        public FakePowerCfg PowerCfg { get; } = new();
         public FakeTrusted Trusted { get; } = new();
         public FakePc Pc { get; } = new();
         public DateTime Now { get; set; } = new(2026, 11, 3, 12, 0, 0, DateTimeKind.Utc);
@@ -72,7 +73,7 @@ namespace AkariOS.Tweaks.Tests
                 Services = new TweakServices
                 {
                     Hosts = Hosts, Bindings = Bindings, Launcher = Launcher, Services = Services, Tasks = Tasks, Exe = Exe,
-                    Memory = Memory, BitLocker = BitLocker, Trusted = Trusted,
+                    Memory = Memory, BitLocker = BitLocker, PowerCfg = PowerCfg, Trusted = Trusted,
                     ProgramData = Folder("ProgramData"), Windows = Folder("Windows"), SystemDrive = Folder("C"), FilesFolder = Folder("Files"),
                     UtcNow = () => Now, Sleep = _ => { },
                 },
@@ -174,6 +175,14 @@ namespace AkariOS.Tweaks.Tests
         public List<string> Runs { get; } = [];
         public Func<string, string, ExeResult> Result { get; set; } = (_, _) => new(0, "");
         public ExeResult Run(string path, string arguments, bool wait = true) { Runs.Add($"{Path.GetFileName(path)} {arguments}"); return Result(path, arguments); }
+    }
+
+    /// <summary>powercfg: the calls ("powercfg &lt;args&gt;"), and what it answers (by default nothing).</summary>
+    internal sealed class FakePowerCfg : IPowerCfg
+    {
+        public List<string> Calls { get; } = [];
+        public Func<string[], IReadOnlyList<string>> Answer { get; set; } = _ => [];
+        public IReadOnlyList<string> Run(params string[] arguments) { Calls.Add($"powercfg {string.Join(" ", arguments)}"); return Answer(arguments); }
     }
 
     internal sealed class FakeMemory : IMemoryAgent

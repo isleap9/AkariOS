@@ -13,21 +13,8 @@ public sealed class WriteCacheFlushing : ITweakCode
     private const string Value = "CacheIsPowerProtected";
 
     /// <summary>Every key under Enum\SCSI and Enum\NVME (at any depth) with this name.</summary>
-    public static IReadOnlyList<string> Keys(RegistryEngine reg, string name)
-    {
-        var found = new List<string>();
-        void Walk(string path)
-        {
-            foreach (var k in reg.SubKeys(path))
-            {
-                var p = $@"{path}\{k}";
-                if (string.Equals(k, name, StringComparison.OrdinalIgnoreCase)) found.Add(p);
-                Walk(p);
-            }
-        }
-        foreach (var bus in new[] { "SCSI", "NVME" }) Walk($@"{Enum}\{bus}");
-        return found;
-    }
+    public static IReadOnlyList<string> Keys(RegistryEngine reg, string name) =>
+        RegistryTree.Named(reg, [$@"{Enum}\SCSI", $@"{Enum}\NVME"], name);
 
     public TweakState Detect(Tweak tweak, TweakContext c)
     {

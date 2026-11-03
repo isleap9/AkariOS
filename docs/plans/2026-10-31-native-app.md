@@ -226,7 +226,9 @@ Gaming / Network / Privacy / Update (done 2026-11-03: 9 classes, parity 162 -> 1
 file, network bindings, Settings pages, a service stop, TrustedInstaller, ProgramData and the clock; data read out of
 the files through `FileData`, code-built rows and the hosts list checked against PowerShell's), g2 Optimize/Performance
 (done 2026-11-03: 8 classes, parity 153 -> 145; `IServiceManager` (replaces g1's service stop), `ITaskScheduler`,
-`IExe`, `IMemoryAgent`, `IBitLocker`, the system folders and `UserFolders`), g3 Optimize/Power (`IPowerCfg`), g4 Customize Taskbar /
+`IExe`, `IMemoryAgent`, `IBitLocker`, the system folders and `UserFolders`), g3 Optimize/Power (done 2026-11-03: 6
+classes, parity 145 -> 139, every Optimize Tweak native; `IPowerCfg`; the powercfg calls and registry writes checked
+against the PowerShell blocks run with recorders, Oracle/Invoke-TweakBlocks.ps1), g4 Customize Taskbar /
 Start / Explorer / Theme, g5 Customize System / Notifications / Sound / Input, g6 Customize/Apps, g7 Customize/Context
 menu, g8 Hardware/Graphics, g9 Hardware/Input and Advanced Security / System (not Safe Mode ones). Services-off and
 Scheduled tasks wait for N6, the Defender Safe Mode Toggles for N7.
