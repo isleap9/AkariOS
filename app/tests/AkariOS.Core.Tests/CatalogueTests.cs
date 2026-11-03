@@ -91,4 +91,31 @@ public class CatalogueTests
         Assert.Equal("1 change needs Safe Mode: Akari restarts into it, applies them and restarts back.", Catalogue.SafeBarText(1));
         Assert.Equal("2 changes need Safe Mode: Akari restarts into it, applies them and restarts back.", Catalogue.SafeBarText(2));
     }
+
+    [Fact]
+    public void Where_a_guided_row_starts()
+    {
+        var toggle = T("t", "Optimize", "Gaming");
+        var choice = new Tweak { Id = "c", Name = "c", Source = "src/Tweaks/Optimize/Gaming/c.ps1", Section = "Optimize", Category = "Gaming", Kind = TweakKind.Choice,
+            Choices = [new ChoiceValue(1, "One", null), new ChoiceValue(2, "Two", null)] };
+        Assert.Equal(Selection.Optimized, Selection.RowStart(toggle, TweakState.Optimized, null, true));
+        Assert.Equal(Selection.None, Selection.RowStart(toggle, TweakState.Optimized, null, false));
+        Assert.Equal(Selection.None, Selection.RowStart(toggle, TweakState.Custom, null, true));
+        Assert.Equal(2, Selection.RowStart(choice, TweakState.Custom, 2, true));
+        Assert.Equal(Selection.None, Selection.RowStart(choice, TweakState.Custom, 7, true));
+        Assert.Equal(Selection.None, Selection.RowStart(T("a", "Optimize", "Gaming", TweakKind.Action), TweakState.Unknown, null, true));
+    }
+
+    [Theory]
+    [InlineData(true, "None", "Optimized")]
+    [InlineData(true, "Optimized", "Optimized")]
+    [InlineData(false, "Optimized", "Default")]
+    [InlineData(false, "None", "None")]
+    public void A_checkbox_target(bool isChecked, string initial, string target) => Assert.Equal(target, Selection.CheckTarget(isChecked, initial));
+
+    [Fact]
+    public void Masonry_puts_each_card_in_the_shortest_column() =>
+        // each card adds its size + 2: after three cards the columns hold 5, 3, 4, so the 4th goes in column 1 (7),
+        // the 5th in column 2 (4 is now the shortest)
+        Assert.Equal([0, 1, 2, 1, 2], Selection.Masonry([3, 1, 2, 2, 1], 3));
 }

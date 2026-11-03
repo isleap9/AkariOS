@@ -39,6 +39,12 @@ public sealed class AppServices
     /// <summary>The Catalogue's page (one per run: its cards, queue and bars), made by PageFactory.</summary>
     public Pages.CatalogueView? Catalogue { get; set; }
 
+    /// <summary>The Install AkariOS page (one per run: its mode, step and Selection), made by PageFactory.</summary>
+    public Pages.InstallPage? Install { get; set; }
+
+    /// <summary>The window's step footer (none in some tests).</summary>
+    public Pages.StepFooter? Footer { get; set; }
+
     /// <summary>Where the Catalogue's bars go: the window's CatBars, under the page surface (none in some tests).</summary>
     public System.Windows.Controls.Panel? Bars { get; set; }
 

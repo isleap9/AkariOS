@@ -17,143 +17,25 @@ using Microsoft.Win32;
 
 namespace AkariOS.App.Tests;
 
-/// <summary>The Catalogue page on the real Tweak files (or fixture ones), every registry row redirected to a test
-/// key, changes run at once (no background thread), dialogs answered by the test.</summary>
+/// <summary>The Catalogue page on the real Tweak files (or fixture ones), through AppHarness.</summary>
 [Collection("Motion")]
 public sealed class CatalogueViewTests : IDisposable
 {
-    private readonly string _root = $@"Software\AkariTest\{Guid.NewGuid():N}";
-    private readonly string _dir = Path.Combine(Path.GetTempPath(), $"akari-catalogue-{Guid.NewGuid():N}");
+    private readonly AppHarness _h = new();
 
-    public void Dispose()
-    {
-        using var hkcu = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, RegistryView.Registry64);
-        hkcu.DeleteSubKeyTree(_root, throwOnMissingSubKey: false);
-        if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true);
-    }
+    public void Dispose() => _h.Dispose();
 
-    private sealed class Pc : ISystemInfo
-    {
-        public int Build => 26100;
-        public string Edition => "Professional";
-        public Chassis Chassis => Chassis.Desktop;
-        public IReadOnlyList<Gpu> Gpus => [];
-        public IReadOnlyList<string> GpuDevices => [];
-    }
+    private AppTest Make(ISourceFiles? files = null, bool safeMode = false) => _h.Make(files, safeMode);
 
-    private sealed class FakeExplorer : IExplorer
-    {
-        public int Restarts { get; private set; }
-        public void Restart() => Restarts++;
-    }
+    private static MemorySourceFiles Fixtures() => AppHarness.Fixtures();
 
-    private sealed class FakeShutdown : IShutdown
-    {
-        public int Restarts { get; private set; }
-        public void Restart() => Restarts++;
-    }
+    private static IEnumerable<T> All<T>(DependencyObject root) where T : DependencyObject => AppHarness.All<T>(root);
 
-    private sealed class FakeRestore : ISystemRestore
-    {
-        public List<RestorePoint> Points { get; } = [];
-        public IReadOnlyList<RestorePoint> List() => Points;
-        public void Create(string description) => Points.Add(new(description, DateTime.Now, (uint)Points.Count + 1));
-        public void EnableProtection() { }
-    }
+    private static List<string> Texts(DependencyObject root) => AppHarness.Texts(root);
 
-    private sealed class NoOpen : IShellOpen
-    {
-        public void Url(string url) { }
-        public void Folder(string path) { }
-        public void Program(string path) { }
-    }
+    private static void Apply(AppServices s, string id, TweakMode mode = TweakMode.Apply) => AppHarness.Apply(s, id, mode);
 
-    /// <summary>A test's services: the dialogs it saw, the answers it gives them (in order; none = Esc).</summary>
-    private sealed record Test(AppServices S, CatalogueView Page, List<string> Asked, Queue<string> Answers, FakeExplorer Explorer, FakeShutdown Shutdown, FakeRestore Restore, StackPanel Bars);
-
-    private Test Make(ISourceFiles? files = null, bool safeMode = false)
-    {
-        Motion.Initialize(false);
-        files ??= new FolderSourceFiles(LookTests.RepoRoot());
-        var log = new MemoryLog();
-        var (explorer, shutdown, restore) = (new FakeExplorer(), new FakeShutdown(), new FakeRestore());
-        var engine = new Engine
-        {
-            Files = files,
-            Registry = new RegistryEngine(new RedirectedRegistryPaths(_root)),
-            System = new Pc(),
-            Log = log,
-            Remembered = new JsonRememberedState(Path.Combine(_dir, "state.json")),
-            Explorer = explorer,
-            Presets = new PresetStore(files, Path.Combine(_dir, "presets"), Path.Combine(_dir, "lastused.json"), log),
-            Codes = new Dictionary<string, ITweakCode>(),
-            IsAdmin = () => true,
-            SystemRestore = restore,
-            Shutdown = shutdown,
-            InSafeMode = () => safeMode,
-        };
-        var resources = new ResourceDictionary();
-        foreach (var d in AkariXaml.SharedResources("Dark", false)) resources.MergedDictionaries.Add(d);
-        var asked = new List<string>();
-        var answers = new Queue<string>();
-        var bars = new StackPanel();
-        var s = new AppServices
-        {
-            Engine = engine, Shell = new ShellViewModel("1"), Open = new NoOpen(), Log = log, LogFolder = _dir,
-            Theme = new ThemeService(resources, new SettingsFile(Path.Combine(_dir, "settings.json")), () => null, false),
-            Background = (work, done) => done(work()),
-            Bars = bars,
-        };
-        s.Dialogs = new Dialogs(() => resources, log)
-        {
-            Runner = d => { asked.Add(((TextBlock)d.FindName("DlgText")).Text); return answers.TryDequeue(out var a) ? a : null; },
-        };
-        var page = new CatalogueView(s);
-        s.Catalogue = page;
-        Assert.Equal("", string.Join(" / ", engine.Loaded.Problems.Select(p => $"{p.File}: {p.Message}")));
-        return new Test(s, page, asked, answers, explorer, shutdown, restore, bars);
-    }
-
-    // fixture Tweaks in one Category (Optimize › Test): HKCU rows under Software\AkariFix
-    private static MemorySourceFiles Fixtures() => new MemorySourceFiles()
-        .Add("src/Tweaks/Optimize/Test/Plain.ps1", Toggle("fix-plain", "Plain", "Explorer = $true"))
-        .Add("src/Tweaks/Optimize/Test/Asking.ps1", Toggle("fix-asking", "Asking", "Confirm = 'Really change it?'"))
-        .Add("src/Tweaks/Optimize/Test/Safe.ps1", Toggle("fix-safe", "Safe", "SafeMode = $true"))
-        .Add("src/Tweaks/Optimize/Test/Reboots.ps1", Toggle("fix-reboots", "Reboots", "Reboot = $true"))
-        .Add("src/Tweaks/Optimize/Test/Pick.ps1", """
-            @{
-                Id = 'fix-pick'; Name = 'Pick'; Section = 'Optimize'; Category = 'Test'; Kind = 'Choice'; Risk = 'Safe'; Description = 'A fixture.'
-                Registry = @{ Path = 'HKCU:\Software\AkariFix'; Name = 'Pick'; Type = 'DWord' }
-                Choices = @(
-                    @{ Value = 1; Label = 'One' }
-                    @{ Value = 2; Label = 'Two' }
-                    @{ Value = 3; Label = 'Three'; Risk = 'Advanced' }
-                )
-                Recommended = 1
-                Default = 2
-            }
-            """);
-
-    private static string Toggle(string id, string name, string extra) => $$"""
-        @{
-            Id = '{{id}}'; Name = '{{name}}'; Section = 'Optimize'; Category = 'Test'; Risk = 'Safe'; Description = 'A fixture.'
-            {{extra}}
-            Registry = @( @{ Path = 'HKCU:\Software\AkariFix'; Name = '{{name}}'; Type = 'DWord'; Value = 1; Default = $null } )
-        }
-        """;
-
-    private static IEnumerable<T> All<T>(DependencyObject root) where T : DependencyObject
-    {
-        if (root is T t) yield return t;
-        foreach (var c in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
-            foreach (var x in All<T>(c)) yield return x;
-    }
-
-    private static List<string> Texts(DependencyObject root) => All<TextBlock>(root).Select(t => t.Text).ToList();
-
-    private static void Apply(AppServices s, string id, TweakMode mode = TweakMode.Apply) => s.Engine.Registry.Invoke(s.Engine.Find(id)!.Registry!, mode, 26100);
-
-    private static void Click(ButtonBase b) => b.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+    private static void Click(ButtonBase b) => AppHarness.Click(b);
 
     private static void Flip(CatalogueCard c)
     {
@@ -162,7 +44,7 @@ public sealed class CatalogueViewTests : IDisposable
         Click(sw);
     }
 
-    private object? Fix(AppServices s, string name) => s.Engine.Registry.GetValue(@"HKCU:\Software\AkariFix", name);
+    private static object? Fix(AppServices s, string name) => AppHarness.Fix(s, name);
 
     // ---- the page, on the real files
 

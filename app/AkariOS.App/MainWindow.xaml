@@ -149,6 +149,15 @@
       <Border Grid.Row="2" CornerRadius="20" BorderThickness="1"
               BorderBrush="{DynamicResource Bd}" Background="{DynamicResource Surf}">
         <DockPanel>
+          <!-- the Guided steps' footer, pinned under the page: Back on the left, the stepper centred, Next / Review /
+               Apply on the right (Pages/InstallPage) -->
+          <Border x:Name="StepFooter" DockPanel.Dock="Bottom" Visibility="Collapsed" BorderBrush="{DynamicResource Bd}" BorderThickness="0,1,0,0">
+            <Grid Margin="24,12">
+              <Button x:Name="StepBack" Style="{StaticResource Btn}" Content="Back" HorizontalAlignment="Left" MinWidth="96"/>
+              <StackPanel x:Name="StepDots" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              <Button x:Name="StepNext" Style="{DynamicResource Accent}" Content="Next" HorizontalAlignment="Right"/>
+            </Grid>
+          </Border>
           <!-- the Catalogue's bars (Safe Mode changes waiting, restarts), pinned under the page: Pages/CatalogueBars -->
           <StackPanel x:Name="CatBars" DockPanel.Dock="Bottom" Visibility="Collapsed"/>
           <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">

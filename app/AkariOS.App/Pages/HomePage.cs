@@ -56,7 +56,7 @@ public static class HomePage
         // One-click is a Run in phases across restarts (N7)
         oneClick.Click += (_, _) => s.NotYet("One-click", "N7");
         buttons.Children.Add(oneClick);
-        var choose = Parts.Button("Choose changes", click: () => s.Shell.Open("Install AkariOS"));
+        var choose = Parts.Button("Choose changes", click: () => { s.Install?.Guide(); s.Shell.Open("Install AkariOS"); });
         choose.Margin = new Thickness(0, 0, 0, 8);
         choose.ToolTip = "Pick the apps and Tweaks yourself, review them, then apply them in one go";
         buttons.Children.Add(choose);

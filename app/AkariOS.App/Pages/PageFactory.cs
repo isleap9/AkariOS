@@ -11,6 +11,7 @@ public static class PageFactory
     public static Func<string, UIElement> For(AppServices s)
     {
         var catalogue = s.Catalogue ??= new CatalogueView(s);
+        var install = s.Install ??= new InstallPage(s);
         return page =>
         {
             var q = s.Shell.Search.Trim();
@@ -18,6 +19,7 @@ public static class PageFactory
             return page switch
             {
                 "Home" => HomePage.Build(s),
+                "Install AkariOS" => install.Build(q),
                 "About" => AboutPage.Build(s),
                 _ => Placeholder.For(page),
             };

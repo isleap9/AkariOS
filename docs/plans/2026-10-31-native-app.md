@@ -213,7 +213,10 @@ looks through the Catalogue from any page that doesn't filter its own list); c c
 2026-11-03: one queue, the session's restore point first, `Selection.ConfirmText` checked against Selection.ps1 on
 every real Tweak, the Safe Mode and restart bars, Restart Explorer / Restart now (`IShutdown`), closing with a change
 running or Safe Mode changes waiting asks; Safe Mode's "Restart and apply" waits for N7); d Install AkariOS › Guided's Tweaks step
-(chooser, Sections, masonry, Quick select, Clear, Show current state); e Review & Apply, the result, Last used;
+(done 2026-11-03: `InstallPage`, `TweaksStep`, `TweakRow`; the chooser (One-click = N7), the stepper footer, an Apps
+step saying it comes with N5; the Sections, pending changes and row tooltips checked against Steps.ps1 /
+Selection.ps1 / Cards.ps1 on every real Tweak; every State read once in the background before the grid is built,
+where the PowerShell app reads them on the UI thread); e Review & Apply, the result, Last used;
 f Import / Export; g the script-block Toggles and Choices as C# classes, small Categories together: g1 Optimize
 Gaming / Network / Privacy / Update, g2 Optimize/Performance, g3 Optimize/Power (`IPowerCfg`), g4 Customize Taskbar /
 Start / Explorer / Theme, g5 Customize System / Notifications / Sound / Input, g6 Customize/Apps, g7 Customize/Context

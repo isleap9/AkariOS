@@ -127,6 +127,9 @@ public sealed partial class ShellViewModel : ObservableObject
         }
     }
 
+    /// <summary>A page's own header (a Guided step's name and line), until the next page or search.</summary>
+    public void SetHeader(string heading, string sub) => (Heading, Sub) = (heading, sub);
+
     /// <summary>Set-Busy: the ring, the label (or "Working…") and the bar; Ready at rest.</summary>
     public void SetBusy(bool on, string label = "", bool locked = true)
     {
