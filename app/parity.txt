@@ -90,10 +90,6 @@ Tools/Setup  oneclick-restore-point
 Tools/Setup  tools-activation
 Tools/Setup  tools-home-to-pro
 
-## PowerShell only: 4 Groups whose kind the native engine lacks
-Apps/Install  store  (StoreInstall)
-Apps/Remove  appx  (AppxRemove)
-Apps/Remove  capability  (CapabilityRemove)
-Apps/Remove  feature  (FeatureDisable)
+## PowerShell only: 0 Groups whose kind the native engine lacks
 
 ## Native only: 0

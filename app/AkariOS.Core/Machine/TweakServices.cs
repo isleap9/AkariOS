@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using System.Management;
 using System.Text;
+using AkariOS.Core.Apps;
 using AkariOS.Core.Registry;
 using AkariOS.Core.Tweaks;
+using AkariOS.Core.Update;
 
 namespace AkariOS.Core.Machine;
 
@@ -33,6 +35,12 @@ public sealed class TweakServices
     public IAppSettings? AppSettings { get; init; }
     public ITrustedInstaller? Trusted { get; init; }
     public IDownloads? Downloads { get; init; }
+
+    /// <summary>Store apps, Optional features, Windows features (the Remove tab's engine; Appx.ps1).</summary>
+    public AppPackages? Apps { get; init; }
+
+    /// <summary>winget installs and the Microsoft Store (Winget.ps1): one per engine, so winget is checked once.</summary>
+    public Winget? Winget { get; init; }
 
     /// <summary>What Akari last did to a Tweak it can't read back (state.json): the Engine's own.</summary>
     public IRememberedState? Remembered { get; init; }
@@ -71,12 +79,17 @@ public sealed class TweakServices
         folder.Length > 0 ? folder : throw new NotSupportedException($"this engine has no {what} folder");
 
     /// <summary>The real ones (guarded).</summary>
-    public static TweakServices Live(ITrustedInstaller trusted, IUserSid user, IExplorer explorer, IRememberedState remembered)
+    public static TweakServices Live(ITrustedInstaller trusted, IUserSid user, IExplorer explorer, IRememberedState remembered, IAkariLog log)
     {
         var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
         var services = new ServiceManager();
+        var exe = new ExeRunner();
+        var packages = new WindowsPackages();
+        var apps = new AppPackages(packages, new DismApi(), log);
         return new()
         {
+            Apps = apps,
+            Winget = new Winget(new WingetExe(), packages, new HttpDownloads(), apps, exe, log, Path.GetTempPath(), windows, Thread.Sleep),
             Hosts = new HostsFile(),
             Bindings = new WmiNetBindings(),
             Launcher = new ShellLauncher(),
@@ -85,7 +98,7 @@ public sealed class TweakServices
             W32tm = new W32tm(services),
             AppSettings = new RegExeAppSettings(),
             Tasks = new TaskScheduler(),
-            Exe = new ExeRunner(),
+            Exe = exe,
             Memory = new WmiMemoryAgent(),
             BitLocker = new WmiBitLocker(),
             PowerCfg = new PowerCfg(),

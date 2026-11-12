@@ -105,19 +105,8 @@ public sealed class RunnerTests : IDisposable
         Assert.Equal((OutcomeKind.Skipped, "Action has no Revert"), (One("act", TweakMode.Revert).Kind, One("act", TweakMode.Revert).Message));
         Assert.Equal((OutcomeKind.Failed, "Value is only for Choices"), (One("act", TweakMode.Apply, 3).Kind, One("act", TweakMode.Apply, 3).Message));
         Assert.Contains("only the PowerShell app", One("ps-only", TweakMode.Apply).Message);
-        Assert.Contains("winget", One("app", TweakMode.Apply).Message);
-        Assert.Equal(OutcomeKind.Failed, One("app", TweakMode.Apply).Kind);
-    }
-
-    [Fact]
-    public void An_entry_waits_for_its_kind()
-    {
-        var g = new TweakGroup { Id = "appx", Name = "R", Section = "Apps", Category = "Remove", EntryKind = EntryKind.AppxRemove, Source = "x" };
-        var entry = Loader.ResolveEntry([g], "appx/Microsoft.BingNews")!;
-        var (runner, _) = Make();
-        var o = runner.Run(entry, TweakMode.Apply);
-        Assert.Equal(OutcomeKind.Failed, o.Kind);
-        Assert.Contains("this list's changes", o.Message);
+        // an engine with no winget (AppRunnerTests has one)
+        Assert.Equal((OutcomeKind.Failed, "the engine can't install with winget"), (One("app", TweakMode.Apply).Kind, One("app", TweakMode.Apply).Message));
     }
 
     private const string Choice = """

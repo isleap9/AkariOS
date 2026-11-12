@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using AkariOS.Core.Apps;
 using AkariOS.Core.Data;
 using AkariOS.Core.Machine;
 using AkariOS.Core.Registry;
@@ -38,12 +39,11 @@ public sealed partial class Runner(TweakContext context, States states, IRemembe
     private static Outcome Outcome(Tweak t, TweakMode mode, OutcomeKind kind, bool reboot = false, string message = "") =>
         new(t.Id, mode, kind, reboot, message);
 
-    /// <summary>Why the native app can't run it yet, or null (its C#, an engine kind or winget still to come).</summary>
+    /// <summary>Why the native app can't run it yet, or null (its C# still to come).</summary>
     public static string? NotNative(Tweak t)
     {
         if (t.EntryKind is { } kind && !Parity.NativeEntryKinds.Contains(kind.Name))
             return "the native app can't do this list's changes yet";
-        if (t.Winget.Count > 0) return "the native app can't install with winget yet";
         if (!t.Native) return "only the PowerShell app can run it yet (its C# is still to come)";
         return null;
     }
@@ -100,6 +100,11 @@ public sealed partial class Runner(TweakContext context, States states, IRemembe
             return current is not null && RegistryEngine.Matches(current, value);
         }
         if (t.Kind != TweakKind.Action) return states.Of(t) == want;
+        // an Entry or a winget app: the engine's Detect
+        if (AppKinds.Handles(t))
+        {
+            try { return AppKinds.Done(t, context); } catch (Exception) { return false; }
+        }
         // an Action's Detect: already done (e.g. the app is already removed)
         if (!t.Has("Detect") || t.Code is null) return false;
         try { return t.Code.Detect(t, context) == TweakState.Optimized; } catch (Exception) { return false; }
@@ -107,6 +112,11 @@ public sealed partial class Runner(TweakContext context, States states, IRemembe
 
     private void Change(Tweak t, TweakMode mode, object? value)
     {
+        if (AppKinds.Handles(t))
+        {
+            AppKinds.Apply(t, context);
+            return;
+        }
         if (t.Kind == TweakKind.Choice)
         {
             var v = mode == TweakMode.Revert ? states.DefaultFor(t) : value ?? t.Recommended;

@@ -71,7 +71,7 @@ public sealed class Engine
             IsAdmin = () => new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator),
             SystemRestore = new WmiSystemRestore(),
             Shutdown = new ShutdownExe(),
-            Services = TweakServices.Live(trusted, user, explorer, remembered),
+            Services = TweakServices.Live(trusted, user, explorer, remembered, log),
         };
     }
 }

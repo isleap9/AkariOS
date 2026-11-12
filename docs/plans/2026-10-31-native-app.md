@@ -292,6 +292,16 @@ Scheduled tasks wait for N6, the Defender Safe Mode Toggles for N7.
 
 ## N5: Apps (remove and install)
 
+Batches (decided 2026-11-12), each committed on its own with a VM step: **N5a** engine (done 2026-11-12, 596
+tests): `IPackageManager` (WinRT `PackageManager`; the provisioned copy through its `FindProvisionedPackages` /
+`DeprovisionPackageForAllUsersAsync` rather than DISM: DISM's provisioned-app struct isn't documented; NonRemovable,
+which WinRT lacks, = System-signed plus App Installer and Windows Security), `IDism` (dismapi.dll: capabilities and
+features), `IWinget` + `Winget` (App Installer and the Store as Winget.ps1), `AppKinds` (the four Group kinds and the
+`Winget` field in the Runner); **N5b** the legacy removals as C#; **N5c** the installs with code; **N5d** the pages
+(Guided Apps step, Downloads and Remove apps flows, app icons as WPF resources, Home's Removable apps). Oracles: the
+pure list functions of `UI/Apps.ps1`, and the blocks of N5b / N5c with recorders for the Appx, winget and AppSetup
+helpers.
+
 - `IPackageManager` (`Windows.Management.Deployment.PackageManager`: installed packages for all users, logos from the
   manifests, remove for all users, deprovision); the never-list.
 - `IDism` (`dismapi.dll`, online session: capabilities, features; remove / disable).

@@ -44,7 +44,11 @@ public interface ITweakCode
     /// <summary>The file's Revert block. Value: a Choice over many settings' Windows default.</summary>
     void Revert(Tweak tweak, TweakContext c, object? value) => throw new NotSupportedException($"{tweak.Id} has no Revert in C#");
 
-    /// <summary>A registry Toggle's After block: one more step after its rows, both ways ($AkariMode).</summary>
+    /// <summary>A Winget Tweak's Before block: a step before the install (e.g. lifting a block the removals set).</summary>
+    void Before(Tweak tweak, TweakContext c) => throw new NotSupportedException($"{tweak.Id} has no Before in C#");
+
+    /// <summary>A registry Toggle's After block: one more step after its rows, both ways ($AkariMode); a Winget
+    /// Tweak's After: a step after the install (Apply).</summary>
     void After(Tweak tweak, TweakContext c, TweakMode mode) => throw new NotSupportedException($"{tweak.Id} has no After in C#");
 
     /// <summary>A SafeMode Tweak's Prepare block, in normal mode before the restart into Safe Mode (a download).</summary>

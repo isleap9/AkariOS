@@ -1,0 +1,139 @@
+using System.Runtime.InteropServices;
+
+namespace AkariOS.Core.Apps;
+
+/// <summary>
+/// The real DISM (dismapi.dll, the API the DISM cmdlets use; guarded): an online session per call, closed after.
+/// The structs are packed to 1 byte (dismapi.h): DismCapability / DismFeature = a name pointer and a state, 12 bytes;
+/// the *Info structs start the same way.
+/// </summary>
+public sealed partial class DismApi : IDism
+{
+    private const string Online = "DISM_{53BFAE52-B167-4E2F-A258-0A37B57FF845}";
+    private const int AlreadyInitialized = unchecked((int)0xC0040001);
+    private static readonly object Gate = new();
+    private static bool _initialized;
+
+    public DismApi() => SystemGuard.Check("DISM");
+
+    /// <summary>DismPackageFeatureState as Get-WindowsCapability names it.</summary>
+    public static string CapabilityStateName(int state) => state switch
+    {
+        0 => "NotPresent", 1 => "UninstallPending", 2 => "Staged", 3 => "Removed", 4 => "Installed",
+        5 => "InstallPending", 6 => "Superseded", 7 => "PartiallyInstalled", _ => state.ToString(),
+    };
+
+    /// <summary>DismPackageFeatureState as Get-WindowsOptionalFeature names it.</summary>
+    public static string FeatureStateName(int state) => state switch
+    {
+        0 or 2 => "Disabled", 1 => "DisablePending", 3 => "DisabledWithPayloadRemoved", 4 => "Enabled",
+        5 => "EnablePending", 6 => "Superseded", 7 => "PartiallyInstalled", _ => state.ToString(),
+    };
+
+    public IReadOnlyList<DismItem> Capabilities() => Session(s =>
+    {
+        Check(DismGetCapabilities(s, out var items, out var count));
+        return Items(items, count, CapabilityStateName);
+    });
+
+    public IReadOnlyList<DismItem> Features() => Session(s =>
+    {
+        Check(DismGetFeatures(s, null, 0, out var items, out var count));
+        return Items(items, count, FeatureStateName);
+    });
+
+    public string? CapabilityState(string name) => Session(s =>
+        DismGetCapabilityInfo(s, name, out var info) < 0 ? null : InfoState(info, CapabilityStateName));
+
+    public string? FeatureState(string name) => Session(s =>
+        DismGetFeatureInfo(s, name, null, 0, out var info) < 0 ? null : InfoState(info, FeatureStateName));
+
+    public void RemoveCapability(string name) => Session(s => Check(DismRemoveCapability(s, name, 0, 0, 0)));
+
+    public void DisableFeature(string name) => Session(s => Check(DismDisableFeature(s, name, null, 0, 0, 0, 0)));
+
+    private static List<DismItem> Items(nint items, uint count, Func<int, string> state)
+    {
+        try
+        {
+            var list = new List<DismItem>((int)count);
+            for (var i = 0; i < count; i++)
+            {
+                var at = items + i * 12;
+                list.Add(new DismItem(Marshal.PtrToStringUni(Marshal.ReadIntPtr(at)) ?? "", state(Marshal.ReadInt32(at, 8))));
+            }
+            return list;
+        }
+        finally { DismDelete(items); }
+    }
+
+    private static string InfoState(nint info, Func<int, string> state)
+    {
+        try { return state(Marshal.ReadInt32(info, 8)); }
+        finally { DismDelete(info); }
+    }
+
+    private static T Session<T>(Func<uint, T> work)
+    {
+        lock (Gate)
+        {
+            if (!_initialized)
+            {
+                var hr = DismInitialize(0, null, null);
+                if (hr < 0 && hr != AlreadyInitialized) Check(hr);
+                _initialized = true;
+            }
+            Check(DismOpenSession(Online, null, null, out var session));
+            try { return work(session); }
+            finally { DismCloseSession(session); }
+        }
+    }
+
+    private static void Session(Action<uint> work) => Session<object?>(s => { work(s); return null; });
+
+    /// <summary>A failed HRESULT as DISM's own message (3010, a restart needed, is success).</summary>
+    private static int Check(int hr)
+    {
+        if (hr >= 0) return hr;
+        string? text = null;
+        if (DismGetLastErrorMessage(out var msg) >= 0 && msg != 0)
+        {
+            text = Marshal.PtrToStringUni(Marshal.ReadIntPtr(msg))?.Trim();
+            DismDelete(msg);
+        }
+        throw new InvalidOperationException(string.IsNullOrEmpty(text) ? $"DISM failed (0x{hr:X8})" : $"{text} (0x{hr:X8})");
+    }
+
+    [LibraryImport("dismapi.dll", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial int DismInitialize(int logLevel, string? logFilePath, string? scratchDirectory);
+
+    [LibraryImport("dismapi.dll", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial int DismOpenSession(string imagePath, string? windowsDirectory, string? systemDrive, out uint session);
+
+    [LibraryImport("dismapi.dll")]
+    private static partial int DismCloseSession(uint session);
+
+    [LibraryImport("dismapi.dll")]
+    private static partial int DismDelete(nint dismStructure);
+
+    [LibraryImport("dismapi.dll")]
+    private static partial int DismGetLastErrorMessage(out nint errorMessage);
+
+    [LibraryImport("dismapi.dll")]
+    private static partial int DismGetCapabilities(uint session, out nint capability, out uint count);
+
+    [LibraryImport("dismapi.dll", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial int DismGetCapabilityInfo(uint session, string name, out nint info);
+
+    [LibraryImport("dismapi.dll", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial int DismRemoveCapability(uint session, string name, nint cancelEvent, nint progress, nint userData);
+
+    [LibraryImport("dismapi.dll", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial int DismGetFeatures(uint session, string? identifier, int packageIdentifier, out nint feature, out uint count);
+
+    [LibraryImport("dismapi.dll", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial int DismGetFeatureInfo(uint session, string featureName, string? identifier, int packageIdentifier, out nint info);
+
+    [LibraryImport("dismapi.dll", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial int DismDisableFeature(uint session, string featureName, string? packageName, int removePayload, nint cancelEvent, nint progress, nint userData);
+}

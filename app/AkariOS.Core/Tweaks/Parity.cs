@@ -7,8 +7,8 @@ namespace AkariOS.Core.Tweaks;
 /// </summary>
 public static class Parity
 {
-    /// <summary>The kinds the native engine runs (N5 adds them).</summary>
-    public static IReadOnlySet<string> NativeEntryKinds { get; } = new HashSet<string>();
+    /// <summary>The kinds the native engine runs (AkariOS.Core.Apps.AppKinds: all four since N5a).</summary>
+    public static IReadOnlySet<string> NativeEntryKinds { get; } = EntryKind.All.Select(k => k.Name).ToHashSet();
 
     public sealed record Report(IReadOnlyList<Tweak> PowerShellOnly, IReadOnlyList<TweakGroup> GroupsPowerShellOnly, IReadOnlyList<string> NativeOnly);
 
