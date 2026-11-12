@@ -423,6 +423,23 @@ helpers.
   (`IOfflineHives`), `Iso/Data` read through `PsData`, `IOscdimg` and the ADK, UUP Dump and Massgrave through `IHttp`
   (the same fixtures), the leftover mount cleaned on launch.
 - VM: the ISO Builder plan's VM batch, with the native exe.
+- Decided (grilled, 2026-11-12): the image through `IImage` = the DISM API where it is public (mount, commit /
+  discard, mount point cleanup, a WIM's editions, a mounted image's features / capabilities / packages read and
+  removed) and `dism.exe /English` through `IExe` for the rest, as the port (export, provisioned apps, the
+  NonRemovable policy, NetFx3, component cleanup); hives through `RegLoadKey` (`IOfflineHives`), rows through the
+  registry engine, a denied row or key as TrustedInstaller; the ISO mounted through WMI `MSFT_DiskImage`
+  (`IDiskImage`); AkariOS in the image = the running single-file exe as `C:\AkariOS\AkariOS-Native.exe` with Start
+  menu and Public desktop shortcuts (a developer build: the option off, saying why); UUP Dump through `IHttp.Text` /
+  `Post` and the converter through `IExe`, Massgrave through `IHttp.Text`, the ADK through `IHttp` + `IExe`; the
+  native app's own marker (`%ProgramData%\AkariOS.Native\iso-mount.json`); an ISO job and a Catalogue change or a
+  Guided Run refuse each other, the update check is Blocked during one. Four batches: N10a pure parts and data,
+  N10b the build, N10c downloads, N10d the page. Seams: the pure functions vs `Export-Iso.ps1`; the build vs
+  `Invoke-IsoBuild.ps1`'s recorded calls and registry state; the real implementations guarded; the page through
+  `AppHarness`.
+- N10a built 2026-11-12 (911 tests): `AkariOS.Core/Iso/` `IsoData`, `IsoPlan`, `Massgrave`, `Uup` against
+  `Oracle/Export-Iso.ps1`. Found: the port's `$_.Remove` on an option without a `Remove` key is the hashtable's
+  Remove() method, handed to `Remove-AkariImagePaths` as a path that matches nothing (harmless; the native build
+  doesn't copy it).
 
 ---
 
