@@ -77,6 +77,16 @@ public sealed class TweakServices
     /// <summary>Where files a Tweak hands to a tool are written out first (%ProgramData%\AkariOS.Native\Files).</summary>
     public string FilesFolder { get; init; } = "";
 
+    /// <summary>The Tools (N8): the board, BIOS and drives (WMI), the clipboard, event logs, Disk Cleanup, the driver
+    /// store (DISM's list, pnputil's delete), the firmware restart.</summary>
+    public IHardware? Hardware { get; init; }
+    public IClipboard? Clipboard { get; init; }
+    public IWevtutil? Wevtutil { get; init; }
+    public ICleanMgr? CleanMgr { get; init; }
+    public IDism? Dism { get; init; }
+    public IPnpUtil? PnpUtil { get; init; }
+    public IShutdown? Shutdown { get; init; }
+
     /// <summary>The logged-in user's SID (their profile folder, when Shell Folders doesn't say).</summary>
     public string? UserSid { get; init; }
 
@@ -99,10 +109,18 @@ public sealed class TweakServices
         var services = new ServiceManager();
         var exe = new ExeRunner();
         var packages = new WindowsPackages();
-        var apps = new AppPackages(packages, new DismApi(), log);
+        var dism = new DismApi();
+        var apps = new AppPackages(packages, dism, log);
         var http = new HttpDownloads();
         return new()
         {
+            Hardware = new WmiHardware(),
+            Clipboard = new Clipboard(),
+            Wevtutil = new WevtutilExe(),
+            CleanMgr = new CleanMgrExe(),
+            Dism = dism,
+            PnpUtil = new PnpUtilExe(),
+            Shutdown = new ShutdownExe(),
             Apps = apps,
             Winget = new Winget(new WingetExe(), packages, http, apps, exe, log, Path.GetTempPath(), windows, Thread.Sleep),
             Http = http,
@@ -224,24 +242,24 @@ public sealed class WmiNetBindings : INetBindings
     }
 }
 
-/// <summary>Opens a URI through the shell: a Settings page (ms-settings:), the Store's (ms-windows-store:) or Windows
-/// Security's (windowsdefender:).</summary>
+/// <summary>Opens a URI through the shell: a Settings page (ms-settings:), the Store's (ms-windows-store:), Windows
+/// Security's (windowsdefender:), or a web page (https:, the Tools' tests and searches) in the default browser.</summary>
 public interface ILauncher
 {
     void Open(string uri);
 }
 
-/// <summary>The real one (guarded); only Settings, Store and Windows Security pages.</summary>
+/// <summary>The real one (guarded); only Settings, Store and Windows Security pages, and https web pages.</summary>
 public sealed class ShellLauncher : ILauncher
 {
-    private static readonly string[] Schemes = ["ms-settings:", "ms-windows-store:", "windowsdefender:"];
+    private static readonly string[] Schemes = ["ms-settings:", "ms-windows-store:", "windowsdefender:", "https:"];
 
     public ShellLauncher() => SystemGuard.Check("Opening Settings pages");
 
     public void Open(string uri)
     {
         if (!Schemes.Any(s => uri.StartsWith(s, StringComparison.OrdinalIgnoreCase)))
-            throw new ArgumentException($"not a Settings page: {uri}");
+            throw new ArgumentException($"not a Settings or https page: {uri}");
         Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true })?.Dispose();
     }
 }

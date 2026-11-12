@@ -52,6 +52,32 @@ public sealed partial class DismApi : IDism
 
     public void DisableFeature(string name) => Session(s => Check(DismDisableFeature(s, name, null, 0, 0, 0, 0)));
 
+    // DismDriverPackage, packed to 1 byte (x64): PublishedName 0, OriginalFileName 8, InBox 16, CatalogFile 20,
+    // ClassName 28, ClassGuid 36, ClassDescription 44, BootCritical 52, DriverSignature 56, ProviderName 60,
+    // Date (SYSTEMTIME) 68, MajorVersion 84, MinorVersion 88, Build 92, Revision 96: 100 bytes
+    private const int DriverSize = 100;
+
+    public IReadOnlyList<DriverPackage> Drivers() => Session(s =>
+    {
+        Check(DismGetDrivers(s, 0, out var items, out var count));
+        try
+        {
+            var list = new List<DriverPackage>((int)count);
+            for (var i = 0; i < count; i++)
+            {
+                var at = items + i * DriverSize;
+                string Text(int offset) => Marshal.PtrToStringUni(Marshal.ReadIntPtr(at, offset)) ?? "";
+                int Word(int offset) => (ushort)Marshal.ReadInt16(at, offset);
+                var date = DateTime.MinValue;
+                try { date = new DateTime(Word(68), Word(70), Word(74)); } catch (ArgumentOutOfRangeException) { }
+                var version = $"{Marshal.ReadInt32(at, 84)}.{Marshal.ReadInt32(at, 88)}.{Marshal.ReadInt32(at, 92)}.{Marshal.ReadInt32(at, 96)}";
+                list.Add(new DriverPackage(Text(0), Text(8), Text(60), Text(28), version, date));
+            }
+            return list;
+        }
+        finally { DismDelete(items); }
+    });
+
     private static List<DismItem> Items(nint items, uint count, Func<int, string> state)
     {
         try
@@ -133,6 +159,9 @@ public sealed partial class DismApi : IDism
 
     [LibraryImport("dismapi.dll", StringMarshalling = StringMarshalling.Utf16)]
     private static partial int DismGetFeatureInfo(uint session, string featureName, string? identifier, int packageIdentifier, out nint info);
+
+    [LibraryImport("dismapi.dll")]
+    private static partial int DismGetDrivers(uint session, int allDrivers, out nint driverPackage, out uint count);
 
     [LibraryImport("dismapi.dll", StringMarshalling = StringMarshalling.Utf16)]
     private static partial int DismDisableFeature(uint session, string featureName, string? packageName, int removePayload, nint cancelEvent, nint progress, nint userData);

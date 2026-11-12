@@ -60,6 +60,14 @@ namespace AkariOS.Tweaks.Tests
         public FakeDownloads Downloads { get; } = new();
         public FakeHttp Http { get; } = new();
         public FakeRestore Restore { get; } = new();
+        public FakeHardware Hardware { get; } = new();
+        public FakeClipboard Clipboard { get; } = new();
+        public FakeWevtutil Wevtutil { get; } = new();
+        public FakeCleanMgr CleanMgr { get; } = new();
+        public FakeDriverStore Drivers { get; } = new();
+        public FakeShutdown Shutdown { get; } = new();
+        public FakeWinget Winget { get; } = new();
+        public FakeAppx Appx { get; } = new();
         public JsonRememberedState Remembered { get; }
         public FakePc Pc { get; } = new();
         public DateTime Now { get; set; } = new(2026, 11, 3, 12, 0, 0, DateTimeKind.Utc);
@@ -71,6 +79,7 @@ namespace AkariOS.Tweaks.Tests
             Directory.CreateDirectory(Dir);
             var files = new FolderSourceFiles(Repo.Root);
             Remembered = new JsonRememberedState(Path.Combine(Dir, "state.json"));
+            var apps = new Core.Apps.AppPackages(Appx, Drivers, Log);
             Engine = new Engine
             {
                 Files = files,
@@ -92,6 +101,9 @@ namespace AkariOS.Tweaks.Tests
                     ProgramData = Folder("ProgramData"), Windows = Folder("Windows"), SystemDrive = Folder("C"), FilesFolder = Folder("Files"),
                     ProgramFiles = Folder("Program Files"), ProgramFilesX86 = Folder("Program Files (x86)"), Public = Folder("Public"),
                     LocalAppData = Folder("LocalAppData"), Http = Http,
+                    Hardware = Hardware, Clipboard = Clipboard, Wevtutil = Wevtutil, CleanMgr = CleanMgr, Dism = Drivers, PnpUtil = Drivers, Shutdown = Shutdown,
+                    Apps = apps,
+                    Winget = new Core.Apps.Winget(Winget, Appx, Http, apps, Exe, Log, Folder("winget-temp"), Folder("Windows"), _ => { }),
                     UtcNow = () => Now, Sleep = _ => { },
                 },
             };
@@ -249,12 +261,124 @@ namespace AkariOS.Tweaks.Tests
     {
         public List<string> Saved { get; } = [];
 
-        public void Download(string url, string file)
+        /// <summary>Pages read: "url" (" +headers" when some were given); their text from Pages ("" otherwise).</summary>
+        public List<string> Read { get; } = [];
+        public Dictionary<string, string> Pages { get; } = [];
+        public List<IReadOnlyDictionary<string, string>> Headers { get; } = [];
+
+        public void Download(string url, string file) => Download(url, file, null);
+
+        public void Download(string url, string file, IReadOnlyDictionary<string, string>? headers)
         {
-            Saved.Add($"{url}|{file}");
+            if (headers is not null) Headers.Add(headers);
+            Saved.Add($"{url}|{file}{(headers is null ? "" : " +headers")}");
             Directory.CreateDirectory(Path.GetDirectoryName(file)!);
             File.WriteAllText(file, "");
         }
+
+        public string Text(string url, IReadOnlyDictionary<string, string>? headers = null)
+        {
+            if (headers is not null) Headers.Add(headers);
+            Read.Add($"{url}{(headers is null ? "" : " +headers")}");
+            return Pages.GetValueOrDefault(url, "");
+        }
+    }
+
+    internal sealed class FakeHardware : IHardware
+    {
+        public BoardInfo? BoardIs { get; set; } = new("ASUSTeK COMPUTER INC.", "ROG STRIX B650E-F GAMING WIFI");
+        public BiosInfo? BiosIs { get; set; } = new("3024", new DateTime(2024, 8, 5));
+        public List<VolumeInfo> All { get; } = [];
+        public IReadOnlyList<int> ChassisTypes() => [3];
+        public IReadOnlyList<string> DisplayDeviceIds() => [];
+        public BoardInfo? Board() => BoardIs;
+        public BiosInfo? Bios() => BiosIs;
+        public IReadOnlyList<VolumeInfo> Volumes() => All.ToList();
+    }
+
+    internal sealed class FakeClipboard : IClipboard
+    {
+        public List<string> Texts { get; } = [];
+        public void SetText(string text) => Texts.Add(text);
+    }
+
+    /// <summary>wevtutil: "el" answers Logs; every call recorded ("wevtutil &lt;args&gt;").</summary>
+    internal sealed class FakeWevtutil : IWevtutil
+    {
+        public List<string> Logs { get; } = [];
+        public List<string> Calls { get; } = [];
+
+        public IReadOnlyList<string> Run(params string[] arguments)
+        {
+            Calls.Add($"wevtutil {string.Join(" ", arguments)}");
+            return arguments[0] == "el" ? Logs.ToList() : [];
+        }
+    }
+
+    internal sealed class FakeCleanMgr : ICleanMgr
+    {
+        public List<int> Runs { get; } = [];
+        public void Run(int set) => Runs.Add(set);
+    }
+
+    /// <summary>The driver store: its packages (DISM's list) and pnputil's deletes ("pnputil &lt;inf&gt;"; Kept = 1). Also
+    /// the rest of DISM, empty.</summary>
+    internal sealed class FakeDriverStore : Core.Apps.IDism, IPnpUtil
+    {
+        public List<Core.Apps.DriverPackage> Packages { get; } = [];
+        public HashSet<string> Kept { get; } = [];
+        public List<string> Calls { get; } = [];
+        public IReadOnlyList<Core.Apps.DriverPackage> Drivers() => Packages.ToList();
+        public int DeleteDriver(string inf) { Calls.Add($"pnputil {inf}"); return Kept.Contains(inf) ? 1 : 0; }
+        public IReadOnlyList<Core.Apps.DismItem> Capabilities() => [];
+        public IReadOnlyList<Core.Apps.DismItem> Features() => [];
+        public string? CapabilityState(string name) => null;
+        public string? FeatureState(string name) => null;
+        public void RemoveCapability(string name) { }
+        public void DisableFeature(string name) { }
+    }
+
+    internal sealed class FakeShutdown : IShutdown
+    {
+        public int Restarts { get; private set; }
+        public int FirmwareRestarts { get; private set; }
+        public int FirmwareCode { get; set; }
+        public void Restart() => Restarts++;
+        public int Firmware() { FirmwareRestarts++; return FirmwareCode; }
+    }
+
+    /// <summary>winget.exe: "--version" 1.9.0, installs recorded by id ("winget &lt;id&gt; &lt;source&gt;", as the blocks oracle
+    /// writes them); OnInstall lays the package's files down.</summary>
+    internal sealed class FakeWinget : Core.Apps.IWinget
+    {
+        public List<string> Installs { get; } = [];
+        public Action<string>? OnInstall { get; set; }
+
+        public Core.Apps.WingetResult Run(params string[] arguments)
+        {
+            if (arguments[0] == "--version") return new(0, ["v1.9.0"]);
+            if (arguments[0] == "install")
+            {
+                var id = arguments[Array.IndexOf(arguments, "--id") + 1];
+                var source = arguments[Array.IndexOf(arguments, "--source") + 1];
+                Installs.Add($"winget {id} {source}");
+                OnInstall?.Invoke(id);
+            }
+            return new(0, []);
+        }
+    }
+
+    /// <summary>Store packages: none installed; Add-AppxPackage recorded ("appx &lt;file&gt;").</summary>
+    internal sealed class FakeAppx : Core.Apps.IPackageManager
+    {
+        public List<string> Calls { get; } = [];
+        public IReadOnlyList<Core.Apps.AppPackage> AllUsers() => [];
+        public void Remove(string fullName) => Calls.Add($"remove {fullName}");
+        public void RegisterByFamily(string family) => Calls.Add($"register-family {family}");
+        public void Register(string manifest) => Calls.Add($"register {manifest}");
+        public void Add(string file) => Calls.Add($"appx {file}");
+        public IReadOnlyList<Core.Apps.ProvisionedApp> ProvisionedApps() => [];
+        public void Deprovision(string family) => Calls.Add($"deprovision {family}");
     }
 
     internal sealed class CountingExplorer : IExplorer
@@ -283,11 +407,15 @@ namespace AkariOS.Tweaks.Tests
     {
         public List<string> Saved { get; } = [];
 
+        /// <summary>A file's own content: name -> a local file copied instead of an empty one (a zip).</summary>
+        public Dictionary<string, string> Files { get; } = [];
+
         public void Save(string name, string outFile)
         {
             Saved.Add($"{name}|{outFile}");
             Directory.CreateDirectory(Path.GetDirectoryName(outFile)!);
-            File.WriteAllText(outFile, "");
+            if (Files.TryGetValue(name, out var from)) File.Copy(from, outFile, overwrite: true);
+            else File.WriteAllText(outFile, "");
         }
     }
 

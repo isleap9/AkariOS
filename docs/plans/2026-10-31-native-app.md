@@ -376,6 +376,20 @@ helpers.
 - Section Tools (checks, cleanup, refresh, drivers, setup) and the remaining C# Tweaks, until `parity.txt` lists
   only what is left out on purpose (each with its reason in the file).
 - VM: each Tools Action once.
+- Built 2026-11-12 (753 tests, parity 37 → 0: nothing left out). Decided (grilled): every Tools block as one C#
+  class, checked against its block (`Invoke-TweakBlocks.ps1`, now with `-Logs` so the console lines match too). Web
+  pages open through `ILauncher`, which takes `https:` (never `http:`); Windows' own windows and the tools Akari
+  starts go through `IExe` from their System32 path, not waited for (`appwiz.cpl` = `control.exe appwiz.cpl`). The
+  board, BIOS and drives are `IHardware` reads (WMI; the drives through `DriveInfo`, not `Get-Volume`). The clipboard
+  is user32's (Core has no WPF and a change runs off the UI thread). Vendor pages and downloads go through `IHttp`
+  (`Text`, headers: AMD's site serves browsers only); AMD's setup link is the block's regex over the page's hrefs.
+  wevtutil, cleanmgr (with its frozen watch) and pnputil each through their own interface; the driver store is read
+  through DISM's API (`IDism.Drivers`, as Get-WindowsDriver -Online). Remove-AkariPaths is `SystemPaths.Remove` (real
+  deletes; tests on temp folders, the Oracle's real function on its own copy). Windows.old goes as TrustedInstaller
+  through cmd's `rd` (as N7's Defender move), then taken over and deleted. The firmware restart is
+  `IShutdown.Firmware`. Deliberate differences: AMD's config files keep their own encoding (5.1's Set-Content writes
+  ANSI, the same bytes for these ASCII files); `[uri]::EscapeDataString` is matched as 5.1 has it (RFC 2396: `!*'()`
+  not escaped); the bare `rundll32.exe` / `msiexec.exe` run from System32.
 
 ## N9: Unattend Generator
 

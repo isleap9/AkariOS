@@ -30,12 +30,20 @@ public interface ISystemInfo
     string? DisplayVersion => null;
 }
 
-/// <summary>The WMI reads: the chassis types, the display devices. The real one is <see cref="WmiHardware"/>.</summary>
+/// <summary>The WMI reads: the chassis types, the display devices; for the Tools checks (N8) the board, the BIOS and the
+/// lettered drives (null / none: unknown). The real one is <see cref="WmiHardware"/>.</summary>
 public interface IHardware
 {
     IReadOnlyList<int> ChassisTypes();
 
     IReadOnlyList<string> DisplayDeviceIds();
+
+    BoardInfo? Board() => null;
+
+    BiosInfo? Bios() => null;
+
+    /// <summary>Drives with a letter and a size, by letter (Get-Volume's with a DriveLetter and a Size).</summary>
+    IReadOnlyList<VolumeInfo> Volumes() => [];
 }
 
 /// <summary>
@@ -122,4 +130,27 @@ public sealed class WmiHardware : IHardware
                 if (o["DeviceID"] is string id) ids.Add(id);
         return ids;
     }
+
+    public BoardInfo? Board()
+    {
+        using var s = new ManagementObjectSearcher("SELECT Manufacturer, Product FROM Win32_BaseBoard");
+        foreach (var o in s.Get())
+            using (o) return new BoardInfo(o["Manufacturer"] as string ?? "", o["Product"] as string ?? "");
+        return null;
+    }
+
+    public BiosInfo? Bios()
+    {
+        using var s = new ManagementObjectSearcher("SELECT SMBIOSBIOSVersion, ReleaseDate FROM Win32_BIOS");
+        foreach (var o in s.Get())
+            using (o)
+                return new BiosInfo(o["SMBIOSBIOSVersion"] as string ?? "",
+                    o["ReleaseDate"] is string d && d.Length > 0 ? ManagementDateTimeConverter.ToDateTime(d) : null);
+        return null;
+    }
+
+    public IReadOnlyList<VolumeInfo> Volumes() => DriveInfo.GetDrives()
+        .Where(d => d.IsReady && d.TotalSize > 0)
+        .Select(d => new VolumeInfo(char.ToUpperInvariant(d.Name[0]), d.TotalSize, d.TotalFreeSpace))
+        .OrderBy(v => v.Letter).ToList();
 }

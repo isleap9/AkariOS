@@ -55,12 +55,30 @@ public sealed class HttpDownloads : IHttp
 
     public HttpDownloads() => SystemGuard.Check("Downloads");
 
-    public void Download(string url, string file)
+    public void Download(string url, string file) => Download(url, file, null);
+
+    public void Download(string url, string file, IReadOnlyDictionary<string, string>? headers)
     {
-        using var response = Http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead).GetAwaiter().GetResult();
-        response.EnsureSuccessStatusCode();
+        using var response = Send(url, headers, HttpCompletionOption.ResponseHeadersRead);
         using var body = response.Content.ReadAsStream();
         using var f = File.Create(file);
         body.CopyTo(f);
+    }
+
+    public string Text(string url, IReadOnlyDictionary<string, string>? headers = null)
+    {
+        using var response = Send(url, headers, HttpCompletionOption.ResponseContentRead);
+        return response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+    }
+
+    // a header given here replaces the client's own (a browser's User-Agent for AMD's site)
+    private static HttpResponseMessage Send(string url, IReadOnlyDictionary<string, string>? headers, HttpCompletionOption completion)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        foreach (var (k, v) in headers ?? new Dictionary<string, string>()) request.Headers.TryAddWithoutValidation(k, v);
+        var response = Http.SendAsync(request, completion).GetAwaiter().GetResult();
+        try { response.EnsureSuccessStatusCode(); }
+        catch { response.Dispose(); throw; }
+        return response;
     }
 }

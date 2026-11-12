@@ -40,6 +40,10 @@ public sealed record ProvisionedApp(string DisplayName, string Family);
 /// Disabled…).</summary>
 public sealed record DismItem(string Name, string State);
 
+/// <summary>A driver package as Get-WindowsDriver names it: Driver = its oemNN.inf, OriginalFileName (the .inf's path in
+/// the driver store), ProviderName, ClassName, Version ("31.0.15.5222"), Date.</summary>
+public sealed record DriverPackage(string Driver, string OriginalFileName, string ProviderName, string ClassName, string Version, DateTime Date);
+
 /// <summary>DISM on the running Windows (dismapi.dll): Optional features (capabilities) and Windows features. Throws
 /// when DISM refuses.</summary>
 public interface IDism
@@ -55,6 +59,10 @@ public interface IDism
 
     /// <summary>Turns it off without restarting (the Run says a restart is due).</summary>
     void DisableFeature(string name);
+
+    /// <summary>The third-party driver packages in the driver store (Get-AkariDriverPackages = Get-WindowsDriver
+    /// -Online). Read only.</summary>
+    IReadOnlyList<DriverPackage> Drivers() => throw new NotSupportedException("this engine can't read the driver store");
 }
 
 /// <summary>
@@ -102,6 +110,9 @@ public sealed class AppPackages(IPackageManager packages, IDism dism, IAkariLog 
     public IReadOnlyList<string> EnabledFeatures() => Names(dism.Features(), "Enabled");
     public bool CapabilityInstalled(string name) => string.Equals(dism.CapabilityState(name), "Installed", StringComparison.OrdinalIgnoreCase);
     public bool FeatureEnabled(string name) => string.Equals(dism.FeatureState(name), "Enabled", StringComparison.OrdinalIgnoreCase);
+    /// <summary>Add-AppxPackage: a package file installed for the user (the NVIDIA Control Panel).</summary>
+    public void Add(string file) => packages.Add(file);
+
     public void RemoveCapability(string name) => dism.RemoveCapability(name);
     public void DisableFeature(string name) => dism.DisableFeature(name);
 

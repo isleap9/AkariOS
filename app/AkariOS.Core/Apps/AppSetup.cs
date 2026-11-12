@@ -27,9 +27,12 @@ public static class AppSetup
     ];
 
     /// <summary>Remove-AkariStartup: the autostart values whose name is like one of the patterns.</summary>
-    public static void RemoveStartup(TweakContext c, params string[] names)
+    public static void RemoveStartup(TweakContext c, params string[] names) => RemoveStartup(c, names, RunKeys);
+
+    /// <summary>Remove-AkariStartup with its own keys (a RunOnce).</summary>
+    public static void RemoveStartup(TweakContext c, IReadOnlyList<string> names, IReadOnlyList<string> keys)
     {
-        foreach (var key in RunKeys)
+        foreach (var key in keys)
             foreach (var v in c.Registry.ValueNames(key))
                 if (names.Any(n => PsSemantics.Like(v, n))) c.Registry.RemoveValue(key, v);
     }
@@ -76,6 +79,44 @@ public static class AppSetup
             if (f is not null) return f;
         }
         return null;
+    }
+
+    /// <summary>Find-AkariProgram: the portable winget copy of the package, else the first exe (a file pattern) at most
+    /// two folders down in Program Files, then Program Files (x86); null when it is not there.</summary>
+    public static string? FindProgram(TweakContext c, string id, string exe)
+    {
+        if (WingetExe(c, id, exe) is { } portable) return portable;
+        foreach (var root in new[] { c.Services.ProgramFiles, c.Services.ProgramFilesX86 })
+            if (root.Length > 0 && Directory.Exists(root) && First(root, exe, 2) is { } found) return found;
+        return null;
+    }
+
+    // Get-ChildItem -Recurse -Depth n -Filter -File | Select-Object -First 1: a folder's files, then each subfolder's
+    private static string? First(string folder, string pattern, int depth)
+    {
+        try
+        {
+            if (Directory.EnumerateFiles(folder, pattern).FirstOrDefault() is { } f) return f;
+            if (depth == 0) return null;
+            foreach (var d in Directory.EnumerateDirectories(folder))
+                if (First(d, pattern, depth - 1) is { } g) return g;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        return null;
+    }
+
+    /// <summary>Open-AkariWingetTool: a Tools check's program, its winget package installed first when it is missing,
+    /// then started (not waited for).</summary>
+    public static void OpenTool(TweakContext c, string id, string exe)
+    {
+        var path = FindProgram(c, id, exe);
+        if (path is null)
+        {
+            TweakServices.Need(c.Services.Winget, "winget").Install(id);
+            path = FindProgram(c, id, exe);
+        }
+        if (path is null) throw new InvalidOperationException($"{id} is installed, but {exe} was not found");
+        Exe(c).Run(path, "", wait: false);
     }
 
     /// <summary>Get-AkariMsi: the products whose display name is like the pattern.</summary>

@@ -43,6 +43,19 @@
 #   "readonly <%Root%\…>|<True|False>" (Set-ItemProperty IsReadOnly: done, inside the test's folders only);
 #   Get-ChildItem takes -Force; $AkariRoot = -Src (the blocks read OneClick\ files there); -Only 'Apply,…': only
 #   those blocks run (a Prepare would empty what the Apply after it needs).
+#   N8 (Tools): -Logs: "log <text>" for each Write-Log line; Get-CimInstance answers -Board ('Manufacturer|Product')
+#   and -Bios ('Version|yyyy-MM-dd' or 'Version|'), Get-Volume -Volumes ('C|size|free;…'); "clipboard <text>"
+#   (Set-Clipboard), "firmware" (Restart-AkariFirmware: -FirmwareCode), "wevtutil <args>" (Invoke-AkariWevtutil; "el"
+#   answers -EventLogs 'name;…'), "cleanmgr <set>" (Invoke-AkariCleanMgr), Get-AkariDriverPackages answers -Drivers
+#   ('Driver|OriginalFileName|Provider|Class|Version|yyyy-MM-dd;…'), "pnputil <inf>" (Remove-AkariDriverPackage: 0,
+#   1 for -DriversKept 'inf;…'), "appx <path>" (Add-AppxPackage), "unzip <archive>|<folder>" (Expand-Archive: done,
+#   inside the test's folders only); Remove-AkariPaths, Open-AkariWingetTool and Find-AkariProgram are the real ones
+#   (every path given to Remove-AkariPaths must be under -TestDir); Invoke-WebRequest takes -Headers ("+headers" after
+#   its line) and, with no -OutFile, records "webtext <uri>" and answers -WebContent and -WebLinks ('href;…');
+#   Invoke-AkariExe of 7z.exe "x" copies -Unpack's contents into its -o folder, of any other program records
+#   "snap <file>|<text>" for each file under -Snapshot (what an installer finds); Save-AkariFile copies -Downloaded's
+#   file ('name=path;…') instead of an empty one; -SystemDrive: $env:SystemDrive (%SystemDrive%\… in the lines);
+#   Move-Item takes pipeline input and a folder as -Destination, inside the test's folders.
 # Get-MMAgent answers -MMAgent ('ApplicationLaunchPrefetching=True;…;MaxOperationAPIFiles=512'). -SystemRoot: the
 # blocks' $env:SystemRoot (a temp folder the C# test laid out).
 # Get-AkariGpus answers -Gpus ('Vendor|Path;…'), Get-AkariGpuDevices -GpuDevices ('id;…'), Get-AkariRememberedState
@@ -59,21 +72,77 @@ param([Parameter(Mandatory)][string]$Src, [Parameter(Mandatory)][string]$Out, [s
     [string]$BcdLines = '', [string]$TestRoot = '', [string]$AppValues = '', [string]$UserFolder = '', [string]$Gpus = '',
     [string]$GpuDevices = '', [string]$Remembered = '', [string]$ProgramFiles = '', [string]$ProgramFilesX86 = '', [string]$ProgramData = '',
     [string]$MMAgent = '', [string]$SystemRoot = '', [string]$Services = '', [string]$Processes = '', [string]$Tasks = '',
-    [string]$Public = '', [string]$LocalAppData = '', [switch]$MakeFiles, [string]$Value = '', [string]$KeptTasks = '', [switch]$RestoreFails, [string]$Only = '')
+    [string]$Public = '', [string]$LocalAppData = '', [switch]$MakeFiles, [string]$Value = '', [string]$KeptTasks = '', [switch]$RestoreFails, [string]$Only = '',
+    [switch]$Logs, [string]$Board = '', [string]$Bios = '', [string]$Volumes = '', [int]$FirmwareCode = 0, [string]$EventLogs = '', [string]$Drivers = '',
+    [string]$DriversKept = '', [string]$TestDir = '', [string]$WebContent = '', [string]$WebLinks = '', [string]$Unpack = '', [string]$Downloaded = '',
+    [string]$SystemDrive = '', [string]$Snapshot = '')
 $ErrorActionPreference = 'Stop'
 $AkariRoot = $Src
 . (Join-Path $Src 'Core\Loader.ps1')
 . (Join-Path $Src 'Core\Registry.ps1')
 $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $Src 'Core\AppSetup.ps1'), [ref]$null, [ref]$null)
-foreach ($fn in 'Get-AkariAppSettingState', 'Uninstall-AkariMsi', 'Invoke-AkariSelfUninstall', 'Remove-AkariStartup', 'Remove-AkariUpdaters', 'Get-AkariWingetExe') {
+foreach ($fn in 'Get-AkariAppSettingState', 'Uninstall-AkariMsi', 'Invoke-AkariSelfUninstall', 'Remove-AkariStartup', 'Remove-AkariUpdaters', 'Get-AkariWingetExe',
+    'Find-AkariProgram', 'Open-AkariWingetTool') {
     . ([scriptblock]::Create($ast.Find({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $fn }, $true).Extent.Text))
 }
 $sys = [Management.Automation.Language.Parser]::ParseFile((Join-Path $Src 'Core\System.ps1'), [ref]$null, [ref]$null)
-. ([scriptblock]::Create($sys.Find({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Remove-AkariScheduledTasks' }, $true).Extent.Text))
+foreach ($fn in 'Remove-AkariScheduledTasks', 'Remove-AkariPaths') {
+    . ([scriptblock]::Create($sys.Find({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $fn }, $true).Extent.Text))
+}
+$script:RealRemovePaths = ${function:Remove-AkariPaths}
+function Remove-AkariPaths([string[]]$Paths) {
+    foreach ($p in $Paths) { if (-not $TestDir -or -not $p.StartsWith($TestDir, 'OrdinalIgnoreCase')) { throw "not a test path: $p" } }
+    & $script:RealRemovePaths $Paths
+}
 if ($Value) { $AkariValue = $Value }
-function Write-Log { }
-$script:Users = if ($UserFolder) { $UserFolder } else { Join-Path $env:TEMP "akari-none-$([guid]::NewGuid().ToString('N'))" }
 $script:Calls = [Collections.Generic.List[string]]::new()
+function Write-Log([string]$Message) { if ($Logs) { $script:Calls.Add("log $(Format-TestPaths $Message)") } }
+function Get-CimInstance {
+    [CmdletBinding()] param([string]$ClassName)
+    if ($ClassName -eq 'Win32_BaseBoard') { $m, $p = $Board.Split('|', 2); return [pscustomobject]@{ Manufacturer = $m; Product = $p } }
+    if ($ClassName -eq 'Win32_BIOS') {
+        $v, $d = $Bios.Split('|', 2)
+        return [pscustomobject]@{ SMBIOSBIOSVersion = $v; ReleaseDate = $(if ($d) { [datetime]::ParseExact($d, 'yyyy-MM-dd', $null) } else { $null }) }
+    }
+    throw "no stand-in for $ClassName"
+}
+function Get-Volume {
+    foreach ($v in @($Volumes.Split(';') | Where-Object { $_ })) {
+        $l, $s, $f = $v.Split('|')
+        [pscustomobject]@{ DriveLetter = [char]$l; Size = [uint64]$s; SizeRemaining = [uint64]$f }
+    }
+}
+function Set-Clipboard { [CmdletBinding()] param([string]$Value) $script:Calls.Add("clipboard $Value") }
+function Restart-AkariFirmware { $script:Calls.Add('firmware'); $FirmwareCode }
+function Invoke-AkariWevtutil {
+    $script:Calls.Add("wevtutil $($args -join ' ')")
+    if ($args[0] -eq 'el') { @($EventLogs.Split(';') | Where-Object { $_ }) }
+}
+function Invoke-AkariCleanMgr([int]$Set) { $script:Calls.Add("cleanmgr $Set") }
+function Get-AkariDriverPackages {
+    foreach ($d in @($Drivers.Split(';') | Where-Object { $_ })) {
+        $n, $o, $p, $c, $v, $t = $d.Split('|')
+        [pscustomobject]@{ Driver = $n; OriginalFileName = $o; ProviderName = $p; ClassName = $c; Version = $v; Date = [datetime]::ParseExact($t, 'yyyy-MM-dd', $null) }
+    }
+}
+function Remove-AkariDriverPackage([string]$Inf) { $script:Calls.Add("pnputil $Inf"); if ($Inf -in @($DriversKept.Split(';'))) { 1 } else { 0 } }
+function Add-AppxPackage { [CmdletBinding()] param([string]$Path) $script:Calls.Add("appx $(Format-TestPaths $Path)") }
+function Expand-Archive {
+    [CmdletBinding()] param([string]$LiteralPath, [string]$DestinationPath, [switch]$Force)
+    if (-not (Test-InsideTest $LiteralPath) -or -not (Test-InsideTest $DestinationPath)) { throw "not a test path: $LiteralPath" }
+    $script:Calls.Add("unzip $(Format-TestPaths $LiteralPath)|$(Format-TestPaths $DestinationPath)")
+    # what Expand-Archive -Force does, through .NET (the Archive module calls cmdlets these stand-ins replace)
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $zip = [IO.Compression.ZipFile]::OpenRead($LiteralPath)
+    try {
+        foreach ($e in $zip.Entries) {
+            $to = Join-Path $DestinationPath $e.FullName
+            [void][IO.Directory]::CreateDirectory((Split-Path $to))
+            if ($e.Name) { [IO.Compression.ZipFileExtensions]::ExtractToFile($e, $to, [bool]$Force) }
+        }
+    } finally { $zip.Dispose() }
+}
+$script:Users = if ($UserFolder) { $UserFolder } else { Join-Path $env:TEMP "akari-none-$([guid]::NewGuid().ToString('N'))" }
 $script:Plans = @($PlanList.Split(',') | Where-Object { $_ } | ForEach-Object { "Power Scheme GUID: $_  (Plan)" })
 function Format-Value($Value) { if ($Value -is [byte[]]) { ($Value | ForEach-Object { $_.ToString('x2') }) -join ',' } else { "$Value" } }
 function Invoke-AkariPowerCfg { $script:Calls.Add("powercfg $($args -join ' ')"); if ($args[0] -eq '/list') { $script:Plans } }
@@ -155,14 +224,14 @@ function Get-AkariMsi([string]$Name) {
 }
 # a path under one of the test's folders as %Root%\…, else $null
 function Get-TestFilePath([string]$Path) {
-    foreach ($r in @(@('SystemRoot', $SystemRoot), @('ProgramFiles', $ProgramFiles), @('ProgramFiles(x86)', $ProgramFilesX86), @('ProgramData', $ProgramData), @('PUBLIC', $Public))) {
+    foreach ($r in @(@('SystemRoot', $SystemRoot), @('ProgramFiles', $ProgramFiles), @('ProgramFiles(x86)', $ProgramFilesX86), @('ProgramData', $ProgramData), @('PUBLIC', $Public), @('SystemDrive', $SystemDrive))) {
         $root = "$($r[1])".TrimEnd('\')
         if ($root -and ($Path -eq $root -or $Path.StartsWith("$root\", 'OrdinalIgnoreCase'))) { return "%$($r[0])%$($Path.Substring($root.Length))" }
     }
     $null
 }
 function Format-TestPaths([string]$Text) {
-    foreach ($r in @(@('SystemRoot', $SystemRoot), @('ProgramFiles(x86)', $ProgramFilesX86), @('ProgramFiles', $ProgramFiles), @('ProgramData', $ProgramData), @('PUBLIC', $Public))) {
+    foreach ($r in @(@('SystemRoot', $SystemRoot), @('ProgramFiles(x86)', $ProgramFilesX86), @('ProgramFiles', $ProgramFiles), @('ProgramData', $ProgramData), @('PUBLIC', $Public), @('SystemDrive', $SystemDrive))) {
         if ($r[1]) { $Text = $Text.Replace("$($r[1])".TrimEnd('\'), "%$($r[0])%") }
     }
     $Text
@@ -171,10 +240,10 @@ function takeown.exe { $script:Calls.Add("takeown $(Format-TestPaths ($args -joi
 function icacls.exe { $script:Calls.Add("icacls $(Format-TestPaths ($args -join ' '))") }
 # HKLM: / HKCU: paths read on the test key
 function Test-Path {
-    [CmdletBinding()] param([Parameter(Position = 0)][string]$Path, [string]$LiteralPath)
+    [CmdletBinding()] param([Parameter(Position = 0, ValueFromPipeline)][string]$Path, [string]$LiteralPath, [string]$PathType = 'Any')
     $p = if ($LiteralPath) { $LiteralPath } else { $Path }
     if ($p -match '^(HKLM|HKCU):\\') { return Microsoft.PowerShell.Management\Test-Path -LiteralPath (Resolve-AkariRegPath $p) }
-    if ($LiteralPath) { Microsoft.PowerShell.Management\Test-Path -LiteralPath $p } else { Microsoft.PowerShell.Management\Test-Path -Path $p }
+    if ($LiteralPath) { Microsoft.PowerShell.Management\Test-Path -LiteralPath $p -PathType $PathType } else { Microsoft.PowerShell.Management\Test-Path -Path $p -PathType $PathType }
 }
 function Get-ChildItem {
     [CmdletBinding()] param([Parameter(Position = 0)][string[]]$Path, [string[]]$LiteralPath, [string]$Filter, [switch]$Recurse, [switch]$File, [switch]$Directory, [int]$Depth, [switch]$Force)
@@ -210,16 +279,22 @@ function Get-RootPath([string]$Path) {
 }
 function Grant-AkariOwnership([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path)) { return }
-    $p = Get-RootPath $Path
+    $p = Get-TestFilePath $Path
     if (-not $p) { throw "not a test path: $Path" }
     $script:Calls.Add("own $p")
 }
 function Move-Item {
-    [CmdletBinding()] param([string]$LiteralPath, [string]$Destination, [switch]$Force)
-    $from = Get-RootPath $LiteralPath; $to = Get-RootPath $Destination
-    if (-not $from -or -not $to) { throw "not a test path: $LiteralPath" }
-    $script:Calls.Add("move $from|$to")
-    if ([IO.Directory]::Exists($LiteralPath)) { [IO.Directory]::Move($LiteralPath, $Destination) } else { [IO.File]::Move($LiteralPath, $Destination) }
+    [CmdletBinding()] param([Parameter(ValueFromPipelineByPropertyName)][Alias('PSPath')][string]$LiteralPath, [string]$Destination, [switch]$Force)
+    process {
+        $src = $LiteralPath -replace '^Microsoft\.PowerShell\.Core\\(FileSystem::)?', ''
+        $from = Get-TestFilePath $src; $to = Get-TestFilePath $Destination
+        if (-not $from -or -not $to) { throw "not a test path: $src" }
+        $script:Calls.Add("move $from|$to")
+        # into a folder that is there (Move-Item's own rule)
+        $target = if ([IO.Directory]::Exists($Destination)) { Join-Path $Destination (Split-Path $src -Leaf) } else { $Destination }
+        if ($Force -and [IO.File]::Exists($target)) { [IO.File]::Delete($target) }
+        if ([IO.Directory]::Exists($src)) { [IO.Directory]::Move($src, $target) } else { [IO.File]::Move($src, $target) }
+    }
 }
 function Get-MMAgent {
     $o = [ordered]@{}
@@ -257,7 +332,7 @@ function Remove-Item {
         if ($p -match '^(HKLM|HKCU):\\') { $script:Calls.Add("delkey $p"); continue }
         if ($UserFolder -and $p.StartsWith($UserFolder, 'OrdinalIgnoreCase')) {
             $script:Calls.Add("delete $($p.Substring($UserFolder.Length).TrimStart('\'))")
-            [IO.File]::Delete($p)
+            if ([IO.Directory]::Exists($p)) { [IO.Directory]::Delete($p, $true) } else { [IO.File]::Delete($p) }
             continue
         }
         $r = Get-TestFilePath $p
@@ -282,9 +357,14 @@ function Copy-Item {
     else { Microsoft.PowerShell.Management\Copy-Item -Path $Path -Destination $Destination -Recurse:$Recurse -Force:$Force }
 }
 function Invoke-WebRequest {
-    [CmdletBinding()] param([Parameter(Position = 0)][string]$Uri, [string]$OutFile, [switch]$UseBasicParsing)
+    [CmdletBinding()] param([Parameter(Position = 0)][string]$Uri, [string]$OutFile, [switch]$UseBasicParsing, [hashtable]$Headers)
+    $h = if ($Headers) { ' +headers' } else { '' }
+    if (-not $OutFile) {
+        $script:Calls.Add("webtext $Uri$h")
+        return [pscustomobject]@{ Content = $WebContent; Links = @($WebLinks.Split(';') | Where-Object { $_ } | ForEach-Object { [pscustomobject]@{ href = $_ } }) }
+    }
     if (-not (Test-InsideTest $OutFile)) { throw "not a test path: $OutFile" }
-    $script:Calls.Add("web $Uri|$OutFile")
+    $script:Calls.Add("web $Uri|$OutFile$h")
     [IO.File]::WriteAllText($OutFile, '')
 }
 function New-Item {
@@ -309,7 +389,11 @@ function Test-AkariWingetInstalled([string]$Id, [string]$Source = 'winget') { $f
 function Install-AkariWingetPackage([string]$Id, [string]$Source = 'winget') { $script:Calls.Add("winget $Id $Source") }
 function Save-AkariFile([string]$Name, [string]$OutFile) {
     $script:Calls.Add("download $Name|$OutFile")
-    if ($MakeFiles -and (Get-TestFilePath $OutFile)) { [void][IO.Directory]::CreateDirectory((Split-Path $OutFile)); [IO.File]::WriteAllText($OutFile, '') }
+    if ($MakeFiles -and (Get-TestFilePath $OutFile)) {
+        [void][IO.Directory]::CreateDirectory((Split-Path $OutFile))
+        $from = @($Downloaded.Split(';') | Where-Object { $_ -like "$Name=*" } | ForEach-Object { $_.Split('=', 2)[1] }) | Select-Object -First 1
+        if ($from) { [IO.File]::Copy($from, $OutFile, $true) } else { [IO.File]::WriteAllText($OutFile, '') }
+    }
     $OutFile
 }
 function New-AkariShortcut([string]$Name, [string]$Target) {
@@ -328,6 +412,19 @@ function Run-Trusted([string]$Command) {
 }
 function Invoke-AkariExe([string]$Path, [string[]]$Arguments) {
     $script:Calls.Add("exe $(Format-TestPaths $Path)|$(Format-TestPaths ($Arguments -join ' '))")
+    # 7-Zip "x <archive> -o<folder>": -Unpack's contents land there
+    if ($Unpack -and (Split-Path $Path -Leaf) -eq '7z.exe' -and $Arguments[0] -eq 'x') {
+        $to = ($Arguments | Where-Object { $_ -like '-o*' } | Select-Object -First 1).Substring(2)
+        if (-not (Test-InsideTest $to)) { throw "not a test path: $to" }
+        [void][IO.Directory]::CreateDirectory($to)
+        Microsoft.PowerShell.Management\Copy-Item -Path (Join-Path $Unpack '*') -Destination $to -Recurse -Force
+    }
+    # -Snapshot: the folder's files as the program found them ("snap <%Root%\file>|<text>")
+    if ($Snapshot -and (Split-Path $Path -Leaf) -ne '7z.exe' -and [IO.Directory]::Exists($Snapshot)) {
+        foreach ($f in @(Microsoft.PowerShell.Management\Get-ChildItem -LiteralPath $Snapshot -Recurse -File | Sort-Object FullName)) {
+            $script:Calls.Add("snap $(Format-TestPaths $f.FullName)|$([IO.File]::ReadAllText($f.FullName))")
+        }
+    }
     0
 }
 function New-AkariRestorePoint([string]$Description = 'AkariOS') {
@@ -362,6 +459,7 @@ $env:ProgramFiles = if ($ProgramFiles) { $ProgramFiles } else { $none }
 ${env:ProgramFiles(x86)} = if ($ProgramFilesX86) { $ProgramFilesX86 } else { $none }
 $env:ProgramData = if ($ProgramData) { $ProgramData } else { $none }
 if ($SystemRoot) { $env:SystemRoot = $SystemRoot }
+if ($SystemDrive) { $env:SystemDrive = $SystemDrive.TrimEnd('\') }
 $env:PUBLIC = if ($Public) { $Public } else { $none }
 $env:LOCALAPPDATA = if ($LocalAppData) { $LocalAppData } else { $none }
 $result = [ordered]@{}

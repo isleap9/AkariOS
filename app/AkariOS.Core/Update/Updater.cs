@@ -5,10 +5,20 @@ using AkariOS.Core.Machine;
 
 namespace AkariOS.Core.Update;
 
-/// <summary>A download over HTTPS (Save-AkariUpdateFile); throws when it fails.</summary>
+/// <summary>A download over HTTPS (Save-AkariUpdateFile, Invoke-WebRequest); throws when it fails. Headers given replace
+/// the client's own (a vendor site that serves browsers only).</summary>
 public interface IHttp
 {
     void Download(string url, string file);
+
+    void Download(string url, string file, IReadOnlyDictionary<string, string>? headers)
+    {
+        if (headers is { Count: > 0 }) throw new NotSupportedException("this downloader takes no headers");
+        Download(url, file);
+    }
+
+    /// <summary>A page's text (Invoke-WebRequest's Content).</summary>
+    string Text(string url, IReadOnlyDictionary<string, string>? headers = null) => throw new NotSupportedException("this downloader reads no pages");
 }
 
 public sealed record UpdateResult(bool Ok, string Message);
