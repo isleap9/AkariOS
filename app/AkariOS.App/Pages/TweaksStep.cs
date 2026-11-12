@@ -20,7 +20,7 @@ namespace AkariOS.App.Pages;
 /// cards with a row per Tweak. Every State is read once, in the background, before the view is built. The rows write
 /// into the Selection; nothing changes on the PC here.
 /// </summary>
-public sealed class TweaksStep(AppServices s, IDictionary<string, Pending> sel, Action changed)
+public sealed class TweaksStep(AppServices s, IDictionary<string, Pending> sel, Action changed, Action<Preset, IReadOnlyList<string>>? pickApps = null)
 {
     private sealed record Card(Border Border, StackPanel Panel, int Size, string Section);
     private sealed record SectionView(string Section, TextBlock Heading, Grid Grid);
@@ -193,7 +193,8 @@ public sealed class TweaksStep(AppServices s, IDictionary<string, Pending> sel, 
     // ---- Quick select (a preset replaces the whole Selection)
 
     /// <summary>Set-AkariQuickSelect: every row back where it starts, then the preset's changes picked. A Toggle or
-    /// Choice with no row here (Guided = $false) is selected all the same, marked Hidden; apps wait for N5.</summary>
+    /// Choice with no row here (Guided = $false) is selected all the same, marked Hidden; the apps go to the Apps
+    /// step (pickApps: the preset and the ids it resolved to).</summary>
     public void QuickSelect(Preset preset)
     {
         Ensure();
@@ -207,6 +208,7 @@ public sealed class TweaksStep(AppServices s, IDictionary<string, Pending> sel, 
         {
             var t = s.Engine.Find(i.Id);
             if (t is null) { missing++; continue; }
+            if (t.Section == "Apps" && pickApps is not null) continue;
             var def = s.Engine.States.DefaultFor(t);
             // a Choice's Revert is its Default value (null when Windows has none: Revert all the same)
             object? target = i.Mode == TweakMode.Revert ? (t.Kind == TweakKind.Choice ? def : Selection.Default)
@@ -221,6 +223,7 @@ public sealed class TweaksStep(AppServices s, IDictionary<string, Pending> sel, 
             else missing++;
         }
         changed();
+        pickApps?.Invoke(preset, plan.Items.Select(i => i.Id).ToList());
         var unknown = missing + plan.Unknown.Count;
         s.Log.Write($"Quick select: {preset.Name}, {sel.Count} changes{(unknown > 0 ? $" ({unknown} not on this PC or not shown here)" : "")}");
     }

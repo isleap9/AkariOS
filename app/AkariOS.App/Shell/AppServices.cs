@@ -19,6 +19,9 @@ public sealed class AppServices
 
     /// <summary>Home's "changes applied", read once per run; and whether Home was shown (its cards stagger once).</summary>
     public int? AppliedCount { get; set; }
+
+    /// <summary>Home's "Removable apps": the Store apps on this PC the AkariOS pick removes (read once, again after a Run).</summary>
+    public int? RemovableCount { get; set; }
     public bool HomeShown { get; set; }
 
     /// <summary>The log folder (Open log folder, Logs).</summary>

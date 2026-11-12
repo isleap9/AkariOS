@@ -12,14 +12,17 @@ namespace AkariOS.App.Pages;
 public sealed record StepFooter(Border Bar, Button Back, Panel Dots, Button Next);
 
 /// <summary>
-/// The Install AkariOS page (src/UI/Steps.ps1): a chooser (One-click comes with N7, or Guided), then Guided's steps
-/// Apps (N5) → Tweaks → Review &amp; Apply → the result, with the stepper in the footer and the step in the page header.
+/// The Install AkariOS page and the two apps flows (src/UI/Steps.ps1). Install AkariOS: a chooser (One-click comes
+/// with N7, or Guided), then Guided's steps Apps → Tweaks → Review &amp; Apply → the result. Downloads (its tab, Home's
+/// tile): the Install cards alone → Review &amp; Install → the result. Remove apps (Optimize's sub-header): the Remove
+/// tables alone → Review &amp; Remove → the result. The stepper is in the footer, the step in the page header.
 /// Nothing changes while choosing: the rows write into <see cref="Selection"/>; Apply runs it once, in the background,
-/// after the session's restore point. One per run: its state stays when another page is shown.
+/// after the session's restore point (never for Downloads). One per run: its state stays when another page is shown;
+/// switching to another flow starts it afresh.
 /// </summary>
 public sealed class InstallPage
 {
-    /// <summary>The step names, and each step's page header (the last one is the result screen).</summary>
+    /// <summary>Guided's step names, and each step's page header (the last one is the result screen).</summary>
     public static IReadOnlyList<string> StepNames { get; } = ["Apps", "Tweaks", "Review & Apply"];
 
     public static IReadOnlyList<(string Title, string Sub)> StepHeaders { get; } =
@@ -30,28 +33,57 @@ public sealed class InstallPage
         ("Done", "What happened to each change"),
     ];
 
+    /// <summary>$AkariFlows: each flow's steps (3 = the result after them).</summary>
+    public static IReadOnlyDictionary<string, int[]> Flows { get; } = new Dictionary<string, int[]>
+    {
+        ["Guided"] = [0, 1, 2], ["Downloads"] = [0, 2], ["Remove apps"] = [0, 2],
+    };
+
+    /// <summary>$AkariAppFlows: an apps flow's tab, its first step's header and its Review's.</summary>
+    public static IReadOnlyDictionary<string, (string Tab, (string, string) Head, (string, string) Review)> AppFlows { get; } =
+        new Dictionary<string, (string, (string, string), (string, string))>
+        {
+            ["Downloads"] = ("Install", ("Downloads", "Pick the apps to install, from winget where possible"), ("Review & Install", "These apps install in one go")),
+            ["Remove apps"] = ("Remove", ("Remove apps", "Store apps, optional features, Windows features and legacy apps to remove"), ("Review & Remove", "These apps and features are removed in one go")),
+        };
+
+    /// <summary>The pages this one shows: Install AkariOS and the apps flows.</summary>
+    public static bool Owns(string page) => page == "Install AkariOS" || AppFlows.ContainsKey(page);
+
     private readonly AppServices s;
     private readonly Border _root = new();
     private string _query = "";
     private string _motionKey = "";
+    private string _lastPage = "";
 
     public InstallPage(AppServices services)
     {
         s = services;
         Tweaks = NewTweaks();
-        s.Shell.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(ShellViewModel.Page)) UpdateFooter(); };
+        Apps = NewApps();
+        s.Shell.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(ShellViewModel.Page)) return;
+            Enter(s.Shell.Page);
+            UpdateFooter();
+        };
     }
 
-    /// <summary>Choose (One-click or Guided) or Guided (the steps).</summary>
+    /// <summary>Choose (One-click or Guided), Guided, Downloads or Remove apps.</summary>
     public string Mode { get; private set; } = "Choose";
 
-    /// <summary>Guided's step: 0 Apps, 1 Tweaks, 2 Review &amp; Apply, 3 the result.</summary>
+    /// <summary>The flow's step: 0 Apps, 1 Tweaks, 2 Review, 3 the result.</summary>
     public int Step { get; private set; }
+
+    /// <summary>Where an apps flow's Back (first step) and Done lead: the Catalogue page it was opened from, else Home.</summary>
+    public string FlowExit { get; private set; } = "Home";
 
     /// <summary>The pending changes, by Tweak id, in Review's order.</summary>
     public OrderedDictionary<string, Pending> Selection { get; } = [];
 
     public TweaksStep Tweaks { get; private set; }
+
+    public AppsStep Apps { get; private set; }
 
     /// <summary>A Run is applying the Selection now.</summary>
     public bool Running { get; private set; }
@@ -59,9 +91,32 @@ public sealed class InstallPage
     /// <summary>The last Run's Outcomes (the result screen).</summary>
     public IReadOnlyList<Core.Runs.Outcome> Outcomes { get; private set; } = [];
 
-    private TweaksStep NewTweaks() => new(s, Selection, UpdateFooter);
+    private bool AppFlow => AppFlows.ContainsKey(Mode);
 
-    /// <summary>The page (the same element each time), on the current step; the search filters the Tweaks step.</summary>
+    private TweaksStep NewTweaks() => new(s, Selection, UpdateFooter, (preset, ids) => Apps.QuickSelect(preset, ids));
+
+    private AppsStep NewApps() => new(s, Selection, UpdateFooter, menu => Tweaks.FillQuickMenu(menu));
+
+    // Enter-AkariFlow / Set-AkariFlowExit: an apps flow opened from elsewhere starts afresh and remembers where it was
+    // opened; Install AkariOS after an apps flow is on its chooser again
+    private void Enter(string page)
+    {
+        if (AppFlows.ContainsKey(page) && Mode != page)
+        {
+            if (Running) { _lastPage = page; return; }
+            Clear();
+            (Mode, Step) = (page, 0);
+            FlowExit = Catalogue.Split(_lastPage) is not null ? _lastPage : "Home";
+        }
+        else if (page == "Install AkariOS" && AppFlow && !Running)
+        {
+            Clear();
+            (Mode, Step) = ("Choose", 0);
+        }
+        _lastPage = page;
+    }
+
+    /// <summary>The page (the same element each time), on the current step; the search filters the step's rows.</summary>
     public UIElement Build(string query)
     {
         _query = query;
@@ -72,7 +127,7 @@ public sealed class InstallPage
     /// <summary>Guided's first step (Home's "Choose changes").</summary>
     public void Guide() => Go("Guided", 0);
 
-    /// <summary>Guided's Tweaks step with a preset's changes picked (Import).</summary>
+    /// <summary>Guided's Tweaks step with a preset's changes picked (Import): its apps too.</summary>
     public void GuideTweaks(Core.Presets.Preset preset)
     {
         Go("Guided", 1);
@@ -85,10 +140,20 @@ public sealed class InstallPage
         Show();
     }
 
+    // Get-AkariFlowStep: the step before (-1) or after (+1) in the flow, or null at either end
+    private int? FlowStep(int dir)
+    {
+        var f = Flows[Mode];
+        var i = Array.IndexOf(f, Step) + dir;
+        return i >= 0 && i < f.Length ? f[i] : null;
+    }
+
     private void Back()
     {
         if (Mode == "Choose") { s.Shell.Open("Home"); return; }
-        if (Step > 0) Go(Mode, Step - 1); else Go("Choose", 0);
+        if (FlowStep(-1) is { } prev) Go(Mode, prev);
+        else if (AppFlow) s.Shell.Open(FlowExit);
+        else Go("Choose", 0);
     }
 
     private void Forward()
@@ -96,8 +161,12 @@ public sealed class InstallPage
         switch (Step)
         {
             case 2: Apply(); break;
-            case 3: Reset(); s.Shell.Open("Home"); break;
-            default: Go(Mode, Step + 1); break;
+            case 3:
+                var exit = AppFlow ? FlowExit : "Home";
+                Reset();
+                s.Shell.Open(exit);
+                break;
+            default: Go(Mode, FlowStep(1) ?? 2); break;
         }
     }
 
@@ -112,11 +181,11 @@ public sealed class InstallPage
         }
         else
         {
-            var (title, sub) = StepHeaders[Step];
+            var (title, sub) = AppFlows.TryGetValue(Mode, out var flow) && Step is 0 or 2 ? (Step == 0 ? flow.Head : flow.Review) : StepHeaders[Step];
             s.Shell.SetHeader(title, sub);
             body = Step switch
             {
-                0 => Note("Removing and installing apps comes with N5 (docs/plans/2026-10-31-native-app.md). The PowerShell app has it today. Go on to the Tweaks."),
+                0 => Apps.View(_query, AppFlow ? flow.Tab : ""),
                 1 => Tweaks.View(_query),
                 2 => ReviewStep.Review(Selection.Values, s.Engine.Find),
                 _ => ReviewStep.Result(Outcomes, s.Engine.Find),
@@ -124,7 +193,7 @@ public sealed class InstallPage
         }
         if (_root.Child != body)
         {
-            // the cached Tweaks view leaves its old place first
+            // the cached views leave their old place first
             _root.Child = null;
             _root.Child = body;
         }
@@ -186,22 +255,31 @@ public sealed class InstallPage
             return;
         }
         Outcomes = outcomes;
-        // Last used (Quick select): what the Guided Run was asked to do
-        try { s.Engine.Presets.SaveLastUsed(plan); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { s.Log.Write($"Warning: Last used not saved ({e.Message})"); }
-        // what this PC has now: Home's count and the Catalogue's cards are read again
+        // Last used (Quick select): what a Guided Run was asked to do (not the apps flows)
+        if (Mode == "Guided")
+            try { s.Engine.Presets.SaveLastUsed(plan); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { s.Log.Write($"Warning: Last used not saved ({e.Message})"); }
+        // what this PC has now: Home's counts and the Catalogue's cards are read again
         s.AppliedCount = null;
+        s.RemovableCount = null;
         s.Catalogue?.Stale();
         Go(Mode, 3);
     }
 
-    /// <summary>Done (Reset-AkariSteps): the Selection forgotten, the chooser next time, every State read again.</summary>
+    /// <summary>Done (Reset-AkariSteps): the Selection forgotten, the chooser next time, every State and app read again.</summary>
     public void Reset()
+    {
+        Clear();
+        (Mode, Step) = ("Choose", 0);
+    }
+
+    // Clear-AkariSteps: the Selection and the cached steps
+    private void Clear()
     {
         Selection.Clear();
         Outcomes = [];
         Tweaks = NewTweaks();
-        (Mode, Step) = ("Choose", 0);
+        Apps = NewApps();
         _root.Child = null;
     }
 
@@ -229,13 +307,11 @@ public sealed class InstallPage
         return g;
     }
 
-    private static TextBlock Note(string text) => Parts.Text(text, 14, "Mu");
-
-    // Update-AkariStepFooter: Back always; Next, Review (n) or Apply by step; the stepper; only on this page
+    // Update-AkariStepFooter: Back always; Next, Review (n) or Apply by step; the stepper; only on these pages
     private void UpdateFooter()
     {
         if (s.Footer is not { } f) return;
-        var here = s.Shell.Page == "Install AkariOS";
+        var here = Owns(s.Shell.Page);
         f.Bar.Visibility = here ? Visibility.Visible : Visibility.Collapsed;
         if (!here) return;
         f.Dots.Children.Clear();
@@ -246,6 +322,7 @@ public sealed class InstallPage
         var n = Selection.Count;
         (f.Next.Content, f.Next.IsEnabled) = Step switch
         {
+            0 when AppFlow => ($"Review ({n})", n > 0),
             0 => ("Next", true),
             1 => ($"Review ({n})", n > 0),
             2 => ("Apply", n > 0 && !Running),
@@ -253,15 +330,20 @@ public sealed class InstallPage
         };
         if (Step == 3) f.Back.Visibility = Visibility.Hidden;
         var cur = Math.Min(Step, 2);
-        for (var i = 0; i < StepNames.Count; i++)
-            f.Dots.Children.Add(StepItem(i + 1, StepNames[i], i < cur || Step > 2 ? "Done" : i == cur ? "Current" : "", i > 0));
+        var steps = Flows[Mode];
+        for (var i = 0; i < steps.Length; i++)
+        {
+            var step = steps[i];
+            var name = AppFlows.TryGetValue(Mode, out var flow) ? (step == 0 ? Mode : flow.Review.Item1) : StepNames[step];
+            f.Dots.Children.Add(StepItem(i + 1, name, step < cur || Step > 2 ? "Done" : step == cur ? "Current" : "", i > 0));
+        }
     }
 
     /// <summary>Hooks the footer's buttons (once, when the window is up).</summary>
     public void Attach(StepFooter f)
     {
-        f.Back.Click += (_, _) => { if (s.Shell.Page == "Install AkariOS") Back(); };
-        f.Next.Click += (_, _) => { if (s.Shell.Page == "Install AkariOS") Forward(); };
+        f.Back.Click += (_, _) => { if (Owns(s.Shell.Page)) Back(); };
+        f.Next.Click += (_, _) => { if (Owns(s.Shell.Page)) Forward(); };
         UpdateFooter();
     }
 

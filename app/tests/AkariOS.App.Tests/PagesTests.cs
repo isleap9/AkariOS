@@ -185,7 +185,9 @@ public sealed class PagesTests : IDisposable
         Assert.IsType<StackPanel>(pages("Home"));
         Assert.IsType<Grid>(pages("About"));
         Assert.IsType<Border>(pages("Install AkariOS"));
-        Assert.All(ShellLayout.Pages.Keys.Except(["Home", "About", "Install AkariOS"]), p => Assert.Contains(All<TextBlock>(pages(p)), t => t.Text == "Not in the native app yet"));
+        Assert.IsType<Border>(pages("Downloads"));
+        Assert.IsType<Border>(pages("Remove apps"));
+        Assert.All(ShellLayout.Pages.Keys.Except(["Home", "About", "Install AkariOS", "Downloads", "Remove apps"]), p => Assert.Contains(All<TextBlock>(pages(p)), t => t.Text == "Not in the native app yet"));
     });
 
     [Fact]

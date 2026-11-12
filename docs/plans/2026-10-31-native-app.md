@@ -297,7 +297,7 @@ tests): `IPackageManager` (WinRT `PackageManager`; the provisioned copy through 
 `DeprovisionPackageForAllUsersAsync` rather than DISM: DISM's provisioned-app struct isn't documented; NonRemovable,
 which WinRT lacks, = System-signed plus App Installer and Windows Security), `IDism` (dismapi.dll: capabilities and
 features), `IWinget` + `Winget` (App Installer and the Store as Winget.ps1), `AppKinds` (the four Group kinds and the
-`Winget` field in the Runner); **N5b** the legacy removals as C# (done 2026-11-12, 605 tests, parity 85 → 76); **N5c** the installs with code (done 2026-11-12, 631 tests, parity 76 → 50); **N5d** the pages
+`Winget` field in the Runner); **N5b** the legacy removals as C# (done 2026-11-12, 605 tests, parity 85 → 76); **N5c** the installs with code (done 2026-11-12, 631 tests, parity 76 → 50); **N5d** the pages (done 2026-11-12, 655 tests)
 (Guided Apps step, Downloads and Remove apps flows, app icons as WPF resources, Home's Removable apps). Oracles: the
 pure list functions of `UI/Apps.ps1`, and the blocks of N5b / N5c with recorders for the Appx, winget and AppSetup
 helpers.
@@ -317,6 +317,13 @@ helpers.
   settings, Spotify's prefs, policies) are written in C# and checked by the Oracle; the `Files/` configs are read from
   src/. Firefox's uBlock comes through `TweakServices.Http`. The Microsoft Store restore = `Winget.EnsureStore`
   (compared with Install-AkariMicrosoftStore in N5a), tested on fakes.
+- N5d decisions (2026-11-12): one `InstallPage` hosts Guided, Downloads and Remove apps as Steps.ps1 does (a flow
+  switch starts afresh; Back / Done of an apps flow go where it was opened). Apps.ps1's pure functions are
+  `Core/Tweaks/AppLists` (Oracle); the WPF side is `Pages/AppsStep`. The packages, logos and legacy Detects are read
+  in one background read, the features in another when the Remove tab first shows (never for Downloads). The app
+  icons are WPF resources read as streams (pack:// needs WPF's Application, which tests don't have). Quick select
+  and Import pick the apps too, after the Tweaks (whose Quick select clears the Selection). Rows are plain grids as
+  in the PowerShell app; their build time is checked on the VM (AKARI_UI_TIMING) before anything virtualizes them.
 - Pages: Remove tables (Select recommended, AkariOS, Clear, Only installed), Install cards, Downloads flow, app icons
   from `src/Assets/Apps` and the installed logos.
 - VM: the Remove and Install flows.

@@ -19,7 +19,7 @@ public static class PageFactory
             return page switch
             {
                 "Home" => HomePage.Build(s),
-                "Install AkariOS" => install.Build(q),
+                "Install AkariOS" or "Downloads" or "Remove apps" => install.Build(q),
                 "About" => AboutPage.Build(s),
                 _ => Placeholder.For(page),
             };

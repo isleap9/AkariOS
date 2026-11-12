@@ -106,9 +106,15 @@ public static class HomePage
         s.Shell.PropertyChanged += OnWidth;
         root.Unloaded += (_, _) => s.Shell.PropertyChanged -= OnWidth;
 
-        // the stats: Tweaks = the Catalogue's, at once; removable apps need the Store package reader (N5); changes
-        // applied = what Export would save, read once in the background
+        // the stats: Tweaks = the Catalogue's, at once; removable apps and changes applied = what is on this PC, each
+        // read once in the background (again after a Run)
         Motion.Count(numbers["Tweaks"], Catalogue.Tweaks(s.Engine.Loaded.Tweaks, s.Engine.System).Count);
+        if (s.RemovableCount is { } removable) Motion.Count(numbers["Apps"], removable);
+        else
+            s.Background(() => RemovableApps(s), r =>
+            {
+                if (r is int count) { s.RemovableCount = count; Motion.Count(numbers["Apps"], count); }
+            });
         if (s.AppliedCount is { } applied) Motion.Count(numbers["Applied"], applied);
         else
             s.Background(() => PresetStore.ExportItems(s.Engine.Loaded.Tweaks, s.Engine.States, s.Engine.System).Count, r =>
@@ -118,6 +124,18 @@ public static class HomePage
         // the mode cards come in one after another the first time Home is shown
         if (!s.HomeShown) { s.HomeShown = true; Motion.Stagger(grid.Children.OfType<UIElement>()); }
         return root;
+    }
+
+    /// <summary>Start-AkariHomeStats' apps: the removable Store apps on this PC whose Entry isn't on the keep-list (what
+    /// the AkariOS pick removes); null when they can't be read.</summary>
+    public static int? RemovableApps(AppServices s)
+    {
+        if (s.Engine.Services.Apps is not { } apps) return null;
+        try
+        {
+            return apps.Installed().Count(n => Core.Tweaks.Loader.ResolveEntry(s.Engine.Loaded.Groups, $"appx/{n}") is { Keep: false });
+        }
+        catch (Exception e) { s.Log.Write($"Warning: the Store apps could not be read ({e.Message})"); return null; }
     }
 
     /// <summary>MainWindow.xaml's UpdateBar: shown while a newer release exists (Available or Blocked), with its
