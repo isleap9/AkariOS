@@ -48,6 +48,9 @@ public sealed class TweakServices
     /// <summary>%ProgramData% (tests: a temp folder).</summary>
     public string ProgramData { get; init; } = "";
 
+    /// <summary>%PUBLIC% (C:\Users\Public: the all-users desktop).</summary>
+    public string Public { get; init; } = "";
+
     /// <summary>%SystemRoot% (C:\Windows).</summary>
     public string Windows { get; init; } = "";
 
@@ -111,6 +114,7 @@ public sealed class TweakServices
             Remembered = remembered,
             UserSid = user.Sid,
             ProgramData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            Public = Environment.GetEnvironmentVariable("PUBLIC") ?? "",
             Windows = windows,
             SystemDrive = Path.GetPathRoot(windows) ?? @"C:\",
             ProgramFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),

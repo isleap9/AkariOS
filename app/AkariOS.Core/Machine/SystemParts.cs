@@ -25,12 +25,22 @@ public interface IServiceManager
 
     /// <summary>Removes it (sc delete); nothing to do when it isn't there.</summary>
     void Delete(string name);
+
+    /// <summary>Every service's name (Get-Service).</summary>
+    IReadOnlyList<string> Names();
 }
 
 /// <summary>The real one: the service control manager (guarded).</summary>
 public sealed partial class ServiceManager : IServiceManager
 {
     public ServiceManager() => SystemGuard.Check("Services");
+
+    public IReadOnlyList<string> Names()
+    {
+        var all = ServiceController.GetServices();
+        try { return all.Select(s => s.ServiceName).ToList(); }
+        finally { foreach (var s in all) s.Dispose(); }
+    }
 
     public string? StartType(string name)
     {
@@ -126,6 +136,9 @@ public interface ITaskScheduler
     IReadOnlyList<ScheduledTask> Find(Func<string, bool> name);
 
     void SetEnabled(ScheduledTask task, bool enabled);
+
+    /// <summary>Deletes it (Unregister-ScheduledTask); one already gone is nothing to do.</summary>
+    void Unregister(ScheduledTask task);
 }
 
 /// <summary>The real one: the Task Scheduler's COM API (Schedule.Service; guarded).</summary>
@@ -157,6 +170,12 @@ public sealed class TaskScheduler : ITaskScheduler
     {
         dynamic t = Connect().GetFolder(task.Folder).GetTask(task.Name);
         t.Enabled = enabled;
+    }
+
+    public void Unregister(ScheduledTask task)
+    {
+        try { Connect().GetFolder(task.Folder).DeleteTask(task.Name, 0); }
+        catch (System.Runtime.InteropServices.COMException) { }
     }
 }
 

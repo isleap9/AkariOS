@@ -18,6 +18,14 @@
 #   "own <path>" (Grant-AkariOwnership) and "move <from>|<to>" (Move-Item: done, inside -SystemRoot only), paths
 #   under -SystemRoot written as %SystemRoot%\…, "sleepms <n>", and with -UserFolder, after each block,
 #   "file <path under it>|<text>" for every file there.
+#   N5b (the legacy app removals): "delservice <name>" (Remove-AkariService), "unregister <TaskPath>|<TaskName>"
+#   (Unregister-ScheduledTask), "takeown <args>" / "icacls <args>", "delkey HKLM:\…" (Remove-Item of an HKLM: / HKCU:
+#   key: recorded, never done), "delete %Root%\…" / "newfile %Root%\…" (Remove-Item / New-Item -ItemType File under
+#   -SystemRoot, -ProgramFiles, -ProgramFilesX86, -ProgramData, -Public: done in those test copies, recorded only when
+#   the item was there). Get-Service answers -Services ('name;…'), Get-Process -Processes ('name;…', each with a
+#   window), Get-ScheduledTask -Tasks ('\path\|name;…'); Get-AkariMsi reads the uninstall keys of the test key; HKLM: /
+#   HKCU: paths given to Test-Path, Get-ChildItem and Get-AkariRegValue are read on the test key; Uninstall-AkariMsi and
+#   Invoke-AkariSelfUninstall are the real ones (read out of Core\AppSetup.ps1).
 # Get-MMAgent answers -MMAgent ('ApplicationLaunchPrefetching=True;…;MaxOperationAPIFiles=512'). -SystemRoot: the
 # blocks' $env:SystemRoot (a temp folder the C# test laid out).
 # Get-AkariGpus answers -Gpus ('Vendor|Path;…'), Get-AkariGpuDevices -GpuDevices ('id;…'), Get-AkariRememberedState
@@ -33,12 +41,16 @@
 param([Parameter(Mandatory)][string]$Src, [Parameter(Mandatory)][string]$Out, [string]$Ids = '', [string]$PlanList = '',
     [string]$BcdLines = '', [string]$TestRoot = '', [string]$AppValues = '', [string]$UserFolder = '', [string]$Gpus = '',
     [string]$GpuDevices = '', [string]$Remembered = '', [string]$ProgramFiles = '', [string]$ProgramFilesX86 = '', [string]$ProgramData = '',
-    [string]$MMAgent = '', [string]$SystemRoot = '')
+    [string]$MMAgent = '', [string]$SystemRoot = '', [string]$Services = '', [string]$Processes = '', [string]$Tasks = '',
+    [string]$Public = '')
 $ErrorActionPreference = 'Stop'
 . (Join-Path $Src 'Core\Loader.ps1')
 . (Join-Path $Src 'Core\Registry.ps1')
 $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $Src 'Core\AppSetup.ps1'), [ref]$null, [ref]$null)
-. ([scriptblock]::Create($ast.Find({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Get-AkariAppSettingState' }, $true).Extent.Text))
+foreach ($fn in 'Get-AkariAppSettingState', 'Uninstall-AkariMsi', 'Invoke-AkariSelfUninstall') {
+    . ([scriptblock]::Create($ast.Find({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $fn }, $true).Extent.Text))
+}
+function Write-Log { }
 $script:Users = if ($UserFolder) { $UserFolder } else { Join-Path $env:TEMP "akari-none-$([guid]::NewGuid().ToString('N'))" }
 $script:Calls = [Collections.Generic.List[string]]::new()
 $script:Plans = @($PlanList.Split(',') | Where-Object { $_ } | ForEach-Object { "Power Scheme GUID: $_  (Plan)" })
@@ -77,9 +89,79 @@ function Import-AkariAppSettings([string]$Family, [string]$RegText) {
     Test-Path -LiteralPath (Join-Path $script:Users "Packages\$Family\Settings\settings.dat")
 }
 # stand-ins for the cmdlets the blocks call: nothing stops, opens or waits, and only the test's own files are deleted
-function Stop-Process { [CmdletBinding()] param([string[]]$Name, [switch]$Force) foreach ($n in $Name) { $script:Calls.Add("stop $n") } }
+function Stop-Process {
+    [CmdletBinding()] param([Parameter(Position = 0)][string[]]$Name, [Parameter(ValueFromPipeline)]$InputObject, [switch]$Force)
+    process { if ($InputObject) { $script:Calls.Add("stop $($InputObject.ProcessName)") } else { foreach ($n in $Name) { $script:Calls.Add("stop $n") } } }
+}
+function Get-Process {
+    [CmdletBinding()] param([Parameter(Position = 0)][string[]]$Name)
+    foreach ($p in @($Processes.Split(';') | Where-Object { $_ })) { if (-not $Name -or $p -in $Name) { [pscustomobject]@{ ProcessName = $p; Name = $p; MainWindowHandle = 1 } } }
+}
+function Get-Service {
+    [CmdletBinding()] param([Parameter(Position = 0)][string[]]$Name)
+    foreach ($s in @($Services.Split(';') | Where-Object { $_ })) { if (-not $Name -or $s -in $Name) { [pscustomobject]@{ Name = $s } } }
+}
+function Remove-AkariService([string]$Name) { $script:Calls.Add("delservice $Name") }
+function Get-ScheduledTask {
+    [CmdletBinding()] param()
+    foreach ($t in @($Tasks.Split(';') | Where-Object { $_ })) { $p, $n = $t.Split('|', 2); [pscustomobject]@{ TaskPath = $p; TaskName = $n } }
+}
+function Unregister-ScheduledTask {
+    [CmdletBinding()] param([Parameter(ValueFromPipeline)]$InputObject, [string]$TaskName, [switch]$Confirm)
+    process {
+        $found = if ($InputObject) { @($InputObject) } else { @(Get-ScheduledTask | Where-Object { $_.TaskName -eq $TaskName }) }
+        foreach ($t in $found) { $script:Calls.Add("unregister $($t.TaskPath)|$($t.TaskName)") }
+    }
+}
+# the uninstall keys of the test key (Get-AkariMsi reads the real ones)
+function Get-AkariMsi([string]$Name) {
+    foreach ($k in 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall') {
+        foreach ($s in @(Microsoft.PowerShell.Management\Get-ChildItem -LiteralPath (Resolve-AkariRegPath $k) -ErrorAction SilentlyContinue)) {
+            $d = (Microsoft.PowerShell.Management\Get-ItemProperty -LiteralPath $s.PSPath -ErrorAction SilentlyContinue).DisplayName
+            if ($d -like $Name) { [pscustomobject]@{ Name = $d; Code = $s.PSChildName } }
+        }
+    }
+}
+# a path under one of the test's folders as %Root%\…, else $null
+function Get-TestFilePath([string]$Path) {
+    foreach ($r in @(@('SystemRoot', $SystemRoot), @('ProgramFiles', $ProgramFiles), @('ProgramFiles(x86)', $ProgramFilesX86), @('ProgramData', $ProgramData), @('PUBLIC', $Public))) {
+        $root = "$($r[1])".TrimEnd('\')
+        if ($root -and ($Path -eq $root -or $Path.StartsWith("$root\", 'OrdinalIgnoreCase'))) { return "%$($r[0])%$($Path.Substring($root.Length))" }
+    }
+    $null
+}
+function Format-TestPaths([string]$Text) {
+    foreach ($r in @(@('SystemRoot', $SystemRoot), @('ProgramFiles(x86)', $ProgramFilesX86), @('ProgramFiles', $ProgramFiles), @('ProgramData', $ProgramData), @('PUBLIC', $Public))) {
+        if ($r[1]) { $Text = $Text.Replace("$($r[1])".TrimEnd('\'), "%$($r[0])%") }
+    }
+    $Text
+}
+function takeown.exe { $script:Calls.Add("takeown $(Format-TestPaths ($args -join ' '))") }
+function icacls.exe { $script:Calls.Add("icacls $(Format-TestPaths ($args -join ' '))") }
+# HKLM: / HKCU: paths read on the test key
+function Test-Path {
+    [CmdletBinding()] param([Parameter(Position = 0)][string]$Path, [string]$LiteralPath)
+    $p = if ($LiteralPath) { $LiteralPath } else { $Path }
+    if ($p -match '^(HKLM|HKCU):\\') { return Microsoft.PowerShell.Management\Test-Path -LiteralPath (Resolve-AkariRegPath $p) }
+    if ($LiteralPath) { Microsoft.PowerShell.Management\Test-Path -LiteralPath $p } else { Microsoft.PowerShell.Management\Test-Path -Path $p }
+}
+function Get-ChildItem {
+    [CmdletBinding()] param([Parameter(Position = 0)][string[]]$Path, [string[]]$LiteralPath, [string]$Filter, [switch]$Recurse, [switch]$File, [switch]$Directory)
+    $a = @{}
+    $redirect = { param($x) if ($x -match '^(HKLM|HKCU):\\') { Resolve-AkariRegPath $x } else { $x } }
+    if ($LiteralPath) { $a.LiteralPath = @($LiteralPath | ForEach-Object { & $redirect $_ }) } else { $a.Path = @($Path | ForEach-Object { & $redirect $_ }) }
+    if ($Filter) { $a.Filter = $Filter }
+    foreach ($k in 'Recurse', 'File', 'Directory') { if ($PSBoundParameters[$k]) { $a[$k] = $true } }
+    if ($PSBoundParameters.ContainsKey('ErrorAction')) { $a.ErrorAction = $PSBoundParameters['ErrorAction'] }
+    Microsoft.PowerShell.Management\Get-ChildItem @a
+}
+$script:RealRegValue = ${function:Get-AkariRegValue}
+function Get-AkariRegValue([string]$Path, [string]$Name) {
+    $p = if ($Path -match '^(HKLM|HKCU):\\') { Resolve-AkariRegPath $Path } else { $Path }
+    & $script:RealRegValue $p $Name
+}
 function Start-Process {
-    [CmdletBinding()] param([string]$FilePath, [string[]]$ArgumentList, [switch]$Wait)
+    [CmdletBinding()] param([string]$FilePath, [string[]]$ArgumentList, [switch]$Wait, [string]$WindowStyle, [switch]$NoNewWindow)
     if ($ArgumentList) { $script:Calls.Add("run $FilePath|$($ArgumentList -join ' ')") } else { $script:Calls.Add("open $FilePath") }
 }
 function Start-Sleep {
@@ -136,15 +218,32 @@ function Get-TestKeyPath([string]$Path) {
     "$($hive):\$rest"
 }
 function Remove-Item {
-    [CmdletBinding()] param([string]$LiteralPath, [switch]$Recurse, [switch]$Force)
-    if ($key = Get-TestKeyPath $LiteralPath) { $script:Calls.Add("delkey $key"); return }
-    if (-not $UserFolder -or -not $LiteralPath.StartsWith($UserFolder, 'OrdinalIgnoreCase')) { throw "not a test file: $LiteralPath" }
-    $script:Calls.Add("delete $($LiteralPath.Substring($UserFolder.Length).TrimStart('\'))")
-    [IO.File]::Delete($LiteralPath)
+    [CmdletBinding()] param([Parameter(Position = 0)][string[]]$Path, [string[]]$LiteralPath, [switch]$Recurse, [switch]$Force)
+    foreach ($p in @(@($LiteralPath) + @($Path) | Where-Object { $_ })) {
+        if ($key = Get-TestKeyPath $p) { $script:Calls.Add("delkey $key"); continue }
+        if ($p -match '^(HKLM|HKCU):\\') { $script:Calls.Add("delkey $p"); continue }
+        if ($UserFolder -and $p.StartsWith($UserFolder, 'OrdinalIgnoreCase')) {
+            $script:Calls.Add("delete $($p.Substring($UserFolder.Length).TrimStart('\'))")
+            [IO.File]::Delete($p)
+            continue
+        }
+        $r = Get-TestFilePath $p
+        if (-not $r) { throw "not a test file: $p" }
+        if (Microsoft.PowerShell.Management\Test-Path -LiteralPath $p) {
+            $script:Calls.Add("delete $r")
+            Microsoft.PowerShell.Management\Remove-Item -LiteralPath $p -Recurse -Force
+        }
+    }
 }
 function New-Item {
-    [CmdletBinding()] param([string]$Path, [switch]$Force)
+    [CmdletBinding()] param([Parameter(Position = 0)][string]$Path, [string]$ItemType, [switch]$Force)
     if ($key = Get-TestKeyPath $Path) { $script:Calls.Add("newkey $key"); return }
+    $r = Get-TestFilePath $Path
+    if ($r -and $ItemType -eq 'File') {
+        Microsoft.PowerShell.Management\New-Item -Path $Path -ItemType File -Force | Out-Null
+        $script:Calls.Add("newfile $r")
+        return
+    }
     throw "not a test key: $Path"
 }
 function Unblock-File {
@@ -174,6 +273,7 @@ $env:ProgramFiles = if ($ProgramFiles) { $ProgramFiles } else { $none }
 ${env:ProgramFiles(x86)} = if ($ProgramFilesX86) { $ProgramFilesX86 } else { $none }
 $env:ProgramData = if ($ProgramData) { $ProgramData } else { $none }
 if ($SystemRoot) { $env:SystemRoot = $SystemRoot }
+$env:PUBLIC = if ($Public) { $Public } else { $none }
 $result = [ordered]@{}
 foreach ($id in @($Ids.Split(',') | Where-Object { $_ })) {
     $t = $tweaks | Where-Object { $_.Id -eq $id } | Select-Object -First 1

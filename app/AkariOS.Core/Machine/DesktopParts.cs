@@ -9,12 +9,32 @@ namespace AkariOS.Core.Machine;
 public interface IProcesses
 {
     void Stop(string name);
+
+    /// <summary>The running programs' names (Get-Process), each once.</summary>
+    IReadOnlyList<string> Running();
+
+    /// <summary>A program by that name shows a window (Get-Process | MainWindowHandle -ne 0).</summary>
+    bool HasWindow(string name);
 }
 
 /// <summary>The real one (guarded); a program that isn't running is nothing to do.</summary>
 public sealed class Processes : IProcesses
 {
     public Processes() => SystemGuard.Check("Stopping programs");
+
+    public IReadOnlyList<string> Running()
+    {
+        var all = Process.GetProcesses();
+        try { return all.Select(p => p.ProcessName).Distinct(StringComparer.OrdinalIgnoreCase).ToList(); }
+        finally { foreach (var p in all) p.Dispose(); }
+    }
+
+    public bool HasWindow(string name)
+    {
+        var found = Process.GetProcessesByName(name);
+        try { return found.Any(p => { try { return p.MainWindowHandle != 0; } catch (InvalidOperationException) { return false; } }); }
+        finally { foreach (var p in found) p.Dispose(); }
+    }
 
     public void Stop(string name)
     {

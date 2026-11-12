@@ -3,7 +3,7 @@
 # PowerShell only = a src/Tweaks file with script blocks (or other code) and no C# class in AkariOS.Tweaks;
 # Native only = a C# class with no src/Tweaks file.
 
-## PowerShell only: 85 Tweaks
+## PowerShell only: 76 Tweaks
 Advanced/Scheduled tasks  advanced-remove-scheduled-tasks
 Advanced/Security  security-defender-off
 Advanced/Security  security-defender-settings
@@ -34,15 +34,6 @@ Apps/Install  install-spotify
 Apps/Install  install-steam
 Apps/Install  install-webview2-runtime
 Apps/Install  msi-afterburner
-Apps/Remove  remove-brlapi
-Apps/Remove  remove-edge
-Apps/Remove  remove-gameinput
-Apps/Remove  remove-onedrive
-Apps/Remove  remove-remote-desktop-connection
-Apps/Remove  remove-snipping-tool-legacy
-Apps/Remove  remove-update-for-x64
-Apps/Remove  remove-update-health-tools
-Apps/Remove  remove-webview2
 OneClick/Drivers  oneclick-ddu-clean
 OneClick/Finish  oneclick-performance-counters
 OneClick/Finish  oneclick-registry

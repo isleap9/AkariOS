@@ -88,7 +88,7 @@ namespace AkariOS.Tweaks.Tests
                     Processes = Processes, Explorer = Explorer, Shortcuts = Shortcuts, Desktop = Desktop, BcdEdit = Bcd, W32tm = W32tm, AppSettings = Apps,
                     Downloads = Downloads, Remembered = Remembered,
                     ProgramData = Folder("ProgramData"), Windows = Folder("Windows"), SystemDrive = Folder("C"), FilesFolder = Folder("Files"),
-                    ProgramFiles = Folder("Program Files"), ProgramFilesX86 = Folder("Program Files (x86)"),
+                    ProgramFiles = Folder("Program Files"), ProgramFilesX86 = Folder("Program Files (x86)"), Public = Folder("Public"),
                     UtcNow = () => Now, Sleep = _ => { },
                 },
             };
@@ -177,13 +177,16 @@ namespace AkariOS.Tweaks.Tests
         public bool Start(string name) { Calls.Add($"start {name}"); return Installed.ContainsKey(name); }
         public void Create(string name, string binaryPath, bool automatic) { Calls.Add($"create {name} {binaryPath}"); Installed[name] = automatic ? "Automatic" : "Manual"; }
         public void Delete(string name) { Calls.Add($"delete {name}"); Installed.Remove(name); }
+        public IReadOnlyList<string> Names() => Installed.Keys.ToList();
     }
 
     internal sealed class FakeTasks : ITaskScheduler
     {
         public Dictionary<ScheduledTask, bool> All { get; } = [];
+        public List<ScheduledTask> Unregistered { get; } = [];
         public IReadOnlyList<ScheduledTask> Find(Func<string, bool> name) => All.Keys.Where(t => name(t.Name)).ToList();
         public void SetEnabled(ScheduledTask task, bool enabled) => All[task] = enabled;
+        public void Unregister(ScheduledTask task) { Unregistered.Add(task); All.Remove(task); }
     }
 
     /// <summary>Programs run: "path args"; Result decides what each returns (csc writes its out file).</summary>
@@ -202,10 +205,14 @@ namespace AkariOS.Tweaks.Tests
         public IReadOnlyList<string> Run(params string[] arguments) { Calls.Add($"powercfg {string.Join(" ", arguments)}"); return Answer(arguments); }
     }
 
+    /// <summary>Running programs by name (each with a window); the ones stopped, in order.</summary>
     internal sealed class FakeProcesses : IProcesses
     {
         public List<string> Stopped { get; } = [];
+        public List<string> Names { get; } = [];
         public void Stop(string name) => Stopped.Add(name);
+        public IReadOnlyList<string> Running() => Names.ToList();
+        public bool HasWindow(string name) => Names.Contains(name, StringComparer.OrdinalIgnoreCase);
     }
 
     internal sealed class CountingExplorer : IExplorer

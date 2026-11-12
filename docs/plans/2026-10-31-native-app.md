@@ -297,7 +297,7 @@ tests): `IPackageManager` (WinRT `PackageManager`; the provisioned copy through 
 `DeprovisionPackageForAllUsersAsync` rather than DISM: DISM's provisioned-app struct isn't documented; NonRemovable,
 which WinRT lacks, = System-signed plus App Installer and Windows Security), `IDism` (dismapi.dll: capabilities and
 features), `IWinget` + `Winget` (App Installer and the Store as Winget.ps1), `AppKinds` (the four Group kinds and the
-`Winget` field in the Runner); **N5b** the legacy removals as C#; **N5c** the installs with code; **N5d** the pages
+`Winget` field in the Runner); **N5b** the legacy removals as C# (done 2026-11-12, 605 tests, parity 85 → 76); **N5c** the installs with code; **N5d** the pages
 (Guided Apps step, Downloads and Remove apps flows, app icons as WPF resources, Home's Removable apps). Oracles: the
 pure list functions of `UI/Apps.ps1`, and the blocks of N5b / N5c with recorders for the Appx, winget and AppSetup
 helpers.
