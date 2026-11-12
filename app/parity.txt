@@ -3,37 +3,11 @@
 # PowerShell only = a src/Tweaks file with script blocks (or other code) and no C# class in AkariOS.Tweaks;
 # Native only = a C# class with no src/Tweaks file.
 
-## PowerShell only: 76 Tweaks
+## PowerShell only: 50 Tweaks
 Advanced/Scheduled tasks  advanced-remove-scheduled-tasks
 Advanced/Security  security-defender-off
 Advanced/Security  security-defender-settings
 Advanced/Services  advanced-services-off
-Apps/Install  install-7-zip
-Apps/Install  install-battle-net
-Apps/Install  install-brave
-Apps/Install  install-custom-resolution-utility
-Apps/Install  install-discord
-Apps/Install  install-electronic-arts
-Apps/Install  install-epic-games
-Apps/Install  install-firefox
-Apps/Install  install-gog-launcher
-Apps/Install  install-google-chrome
-Apps/Install  install-helium
-Apps/Install  install-microsoft-edge
-Apps/Install  install-microsoft-store
-Apps/Install  install-more-clock-tool
-Apps/Install  install-notepad
-Apps/Install  install-nvidia-app
-Apps/Install  install-nvidia-profile-inspector
-Apps/Install  install-occt
-Apps/Install  install-onboard-memory-manager
-Apps/Install  install-remote-desktop-connection
-Apps/Install  install-rufus
-Apps/Install  install-snipping-tool-legacy
-Apps/Install  install-spotify
-Apps/Install  install-steam
-Apps/Install  install-webview2-runtime
-Apps/Install  msi-afterburner
 OneClick/Drivers  oneclick-ddu-clean
 OneClick/Finish  oneclick-performance-counters
 OneClick/Finish  oneclick-registry

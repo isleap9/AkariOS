@@ -58,6 +58,7 @@ namespace AkariOS.Tweaks.Tests
         public FakeW32tm W32tm { get; } = new();
         public FakeAppSettings Apps { get; } = new();
         public FakeDownloads Downloads { get; } = new();
+        public FakeHttp Http { get; } = new();
         public JsonRememberedState Remembered { get; }
         public FakePc Pc { get; } = new();
         public DateTime Now { get; set; } = new(2026, 11, 3, 12, 0, 0, DateTimeKind.Utc);
@@ -89,6 +90,7 @@ namespace AkariOS.Tweaks.Tests
                     Downloads = Downloads, Remembered = Remembered,
                     ProgramData = Folder("ProgramData"), Windows = Folder("Windows"), SystemDrive = Folder("C"), FilesFolder = Folder("Files"),
                     ProgramFiles = Folder("Program Files"), ProgramFilesX86 = Folder("Program Files (x86)"), Public = Folder("Public"),
+                    LocalAppData = Folder("LocalAppData"), Http = Http,
                     UtcNow = () => Now, Sleep = _ => { },
                 },
             };
@@ -194,7 +196,14 @@ namespace AkariOS.Tweaks.Tests
     {
         public List<string> Runs { get; } = [];
         public Func<string, string, ExeResult> Result { get; set; } = (_, _) => new(0, "");
-        public ExeResult Run(string path, string arguments, bool wait = true) { Runs.Add($"{Path.GetFileName(path)} {arguments}"); return Result(path, arguments); }
+        /// <summary>Every run with its full path: "path|arguments|wait|capture".</summary>
+        public List<string> Full { get; } = [];
+        public ExeResult Run(string path, string arguments, bool wait = true, bool capture = true)
+        {
+            Runs.Add($"{Path.GetFileName(path)} {arguments}");
+            Full.Add($"{path}|{arguments}|{wait}|{capture}");
+            return Result(path, arguments);
+        }
     }
 
     /// <summary>powercfg: the calls ("powercfg &lt;args&gt;"), and what it answers (by default nothing).</summary>
@@ -213,6 +222,30 @@ namespace AkariOS.Tweaks.Tests
         public void Stop(string name) => Stopped.Add(name);
         public IReadOnlyList<string> Running() => Names.ToList();
         public bool HasWindow(string name) => Names.Contains(name, StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>A running program's exe path (none given = unreadable).</summary>
+        public Dictionary<string, string> Paths { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>"name|seconds" for each program waited for.</summary>
+        public List<string> Waited { get; } = [];
+
+        public void Wait(string name, Func<string?, bool> path, TimeSpan timeout)
+        {
+            if (Names.Contains(name, StringComparer.OrdinalIgnoreCase) && path(Paths.GetValueOrDefault(name))) Waited.Add($"{name}|{timeout.TotalSeconds}");
+        }
+    }
+
+    /// <summary>Downloads from a URL: "url|file", each writing an empty file there.</summary>
+    internal sealed class FakeHttp : Core.Update.IHttp
+    {
+        public List<string> Saved { get; } = [];
+
+        public void Download(string url, string file)
+        {
+            Saved.Add($"{url}|{file}");
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            File.WriteAllText(file, "");
+        }
     }
 
     internal sealed class CountingExplorer : IExplorer

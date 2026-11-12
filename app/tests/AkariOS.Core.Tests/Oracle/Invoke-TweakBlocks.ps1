@@ -26,6 +26,14 @@
 #   window), Get-ScheduledTask -Tasks ('\path\|name;…'); Get-AkariMsi reads the uninstall keys of the test key; HKLM: /
 #   HKCU: paths given to Test-Path, Get-ChildItem and Get-AkariRegValue are read on the test key; Uninstall-AkariMsi and
 #   Invoke-AkariSelfUninstall are the real ones (read out of Core\AppSetup.ps1).
+#   N5c (the installs): a Before block runs too ("Before"); Remove-AkariStartup, Remove-AkariUpdaters and
+#   Get-AkariWingetExe are the real ones; "wait <process>|<timeout>" (Wait-Process), "web <url>|<out file>"
+#   (Invoke-WebRequest: an empty file made), with -MakeFiles (a test whose two sides have their own folders)
+#   Save-AkariFile and New-AkariShortcut also make an empty file (the out file, the Start menu .lnk under -ProgramData)
+#   inside the test's folders; Copy-Item and New-Item -ItemType Directory are
+#   done inside the test's folders or -UserFolder only; Remove-Item takes pipeline input (a registry key's PSPath).
+#   -Processes entries may carry a path ('name=path;…', Get-Process's Path); -LocalAppData: the blocks'
+#   $env:LOCALAPPDATA (portable winget packages).
 # Get-MMAgent answers -MMAgent ('ApplicationLaunchPrefetching=True;…;MaxOperationAPIFiles=512'). -SystemRoot: the
 # blocks' $env:SystemRoot (a temp folder the C# test laid out).
 # Get-AkariGpus answers -Gpus ('Vendor|Path;…'), Get-AkariGpuDevices -GpuDevices ('id;…'), Get-AkariRememberedState
@@ -42,12 +50,12 @@ param([Parameter(Mandatory)][string]$Src, [Parameter(Mandatory)][string]$Out, [s
     [string]$BcdLines = '', [string]$TestRoot = '', [string]$AppValues = '', [string]$UserFolder = '', [string]$Gpus = '',
     [string]$GpuDevices = '', [string]$Remembered = '', [string]$ProgramFiles = '', [string]$ProgramFilesX86 = '', [string]$ProgramData = '',
     [string]$MMAgent = '', [string]$SystemRoot = '', [string]$Services = '', [string]$Processes = '', [string]$Tasks = '',
-    [string]$Public = '')
+    [string]$Public = '', [string]$LocalAppData = '', [switch]$MakeFiles)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $Src 'Core\Loader.ps1')
 . (Join-Path $Src 'Core\Registry.ps1')
 $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $Src 'Core\AppSetup.ps1'), [ref]$null, [ref]$null)
-foreach ($fn in 'Get-AkariAppSettingState', 'Uninstall-AkariMsi', 'Invoke-AkariSelfUninstall') {
+foreach ($fn in 'Get-AkariAppSettingState', 'Uninstall-AkariMsi', 'Invoke-AkariSelfUninstall', 'Remove-AkariStartup', 'Remove-AkariUpdaters', 'Get-AkariWingetExe') {
     . ([scriptblock]::Create($ast.Find({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $fn }, $true).Extent.Text))
 }
 function Write-Log { }
@@ -95,7 +103,14 @@ function Stop-Process {
 }
 function Get-Process {
     [CmdletBinding()] param([Parameter(Position = 0)][string[]]$Name)
-    foreach ($p in @($Processes.Split(';') | Where-Object { $_ })) { if (-not $Name -or $p -in $Name) { [pscustomobject]@{ ProcessName = $p; Name = $p; MainWindowHandle = 1 } } }
+    foreach ($e in @($Processes.Split(';') | Where-Object { $_ })) {
+        $p, $path = $e.Split('=', 2)
+        if (-not $Name -or $p -in $Name) { [pscustomobject]@{ ProcessName = $p; Name = $p; MainWindowHandle = 1; Path = $path } }
+    }
+}
+function Wait-Process {
+    [CmdletBinding()] param([Parameter(ValueFromPipeline)]$InputObject, [int]$Timeout)
+    process { $script:Calls.Add("wait $($InputObject.ProcessName)|$Timeout") }
 }
 function Get-Service {
     [CmdletBinding()] param([Parameter(Position = 0)][string[]]$Name)
@@ -146,8 +161,9 @@ function Test-Path {
     if ($LiteralPath) { Microsoft.PowerShell.Management\Test-Path -LiteralPath $p } else { Microsoft.PowerShell.Management\Test-Path -Path $p }
 }
 function Get-ChildItem {
-    [CmdletBinding()] param([Parameter(Position = 0)][string[]]$Path, [string[]]$LiteralPath, [string]$Filter, [switch]$Recurse, [switch]$File, [switch]$Directory)
+    [CmdletBinding()] param([Parameter(Position = 0)][string[]]$Path, [string[]]$LiteralPath, [string]$Filter, [switch]$Recurse, [switch]$File, [switch]$Directory, [int]$Depth)
     $a = @{}
+    if ($PSBoundParameters.ContainsKey('Depth')) { $a.Depth = $Depth }
     $redirect = { param($x) if ($x -match '^(HKLM|HKCU):\\') { Resolve-AkariRegPath $x } else { $x } }
     if ($LiteralPath) { $a.LiteralPath = @($LiteralPath | ForEach-Object { & $redirect $_ }) } else { $a.Path = @($Path | ForEach-Object { & $redirect $_ }) }
     if ($Filter) { $a.Filter = $Filter }
@@ -218,8 +234,9 @@ function Get-TestKeyPath([string]$Path) {
     "$($hive):\$rest"
 }
 function Remove-Item {
-    [CmdletBinding()] param([Parameter(Position = 0)][string[]]$Path, [string[]]$LiteralPath, [switch]$Recurse, [switch]$Force)
-    foreach ($p in @(@($LiteralPath) + @($Path) | Where-Object { $_ })) {
+    [CmdletBinding()] param([Parameter(Position = 0)][string[]]$Path, [Parameter(ValueFromPipelineByPropertyName)][Alias('PSPath')][string[]]$LiteralPath, [switch]$Recurse, [switch]$Force)
+    process {
+    foreach ($p in @(@($LiteralPath) + @($Path) | Where-Object { $_ } | ForEach-Object { $_ -replace '^Microsoft\.PowerShell\.Core\\', '' })) {
         if ($key = Get-TestKeyPath $p) { $script:Calls.Add("delkey $key"); continue }
         if ($p -match '^(HKLM|HKCU):\\') { $script:Calls.Add("delkey $p"); continue }
         if ($UserFolder -and $p.StartsWith($UserFolder, 'OrdinalIgnoreCase')) {
@@ -234,10 +251,29 @@ function Remove-Item {
             Microsoft.PowerShell.Management\Remove-Item -LiteralPath $p -Recurse -Force
         }
     }
+    }
+}
+# a path inside the test's folders, -UserFolder or -LocalAppData
+function Test-InsideTest([string]$Path) {
+    if (Get-TestFilePath $Path) { return $true }
+    foreach ($r in $UserFolder, $LocalAppData) { if ($r -and $Path.StartsWith($r, 'OrdinalIgnoreCase')) { return $true } }
+    $false
+}
+function Copy-Item {
+    [CmdletBinding()] param([Parameter(Position = 0)][string]$Path, [Parameter(Position = 1)][string]$Destination, [switch]$Recurse, [switch]$Force)
+    if (-not (Test-InsideTest $Destination)) { throw "not a test path: $Destination" }
+    Microsoft.PowerShell.Management\Copy-Item -Path $Path -Destination $Destination -Recurse:$Recurse -Force:$Force
+}
+function Invoke-WebRequest {
+    [CmdletBinding()] param([Parameter(Position = 0)][string]$Uri, [string]$OutFile, [switch]$UseBasicParsing)
+    if (-not (Test-InsideTest $OutFile)) { throw "not a test path: $OutFile" }
+    $script:Calls.Add("web $Uri|$OutFile")
+    [IO.File]::WriteAllText($OutFile, '')
 }
 function New-Item {
     [CmdletBinding()] param([Parameter(Position = 0)][string]$Path, [string]$ItemType, [switch]$Force)
     if ($key = Get-TestKeyPath $Path) { $script:Calls.Add("newkey $key"); return }
+    if ($ItemType -eq 'Directory' -and (Test-InsideTest $Path)) { [void][IO.Directory]::CreateDirectory($Path); return }
     $r = Get-TestFilePath $Path
     if ($r -and $ItemType -eq 'File') {
         Microsoft.PowerShell.Management\New-Item -Path $Path -ItemType File -Force | Out-Null
@@ -250,8 +286,22 @@ function Unblock-File {
     [CmdletBinding()] param([Parameter(ValueFromPipeline)]$InputObject)
     process { $script:Calls.Add("unblock $($InputObject.FullName.Substring($ProgramData.Length).TrimStart('\'))") }
 }
-function Save-AkariFile([string]$Name, [string]$OutFile) { $script:Calls.Add("download $Name|$OutFile"); $OutFile }
-function New-AkariShortcut([string]$Name, [string]$Target) { $script:Calls.Add("shortcut $Name|$Target") }
+# a Winget Tweak's Detect (the Loader's): never installed here
+function Test-AkariWingetInstalled([string]$Id, [string]$Source = 'winget') { $false }
+# its Apply (the Loader's: Before, the install, After): the install recorded
+function Install-AkariWingetPackage([string]$Id, [string]$Source = 'winget') { $script:Calls.Add("winget $Id $Source") }
+function Save-AkariFile([string]$Name, [string]$OutFile) {
+    $script:Calls.Add("download $Name|$OutFile")
+    if ($MakeFiles -and (Get-TestFilePath $OutFile)) { [void][IO.Directory]::CreateDirectory((Split-Path $OutFile)); [IO.File]::WriteAllText($OutFile, '') }
+    $OutFile
+}
+function New-AkariShortcut([string]$Name, [string]$Target) {
+    $script:Calls.Add("shortcut $Name|$Target")
+    if ($MakeFiles -and $ProgramData) {
+        $lnk = "$ProgramData\Microsoft\Windows\Start Menu\Programs\$Name.lnk"
+        [void][IO.Directory]::CreateDirectory((Split-Path $lnk)); [IO.File]::WriteAllText($lnk, '')
+    }
+}
 function Get-AkariRememberedState([string]$Id) { $script:Calls.Add("remembered $Id"); $Remembered -eq 'true' }
 function Set-AkariRememberedState([string]$Id, [bool]$Applied) { $script:Calls.Add("remember $Id $Applied") }
 function Get-AkariGpus {
@@ -274,12 +324,13 @@ ${env:ProgramFiles(x86)} = if ($ProgramFilesX86) { $ProgramFilesX86 } else { $no
 $env:ProgramData = if ($ProgramData) { $ProgramData } else { $none }
 if ($SystemRoot) { $env:SystemRoot = $SystemRoot }
 $env:PUBLIC = if ($Public) { $Public } else { $none }
+$env:LOCALAPPDATA = if ($LocalAppData) { $LocalAppData } else { $none }
 $result = [ordered]@{}
 foreach ($id in @($Ids.Split(',') | Where-Object { $_ })) {
     $t = $tweaks | Where-Object { $_.Id -eq $id } | Select-Object -First 1
     $AkariTweakDir = Split-Path $t.Source
     $entry = [ordered]@{}
-    foreach ($b in 'Detect', 'Apply', 'Revert') {
+    foreach ($b in 'Detect', 'Before', 'Apply', 'Revert') {
         if (-not $t.$b) { continue }
         $script:Calls.Clear()
         $said = & $t.$b

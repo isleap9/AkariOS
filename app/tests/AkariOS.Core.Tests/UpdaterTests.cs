@@ -45,7 +45,7 @@ public sealed class UpdaterTests : IDisposable
         public Exception? Error { get; set; }
         public List<(string Path, string Args, bool Wait)> Calls { get; } = [];
 
-        public ExeResult Run(string path, string arguments, bool wait = true)
+        public ExeResult Run(string path, string arguments, bool wait = true, bool capture = true)
         {
             Calls.Add((path, arguments, wait));
             if (Error is not null) throw Error;

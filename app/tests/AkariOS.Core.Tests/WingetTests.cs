@@ -214,7 +214,7 @@ internal sealed class RecordingExe : IExe
     public List<(string Path, string Args, bool Wait)> Calls { get; } = [];
     public Action? OnRun { get; set; }
 
-    public ExeResult Run(string path, string arguments, bool wait = true)
+    public ExeResult Run(string path, string arguments, bool wait = true, bool capture = true)
     {
         Calls.Add((path, arguments, wait));
         OnRun?.Invoke();

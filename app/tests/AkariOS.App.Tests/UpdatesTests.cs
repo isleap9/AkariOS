@@ -53,7 +53,7 @@ public sealed class UpdatesTests : IDisposable
     private sealed class FakeExe : IExe
     {
         public List<string> Started { get; } = [];
-        public ExeResult Run(string path, string arguments, bool wait = true) { Started.Add(path); return new(0, ""); }
+        public ExeResult Run(string path, string arguments, bool wait = true, bool capture = true) { Started.Add(path); return new(0, ""); }
     }
 
     private (AppTest T, UpdateService U, string Exe) Make(bool developer = false, bool runSaved = false)

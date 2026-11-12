@@ -297,7 +297,7 @@ tests): `IPackageManager` (WinRT `PackageManager`; the provisioned copy through 
 `DeprovisionPackageForAllUsersAsync` rather than DISM: DISM's provisioned-app struct isn't documented; NonRemovable,
 which WinRT lacks, = System-signed plus App Installer and Windows Security), `IDism` (dismapi.dll: capabilities and
 features), `IWinget` + `Winget` (App Installer and the Store as Winget.ps1), `AppKinds` (the four Group kinds and the
-`Winget` field in the Runner); **N5b** the legacy removals as C# (done 2026-11-12, 605 tests, parity 85 → 76); **N5c** the installs with code; **N5d** the pages
+`Winget` field in the Runner); **N5b** the legacy removals as C# (done 2026-11-12, 605 tests, parity 85 → 76); **N5c** the installs with code (done 2026-11-12, 631 tests, parity 76 → 50); **N5d** the pages
 (Guided Apps step, Downloads and Remove apps flows, app icons as WPF resources, Home's Removable apps). Oracles: the
 pure list functions of `UI/Apps.ps1`, and the blocks of N5b / N5c with recorders for the Appx, winget and AppSetup
 helpers.
@@ -308,6 +308,15 @@ helpers.
 - The four Groups' kinds, the legacy app removals (OneDrive, Edge, WebView2, ...) as C# Actions.
 - Install: `IWinget` (winget.exe, App Installer re-registered or installed first), the Store re-registration, Store
   restores (`StoreInstall`), the non-winget downloads; `Before` / `After` as C#.
+- N5c decisions (2026-11-12): AppSetup.ps1's install helpers in `Core/Apps/AppSetup` (no app logic);
+  `Find-AkariProgram` / `Open-AkariWingetTool` wait for N8 (Tools), their only user. An installer runs through
+  `IExe.Run(capture: false)`, waited for alone: 5.1's `Start-Process -Wait` may also wait for the programs it
+  starts (deliberate difference: the NVIDIA App installer starts the app). Spotify's installer goes through
+  explorer.exe as in the PowerShell app (no token work for one app). Portable winget packages are looked for in the
+  process's own LocalAppData, where winget, run elevated by Akari, unpacks them. Values a block writes (Discord's
+  settings, Spotify's prefs, policies) are written in C# and checked by the Oracle; the `Files/` configs are read from
+  src/. Firefox's uBlock comes through `TweakServices.Http`. The Microsoft Store restore = `Winget.EnsureStore`
+  (compared with Install-AkariMicrosoftStore in N5a), tested on fakes.
 - Pages: Remove tables (Select recommended, AkariOS, Clear, Only installed), Install cards, Downloads flow, app icons
   from `src/Assets/Apps` and the installed logos.
 - VM: the Remove and Install flows.

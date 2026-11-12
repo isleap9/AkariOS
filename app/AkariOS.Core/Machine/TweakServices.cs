@@ -51,6 +51,14 @@ public sealed class TweakServices
     /// <summary>%PUBLIC% (C:\Users\Public: the all-users desktop).</summary>
     public string Public { get; init; } = "";
 
+    /// <summary>The process's own %LOCALAPPDATA% (the elevated account's: where winget, run from here, unpacks portable
+    /// packages); not the real user's, which <see cref="UserFolders"/> gives.</summary>
+    public string LocalAppData { get; init; } = "";
+
+    /// <summary>Downloads from any URL (an extension a browser install adds); AkariOS-Files ones go through
+    /// <see cref="Downloads"/>.</summary>
+    public AkariOS.Core.Update.IHttp? Http { get; init; }
+
     /// <summary>%SystemRoot% (C:\Windows).</summary>
     public string Windows { get; init; } = "";
 
@@ -89,10 +97,13 @@ public sealed class TweakServices
         var exe = new ExeRunner();
         var packages = new WindowsPackages();
         var apps = new AppPackages(packages, new DismApi(), log);
+        var http = new HttpDownloads();
         return new()
         {
             Apps = apps,
-            Winget = new Winget(new WingetExe(), packages, new HttpDownloads(), apps, exe, log, Path.GetTempPath(), windows, Thread.Sleep),
+            Winget = new Winget(new WingetExe(), packages, http, apps, exe, log, Path.GetTempPath(), windows, Thread.Sleep),
+            Http = http,
+            LocalAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             Hosts = new HostsFile(),
             Bindings = new WmiNetBindings(),
             Launcher = new ShellLauncher(),

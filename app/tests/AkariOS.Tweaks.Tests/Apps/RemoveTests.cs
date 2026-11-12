@@ -16,34 +16,14 @@ namespace AkariOS.Tweaks.Tests.Apps;
 public sealed class RemoveTests : IDisposable
 {
     private readonly TweakHarness _h = new();
-    private readonly Roots _cs;
-    private readonly Roots _ps;
-
-    /// <summary>One side's folders: %SystemRoot%, the program folders, %ProgramData%, %PUBLIC%, the user's.</summary>
-    private sealed record Roots(string Windows, string ProgramFiles, string X86, string ProgramData, string Public, string User)
-    {
-        public IEnumerable<(string Var, string Path)> All() =>
-            [("%SystemRoot%", Windows), ("%ProgramFiles%", ProgramFiles), ("%ProgramFiles(x86)%", X86), ("%ProgramData%", ProgramData), ("%PUBLIC%", Public), ("%User%", User)];
-
-        /// <summary>Makes the file (empty) under the root named by its first part ("%ProgramFiles(x86)%\…").</summary>
-        public void Add(string file)
-        {
-            var (v, root) = All().First(r => file.StartsWith(r.Var + "\\", StringComparison.Ordinal));
-            var p = Path.Combine(root, file[(v.Length + 1)..]);
-            Directory.CreateDirectory(Path.GetDirectoryName(p)!);
-            File.WriteAllText(p, "");
-        }
-
-        /// <summary>Every file and folder under the roots, as %Root%\….</summary>
-        public List<string> Tree() => All().SelectMany(r => Directory.EnumerateFileSystemEntries(r.Path, "*", SearchOption.AllDirectories)
-            .Select(e => r.Var + e[r.Path.Length..])).Order(StringComparer.OrdinalIgnoreCase).ToList();
-    }
+    private readonly AppRoots _cs;
+    private readonly AppRoots _ps;
 
     public RemoveTests()
     {
         var s = _h.Engine.Services;
-        _cs = new Roots(s.Windows, s.ProgramFiles, s.ProgramFilesX86, s.ProgramData, s.Public, _h.Folder("User"));
-        _ps = new Roots(_h.Folder("ps-Windows"), _h.Folder("ps-pf"), _h.Folder("ps-pf86"), _h.Folder("ps-data"), _h.Folder("ps-public"), _h.Folder("ps-user"));
+        _cs = new AppRoots(s.Windows, s.ProgramFiles, s.ProgramFilesX86, s.ProgramData, s.Public, _h.Folder("User"), s.LocalAppData);
+        _ps = new AppRoots(_h.Folder("ps-Windows"), _h.Folder("ps-pf"), _h.Folder("ps-pf86"), _h.Folder("ps-data"), _h.Folder("ps-public"), _h.Folder("ps-user"), _h.Folder("ps-local"));
         const string folders = @"HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders";
         _h.Set(folders, "AppData", _cs.User, "String");
         _h.Set(folders, "Local AppData", _cs.User, "String");

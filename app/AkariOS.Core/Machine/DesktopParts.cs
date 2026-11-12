@@ -15,6 +15,10 @@ public interface IProcesses
 
     /// <summary>A program by that name shows a window (Get-Process | MainWindowHandle -ne 0).</summary>
     bool HasWindow(string name);
+
+    /// <summary>Waits for the programs by that name whose exe path matches (null = unreadable) to end, each for the
+    /// timeout at most (Get-Process | Where-Object Path | Wait-Process -Timeout); none running is nothing to do.</summary>
+    void Wait(string name, Func<string?, bool> path, TimeSpan timeout);
 }
 
 /// <summary>The real one (guarded); a program that isn't running is nothing to do.</summary>
@@ -34,6 +38,18 @@ public sealed class Processes : IProcesses
         var found = Process.GetProcessesByName(name);
         try { return found.Any(p => { try { return p.MainWindowHandle != 0; } catch (InvalidOperationException) { return false; } }); }
         finally { foreach (var p in found) p.Dispose(); }
+    }
+
+    public void Wait(string name, Func<string?, bool> path, TimeSpan timeout)
+    {
+        foreach (var p in Process.GetProcessesByName(name))
+            using (p)
+            {
+                string? file;
+                try { file = p.MainModule?.FileName; } catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception) { file = null; }
+                if (!path(file)) continue;
+                try { p.WaitForExit(timeout); } catch (InvalidOperationException) { }
+            }
     }
 
     public void Stop(string name)

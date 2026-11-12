@@ -185,8 +185,10 @@ public sealed record ExeResult(int ExitCode, string Output);
 /// <summary>A program a Tweak runs (Task Manager, Disk Cleanup, the .NET Framework compiler; Invoke-AkariExe).</summary>
 public interface IExe
 {
-    /// <summary>Runs it; waiting = for it to end (its exit code and output), else 0 at once.</summary>
-    ExeResult Run(string path, string arguments, bool wait = true);
+    /// <summary>Runs it; waiting = for it to end (its exit code and output), else 0 at once. capture = false: an
+    /// installer (Start-Process -Wait): its own window, its output not read, waited for alone (a program it starts,
+    /// holding the output pipes, would keep a capture waiting).</summary>
+    ExeResult Run(string path, string arguments, bool wait = true, bool capture = true);
 }
 
 /// <summary>The real one (guarded).</summary>
@@ -194,11 +196,17 @@ public sealed class ExeRunner : IExe
 {
     public ExeRunner() => SystemGuard.Check("Running programs");
 
-    public ExeResult Run(string path, string arguments, bool wait = true)
+    public ExeResult Run(string path, string arguments, bool wait = true, bool capture = true)
     {
-        var psi = new ProcessStartInfo(path, arguments) { UseShellExecute = !wait, RedirectStandardOutput = wait, RedirectStandardError = wait, CreateNoWindow = wait };
+        var read = wait && capture;
+        var psi = new ProcessStartInfo(path, arguments) { UseShellExecute = !read, RedirectStandardOutput = read, RedirectStandardError = read, CreateNoWindow = read };
         using var p = Process.Start(psi) ?? throw new InvalidOperationException($"{path} did not start");
         if (!wait) return new ExeResult(0, "");
+        if (!read)
+        {
+            p.WaitForExit();
+            return new ExeResult(p.ExitCode, "");
+        }
         var err = p.StandardError.ReadToEndAsync();
         var output = p.StandardOutput.ReadToEnd();
         p.WaitForExit();

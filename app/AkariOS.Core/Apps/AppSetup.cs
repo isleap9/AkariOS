@@ -19,6 +19,65 @@ public static class AppSetup
 
     private static IExe Exe(TweakContext c) => TweakServices.Need(c.Services.Exe, "program runner");
 
+    /// <summary>The autostart keys Remove-AkariStartup clears: the real user's, the machine's 64- and 32-bit ones.</summary>
+    public static IReadOnlyList<string> RunKeys { get; } =
+    [
+        @"HKCU:\Software\Microsoft\Windows\CurrentVersion\Run", @"HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
+        @"HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run",
+    ];
+
+    /// <summary>Remove-AkariStartup: the autostart values whose name is like one of the patterns.</summary>
+    public static void RemoveStartup(TweakContext c, params string[] names)
+    {
+        foreach (var key in RunKeys)
+            foreach (var v in c.Registry.ValueNames(key))
+                if (names.Any(n => PsSemantics.Like(v, n))) c.Registry.RemoveValue(key, v);
+    }
+
+    private const string ActiveSetup = @"HKLM:\Software\Microsoft\Active Setup\Installed Components";
+
+    /// <summary>Remove-AkariUpdaters: an app's background updaters: the services and scheduled tasks named like
+    /// *name* (services stopped, then deleted), and the Active Setup entries whose title is like *activeSetup*.</summary>
+    public static void RemoveUpdaters(TweakContext c, string name, string? activeSetup = null)
+    {
+        var like = $"*{name}*";
+        var services = TweakServices.Need(c.Services.Services, "service manager");
+        foreach (var s in services.Names().Where(s => PsSemantics.Like(s, like)).ToList())
+        {
+            services.Stop(s);
+            services.Delete(s);
+        }
+        var tasks = TweakServices.Need(c.Services.Tasks, "task scheduler");
+        foreach (var t in tasks.Find(n => PsSemantics.Like(n, like))) tasks.Unregister(t);
+        var title = $"*{activeSetup ?? name}*";
+        foreach (var k in c.Registry.SubKeys(ActiveSetup))
+            if (PsSemantics.Like(PsSemantics.Text(c.Registry.GetValue($@"{ActiveSetup}\{k}", "(default)")) ?? "", title))
+                c.Registry.DeleteKey($@"{ActiveSetup}\{k}");
+    }
+
+    /// <summary>New-AkariShortcut: a Start menu shortcut for every user, its working folder the target's.</summary>
+    public static void Shortcut(TweakContext c, string name, string target)
+    {
+        var link = Path.Combine(TweakServices.Folder(c.Services.ProgramData, "ProgramData"), @"Microsoft\Windows\Start Menu\Programs", $"{name}.lnk");
+        TweakServices.Need(c.Services.Shortcuts, "shortcut maker").Create(link, target, Path.GetDirectoryName(target));
+    }
+
+    /// <summary>Get-AkariWingetExe: the exe (a file pattern) of a portable winget package, unpacked under
+    /// WinGet\Packages\&lt;id&gt;_&lt;source&gt; (the process's own LocalAppData, then Program Files); null when it isn't there.</summary>
+    public static string? WingetExe(TweakContext c, string id, string filter)
+    {
+        string[] roots = [Path.Combine(c.Services.LocalAppData, @"Microsoft\WinGet\Packages"), Path.Combine(c.Services.ProgramFiles, @"WinGet\Packages")];
+        foreach (var root in roots)
+        {
+            if (!Path.IsPathRooted(root) || !Directory.Exists(root)) continue;
+            var d = Directory.EnumerateDirectories(root, $"{id}_*").Order(StringComparer.OrdinalIgnoreCase).FirstOrDefault();
+            if (d is null) continue;
+            var f = Directory.EnumerateFiles(d, filter, SearchOption.AllDirectories).FirstOrDefault();
+            if (f is not null) return f;
+        }
+        return null;
+    }
+
     /// <summary>Get-AkariMsi: the products whose display name is like the pattern.</summary>
     public static IReadOnlyList<MsiProduct> Msi(TweakContext c, string like)
     {
