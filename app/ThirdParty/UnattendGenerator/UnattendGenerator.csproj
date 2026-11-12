@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Christoph Schneegans' unattend generator (MIT, LICENSE.txt), vendored at a pinned commit: see README.md.
+       His .csproj, retargeted to the native app's framework; his resource files are read from
+       src/Core/Unattend/Data/ (the same bytes the PowerShell port uses) under his resource names. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
+    <OutputType>Library</OutputType>
+    <RootNamespace>Schneegans.Unattend</RootNamespace>
+    <Nullable>enable</Nullable>
+    <!-- no +commit suffix: his Build modifier would write AkariOS' commit as his (the PowerShell port writes none) -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <AkariSrc>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', '..', 'src'))</AkariSrc>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="$(AkariSrc)Core\Unattend\Data\*" Exclude="$(AkariSrc)Core\Unattend\Data\LICENSE.txt"
+                      LogicalName="Schneegans.Unattend.resource.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+</Project>

@@ -53,6 +53,14 @@ public sealed class AppServices
     /// <summary>The Install AkariOS page (one per run: its mode, step and Selection), made by PageFactory.</summary>
     public Pages.InstallPage? Install { get; set; }
 
+    /// <summary>The Unattend Generator page (built once per run: keeps what was typed), made by PageFactory.</summary>
+    public Pages.UnattendPage? Unattend { get; set; }
+
+    /// <summary>The drives a setup file can go on, and this PC's language settings the form starts from (set by
+    /// Program; fakes in tests; none = no drives, his defaults).</summary>
+    public Core.Unattend.ISetupDrives? Drives { get; init; }
+    public Core.Unattend.IPcRegion? Region { get; init; }
+
     /// <summary>The update check and install (About, Home's bar, the launch check; none in some tests).</summary>
     public UpdateService? Updates { get; set; }
 

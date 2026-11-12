@@ -12,6 +12,7 @@ public static class PageFactory
     {
         var catalogue = s.Catalogue ??= new CatalogueView(s);
         var install = s.Install ??= new InstallPage(s);
+        var unattend = s.Unattend ??= new UnattendPage(s);
         return page =>
         {
             var q = s.Shell.Search.Trim();
@@ -21,6 +22,7 @@ public static class PageFactory
                 "Home" => HomePage.Build(s),
                 "Install AkariOS" or "Downloads" or "Remove apps" => install.Build(q),
                 "About" => AboutPage.Build(s),
+                "Unattend Generator" => unattend.Build(),
                 _ => Placeholder.For(page),
             };
         };

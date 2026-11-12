@@ -9,6 +9,12 @@
     <EmbeddedResource Include="$(AkariSrc)Core\Iso\Data\**\*" LogicalName="src/Core/Iso/Data/%(RecursiveDir)%(Filename)%(Extension)" />
     <EmbeddedResource Include="$(AkariSrc)UI\*.psd1" LogicalName="src/UI/%(Filename)%(Extension)" />
     <EmbeddedResource Include="$(AkariSrc)Assets\ascii.txt" LogicalName="src/Assets/ascii.txt" />
+    <!-- the Unattend Generator's sample texts are read out of it (UnattendStart.Samples) -->
+    <EmbeddedResource Include="$(AkariSrc)Core\Unattend.ps1" LogicalName="src/Core/Unattend.ps1" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Schneegans' generator (N9), reached only through Unattend/ -->
+    <ProjectReference Include="..\ThirdParty\UnattendGenerator\UnattendGenerator.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="System.Management" Version="10.0.14" />

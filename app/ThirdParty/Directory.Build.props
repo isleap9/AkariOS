@@ -1,0 +1,4 @@
+<!-- Vendored third-party code: app/Directory.Build.props (warnings as errors, AkariOS' version) is not applied here.
+     Each project sets what it needs itself. -->
+<Project>
+</Project>

@@ -35,6 +35,11 @@ internal sealed record AppTest(AppServices S, CatalogueView Page, InstallPage In
     /// <summary>The next boot and the PC's restart of a Run in phases (recorded), and its run.json.</summary>
     public AppHarness.FakeBoot Boot { get; init; } = null!;
     public Core.Runs.RunStore Runs { get; init; } = null!;
+
+    /// <summary>The Unattend Generator's drives and this PC's language settings; the folders the app opened.</summary>
+    public AppHarness.FakeDrives Drives { get; init; } = null!;
+    public AppHarness.FakeRegion Region { get; init; } = null!;
+    public List<string> Opened { get; init; } = null!;
 }
 
 /// <summary>Makes <see cref="AppTest"/>s; one per test class instance, cleaning its test key and folder after.</summary>
@@ -101,13 +106,33 @@ internal sealed class AppHarness : IDisposable
         public List<string> Suggested { get; } = [];
         public string? Save(string suggested) { Suggested.Add(suggested); return SavePath; }
         public string? Open() => OpenPath;
+        public string? FolderPath { get; set; }
+        public string? XmlPath { get; set; }
+        public string? Folder(string description) => FolderPath;
+        public string? OpenXml() => XmlPath;
     }
 
-    private sealed class NoOpen : IShellOpen
+    /// <summary>Records the folders opened; links and programs are not.</summary>
+    private sealed class NoOpen(List<string> opened) : IShellOpen
     {
         public void Url(string url) { }
-        public void Folder(string path) { }
+        public void Folder(string path) => opened.Add(path);
         public void Program(string path) { }
+    }
+
+    /// <summary>The drives a setup file can go on (the test's temp folders as roots); Fail = the read fails.</summary>
+    internal sealed class FakeDrives : Core.Unattend.ISetupDrives
+    {
+        public List<Core.Unattend.SetupDrive> Drives { get; } = [];
+        public bool Fail { get; set; }
+        public IReadOnlyList<Core.Unattend.SetupDrive> All() => Fail ? throw new IOException("no drives") : [.. Drives];
+    }
+
+    /// <summary>This PC's language settings (an Italian PC unless the test says otherwise).</summary>
+    internal sealed class FakeRegion : Core.Unattend.IPcRegion
+    {
+        public Core.Unattend.PcRegion Pc { get; set; } = new("it-IT", "it-IT", "00000410", "118", "W. Europe Standard Time");
+        public Core.Unattend.PcRegion Read() => Pc;
     }
 
     public AppTest Make(ISourceFiles? files = null, bool safeMode = false)
@@ -148,9 +173,11 @@ internal sealed class AppHarness : IDisposable
         var answers = new Queue<string>();
         var bars = new StackPanel();
         var picker = new FakePicker();
+        var (drives, region, opened) = (new FakeDrives(), new FakeRegion(), new List<string>());
         var s = new AppServices
         {
-            Engine = engine, Shell = new ShellViewModel("1"), Open = new NoOpen(), Log = log, LogFolder = Dir,
+            Engine = engine, Shell = new ShellViewModel("1"), Open = new NoOpen(opened), Log = log, LogFolder = Dir,
+            Drives = drives, Region = region,
             Theme = new ThemeService(resources, new SettingsFile(Path.Combine(Dir, "settings.json")), () => null, false),
             Background = (work, done) => done(work()),
             Bars = bars,
@@ -180,7 +207,7 @@ internal sealed class AppHarness : IDisposable
         s.Install = new InstallPage(s);
         s.Install.Attach(footer);
         Assert.Equal("", string.Join(" / ", engine.Loaded.Problems.Select(p => $"{p.File}: {p.Message}")));
-        return new AppTest(s, s.Catalogue, s.Install, footer, asked, answers, explorer, shutdown, restore, bars, picker) { Packages = packages, Dism = dism, Services = services, Tasks = tasks, Trusted = trusted, Boot = boot, Runs = runs };
+        return new AppTest(s, s.Catalogue, s.Install, footer, asked, answers, explorer, shutdown, restore, bars, picker) { Packages = packages, Dism = dism, Services = services, Tasks = tasks, Trusted = trusted, Boot = boot, Runs = runs, Drives = drives, Region = region, Opened = opened };
     }
 
     /// <summary>Fixture Tweaks in one Category (Optimize › Test): HKCU rows under Software\AkariFix.</summary>

@@ -396,6 +396,25 @@ helpers.
 - Schneegans' generator vendored (pinned commit, license, credit), the form from `src/UI/Unattend.psd1`, Open file /
   bookmark query, Reset, Save to a drive or folder (`ISetupDrives`), the fixtures of `tests/Fixtures/Unattend/`.
 - VM: a USB install with a generated file.
+- Built 2026-11-12 (902 tests). Decided (grilled): his library vendored unchanged at 82d4ffd (the fixtures' commit)
+  in `app/ThirdParty/UnattendGenerator/` (his `.cs`, his `.csproj` retargeted, his license, a README with the pin), its
+  resources embedded from `src/Core/Unattend/Data/` (byte for byte his `resource/`: one copy), outside AkariOS' build
+  rules (its own `Directory.Build.props`), no commit hash in the Build stamp (as the port). His library takes a
+  `Configuration`, not form fields: `UnattendConfig` maps his form's fields onto it with the port's rules (defaults,
+  checkboxes, a branch counts only when its mode picks it, Default PE turning Generated when partitioning isn't left
+  to setup); the extra components keep their row order through a key comparer that hashes a component to its row
+  (his dictionary enumerates by hash). Oracle `Export-Unattend.ps1`: the real ConvertFrom-AkariUnattend /
+  New-AkariUnattend / Get-AkariUnattendStart / Get-AkariUnattendSamples / Get-AkariIsoAnswerFields; every fixture, the
+  Defaults, three ISO answer cases and three start cases come out byte for byte the same as the PowerShell app's (the
+  comment included), and every fixture equals his site's file without the comment and his commit (the passwords are
+  only in his). His checks give his messages (one differs from the port's: his diskpart check uses typographic
+  quotes). The text areas' samples: the literal ones read out of `src/Core/Unattend.ps1` (embedded) through PsData,
+  the generated ones his library's (`Constants.Sample*`; the port's TargetDiskScript has an extra blank line between
+  checks, which pe.cmd drops). The form is a Core model (`UnattendForm`: items and bindings from `Unattend.psd1`, gates,
+  growing rows) under a thin WPF view; every fixture opens in it and saves the very same file again. This PC's
+  language settings through the registry engine (the real user's User Profile and Geo\Nation, as Get-WinUserLanguageList
+  and Get-WinHomeLocation read them) plus the culture and time zone; drives through `DriveInfo`. Back is in the page
+  (as About), not the step footer.
 
 ## N10: ISO Builder
 

@@ -87,7 +87,8 @@ public static partial class Program
             motion);
         theme.Apply(theme.Saved());
         var shell = new Shell.ShellViewModel(AkariInfo.Version, Core.Tweaks.Catalogue.Pages(Core.Tweaks.Catalogue.Tweaks(engine.Loaded.Tweaks, engine.System)));
-        var services = new Shell.AppServices { Engine = engine, Shell = shell, Theme = theme, Open = new Shell.ShellOpen(), Log = appLog, Picker = new Shell.FilePicker() };
+        var services = new Shell.AppServices { Engine = engine, Shell = shell, Theme = theme, Open = new Shell.ShellOpen(), Log = appLog, Picker = new Shell.FilePicker(),
+            Drives = new Core.Unattend.LiveSetupDrives(), Region = Core.Unattend.RegistryPcRegion.Live(engine.Registry) };
         var window = new MainWindow(theme, shell, Pages.PageFactory.For(services));
         services.Dialogs = Shell.Dialogs.For(window, appLog);
         services.Bars = window.CatBars;

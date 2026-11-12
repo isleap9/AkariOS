@@ -1,5 +1,6 @@
 # The native app (app/, ADR 0007): build and test on every push or pull request that touches it or the src/ files it
-# reads (Tweaks, data lists, presets, the shared XAML, Assets, the version; Update.ps1 is the updater's Oracle). Keep
+# reads (Tweaks, data lists, presets, the shared XAML, Assets, the version, the Unattend Generator's data and sample
+# texts; Update.ps1, Unattend.ps1 and UI\Unattend.ps1 / IsoBuilder.ps1 are Oracles). Keep
 # the two path lists equal. A release runs the same tests first (release.yml).
 name: Native
 
@@ -13,6 +14,10 @@ on:
       - 'src/Core/Iso/Data/**'
       - 'src/Core/Version.ps1'
       - 'src/Core/Update.ps1'
+      - 'src/Core/Unattend.ps1'
+      - 'src/Core/Unattend/**'
+      - 'src/UI/Unattend.ps1'
+      - 'src/UI/IsoBuilder.ps1'
       - 'src/UI/*.xaml'
       - 'src/UI/*.psd1'
       - 'src/Assets/**'
@@ -26,6 +31,10 @@ on:
       - 'src/Core/Iso/Data/**'
       - 'src/Core/Version.ps1'
       - 'src/Core/Update.ps1'
+      - 'src/Core/Unattend.ps1'
+      - 'src/Core/Unattend/**'
+      - 'src/UI/Unattend.ps1'
+      - 'src/UI/IsoBuilder.ps1'
       - 'src/UI/*.xaml'
       - 'src/UI/*.psd1'
       - 'src/Assets/**'
