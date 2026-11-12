@@ -132,10 +132,11 @@ public sealed class CatalogueViewTests : IDisposable
     });
 
     [Fact]
-    public void The_services_page_keeps_its_tweaks_while_its_list_waits() => LookTests.OnSta(() =>
+    public void The_services_page_keeps_its_tweaks_while_the_search_filters_its_list() => LookTests.OnSta(() =>
     {
         var ui = Make().Page.Build("Catalogue:Advanced/Services", "xbox");
-        Assert.Contains(Texts(ui), t => t.StartsWith("The list of services on this PC comes with N6", StringComparison.Ordinal));
+        Assert.Contains("Turn off most Windows services", Texts(ui));
+        Assert.Contains("No service matches.", Texts(ui));
         Assert.DoesNotContain("No tweak matches.", Texts(ui));
     });
 

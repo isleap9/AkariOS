@@ -10,6 +10,10 @@ namespace AkariOS.Core.Registry;
 public interface ITrustedInstaller
 {
     void Run(Action work);
+
+    /// <summary>A program run as TrustedInstaller (Run-Trusted: schtasks for a task Windows keeps from an admin),
+    /// waited for (a minute at most); its exit code.</summary>
+    int Start(string exe, string arguments) => throw new NotSupportedException("this TrustedInstaller can't start programs");
 }
 
 /// <summary>
@@ -45,6 +49,77 @@ public sealed partial class TrustedInstaller : ITrustedInstaller
         error?.Throw();
     }
 
+    /// <summary>A process with a primary copy of TrustedInstaller.exe's token (CreateProcessWithTokenW, from a thread
+    /// impersonating SYSTEM), no window, waited for a minute at most.</summary>
+    public int Start(string exe, string arguments)
+    {
+        EnablePrivilege("SeDebugPrivilege");
+        EnablePrivilege("SeImpersonatePrivilege");
+        var ti = StartService();
+        var code = -1;
+        ExceptionDispatchInfo? error = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                using (var system = TokenOf(Process.GetProcessesByName("winlogon").First(p => p.SessionId == Process.GetCurrentProcess().SessionId)))
+                    Impersonate(system);
+                try
+                {
+                    using var primary = TokenOf(Process.GetProcessById(ti), TokenPrimary);
+                    var si = new StartupInfo { Size = Marshal.SizeOf<StartupInfo>() };
+                    var line = $"\"{exe}\" {arguments}";
+                    if (!CreateProcessWithTokenW(primary.Handle, 0, exe, line, CreateNoWindow, IntPtr.Zero, null, ref si, out var pi))
+                        throw new Win32Exception(Marshal.GetLastWin32Error(), $"{exe} did not start as TrustedInstaller");
+                    try
+                    {
+                        WaitForSingleObject(pi.Process, 60_000);
+                        code = GetExitCodeProcess(pi.Process, out var c) ? (int)c : -1;
+                    }
+                    finally { CloseHandle(pi.Process); CloseHandle(pi.Thread); }
+                }
+                finally { RevertToSelf(); }
+            }
+            catch (Exception e) { error = ExceptionDispatchInfo.Capture(e); }
+        });
+        thread.Start();
+        thread.Join();
+        error?.Throw();
+        return code;
+    }
+
+    private const int TokenPrimary = 1;
+    private const uint CreateNoWindow = 0x08000000;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct StartupInfo
+    {
+        public int Size;
+        public IntPtr Reserved, Desktop, Title;
+        public int X, Y, XSize, YSize, XCountChars, YCountChars, FillAttribute, Flags;
+        public short ShowWindow, Reserved2;
+        public IntPtr Reserved3, StdInput, StdOutput, StdError;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ProcessInformation
+    {
+        public IntPtr Process, Thread;
+        public int ProcessId, ThreadId;
+    }
+
+    [LibraryImport("advapi32.dll", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool CreateProcessWithTokenW(IntPtr token, uint logonFlags, string application, string commandLine, uint creationFlags,
+        IntPtr environment, string? currentDirectory, ref StartupInfo startup, out ProcessInformation info);
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    private static partial uint WaitForSingleObject(IntPtr handle, uint milliseconds);
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetExitCodeProcess(IntPtr process, out uint code);
+
     private static int StartService()
     {
         using var sc = new ServiceController("TrustedInstaller");
@@ -63,7 +138,7 @@ public sealed partial class TrustedInstaller : ITrustedInstaller
         public void Dispose() => CloseHandle(Handle);
     }
 
-    private static Token TokenOf(Process p)
+    private static Token TokenOf(Process p, int type = TokenImpersonation)
     {
         using (p)
         {
@@ -74,7 +149,7 @@ public sealed partial class TrustedInstaller : ITrustedInstaller
                 if (!OpenProcessToken(process, TokenDuplicate | TokenQuery, out var token)) throw new Win32Exception(Marshal.GetLastWin32Error());
                 try
                 {
-                    if (!DuplicateTokenEx(token, TokenAllAccess, IntPtr.Zero, SecurityImpersonation, TokenImpersonation, out var dup))
+                    if (!DuplicateTokenEx(token, TokenAllAccess, IntPtr.Zero, SecurityImpersonation, type, out var dup))
                         throw new Win32Exception(Marshal.GetLastWin32Error());
                     return new Token(dup);
                 }

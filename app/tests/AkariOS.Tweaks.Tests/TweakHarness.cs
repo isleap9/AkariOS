@@ -188,7 +188,15 @@ namespace AkariOS.Tweaks.Tests
         public List<ScheduledTask> Unregistered { get; } = [];
         public IReadOnlyList<ScheduledTask> Find(Func<string, bool> name) => All.Keys.Where(t => name(t.Name)).ToList();
         public void SetEnabled(ScheduledTask task, bool enabled) => All[task] = enabled;
-        public void Unregister(ScheduledTask task) { Unregistered.Add(task); All.Remove(task); }
+        /// <summary>Tasks Windows keeps (Unregister says false for them).</summary>
+        public HashSet<string> Kept { get; } = [];
+        public bool Unregister(ScheduledTask task)
+        {
+            if (Kept.Contains(task.Name)) return false;
+            Unregistered.Add(task);
+            All.Remove(task);
+            return true;
+        }
     }
 
     /// <summary>Programs run: "path args"; Result decides what each returns (csc writes its out file).</summary>

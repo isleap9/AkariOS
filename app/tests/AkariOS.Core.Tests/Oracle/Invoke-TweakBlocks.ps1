@@ -34,6 +34,9 @@
 #   done inside the test's folders or -UserFolder only; Remove-Item takes pipeline input (a registry key's PSPath).
 #   -Processes entries may carry a path ('name=path;…', Get-Process's Path); -LocalAppData: the blocks'
 #   $env:LOCALAPPDATA (portable winget packages).
+#   N6: a Choice's Value block runs too ("Value": its "result <value>"); -Value: $AkariValue for Apply; the real
+#   Remove-AkariScheduledTasks (read out of Core\System.ps1) on Get-ScheduledTask's answers; -KeptTasks ('name;…'):
+#   tasks Unregister-ScheduledTask refuses (it throws for them, as Windows' protected ones).
 # Get-MMAgent answers -MMAgent ('ApplicationLaunchPrefetching=True;…;MaxOperationAPIFiles=512'). -SystemRoot: the
 # blocks' $env:SystemRoot (a temp folder the C# test laid out).
 # Get-AkariGpus answers -Gpus ('Vendor|Path;…'), Get-AkariGpuDevices -GpuDevices ('id;…'), Get-AkariRememberedState
@@ -50,7 +53,7 @@ param([Parameter(Mandatory)][string]$Src, [Parameter(Mandatory)][string]$Out, [s
     [string]$BcdLines = '', [string]$TestRoot = '', [string]$AppValues = '', [string]$UserFolder = '', [string]$Gpus = '',
     [string]$GpuDevices = '', [string]$Remembered = '', [string]$ProgramFiles = '', [string]$ProgramFilesX86 = '', [string]$ProgramData = '',
     [string]$MMAgent = '', [string]$SystemRoot = '', [string]$Services = '', [string]$Processes = '', [string]$Tasks = '',
-    [string]$Public = '', [string]$LocalAppData = '', [switch]$MakeFiles)
+    [string]$Public = '', [string]$LocalAppData = '', [switch]$MakeFiles, [string]$Value = '', [string]$KeptTasks = '')
 $ErrorActionPreference = 'Stop'
 . (Join-Path $Src 'Core\Loader.ps1')
 . (Join-Path $Src 'Core\Registry.ps1')
@@ -58,6 +61,9 @@ $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $Src 'Core\
 foreach ($fn in 'Get-AkariAppSettingState', 'Uninstall-AkariMsi', 'Invoke-AkariSelfUninstall', 'Remove-AkariStartup', 'Remove-AkariUpdaters', 'Get-AkariWingetExe') {
     . ([scriptblock]::Create($ast.Find({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $fn }, $true).Extent.Text))
 }
+$sys = [Management.Automation.Language.Parser]::ParseFile((Join-Path $Src 'Core\System.ps1'), [ref]$null, [ref]$null)
+. ([scriptblock]::Create($sys.Find({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Remove-AkariScheduledTasks' }, $true).Extent.Text))
+if ($Value) { $AkariValue = $Value }
 function Write-Log { }
 $script:Users = if ($UserFolder) { $UserFolder } else { Join-Path $env:TEMP "akari-none-$([guid]::NewGuid().ToString('N'))" }
 $script:Calls = [Collections.Generic.List[string]]::new()
@@ -118,14 +124,17 @@ function Get-Service {
 }
 function Remove-AkariService([string]$Name) { $script:Calls.Add("delservice $Name") }
 function Get-ScheduledTask {
-    [CmdletBinding()] param()
+    [CmdletBinding()] param([string]$TaskPath)
     foreach ($t in @($Tasks.Split(';') | Where-Object { $_ })) { $p, $n = $t.Split('|', 2); [pscustomobject]@{ TaskPath = $p; TaskName = $n } }
 }
 function Unregister-ScheduledTask {
     [CmdletBinding()] param([Parameter(ValueFromPipeline)]$InputObject, [string]$TaskName, [switch]$Confirm)
     process {
         $found = if ($InputObject) { @($InputObject) } else { @(Get-ScheduledTask | Where-Object { $_.TaskName -eq $TaskName }) }
-        foreach ($t in $found) { $script:Calls.Add("unregister $($t.TaskPath)|$($t.TaskName)") }
+        foreach ($t in $found) {
+            if ($t.TaskName -in @($KeptTasks.Split(';'))) { throw "Access is denied: $($t.TaskName)" }
+            $script:Calls.Add("unregister $($t.TaskPath)|$($t.TaskName)")
+        }
     }
 }
 # the uninstall keys of the test key (Get-AkariMsi reads the real ones)
@@ -330,11 +339,12 @@ foreach ($id in @($Ids.Split(',') | Where-Object { $_ })) {
     $t = $tweaks | Where-Object { $_.Id -eq $id } | Select-Object -First 1
     $AkariTweakDir = Split-Path $t.Source
     $entry = [ordered]@{}
-    foreach ($b in 'Detect', 'Before', 'Apply', 'Revert') {
+    foreach ($b in 'Detect', 'Value', 'Before', 'Apply', 'Revert') {
         if (-not $t.$b) { continue }
         $script:Calls.Clear()
         $said = & $t.$b
-        if ($b -eq 'Detect') { $script:Calls.Add("result $said") }
+        if ($b -in 'Detect', 'Value') { $script:Calls.Add("result $said") }
+        elseif ($b -eq 'Apply' -and $said) { $script:Calls.Add("said $(@($said) -join ' / ')") }
         Add-Files
         $entry[$b] = @($script:Calls)
     }

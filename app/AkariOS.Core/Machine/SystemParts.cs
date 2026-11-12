@@ -28,6 +28,17 @@ public interface IServiceManager
 
     /// <summary>Every service's name (Get-Service).</summary>
     IReadOnlyList<string> Names();
+
+    /// <summary>Get-AkariServices: every service with its display name, description, startup type, status and
+    /// whether it accepts a stop (the Services page).</summary>
+    IReadOnlyList<Tweaks.ServiceInfo> All() => throw new NotSupportedException("this service manager can't list services");
+
+    /// <summary>One service as All gives it, or null when it isn't on this PC.</summary>
+    Tweaks.ServiceInfo? One(string name) => throw new NotSupportedException("this service manager can't read a service");
+
+    /// <summary>Invoke-AkariServiceControl: starts it, or stops it with the services that depend on it, waiting for
+    /// it; throws when it won't.</summary>
+    void Control(string name, string op) => throw new NotSupportedException("this service manager can't start or stop services");
 }
 
 /// <summary>The real one: the service control manager (guarded).</summary>
@@ -40,6 +51,40 @@ public sealed partial class ServiceManager : IServiceManager
         var all = ServiceController.GetServices();
         try { return all.Select(s => s.ServiceName).ToList(); }
         finally { foreach (var s in all) s.Dispose(); }
+    }
+
+    // Win32_Service, as Get-AkariServices reads it (the description and DelayedAutoStart in one query)
+    private static IReadOnlyList<Tweaks.ServiceInfo> Query(string? name)
+    {
+        var wql = "SELECT Name, DisplayName, Description, StartMode, DelayedAutoStart, State, AcceptStop FROM Win32_Service"
+            + (name is null ? "" : $" WHERE Name = '{name.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("'", "\\'", StringComparison.Ordinal)}'");
+        using var searcher = new ManagementObjectSearcher(wql);
+        using var found = searcher.Get();
+        return found.Cast<ManagementObject>().Select(s =>
+        {
+            using (s)
+                return new Tweaks.ServiceInfo((string?)s["Name"] ?? "", (string?)s["DisplayName"] ?? "", (string?)s["Description"] ?? "",
+                    Tweaks.ServiceLists.StartType((string?)s["StartMode"] ?? "", s["DelayedAutoStart"] is true), (string?)s["State"] ?? "", s["AcceptStop"] is true);
+        }).ToList();
+    }
+
+    public IReadOnlyList<Tweaks.ServiceInfo> All() => Query(null);
+
+    public Tweaks.ServiceInfo? One(string name) => Query(name).FirstOrDefault();
+
+    public void Control(string name, string op)
+    {
+        using var sc = new ServiceController(name);
+        if (op == "Start")
+        {
+            sc.Start();
+            sc.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(30));
+        }
+        else
+        {
+            sc.Stop(stopDependentServices: true);
+            sc.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(30));
+        }
     }
 
     public string? StartType(string name)
@@ -137,13 +182,82 @@ public interface ITaskScheduler
 
     void SetEnabled(ScheduledTask task, bool enabled);
 
-    /// <summary>Deletes it (Unregister-ScheduledTask); one already gone is nothing to do.</summary>
-    void Unregister(ScheduledTask task);
+    /// <summary>Deletes it (Unregister-ScheduledTask): true when it is gone (one already gone too), false when Windows
+    /// keeps it.</summary>
+    bool Unregister(ScheduledTask task);
+
+    /// <summary>Get-AkariTasks: every task, hidden ones too, with its folder (a trailing \), state, description and
+    /// author (resource strings resolved).</summary>
+    IReadOnlyList<Tweaks.TaskInfo> All() => throw new NotSupportedException("this task scheduler can't list tasks");
+
+    /// <summary>One task as All gives it, or null when it isn't on this PC.</summary>
+    Tweaks.TaskInfo? One(string path, string name) => throw new NotSupportedException("this task scheduler can't read a task");
 }
 
 /// <summary>The real one: the Task Scheduler's COM API (Schedule.Service; guarded).</summary>
-public sealed class TaskScheduler : ITaskScheduler
+public sealed partial class TaskScheduler : ITaskScheduler
 {
+    // IRegisteredTask.State as Get-ScheduledTask names it
+    private static string StateName(int s) => s switch { 1 => "Disabled", 2 => "Queued", 3 => "Ready", 4 => "Running", _ => "Unknown" };
+
+    private static Tweaks.TaskInfo Info(dynamic folder, dynamic t)
+    {
+        string path = folder.Path;
+        string description = "", author = "";
+        try
+        {
+            dynamic info = t.Definition.RegistrationInfo;
+            description = IndirectString((string?)info.Description ?? "");
+            author = IndirectString((string?)info.Author ?? "");
+        }
+        catch (COMException) { }
+        var state = StateName((int)t.State);
+        return new Tweaks.TaskInfo(path.EndsWith('\\') ? path : path + "\\", (string)t.Name, state != "Disabled", state, description, author);
+    }
+
+    public IReadOnlyList<Tweaks.TaskInfo> All()
+    {
+        var found = new List<Tweaks.TaskInfo>();
+        void Walk(dynamic folder)
+        {
+            foreach (dynamic t in folder.GetTasks(1)) found.Add(Info(folder, t));
+            foreach (dynamic f in folder.GetFolders(0)) Walk(f);
+        }
+        Walk(Connect().GetFolder(@"\"));
+        return found;
+    }
+
+    public Tweaks.TaskInfo? One(string path, string name)
+    {
+        try
+        {
+            dynamic folder = Connect().GetFolder(FolderOf(path));
+            return Info(folder, folder.GetTask(name));
+        }
+        catch (COMException) { return null; }
+    }
+
+    /// <summary>A TaskInfo path ("\Microsoft\Windows\X\") as the COM API's folder ("\Microsoft\Windows\X", root "\").</summary>
+    public static string FolderOf(string path) => path.Length > 1 ? path.TrimEnd('\\') : @"\";
+
+    /// <summary>Resolve-AkariIndirectString: "@%SystemRoot%\x.dll,-101" or Task Scheduler's "$(@...)" as text; other
+    /// text as it is; "" when it can't be loaded.</summary>
+    public static string IndirectString(string text)
+    {
+        var t = text;
+        if (t.StartsWith("$(@", StringComparison.Ordinal) && t.EndsWith(')')) t = t[2..^1];
+        if (!t.StartsWith('@')) return text;
+        var buf = new char[1024];
+        unsafe
+        {
+            fixed (char* b = buf)
+                return SHLoadIndirectString(t, b, buf.Length, 0) == 0 ? new string(b) : "";
+        }
+    }
+
+    [LibraryImport("shlwapi.dll", StringMarshalling = StringMarshalling.Utf16)]
+    private static unsafe partial int SHLoadIndirectString(string source, char* buffer, int size, nint reserved);
+
     public TaskScheduler() => SystemGuard.Check("Scheduled tasks");
 
     private static dynamic Connect()
@@ -172,10 +286,11 @@ public sealed class TaskScheduler : ITaskScheduler
         t.Enabled = enabled;
     }
 
-    public void Unregister(ScheduledTask task)
+    public bool Unregister(ScheduledTask task)
     {
-        try { Connect().GetFolder(task.Folder).DeleteTask(task.Name, 0); }
-        catch (System.Runtime.InteropServices.COMException) { }
+        try { Connect().GetFolder(task.Folder).DeleteTask(task.Name, 0); return true; }
+        // not there (any more): gone all the same
+        catch (COMException e) { return e.HResult == unchecked((int)0x80070002); }
     }
 }
 

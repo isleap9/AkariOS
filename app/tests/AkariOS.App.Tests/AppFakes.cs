@@ -1,4 +1,7 @@
 using AkariOS.Core.Apps;
+using AkariOS.Core.Machine;
+using AkariOS.Core.Registry;
+using AkariOS.Core.Tweaks;
 
 namespace AkariOS.App.Tests;
 
@@ -22,6 +25,74 @@ internal sealed class FakePackages : IPackageManager
     public void Add(string file) => Calls.Add($"add {file}");
     public IReadOnlyList<ProvisionedApp> ProvisionedApps() => [];
     public void Deprovision(string family) => Calls.Add($"deprovision {family}");
+}
+
+/// <summary>The PC's services for the Services page: All / One answer List; Control records and updates the status.</summary>
+internal sealed class FakeServiceManager : IServiceManager
+{
+    public List<ServiceInfo> List { get; } = [];
+    public List<string> Calls { get; } = [];
+    public int Reads { get; private set; }
+
+    public IReadOnlyList<ServiceInfo> All() { Reads++; return List.ToList(); }
+    public ServiceInfo? One(string name) => List.FirstOrDefault(s => s.Name == name);
+
+    public void Control(string name, string op)
+    {
+        Calls.Add($"{op} {name}");
+        var i = List.FindIndex(s => s.Name == name);
+        List[i] = List[i] with { Status = op == "Start" ? "Running" : "Stopped" };
+    }
+
+    public string? StartType(string name) => One(name)?.Start;
+    public bool Stop(string name) => true;
+    public bool Start(string name) => true;
+    public void Create(string name, string binaryPath, bool automatic) { }
+    public void Delete(string name) { }
+    public IReadOnlyList<string> Names() => List.Select(s => s.Name).ToList();
+}
+
+/// <summary>The PC's scheduled tasks for the Scheduled tasks page; SetEnabled records and updates; Refuse = names an
+/// admin can't change (COMException), so the TrustedInstaller fallback runs.</summary>
+internal sealed class FakeTaskScheduler : ITaskScheduler
+{
+    public List<TaskInfo> List { get; } = [];
+    public List<string> Calls { get; } = [];
+    public HashSet<string> Refuse { get; } = [];
+
+    public IReadOnlyList<TaskInfo> All() => List.ToList();
+    public TaskInfo? One(string path, string name) => List.FirstOrDefault(t => t.Path == path && t.Name == name);
+    public IReadOnlyList<ScheduledTask> Find(Func<string, bool> name) => [];
+    public bool Unregister(ScheduledTask task) => true;
+
+    public void SetEnabled(ScheduledTask task, bool enabled)
+    {
+        if (Refuse.Contains(task.Name)) throw new System.Runtime.InteropServices.COMException("Access is denied");
+        Calls.Add($"{task.Folder}|{task.Name}|{enabled}");
+        Set(task.Name, enabled);
+    }
+
+    public void Set(string name, bool enabled)
+    {
+        var i = List.FindIndex(t => t.Name == name);
+        List[i] = List[i] with { Enabled = enabled, State = enabled ? "Ready" : "Disabled" };
+    }
+}
+
+/// <summary>TrustedInstaller for the App tests: runs registry work as is; Start records the program (Started) and, for
+/// schtasks, does what it asks on the fake tasks.</summary>
+internal sealed class FakeTrustedInstaller(FakeTaskScheduler tasks) : ITrustedInstaller
+{
+    public List<string> Started { get; } = [];
+    public void Run(Action work) => work();
+
+    public int Start(string exe, string arguments)
+    {
+        Started.Add($"{System.IO.Path.GetFileName(exe)} {arguments}");
+        var name = arguments.Split('"')[1].Split('\\')[^1];
+        tasks.Set(name, arguments.EndsWith("/enable", StringComparison.Ordinal));
+        return 0;
+    }
 }
 
 /// <summary>The PC's Optional and Windows features; Reads counts the list reads (the Remove tab's background read).</summary>

@@ -26,6 +26,11 @@ internal sealed record AppTest(AppServices S, CatalogueView Page, InstallPage In
     /// <summary>The PC's Store packages and features (the Apps step's reads).</summary>
     public FakePackages Packages { get; init; } = new();
     public FakeDism Dism { get; init; } = new();
+
+    /// <summary>The PC's services and scheduled tasks (the Services and Scheduled tasks pages), TrustedInstaller.</summary>
+    public FakeServiceManager Services { get; init; } = new();
+    public FakeTaskScheduler Tasks { get; init; } = new();
+    public FakeTrustedInstaller Trusted { get; init; } = null!;
 }
 
 /// <summary>Makes <see cref="AppTest"/>s; one per test class instance, cleaning its test key and folder after.</summary>
@@ -100,9 +105,14 @@ internal sealed class AppHarness : IDisposable
         var log = new MemoryLog();
         var (explorer, shutdown, restore) = (new FakeExplorer(), new FakeShutdown(), new FakeRestore());
         var (packages, dism) = (new FakePackages(), new FakeDism());
+        var (services, tasks) = (new FakeServiceManager(), new FakeTaskScheduler());
+        var trusted = new FakeTrustedInstaller(tasks);
         var engine = new Engine
         {
-            Services = new TweakServices { Apps = new Core.Apps.AppPackages(packages, dism, log) },
+            Services = new TweakServices
+            {
+                Apps = new Core.Apps.AppPackages(packages, dism, log), Services = services, Tasks = tasks, Trusted = trusted, Windows = @"C:\Windows",
+            },
             Files = files,
             Registry = new RegistryEngine(new RedirectedRegistryPaths(_root)),
             System = new Pc(),
@@ -154,7 +164,7 @@ internal sealed class AppHarness : IDisposable
         s.Install = new InstallPage(s);
         s.Install.Attach(footer);
         Assert.Equal("", string.Join(" / ", engine.Loaded.Problems.Select(p => $"{p.File}: {p.Message}")));
-        return new AppTest(s, s.Catalogue, s.Install, footer, asked, answers, explorer, shutdown, restore, bars, picker) { Packages = packages, Dism = dism };
+        return new AppTest(s, s.Catalogue, s.Install, footer, asked, answers, explorer, shutdown, restore, bars, picker) { Packages = packages, Dism = dism, Services = services, Tasks = tasks, Trusted = trusted };
     }
 
     /// <summary>Fixture Tweaks in one Category (Optimize › Test): HKCU rows under Software\AkariFix.</summary>

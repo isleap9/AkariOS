@@ -18,7 +18,7 @@ public sealed class CatalogueView
 {
     private readonly AppServices s;
     private readonly Dictionary<string, CatalogueCard> _cards = [];
-    private readonly Queue<(CatalogueCard Card, TweakMode Mode, object? Value)> _queue = new();
+    private readonly Queue<Job> _queue = new();
     private readonly HashSet<string> _explorer = [];
     private readonly HashSet<string> _reboot = [];
     private readonly CatalogueBars _bars;
@@ -31,8 +31,16 @@ public sealed class CatalogueView
     {
         s = services;
         _bars = new CatalogueBars(SafeRun, RestartExplorer, RestartPc);
+        Services = new ServicesList(s, this);
+        Tasks = new TasksList(s, this);
         s.Shell.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(ShellViewModel.Page)) UpdateBars(); };
     }
+
+    /// <summary>The Services page's list (Show-AkariServiceList), under its Category's Tweaks.</summary>
+    public ServicesList Services { get; }
+
+    /// <summary>The Scheduled tasks page's list (Show-AkariTaskList).</summary>
+    public TasksList Tasks { get; }
 
     /// <summary>The Tweaks it lists (this PC's).</summary>
     public IReadOnlyList<Tweak> Tweaks => _tweaks ??= Catalogue.Tweaks(s.Engine.Loaded.Tweaks, s.Engine.System);
@@ -50,10 +58,11 @@ public sealed class CatalogueView
         _cards.TryGetValue(t.Id, out var c) ? c : _cards[t.Id] = CatalogueCard.Make(t, s.Engine.States.DefaultFor(t), (card, mode, value) => Change(card.Tweak, mode, value));
 
     /// <summary>Show-AkariCataloguePage: a page (key) or, with a query, the search's results across the Catalogue.
-    /// The Services and Scheduled tasks pages keep their Tweaks while the search waits for their lists (N6).</summary>
+    /// The Services and Scheduled tasks pages keep their Tweaks; the search filters their list.</summary>
     public UIElement Build(string page, string query)
     {
         var lists = Catalogue.Lists.ContainsKey(page);
+        var listQuery = query;
         if (lists) query = "";
         var list = Catalogue.List(Tweaks, page, query);
         // the cards are kept: take them off the page shown before
@@ -89,12 +98,7 @@ public sealed class CatalogueView
             Show(c);
         }
         if (list.Count == 0) panel.Children.Add(Parts.Text(query.Length > 0 ? "No tweak matches." : "Nothing here yet.", 13, "Mu"));
-        if (lists)
-        {
-            var note = Parts.Text($"The list of {(page.EndsWith("Services", StringComparison.Ordinal) ? "services" : "scheduled tasks")} on this PC comes with N6 (docs/plans/2026-10-31-native-app.md). The PowerShell app has it today.", 13, "Mu");
-            note.Margin = new Thickness(2, 12, 0, 0);
-            panel.Children.Add(note);
-        }
+        if (lists) panel.Children.Add(page.EndsWith("Services", StringComparison.Ordinal) ? Services.View(listQuery) : Tasks.View(listQuery));
 
         // the same page and search again (Show-Page's rebuild) reads nothing; another page, or the search starting or
         // ending, staggers its cards in
@@ -182,59 +186,78 @@ public sealed class CatalogueView
         }
         c.Busy = CatalogueBusy.Waiting;
         Show(c);
-        _queue.Enqueue((c, mode, value));
-        Next();
+        var verb = t.Kind == TweakKind.Action ? t.Button.ToLowerInvariant() : mode == TweakMode.Apply ? "apply" : "revert";
+        Enqueue($"{t.Name}: {verb}", !(t.Kind == TweakKind.Action && t.Button is "Check" or "Open"),
+            () => { c.Busy = CatalogueBusy.Running; Show(c); },
+            () =>
+            {
+                Outcome? o = null;
+                try { o = s.Engine.Runner.Run(t, mode, value); }
+                catch (Exception e) { s.Log.WriteFile($"Error: {t.Id}: {e}"); }
+                return new ChangeDone(o, Read(t));
+            },
+            r => Changed(c, r));
     }
 
     private sealed record ChangeDone(Outcome? Outcome, StateRead Read);
 
-    // Start-AkariCatalogueNext: the Runner, then the State read back; the session's first change gets an AkariOS
-    // restore point first (not a Check / Open button), and goes on without one when Windows refuses
+    /// <summary>A change in the queue: its status bar label, whether it gets the session's restore point first, what
+    /// to show when it starts, the work (off the UI thread) and what to show with its result.</summary>
+    private sealed record Job(string Label, bool Restore, Action Begin, Func<object?> Work, Action<object?> Done);
+
+    /// <summary>Queues a change (a Tweak's, a service's, a task's): run one at a time, after the ones before it.</summary>
+    public void Enqueue(string label, bool restore, Action begin, Func<object?> work, Action<object?> done)
+    {
+        _queue.Enqueue(new Job(label, restore, begin, work, done));
+        Next();
+    }
+
+    // Start-AkariCatalogueNext: the next change; the session's first one gets an AkariOS restore point first (not a
+    // Check / Open button), and goes on without one when Windows refuses
     private void Next()
     {
-        if (Running || !_queue.TryDequeue(out var it)) return;
-        var (c, mode, value) = it;
-        var t = c.Tweak;
+        if (Running || !_queue.TryDequeue(out var job)) return;
         Running = true;
-        c.Busy = CatalogueBusy.Running;
-        Show(c);
-        var restore = !(t.Kind == TweakKind.Action && t.Button is "Check" or "Open") && s.RestoreChoice("Optimize");
+        job.Begin();
+        var restore = job.Restore && s.RestoreChoice("Optimize");
         if (restore) s.RestoreDone = true;
-        var verb = t.Kind == TweakKind.Action ? t.Button.ToLowerInvariant() : mode == TweakMode.Apply ? "apply" : "revert";
-        var label = $"{t.Name}: {verb}";
-        s.Shell.SetBusy(true, label, locked: false);
-        s.Log.Write(label);
+        s.Shell.SetBusy(true, job.Label, locked: false);
+        s.Log.Write(job.Label);
         s.Background(() =>
         {
             if (restore && s.Engine.RestorePoints?.Create("AkariOS") is { Ok: false })
                 s.Log.Write("Warning: going on without a restore point");
-            Outcome? o = null;
-            try { o = s.Engine.Runner.Run(t, mode, value); }
-            catch (Exception e) { s.Log.WriteFile($"Error: {t.Id}: {e}"); }
-            return new ChangeDone(o, Read(t));
+            return job.Work();
         }, r =>
         {
             Running = false;
             s.Shell.SetBusy(false);
-            c.Busy = CatalogueBusy.None;
-            if (r is ChangeDone d)
-            {
-                (c.State, c.Current) = (d.Read.State, d.Read.Current);
-                if (d.Outcome is null) c.Error = "it stopped before its change (see the log)";
-                else if (d.Outcome.Kind == OutcomeKind.Failed) c.Error = d.Outcome.Message;
-                else if (d.Outcome.Kind is OutcomeKind.Applied or OutcomeKind.Reverted)
-                {
-                    if (t.Explorer) _explorer.Add(t.Id);
-                    if (t.Reboot) _reboot.Add(t.Id);
-                }
-            }
-            else c.Error = "it stopped before its change (see the log)";
+            job.Done(r);
             // Home's "changes applied" is read again
             s.AppliedCount = null;
-            Show(c);
             UpdateBars();
             Next();
         });
+    }
+
+    // a Tweak's change is done: the card shows its State read back, a failure, the restarts it needs
+    private void Changed(CatalogueCard c, object? r)
+    {
+        var t = c.Tweak;
+        c.Busy = CatalogueBusy.None;
+        if (r is ChangeDone d)
+        {
+            (c.State, c.Current) = (d.Read.State, d.Read.Current);
+            if (d.Outcome is null) c.Error = "it stopped before its change (see the log)";
+            else if (d.Outcome.Kind == OutcomeKind.Failed) c.Error = d.Outcome.Message;
+            else if (d.Outcome.Kind is OutcomeKind.Applied or OutcomeKind.Reverted)
+            {
+                if (t.Explorer) _explorer.Add(t.Id);
+                if (t.Reboot) _reboot.Add(t.Id);
+            }
+        }
+        else c.Error = "it stopped before its change (see the log)";
+        Show(c);
     }
 
     // ---- the bars

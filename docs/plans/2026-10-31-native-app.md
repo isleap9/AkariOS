@@ -338,6 +338,14 @@ helpers.
 - `advanced-services-off` (its Choice values from `services.psd1`), `advanced-remove-scheduled-tasks` (`tasks.psd1`).
 - The Services and Scheduled tasks pages (suggestions, Show all, filters, critical-service confirms).
 - VM: a few services and tasks changed and reverted.
+- Built 2026-11-12 (684 tests, parity 50 → 48). Decided: the services are read through WMI `Win32_Service` as the
+  PowerShell app reads them (its description and DelayedAutoStart in one query), not the SCM calls above; a startup
+  type is written to the service's registry key as `Set-AkariServiceStart` does (admin, else TrustedInstaller; a
+  per-user instance's template too), not with `ChangeServiceConfig`. A task Windows keeps from an admin goes through
+  `schtasks` started as TrustedInstaller (`ITrustedInstaller.Start`, `CreateProcessWithTokenW`): the thread
+  impersonation the registry uses reaches neither a new process nor the out-of-process Task Scheduler.
+  `advanced-services-off` runs in Safe Mode only (the restart into it is N7's). Service, task and Tweak changes
+  share the Catalogue's one queue.
 
 ## N7: Runs in phases, Safe Mode and One-click
 
