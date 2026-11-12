@@ -5,6 +5,7 @@ using AkariOS.App.Shell;
 using AkariOS.Core;
 using AkariOS.Core.Data;
 using AkariOS.Core.Sources;
+using AkariOS.Core.Update;
 
 namespace AkariOS.App.Pages;
 
@@ -16,7 +17,7 @@ public sealed record AboutData(
     string License,
     string LicenseUrl)
 {
-    public const string Releases = "https://github.com/isleap9/AkariOS/releases";
+    public const string Releases = Updates.ReleasesPage;
 
     public static AboutData Read(ISourceFiles files)
     {
@@ -31,7 +32,7 @@ public sealed record AboutData(
 }
 
 /// <summary>
-/// About (src/UI/About.ps1): the version (update checks come with N4), Links (plus Open log folder), Credits (each
+/// About (src/UI/About.ps1): the version and update status (<see cref="UpdateService"/>), Links (plus Open log folder), Credits (each
 /// name a link), License; the cards in one column on the left, at most 800 px wide; Back leads Home.
 /// </summary>
 public static class AboutPage
@@ -41,14 +42,7 @@ public static class AboutPage
         var data = AboutData.Read(s.Engine.Files);
         var stack = new StackPanel();
 
-        var (version, vbody) = Parts.Card($"AkariOS {AkariInfo.Version}");
-        var status = Parts.Text("Update checks come with N4: for a newer version, see the releases on GitHub.", 13, "Mu");
-        status.Margin = new Thickness(0, 0, 0, 12);
-        vbody.Children.Add(status);
-        var bar = new StackPanel { Orientation = Orientation.Horizontal };
-        bar.Children.Add(Parts.Button("Open on GitHub", click: () => s.Open.Url(AboutData.Releases)));
-        vbody.Children.Add(bar);
-        stack.Children.Add(version);
+        stack.Children.Add(VersionCard(s));
 
         var (links, lbody) = Parts.Card("Links");
         var wrap = new WrapPanel();
@@ -101,5 +95,52 @@ public static class AboutPage
         column.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0, GridUnitType.Auto) });
         column.Children.Add(stack);
         return column;
+    }
+
+    /// <summary>The version and the update status (Update-AkariAboutUpdate): Update now while one is Available, Check
+    /// for updates (off while checking), Open on GitHub (the release's page once known), the release notes.</summary>
+    private static Border VersionCard(AppServices s)
+    {
+        var (card, body) = Parts.Card($"AkariOS {AkariInfo.Version}");
+        var status = Parts.Text("", 13, "Mu");
+        status.TextWrapping = TextWrapping.Wrap;
+        status.Margin = new Thickness(0, 0, 0, 12);
+        body.Children.Add(status);
+        var bar = new StackPanel { Orientation = Orientation.Horizontal };
+        var update = Parts.Button("Update now", "BtnP", () => s.Updates?.Install(s));
+        var check = Parts.Button("Check for updates", click: () => s.Updates?.Check(s, manual: true));
+        var github = Parts.Button("Open on GitHub", click: () => s.Open.Url(s.Updates?.Status?.Release.PageUrl ?? AboutData.Releases));
+        foreach (var b in new[] { update, check, github })
+        {
+            b.Margin = new Thickness(0, 0, 8, 0);
+            bar.Children.Add(b);
+        }
+        body.Children.Add(bar);
+        var head = Parts.Title("What's new", 14, FontWeights.SemiBold);
+        head.Margin = new Thickness(0, 16, 0, 6);
+        body.Children.Add(head);
+        var notes = Parts.Text("", 13, "Mu");
+        notes.TextWrapping = TextWrapping.Wrap;
+        body.Children.Add(notes);
+
+        void Show()
+        {
+            var u = s.Updates;
+            var st = u?.Status;
+            status.Text = u is null ? "Updates aren't checked in this copy."
+                : u.Checking ? "Checking for updates…"
+                : st?.Message ?? "Not checked yet.";
+            check.IsEnabled = u is { Checking: false };
+            update.Visibility = st?.Kind == UpdateKind.Available ? Visibility.Visible : Visibility.Collapsed;
+            notes.Text = st is { Kind: UpdateKind.Available or UpdateKind.Blocked or UpdateKind.Latest } ? Updates.NotesText(st.Release.Notes) : "";
+            notes.Visibility = head.Visibility = notes.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+        Show();
+        if (s.Updates is { } svc)
+        {
+            svc.Changed += Show;
+            card.Unloaded += (_, _) => svc.Changed -= Show;
+        }
+        return card;
     }
 }

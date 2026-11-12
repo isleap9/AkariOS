@@ -50,6 +50,12 @@ public sealed class AppServices
     /// <summary>The Install AkariOS page (one per run: its mode, step and Selection), made by PageFactory.</summary>
     public Pages.InstallPage? Install { get; set; }
 
+    /// <summary>The update check and install (About, Home's bar, the launch check; none in some tests).</summary>
+    public UpdateService? Updates { get; set; }
+
+    /// <summary>Closes the app without asking (an update is starting the new exe); set by Program.</summary>
+    public Action Close { get; set; } = () => { };
+
     /// <summary>The window's step footer (none in some tests).</summary>
     public Pages.StepFooter? Footer { get; set; }
 

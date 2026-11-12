@@ -7,6 +7,7 @@ using AkariOS.App.Shell;
 using AkariOS.Core;
 using AkariOS.Core.Presets;
 using AkariOS.Core.Tweaks;
+using AkariOS.Core.Update;
 
 namespace AkariOS.App.Pages;
 
@@ -32,6 +33,7 @@ public static class HomePage
     public static UIElement Build(AppServices s)
     {
         var root = new StackPanel();
+        root.Children.Add(UpdateBar(s, root));
         var hero = new StackPanel { Margin = new Thickness(8, 12, 8, 36) };
         var over = Parts.Title($"AKARIOS {AkariInfo.Version}", 11);
         over.SetResourceReference(TextBlock.ForegroundProperty, "AccText");
@@ -116,5 +118,49 @@ public static class HomePage
         // the mode cards come in one after another the first time Home is shown
         if (!s.HomeShown) { s.HomeShown = true; Motion.Stagger(grid.Children.OfType<UIElement>()); }
         return root;
+    }
+
+    /// <summary>MainWindow.xaml's UpdateBar: shown while a newer release exists (Available or Blocked), with its
+    /// message, Update now (Available only) and See what's new (About).</summary>
+    private static Border UpdateBar(AppServices s, FrameworkElement page)
+    {
+        var bar = new Border { Name = "UpdateBar", Visibility = Visibility.Collapsed, CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(1), Padding = new Thickness(16, 10, 16, 10), Margin = new Thickness(0, 0, 0, 12) };
+        bar.SetResourceReference(Border.BorderBrushProperty, "Bd");
+        bar.SetResourceReference(Border.BackgroundProperty, "S1");
+        var dock = new DockPanel();
+        var icon = Icons.Make("download", 18, "Ok");
+        icon.Margin = new Thickness(0, 0, 12, 0);
+        DockPanel.SetDock(icon, Dock.Left);
+        dock.Children.Add(icon);
+        var open = Parts.Button("See what's new", click: () => s.Shell.Open("About"));
+        open.Margin = new Thickness(12, 0, 0, 0);
+        DockPanel.SetDock(open, Dock.Right);
+        dock.Children.Add(open);
+        var update = Parts.Button("Update now", "BtnP", () => s.Updates?.Install(s));
+        update.Margin = new Thickness(12, 0, 0, 0);
+        DockPanel.SetDock(update, Dock.Right);
+        dock.Children.Add(update);
+        var text = Parts.Text("");
+        text.TextWrapping = TextWrapping.Wrap;
+        text.VerticalAlignment = VerticalAlignment.Center;
+        dock.Children.Add(text);
+        bar.Child = dock;
+
+        void Show()
+        {
+            var st = s.Updates?.Status;
+            var found = st?.Kind is UpdateKind.Available or UpdateKind.Blocked;
+            text.Text = st?.Message ?? "";
+            update.Visibility = st?.Kind == UpdateKind.Available ? Visibility.Visible : Visibility.Collapsed;
+            if (!found) bar.Visibility = Visibility.Collapsed;
+            else if (bar.Visibility != Visibility.Visible) Motion.Show(bar);
+        }
+        Show();
+        if (s.Updates is { } u)
+        {
+            u.Changed += Show;
+            page.Unloaded += (_, _) => u.Changed -= Show;
+        }
+        return bar;
     }
 }

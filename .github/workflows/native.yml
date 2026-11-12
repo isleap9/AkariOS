@@ -1,5 +1,6 @@
 # The native app (app/, ADR 0007): build and test on every push or pull request that touches it or the src/ files it
-# reads (Tweaks, data lists, presets, the shared XAML, Assets, the version). Keep the two path lists equal.
+# reads (Tweaks, data lists, presets, the shared XAML, Assets, the version; Update.ps1 is the updater's Oracle). Keep
+# the two path lists equal. A release runs the same tests first (release.yml).
 name: Native
 
 on:
@@ -11,6 +12,7 @@ on:
       - 'src/OneClick/**'
       - 'src/Core/Iso/Data/**'
       - 'src/Core/Version.ps1'
+      - 'src/Core/Update.ps1'
       - 'src/UI/*.xaml'
       - 'src/UI/*.psd1'
       - 'src/Assets/**'
@@ -23,6 +25,7 @@ on:
       - 'src/OneClick/**'
       - 'src/Core/Iso/Data/**'
       - 'src/Core/Version.ps1'
+      - 'src/Core/Update.ps1'
       - 'src/UI/*.xaml'
       - 'src/UI/*.psd1'
       - 'src/Assets/**'

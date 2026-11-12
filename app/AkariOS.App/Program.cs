@@ -2,6 +2,8 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using AkariOS.Core;
+using AkariOS.Core.Machine;
+using AkariOS.Core.Update;
 using AkariOS.Tweaks;
 
 namespace AkariOS.App;
@@ -28,6 +30,8 @@ public static partial class Program
         }
 
         var appLog = new AkariLog(AkariPaths.LogFile);
+        // after an update: the old exe (still closing) and a stray download go
+        if (Environment.ProcessPath is { } exePath) Task.Run(() => Updater.Cleanup(exePath));
         var engine = Engine.Live(TweaksAssembly.Codes, appLog);
         var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
         var motion = AkariXaml.MotionOn();
@@ -48,12 +52,19 @@ public static partial class Program
         services.Bars = window.CatBars;
         services.Footer = new Pages.StepFooter(window.StepFooter, window.StepBack, window.StepDots, window.StepNext);
         services.Install?.Attach(services.Footer);
-        // a Run or a change running, Safe Mode changes waiting: closing asks first
+        // a Run or a change running, Safe Mode changes waiting: closing asks first (not for an update: the new exe
+        // is starting already, and the update is only offered with nothing running or waiting)
+        var updating = false;
         window.Closing += (s, e) =>
         {
+            if (updating) return;
             if (services.Install?.CanClose() == false) { e.Cancel = true; return; }
             services.Catalogue?.OnClosing(s, e);
         };
+        services.Close = () => { updating = true; window.Close(); };
+        services.Updates = Shell.UpdateService.Live(new ExeRunner(), appLog);
+        // every launch: checked in the background once the window is up
+        window.Loaded += (_, _) => services.Updates.Check(services, manual: false);
         Shell.OptionsMenu.Attach(window.MenuBtn, Shell.OptionsMenu.Build(services));
         foreach (var p in engine.Loaded.Problems) appLog.WriteFile($"{p.Level}: {p.File}: {p.Message}");
         // an error inside a click: in akari.log and a message, instead of closing the app

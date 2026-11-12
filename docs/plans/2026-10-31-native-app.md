@@ -25,8 +25,8 @@ Core APIs are the behaviour to match).
   `Akari.ps1` and `AkariOS-Native.exe` (a fixed name, so `releases/latest/download/AkariOS-Native.exe` always works;
   the PowerShell updater only picks `AkariOS-*.zip`, so the exe doesn't confuse it).
 - **Portable.** No installer; run it from anywhere. It updates itself from the About page (N4): the latest release's
-  exe, checked against GitHub's SHA-256 digest, swapped by a small helper after the app exits (old exe kept as `.old`
-  until the new one starts). A Run in phases first copies the exe to `%ProgramData%\AkariOS.Native\AkariOS-Native.exe`
+  exe, checked against GitHub's SHA-256 digest, swapped in place (the running exe renamed to `.old`, removed when the
+  new one starts; N4). A Run in phases first copies the exe to `%ProgramData%\AkariOS.Native\AkariOS-Native.exe`
   and registers that copy for the resume, so a moved or deleted download doesn't break it.
 - **Shared Tweaks.** The native Loader reads every `src/Tweaks/<Section>/<Category>/*.ps1` (not the Legacy
   `Tweaks/*.ps1`, not `Ported.psd1`: no Legacy pages, ADR 0004 stays PowerShell-only) through `PsData`, a C# reader of
@@ -271,14 +271,23 @@ Scheduled tasks wait for N6, the Defender Safe Mode Toggles for N7.
 - Done when: every data-only Tweak and the ported batches show and act on both pages. VM: a Guided Run and Catalogue
   changes, checked in the PowerShell app's States (and back).
 
-## N4: Release and updates
+## N4: Release and updates (built 2026-11-12, 552 tests; VM check pending)
 
-- `.github/workflows/release.yml`: after the zip, `dotnet test`, then `dotnet publish app/AkariOS.App -c Release
-  -r win-x64 --self-contained -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
-  -p:IncludeNativeLibrariesForSelfExtract=true`, renamed `AkariOS-Native.exe`, attached to the same release. A failing
-  native build or test stops the release.
-- `UpdateService` (the About page and the launch check, as `Core/Update.ps1`: Available / Latest / Newer / Blocked /
-  Error; Blocked during a Run in phases or while changes are applied), the helper that swaps the exe.
+- `.github/workflows/release.yml`: the version checked against the tag, then `dotnet test -c Release`, then
+  `dotnet publish app/AkariOS.App -c Release -r win-x64 --self-contained -p:PublishSingleFile=true
+  -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true` (`AkariOS-Native.exe`, its
+  `ProductVersion` must equal `$AkariVersion`), then the zip and `Akari.ps1`; all three attached to the same release.
+  The native steps come first: a failing build or test stops the release before anything is published.
+  `native.yml` also runs on `src/Core/Update.ps1` (the updater's Oracle).
+- `UpdateService` (the About page, Home's update bar and the launch check, as `Core/Update.ps1` and `UI/About.ps1`:
+  Available / Latest / Newer / Blocked / Error; Blocked for a developer build (not a single-file publish), a saved
+  `run.json`, or changes being applied or waiting for Safe Mode).
+- The swap (decided 2026-11-12, instead of a helper process): Windows lets a running exe be renamed, not
+  overwritten. The release's `AkariOS-Native.exe` is downloaded next to the running exe as `<exe>.new`, checked
+  against GitHub's SHA-256 digest and the release's version (its `ProductVersion`), then the running exe becomes
+  `<exe>.old`, the new one takes its name (whatever the user called it) and is started, and the app closes; if it
+  won't start, everything is put back. On launch `<exe>.old` and a stray `.new` are deleted (retried while the old
+  one is still closing).
 - Done when: a tag builds both; the exe's version equals the zip's. VM: an older exe updates itself.
 
 ## N5: Apps (remove and install)
