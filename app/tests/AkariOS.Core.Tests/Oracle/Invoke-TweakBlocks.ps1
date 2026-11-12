@@ -37,6 +37,12 @@
 #   N6: a Choice's Value block runs too ("Value": its "result <value>"); -Value: $AkariValue for Apply; the real
 #   Remove-AkariScheduledTasks (read out of Core\System.ps1) on Get-ScheduledTask's answers; -KeptTasks ('name;…'):
 #   tasks Unregister-ScheduledTask refuses (it throws for them, as Windows' protected ones).
+#   N7: a Prepare block runs too ("Prepare"); "trustedrun <command>" (Run-Trusted; the test's folders as %Root%, a key
+#   of the test key as Registry::HKEY_LOCAL_MACHINE\… / HKEY_CURRENT_USER\…), "exe <path>|<args>" (Invoke-AkariExe:
+#   0, the test's folders as %Root%), "restorepoint <description>" (New-AkariRestorePoint; -RestoreFails: refused),
+#   "readonly <%Root%\…>|<True|False>" (Set-ItemProperty IsReadOnly: done, inside the test's folders only);
+#   Get-ChildItem takes -Force; $AkariRoot = -Src (the blocks read OneClick\ files there); -Only 'Apply,…': only
+#   those blocks run (a Prepare would empty what the Apply after it needs).
 # Get-MMAgent answers -MMAgent ('ApplicationLaunchPrefetching=True;…;MaxOperationAPIFiles=512'). -SystemRoot: the
 # blocks' $env:SystemRoot (a temp folder the C# test laid out).
 # Get-AkariGpus answers -Gpus ('Vendor|Path;…'), Get-AkariGpuDevices -GpuDevices ('id;…'), Get-AkariRememberedState
@@ -53,8 +59,9 @@ param([Parameter(Mandatory)][string]$Src, [Parameter(Mandatory)][string]$Out, [s
     [string]$BcdLines = '', [string]$TestRoot = '', [string]$AppValues = '', [string]$UserFolder = '', [string]$Gpus = '',
     [string]$GpuDevices = '', [string]$Remembered = '', [string]$ProgramFiles = '', [string]$ProgramFilesX86 = '', [string]$ProgramData = '',
     [string]$MMAgent = '', [string]$SystemRoot = '', [string]$Services = '', [string]$Processes = '', [string]$Tasks = '',
-    [string]$Public = '', [string]$LocalAppData = '', [switch]$MakeFiles, [string]$Value = '', [string]$KeptTasks = '')
+    [string]$Public = '', [string]$LocalAppData = '', [switch]$MakeFiles, [string]$Value = '', [string]$KeptTasks = '', [switch]$RestoreFails, [string]$Only = '')
 $ErrorActionPreference = 'Stop'
+$AkariRoot = $Src
 . (Join-Path $Src 'Core\Loader.ps1')
 . (Join-Path $Src 'Core\Registry.ps1')
 $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $Src 'Core\AppSetup.ps1'), [ref]$null, [ref]$null)
@@ -170,13 +177,13 @@ function Test-Path {
     if ($LiteralPath) { Microsoft.PowerShell.Management\Test-Path -LiteralPath $p } else { Microsoft.PowerShell.Management\Test-Path -Path $p }
 }
 function Get-ChildItem {
-    [CmdletBinding()] param([Parameter(Position = 0)][string[]]$Path, [string[]]$LiteralPath, [string]$Filter, [switch]$Recurse, [switch]$File, [switch]$Directory, [int]$Depth)
+    [CmdletBinding()] param([Parameter(Position = 0)][string[]]$Path, [string[]]$LiteralPath, [string]$Filter, [switch]$Recurse, [switch]$File, [switch]$Directory, [int]$Depth, [switch]$Force)
     $a = @{}
     if ($PSBoundParameters.ContainsKey('Depth')) { $a.Depth = $Depth }
     $redirect = { param($x) if ($x -match '^(HKLM|HKCU):\\') { Resolve-AkariRegPath $x } else { $x } }
     if ($LiteralPath) { $a.LiteralPath = @($LiteralPath | ForEach-Object { & $redirect $_ }) } else { $a.Path = @($Path | ForEach-Object { & $redirect $_ }) }
     if ($Filter) { $a.Filter = $Filter }
-    foreach ($k in 'Recurse', 'File', 'Directory') { if ($PSBoundParameters[$k]) { $a[$k] = $true } }
+    foreach ($k in 'Recurse', 'File', 'Directory', 'Force') { if ($PSBoundParameters[$k]) { $a[$k] = $true } }
     if ($PSBoundParameters.ContainsKey('ErrorAction')) { $a.ErrorAction = $PSBoundParameters['ErrorAction'] }
     Microsoft.PowerShell.Management\Get-ChildItem @a
 }
@@ -245,7 +252,7 @@ function Get-TestKeyPath([string]$Path) {
 function Remove-Item {
     [CmdletBinding()] param([Parameter(Position = 0)][string[]]$Path, [Parameter(ValueFromPipelineByPropertyName)][Alias('PSPath')][string[]]$LiteralPath, [switch]$Recurse, [switch]$Force)
     process {
-    foreach ($p in @(@($LiteralPath) + @($Path) | Where-Object { $_ } | ForEach-Object { $_ -replace '^Microsoft\.PowerShell\.Core\\', '' })) {
+    foreach ($p in @(@($LiteralPath) + @($Path) | Where-Object { $_ } | ForEach-Object { $_ -replace '^Microsoft\.PowerShell\.Core\\(FileSystem::)?', '' })) {
         if ($key = Get-TestKeyPath $p) { $script:Calls.Add("delkey $key"); continue }
         if ($p -match '^(HKLM|HKCU):\\') { $script:Calls.Add("delkey $p"); continue }
         if ($UserFolder -and $p.StartsWith($UserFolder, 'OrdinalIgnoreCase')) {
@@ -269,9 +276,10 @@ function Test-InsideTest([string]$Path) {
     $false
 }
 function Copy-Item {
-    [CmdletBinding()] param([Parameter(Position = 0)][string]$Path, [Parameter(Position = 1)][string]$Destination, [switch]$Recurse, [switch]$Force)
+    [CmdletBinding()] param([Parameter(Position = 0)][string]$Path, [string]$LiteralPath, [Parameter(Position = 1)][string]$Destination, [switch]$Recurse, [switch]$Force)
     if (-not (Test-InsideTest $Destination)) { throw "not a test path: $Destination" }
-    Microsoft.PowerShell.Management\Copy-Item -Path $Path -Destination $Destination -Recurse:$Recurse -Force:$Force
+    if ($LiteralPath) { Microsoft.PowerShell.Management\Copy-Item -LiteralPath $LiteralPath -Destination $Destination -Recurse:$Recurse -Force:$Force }
+    else { Microsoft.PowerShell.Management\Copy-Item -Path $Path -Destination $Destination -Recurse:$Recurse -Force:$Force }
 }
 function Invoke-WebRequest {
     [CmdletBinding()] param([Parameter(Position = 0)][string]$Uri, [string]$OutFile, [switch]$UseBasicParsing)
@@ -311,6 +319,28 @@ function New-AkariShortcut([string]$Name, [string]$Target) {
         [void][IO.Directory]::CreateDirectory((Split-Path $lnk)); [IO.File]::WriteAllText($lnk, '')
     }
 }
+function Run-Trusted([string]$Command) {
+    $c = Format-TestPaths $Command
+    if ($TestRoot) {
+        foreach ($h in @(@('HKLM', 'HKEY_LOCAL_MACHINE'), @('HKCU', 'HKEY_CURRENT_USER'))) { $c = $c.Replace("HKEY_CURRENT_USER\$TestRoot\$($h[0])\", "$($h[1])\") }
+    }
+    $script:Calls.Add("trustedrun $c")
+}
+function Invoke-AkariExe([string]$Path, [string[]]$Arguments) {
+    $script:Calls.Add("exe $(Format-TestPaths $Path)|$(Format-TestPaths ($Arguments -join ' '))")
+    0
+}
+function New-AkariRestorePoint([string]$Description = 'AkariOS') {
+    $script:Calls.Add("restorepoint $Description")
+    if ($RestoreFails) { @{ Ok = $false; Message = 'Windows refused the restore point' } } else { @{ Ok = $true; Message = '' } }
+}
+function Set-ItemProperty {
+    [CmdletBinding()] param([string]$LiteralPath, [string]$Name, $Value)
+    $r = Get-TestFilePath $LiteralPath
+    if (-not $r -or $Name -ne 'IsReadOnly') { throw "not a test file: $LiteralPath $Name" }
+    $script:Calls.Add("readonly $r|$([bool]$Value)")
+    Microsoft.PowerShell.Management\Set-ItemProperty -LiteralPath $LiteralPath -Name IsReadOnly -Value ([bool]$Value)
+}
 function Get-AkariRememberedState([string]$Id) { $script:Calls.Add("remembered $Id"); $Remembered -eq 'true' }
 function Set-AkariRememberedState([string]$Id, [bool]$Applied) { $script:Calls.Add("remember $Id $Applied") }
 function Get-AkariGpus {
@@ -339,10 +369,15 @@ foreach ($id in @($Ids.Split(',') | Where-Object { $_ })) {
     $t = $tweaks | Where-Object { $_.Id -eq $id } | Select-Object -First 1
     $AkariTweakDir = Split-Path $t.Source
     $entry = [ordered]@{}
-    foreach ($b in 'Detect', 'Value', 'Before', 'Apply', 'Revert') {
-        if (-not $t.$b) { continue }
+    foreach ($b in 'Detect', 'Value', 'Before', 'Prepare', 'Apply', 'Revert') {
+        if (-not $t.$b -or ($Only -and $b -notin $Only.Split(','))) { continue }
         $script:Calls.Clear()
-        $said = & $t.$b
+        # a block that throws (a tool missing): its message is its last line; a stand-in called wrongly still fails the run
+        try { $said = & $t.$b }
+        catch {
+            if ($_.Exception -is [Management.Automation.ParameterBindingException] -or $_.Exception -is [Management.Automation.CommandNotFoundException]) { throw }
+            $script:Calls.Add("throw $($_.Exception.Message)"); $said = $null
+        }
         if ($b -in 'Detect', 'Value') { $script:Calls.Add("result $said") }
         elseif ($b -eq 'Apply' -and $said) { $script:Calls.Add("said $(@($said) -join ' / ')") }
         Add-Files

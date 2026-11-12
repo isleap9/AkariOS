@@ -14,9 +14,48 @@ public static partial class Program
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool AttachConsole(int processId);
 
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool AllocConsole();
+
+    [LibraryImport("kernel32.dll")]
+    private static partial IntPtr GetConsoleWindow();
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool ShowWindow(IntPtr window, int show);
+
+    /// <summary>
+    /// A Run in phases in a console window of its own, maximized (Akari.ps1's -Resume and One-click consoles): the log's
+    /// live lines printed, an error in akari.log and on screen, waiting for Enter so it can be read.
+    /// </summary>
+    private static int InConsole(Func<RunConsole, AkariLog, int> body)
+    {
+        AllocConsole();
+        ShowWindow(GetConsoleWindow(), 3);
+        var output = new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true };
+        var input = new StreamReader(Console.OpenStandardInput());
+        var log = new AkariLog(AkariPaths.LogFile);
+        log.Line += output.WriteLine;
+        try { return body(new RunConsole(output, input, new RealConsole()), log); }
+        catch (Exception e)
+        {
+            log.WriteFile($"Error: {e}");
+            output.WriteLine($"AkariOS stopped: {e.Message}");
+            output.WriteLine("The details are in akari.log. Press Enter to close this window.");
+            input.ReadLine();
+            return 1;
+        }
+    }
+
     [STAThread]
     public static int Main(string[] args)
     {
+        // RunOnce after a restart: the saved Run goes on for the user it started for
+        if (Cli.IsResume(args))
+            return InConsole((console, log) => console.Resume(new Core.Runs.RunStore(Core.Runs.RunStore.Default, () => { }).Get,
+                sid => Engine.Live(TweaksAssembly.Codes, log, sid)));
+
         if (Cli.IsCli(args))
         {
             // a WinExe has no console: write to the one it was started from
@@ -32,6 +71,8 @@ public static partial class Program
         var appLog = new AkariLog(AkariPaths.LogFile);
         // after an update: the old exe (still closing) and a stray download go
         if (Environment.ProcessPath is { } exePath) Task.Run(() => Updater.Cleanup(exePath));
+        // the exe copy a finished Run in phases resumed from
+        Task.Run(() => Core.Runs.SelfCopy.Live().Clean(File.Exists(Core.Runs.RunStore.Default)));
         var engine = Engine.Live(TweaksAssembly.Codes, appLog);
         var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
         var motion = AkariXaml.MotionOn();
@@ -75,6 +116,10 @@ public static partial class Program
             services.Dialogs.Message($"Something went wrong: {e.Exception.Message}\n\nThe details are in akari.log.", "Error");
             shell.SetBusy(false);
         };
-        return app.Run(window);
+        var code = app.Run(window);
+        // One-click closed the window: its console runs the AkariOS preset's phases (a fresh engine, its log printed)
+        if (services.OneClick is { } preset)
+            return InConsole((console, log) => console.OneClick(Engine.Live(TweaksAssembly.Codes, log), preset));
+        return code;
     }
 }

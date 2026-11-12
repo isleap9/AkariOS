@@ -12,8 +12,8 @@ namespace AkariOS.App.Pages;
 public sealed record StepFooter(Border Bar, Button Back, Panel Dots, Button Next);
 
 /// <summary>
-/// The Install AkariOS page and the two apps flows (src/UI/Steps.ps1). Install AkariOS: a chooser (One-click comes
-/// with N7, or Guided), then Guided's steps Apps → Tweaks → Review &amp; Apply → the result. Downloads (its tab, Home's
+/// The Install AkariOS page and the two apps flows (src/UI/Steps.ps1). Install AkariOS: a chooser (One-click:
+/// AppServices.StartOneClick, or Guided), then Guided's steps Apps → Tweaks → Review &amp; Apply → the result. Downloads (its tab, Home's
 /// tile): the Install cards alone → Review &amp; Install → the result. Remove apps (Optimize's sub-header): the Remove
 /// tables alone → Review &amp; Remove → the result. The stepper is in the footer, the step in the page header.
 /// Nothing changes while choosing: the rows write into <see cref="Selection"/>; Apply runs it once, in the background,
@@ -298,7 +298,7 @@ public sealed class InstallPage
         var g = new UniformGrid { Columns = 2 };
         var one = Parts.ModeCard("zap", "One-click", "The full AkariOS setup in one go: apps, drivers, Safe Mode and tweaks, with restarts handled for you. For a fresh install.", hot: true);
         one.Margin = new Thickness(0, 0, 8, 0);
-        one.Click += (_, _) => s.NotYet("One-click", "N7");
+        one.Click += (_, _) => s.StartOneClick();
         var guided = Parts.ModeCard("list-checks", "Guided", "Pick the apps to remove and the Tweaks to apply, review the changes, then apply them in one go.");
         guided.Margin = new Thickness(8, 0, 0, 0);
         guided.Click += (_, _) => Guide();

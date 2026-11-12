@@ -18,7 +18,7 @@ public sealed record PlanItem(string Id, TweakMode Mode, object? Value = null, i
 /// <summary>How far a Run is (the status bar: "label (n of total): step").</summary>
 public sealed record RunProgress(int Done, int Total, string Step);
 
-/// <summary>SafeMode Tweaks outside Safe Mode: a Run in phases restarts into Safe Mode for them and back (N7).</summary>
+/// <summary>SafeMode Tweaks outside Safe Mode: a Run in phases restarts into Safe Mode for them and back (SafeModeHandoff).</summary>
 public interface ISafeModeHandoff
 {
     void Start(IReadOnlyList<PlanItem> items);
@@ -236,8 +236,8 @@ public sealed partial class Runner(TweakContext context, States states, IRemembe
             {
                 foreach (var (i, t) in safe)
                 {
-                    Log.Write($"Failed: {t.Name} (needs Safe Mode, which the native app can't go into yet)");
-                    outcomes.Add(Outcome(t, i.Mode, OutcomeKind.Failed, message: "needs Safe Mode, which the native app can't go into yet"));
+                    Log.Write($"Failed: {t.Name} (needs Safe Mode, which this engine can't restart into)");
+                    outcomes.Add(Outcome(t, i.Mode, OutcomeKind.Failed, message: "needs Safe Mode, which this engine can't restart into"));
                 }
                 return outcomes;
             }

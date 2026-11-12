@@ -12,7 +12,11 @@ namespace AkariOS.App;
 /// </summary>
 public static class Cli
 {
-    public const string Usage = "Options: --list | --apply id,id | --revert id,id | --preset <name|file.json> | --revert-preset <name|file.json> | --version";
+    public const string Usage = "Options: --list | --apply id,id | --revert id,id | --preset <name|file.json> | --revert-preset <name|file.json> | --version"
+        + " (--resume: a Run in phases goes on after a restart; RunOnce starts it)";
+
+    /// <summary>A Run in phases going on after a restart: its own console window (Program).</summary>
+    public static bool IsResume(string[] args) => args.Length > 0 && string.Equals(args[0], "--resume", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>True when the arguments ask for the console instead of the window.</summary>
     public static bool IsCli(string[] args) => args.Length > 0;
@@ -94,15 +98,12 @@ public static class Cli
             error.WriteLine($"No preset '{name}' (built-in, in {e.Presets.UserFolder}, or a .json file).");
             return 2;
         }
-        // a Run in phases restarts the PC between them: Runs in phases come with N7
-        if (!revert && p.Phases.Count > 1)
-        {
-            error.WriteLine($"Preset {p.Name} runs in {p.Phases.Count} phases across restarts, which the native app can't do yet: use the PowerShell app for it.");
-            return 2;
-        }
-        var resolved = Core.Presets.PresetStore.Resolve(p, e.Loaded.Tweaks, revert);
-        foreach (var u in resolved.Unknown) error.WriteLine($"Warning: preset {p.Name}: '{u}' is not a Tweak here");
-        return Report(e.Runner.Run(resolved.Items, e.Find), output, e.Log);
+        // wildcards (appx/*, capability/*, feature/*) mean what is on this PC; a preset with Phases restarts the PC
+        // between them and goes on in a console after each restart (--resume)
+        var made = PresetRuns.Make(p, e.Loaded, e.Services.Apps, revert, e.Services.UserSid ?? "");
+        foreach (var u in made.Unknown) error.WriteLine($"Warning: preset {p.Name}: '{u}' is not a Tweak here");
+        e.Phases().Start(made.Run);
+        return Report(made.Run.Outcomes, output, e.Log);
     }
 
     private static int Report(IReadOnlyList<Outcome> outcomes, TextWriter output, IAkariLog log)

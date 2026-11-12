@@ -59,6 +59,7 @@ namespace AkariOS.Tweaks.Tests
         public FakeAppSettings Apps { get; } = new();
         public FakeDownloads Downloads { get; } = new();
         public FakeHttp Http { get; } = new();
+        public FakeRestore Restore { get; } = new();
         public JsonRememberedState Remembered { get; }
         public FakePc Pc { get; } = new();
         public DateTime Now { get; set; } = new(2026, 11, 3, 12, 0, 0, DateTimeKind.Utc);
@@ -87,7 +88,7 @@ namespace AkariOS.Tweaks.Tests
                     Hosts = Hosts, Bindings = Bindings, Launcher = Launcher, Services = Services, Tasks = Tasks, Exe = Exe,
                     Memory = Memory, BitLocker = BitLocker, PowerCfg = PowerCfg, Trusted = Trusted,
                     Processes = Processes, Explorer = Explorer, Shortcuts = Shortcuts, Desktop = Desktop, BcdEdit = Bcd, W32tm = W32tm, AppSettings = Apps,
-                    Downloads = Downloads, Remembered = Remembered,
+                    Downloads = Downloads, Remembered = Remembered, SystemRestore = Restore,
                     ProgramData = Folder("ProgramData"), Windows = Folder("Windows"), SystemDrive = Folder("C"), FilesFolder = Folder("Files"),
                     ProgramFiles = Folder("Program Files"), ProgramFilesX86 = Folder("Program Files (x86)"), Public = Folder("Public"),
                     LocalAppData = Folder("LocalAppData"), Http = Http,
@@ -387,10 +388,22 @@ namespace AkariOS.Tweaks.Tests
         }
     }
 
-    /// <summary>Runs the work at once and counts it (what ran as TrustedInstaller).</summary>
+    /// <summary>Runs the work at once and counts it (what ran as TrustedInstaller); programs started recorded, not run.</summary>
     internal sealed class FakeTrusted : ITrustedInstaller
     {
         public int Runs { get; private set; }
+        public List<string> Started { get; } = [];
         public void Run(Action work) { Runs++; work(); }
+        public int Start(string exe, string arguments) { Started.Add($"{exe}|{arguments}"); return 0; }
+    }
+
+    /// <summary>System Restore: the points made; Refuse = Windows says no.</summary>
+    internal sealed class FakeRestore : ISystemRestore
+    {
+        public List<string> Made { get; } = [];
+        public bool Refuse { get; set; }
+        public IReadOnlyList<RestorePoint> List() => Made.Select((d, i) => new RestorePoint(d, null, (uint)i)).ToList();
+        public void Create(string description) { if (Refuse) throw new InvalidOperationException("Windows refused the restore point"); Made.Add(description); }
+        public void EnableProtection() { }
     }
 }

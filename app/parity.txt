@@ -3,14 +3,7 @@
 # PowerShell only = a src/Tweaks file with script blocks (or other code) and no C# class in AkariOS.Tweaks;
 # Native only = a C# class with no src/Tweaks file.
 
-## PowerShell only: 48 Tweaks
-Advanced/Security  security-defender-off
-Advanced/Security  security-defender-settings
-OneClick/Drivers  oneclick-ddu-clean
-OneClick/Finish  oneclick-performance-counters
-OneClick/Finish  oneclick-registry
-OneClick/Prepare  oneclick-allow-scripts
-OneClick/Prepare  oneclick-ddu-prepare
+## PowerShell only: 37 Tweaks
 Tools/Check  tools-autoruns
 Tools/Check  tools-bios-check
 Tools/Check  tools-bufferbloat-test
@@ -32,10 +25,7 @@ Tools/Cleanup  cleanup-old-drivers
 Tools/Cleanup  cleanup-temp-files
 Tools/Cleanup  cleanup-windows-logs
 Tools/Cleanup  cleanup-windows-old
-Tools/Cleanup  oneclick-startup-cleanup
 Tools/Drivers  tools-controller-overclock
-Tools/Drivers  tools-ddu-clean
-Tools/Drivers  tools-ddu-manual
 Tools/Drivers  tools-driver-amd
 Tools/Drivers  tools-driver-amd-debloat
 Tools/Drivers  tools-driver-intel
@@ -49,7 +39,6 @@ Tools/Refresh  tools-network-driver
 Tools/Refresh  tools-reinstall-windows-10
 Tools/Refresh  tools-reinstall-windows-11
 Tools/Refresh  tools-restart-to-bios
-Tools/Setup  oneclick-restore-point
 Tools/Setup  tools-activation
 Tools/Setup  tools-home-to-pro
 

@@ -229,22 +229,43 @@ public sealed class CatalogueViewTests : IDisposable
         t.S.Shell.Open("Home");
         Assert.Equal(Visibility.Collapsed, t.Bars.Visibility);
 
-        // closing: "Restart and apply" keeps the window open (N7 runs it); Discard closes
-        t.Answers.Enqueue("Restart and apply");
+        // closing: Discard closes; "Restart and apply" then Cancel keeps the window open and nothing runs
+        t.Answers.Enqueue("Discard");
         var e = new CancelEventArgs();
         t.Page.OnClosing(null, e);
-        Assert.True(e.Cancel);
+        Assert.False(e.Cancel);
         Assert.StartsWith("1 change is waiting for Safe Mode.", t.Asked[0]);
-        Assert.Contains("comes with N7", t.Asked[1]);
-        t.Answers.Enqueue("Discard");
+        t.Answers.Enqueue("Restart and apply");
         e = new CancelEventArgs();
         t.Page.OnClosing(null, e);
-        Assert.False(e.Cancel);
+        Assert.True(e.Cancel);
+        Assert.StartsWith("AkariOS restarts into Safe Mode now", t.Asked[^1]);
+        Assert.Empty(t.Boot.Steps);
 
         // switched back before the restart: nothing waits
         Flip(c);
         Assert.Empty(t.Page.SafePending);
         Assert.Equal("Windows default", c.StateLine.Text);
+    });
+
+    [Fact]
+    public void Restart_and_apply_restarts_into_safe_mode_for_the_waiting_changes() => LookTests.OnSta(() =>
+    {
+        var t = Make(Fixtures());
+        t.S.Shell.Open("Catalogue:Optimize/Test");
+        t.Page.Build("Catalogue:Optimize/Test", "");
+        Flip(t.Page.Card(t.S.Engine.Find("fix-safe")!));
+        t.Answers.Enqueue("Restart now");
+        Click(t.Page.Bars.SafeApply);
+        Assert.StartsWith("AkariOS restarts into Safe Mode now to apply 1 change, then back to normal.", t.Asked[^1]);
+        // the session's restore point first, then the Run: run.json, the next boot, the restart
+        Assert.Single(t.Restore.Points);
+        Assert.Equal(["next SafeMode", "restart 5"], t.Boot.Steps);
+        var run = t.Runs.Get()!;
+        Assert.Equal(["Safe Mode/SafeMode/Apply fix-safe", "Back to normal/Normal/"],
+            run.Phases.Select(p => $"{p.Name}/{p.Boot}/{string.Join(",", p.Items.Select(i => $"{i.Mode} {i.Id}"))}"));
+        Assert.Empty(t.Page.SafePending);
+        Assert.Null(Fix(t.S, "Safe"));
     });
 
     [Fact]

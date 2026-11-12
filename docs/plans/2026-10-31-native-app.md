@@ -356,6 +356,20 @@ helpers.
 - The SafeMode Tweaks (Defender settings and full disable, DDU), the Catalogue's Safe Mode bar, One-click
   (`src/Presets/AkariOS.json`).
 - VM: One-click from a fresh Windows 11 and Windows 10 22H2, the three phases end to end.
+- Built 2026-11-12 (710 tests, parity 48 → 37). Decided (grilled): `Core/Runs/Phases.cs` is Start-AkariPhases and
+  Split-AkariSafeModePhases line for line, checked scenario by scenario against the real ones with recorders
+  (`Oracle/Export-Phases.ps1`); run.json is read and written only by the native app (same shape, its own path). The
+  exe a resume starts is a copy in `%ProgramData%\AkariOS.Native`, refreshed each time a Run sets up the next boot (a
+  developer build is started where it is), deleted on a later launch once no Run is saved. RunOnce runs
+  `powershell.exe … Start-Process '<copy>' --resume -Verb RunAs`: Windows blocks a startup entry that needs elevation
+  itself. `--resume` and One-click run in a console window of their own (AllocConsole, maximized; the banner from
+  `Assets/ascii.txt` scaled as Get-AkariBannerArt does; the summary and Enter at the end), never WPF. One-click asks
+  first (Confirm-AkariOneClick's text), makes the session's restore point in the window (refused = "Run anyway" /
+  Cancel), then closes the window and hands the AkariOS preset to that console. The Catalogue's "Restart and apply"
+  asks once more (Restart now / Cancel), then runs through the queue (restore point first) into the Runner's Safe Mode
+  handoff. reg.reg is written through the registry engine (RegReader), not reg.exe. N7 also took the two Tools
+  Actions the AkariOS preset runs (`oneclick-startup-cleanup`, `oneclick-restore-point`) and the Tools DDU pair, which
+  share DDU's steps.
 
 ## N8: Tools and the rest of the parity list
 

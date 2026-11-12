@@ -23,9 +23,6 @@ public sealed record Preset(string Name, string Description, IReadOnlyList<Prese
 /// <summary>A preset resolved into Run items, and the ids it names that aren't loaded here.</summary>
 public sealed record Resolved(IReadOnlyList<PlanItem> Items, IReadOnlyList<string> Unknown);
 
-/// <summary>A phase of the Run a preset makes (Get-AkariPresetPhases).</summary>
-public sealed record RunPhase(string Name, string Boot, IReadOnlyList<PlanItem> Items);
-
 /// <summary>
 /// Presets (src/Core/Presets.ps1, docs/PLAN.md §8), the same JSON both apps read and write: built-in ones from
 /// src/Presets, the user's in %LOCALAPPDATA%\Akari\presets (shared with the PowerShell app), Last used (the native
@@ -174,10 +171,16 @@ public sealed class PresetStore(ISourceFiles builtin, string userFolder, string 
 
     /// <summary>A preset's Run phases (Get-AkariPresetPhases): one per preset phase (empty ones too), else one Normal
     /// phase; Revert is always one phase. Items lose their phase index.</summary>
-    public static IReadOnlyList<RunPhase> Phases(Preset preset, IReadOnlyList<PlanItem> items, bool revert = false)
+    public static List<RunPhase> Phases(Preset preset, IReadOnlyList<PlanItem> items, bool revert = false)
     {
-        if (revert || preset.Phases.Count == 0) return [new RunPhase(preset.Name, "Normal", items.Select(i => i with { Phase = 0 }).ToList())];
-        return preset.Phases.Select((p, k) => new RunPhase(p.Name, p.Boot, items.Where(i => i.Phase == k).Select(i => i with { Phase = 0 }).ToList())).ToList();
+        if (revert || preset.Phases.Count == 0)
+            return [new RunPhase { Name = preset.Name, Boot = Boot.Normal, Items = items.Select(i => i with { Phase = 0 }).ToList() }];
+        return preset.Phases.Select((p, k) => new RunPhase
+        {
+            Name = p.Name,
+            Boot = p.Boot,
+            Items = items.Where(i => i.Phase == k).Select(i => i with { Phase = 0 }).ToList(),
+        }).ToList();
     }
 
     // ---- saving

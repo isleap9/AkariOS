@@ -36,6 +36,9 @@ public sealed class TweakServices
     public ITrustedInstaller? Trusted { get; init; }
     public IDownloads? Downloads { get; init; }
 
+    /// <summary>System Restore (the restore point Action: through Runs.RestorePoints, as the GUI makes them).</summary>
+    public Runs.ISystemRestore? SystemRestore { get; init; }
+
     /// <summary>Store apps, Optional features, Windows features (the Remove tab's engine; Appx.ps1).</summary>
     public AppPackages? Apps { get; init; }
 
@@ -122,6 +125,7 @@ public sealed class TweakServices
             Desktop = new Desktop(),
             Trusted = trusted,
             Downloads = new AkariFiles(),
+            SystemRestore = new Runs.WmiSystemRestore(),
             Remembered = remembered,
             UserSid = user.Sid,
             ProgramData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),

@@ -128,7 +128,7 @@ public sealed class PagesTests : IDisposable
         Click(All<Button>(home).First(b => b.ToolTip as string == "The full AkariOS setup in one go, with restarts handled for you"));
         Assert.Equal(2, messages.Count);
         Assert.StartsWith("Export saves the settings this PC has", messages[0]);
-        Assert.Contains("One-click isn't in the native app yet: it comes with N7", messages[1]);
+        Assert.StartsWith("AkariOS One-click changes a lot of Windows", messages[1]);
         Click(Button(home, "Choose changes"));
         Assert.Equal("Install AkariOS", vm.Page);
     });

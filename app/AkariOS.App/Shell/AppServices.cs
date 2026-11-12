@@ -86,6 +86,58 @@ public sealed class AppServices
         return true;
     }
 
+    /// <summary>The AkariOS preset One-click hands to the console once the window is closed (Program runs it).</summary>
+    public Core.Presets.Preset? OneClick { get; private set; }
+
+    public const string OneClickWarning = "AkariOS One-click changes a lot of Windows, including security features.\n\n" +
+        "- Run it on a fresh install or a PC you can reinstall. There is no uninstaller.\n" +
+        "- Security is reduced on purpose (Defender settings, UAC, memory integrity).\n" +
+        "- Your PC restarts several times, once into Safe Mode. Save your work and don't interrupt it.\n" +
+        "- Graphics and audio drivers are removed. Install a fresh graphics driver afterwards.\n" +
+        "- It is tuned for desktops: power saving is turned off.\n" +
+        "- It needs an internet connection.\n\nStart AkariOS One-click now?";
+
+    /// <summary>
+    /// One-click (Start-AkariOneClick): asks first, makes the session's restore point here in the window (a refusal asks
+    /// to go on without one), then closes the window: its console runs the AkariOS preset's phases.
+    /// </summary>
+    public void StartOneClick()
+    {
+        if (Shell.Busy || Install?.Running == true || Catalogue?.Running == true)
+        {
+            Dialogs?.Message("Wait until the changes running now are done, then start One-click.", "Info", "AkariOS One-click");
+            return;
+        }
+        if (Engine.Presets.Find("AkariOS") is not { } preset)
+        {
+            Dialogs?.Message("The AkariOS preset is missing from this build.", "Error", "AkariOS One-click");
+            return;
+        }
+        if (Dialogs?.Confirm(OneClickWarning, "Start One-click", "Cancel", "Warning", "AkariOS One-click") != true) return;
+        void Go()
+        {
+            OneClick = preset;
+            Log.WriteFile($"One-click started: {preset.Path}");
+            Close();
+        }
+        if (!RestoreChoice("OneClick")) { Go(); return; }
+        RestoreDone = true;
+        Shell.SetBusy(true, "Creating a restore point");
+        Background(() => Engine.RestorePoints!.Create("AkariOS"), r =>
+        {
+            Shell.SetBusy(false);
+            if (r is Core.Runs.RestoreResult { Ok: false } failed && Dialogs?.Confirm(
+                    $"AkariOS could not create a restore point:\n\n{failed.Message}\n\nRun AkariOS One-click without a restore point?",
+                    "Run anyway", "Cancel", "Warning", "AkariOS One-click") != true)
+            {
+                Log.Write("One-click cancelled: no restore point.");
+                RestoreDone = false;
+                return;
+            }
+            Go();
+        });
+    }
+
     /// <summary>A message saying what isn't in the native app yet, and when it comes.</summary>
     public void NotYet(string what, string milestone) =>
         Dialogs?.Message($"{what} isn't in the native app yet: it comes with {milestone} (docs/plans/2026-10-31-native-app.md). The PowerShell app has it today.", "Info", "Not yet");

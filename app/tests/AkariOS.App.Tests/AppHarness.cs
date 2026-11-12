@@ -31,6 +31,10 @@ internal sealed record AppTest(AppServices S, CatalogueView Page, InstallPage In
     public FakeServiceManager Services { get; init; } = new();
     public FakeTaskScheduler Tasks { get; init; } = new();
     public FakeTrustedInstaller Trusted { get; init; } = null!;
+
+    /// <summary>The next boot and the PC's restart of a Run in phases (recorded), and its run.json.</summary>
+    public AppHarness.FakeBoot Boot { get; init; } = null!;
+    public Core.Runs.RunStore Runs { get; init; } = null!;
 }
 
 /// <summary>Makes <see cref="AppTest"/>s; one per test class instance, cleaning its test key and folder after.</summary>
@@ -66,6 +70,14 @@ internal sealed class AppHarness : IDisposable
     {
         public int Restarts { get; private set; }
         public void Restart() => Restarts++;
+    }
+
+    internal sealed class FakeBoot : Core.Runs.IRunBoot
+    {
+        public List<string> Steps { get; } = [];
+        public void Next(string boot) => Steps.Add($"next {boot}");
+        public void SafeBoot(bool on) => Steps.Add($"safeboot {on}");
+        public void Restart(int seconds) => Steps.Add($"restart {seconds}");
     }
 
     internal sealed class FakeRestore : ISystemRestore
@@ -107,8 +119,12 @@ internal sealed class AppHarness : IDisposable
         var (packages, dism) = (new FakePackages(), new FakeDism());
         var (services, tasks) = (new FakeServiceManager(), new FakeTaskScheduler());
         var trusted = new FakeTrustedInstaller(tasks);
+        var boot = new FakeBoot();
+        var runs = new Core.Runs.RunStore(Path.Combine(Dir, "run.json"), () => boot.Steps.Add("clear"));
         var engine = new Engine
         {
+            RunStore = runs,
+            RunBoot = boot,
             Services = new TweakServices
             {
                 Apps = new Core.Apps.AppPackages(packages, dism, log), Services = services, Tasks = tasks, Trusted = trusted, Windows = @"C:\Windows",
@@ -164,7 +180,7 @@ internal sealed class AppHarness : IDisposable
         s.Install = new InstallPage(s);
         s.Install.Attach(footer);
         Assert.Equal("", string.Join(" / ", engine.Loaded.Problems.Select(p => $"{p.File}: {p.Message}")));
-        return new AppTest(s, s.Catalogue, s.Install, footer, asked, answers, explorer, shutdown, restore, bars, picker) { Packages = packages, Dism = dism, Services = services, Tasks = tasks, Trusted = trusted };
+        return new AppTest(s, s.Catalogue, s.Install, footer, asked, answers, explorer, shutdown, restore, bars, picker) { Packages = packages, Dism = dism, Services = services, Tasks = tasks, Trusted = trusted, Boot = boot, Runs = runs };
     }
 
     /// <summary>Fixture Tweaks in one Category (Optimize › Test): HKCU rows under Software\AkariFix.</summary>

@@ -40,16 +40,53 @@ public sealed class InstallPageTests : IDisposable
     private static List<string> Steps(AppTest t) =>
         t.Footer.Dots.Children.OfType<StackPanel>().Select(p => $"{((TextBlock)p.Children[^1]).Text}={p.Tag}").ToList();
 
+    private const string OneClickPreset = """{ "Name": "AkariOS", "Phases": [ { "Name": "1", "Tweaks": [ "fix-plain" ] } ] }""";
+
+    [Fact]
+    public void One_click_makes_the_restore_point_then_closes_the_window_for_its_console() => LookTests.OnSta(() =>
+    {
+        var t = _h.Make(Fixtures().Add("src/Presets/AkariOS.json", OneClickPreset));
+        var closed = 0;
+        t.S.Close = () => closed++;
+        t.Answers.Enqueue("Start One-click");
+        t.S.StartOneClick();
+        Assert.Single(t.Restore.Points);
+        Assert.Equal(("AkariOS", 1), (t.S.OneClick?.Name, closed));
+        // nothing ran in the window: the console runs it once the window is gone
+        Assert.Null(t.S.Engine.Registry.GetValue(@"HKCU:\Software\AkariFix", "Plain"));
+    });
+
+    [Fact]
+    public void One_click_without_a_restore_point_asks_to_go_on() => LookTests.OnSta(() =>
+    {
+        var t = _h.Make(Fixtures().Add("src/Presets/AkariOS.json", OneClickPreset));
+        var closed = 0;
+        t.S.Close = () => closed++;
+        t.Restore.Refuse = true;
+        t.Answers.Enqueue("Start One-click");
+        t.Answers.Enqueue("Cancel");
+        t.S.StartOneClick();
+        Assert.StartsWith("AkariOS could not create a restore point", t.Asked[^1]);
+        Assert.Equal((null, 0), (t.S.OneClick, closed));
+
+        t.Answers.Enqueue("Start One-click");
+        t.Answers.Enqueue("Run anyway");
+        t.S.StartOneClick();
+        Assert.Equal(("AkariOS", 1), (t.S.OneClick?.Name, closed));
+    });
+
     [Fact]
     public void The_chooser_then_guided_steps_with_the_stepper() => LookTests.OnSta(() =>
     {
-        var t = _h.Make(Fixtures());
+        var t = _h.Make(Fixtures().Add("src/Presets/AkariOS.json", OneClickPreset));
         t.S.Shell.Open("Install AkariOS");
         var ui = t.Install.Build("");
         Assert.Equal(("Install AkariOS", Visibility.Visible, Visibility.Collapsed), (t.S.Shell.Heading, t.Footer.Bar.Visibility, t.Footer.Next.Visibility));
         var cards = All<Button>(ui).Where(b => b.Tag is "One-click" or "Guided").ToList();
+        // One-click asks first (Esc: nothing happens)
         Click(cards[0]);
-        Assert.Contains("One-click isn't in the native app yet: it comes with N7", t.Asked[^1]);
+        Assert.StartsWith("AkariOS One-click changes a lot of Windows", t.Asked[^1]);
+        Assert.Null(t.S.OneClick);
 
         Click(cards[1]);
         Assert.Equal(("Apps", "Next"), (t.S.Shell.Heading, t.Footer.Next.Content));

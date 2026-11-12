@@ -3,6 +3,7 @@ using AkariOS.Core;
 using AkariOS.Core.Machine;
 using AkariOS.Core.Presets;
 using AkariOS.Core.Registry;
+using AkariOS.Core.Runs;
 using AkariOS.Core.Sources;
 using AkariOS.Core.Tweaks;
 using Microsoft.Win32;
@@ -54,10 +55,27 @@ public sealed class CliTests : IDisposable
         public void Restart() { }
     }
 
+    /// <summary>The next boot and the restart, recorded.</summary>
+    private sealed class FakeBoot : IRunBoot
+    {
+        public List<string> Steps { get; } = [];
+        public void Next(string boot) => Steps.Add($"next {boot}");
+        public void SafeBoot(bool on) => Steps.Add($"safeboot {on}");
+        public void Restart(int seconds) => Steps.Add($"restart {seconds}");
+    }
+
+    private readonly FakeBoot _boot = new();
+    private bool _safeMode;
+
+    private RunStore Store => new(Path.Combine(_dir, "run.json"), () => _boot.Steps.Add("clear"));
+
     private RegistryEngine Registry => new(new RedirectedRegistryPaths(_root));
 
     private Engine Make() => new()
     {
+        RunStore = Store,
+        RunBoot = _boot,
+        InSafeMode = () => _safeMode,
         Files = _files,
         Registry = Registry,
         System = new Pc(),
@@ -133,12 +151,43 @@ public sealed class CliTests : IDisposable
     }
 
     [Fact]
-    public void A_preset_in_phases_waits_for_runs_in_phases()
+    public void A_preset_in_phases_restarts_between_them_and_resumes()
     {
         var (code, output, error) = Cli("--preset", "AkariOS");
-        Assert.Equal((2, ""), (code, output));
-        Assert.Contains("runs in 2 phases", error);
-        Assert.Null(Registry.GetValue(@"HKCU:\Software\Akari", "A"));
+        Assert.Equal((0, "Applied   gaming-a\n", ""), (code, output, error));
+        Assert.Equal(0u, Registry.GetValue(@"HKCU:\Software\Akari", "A"));
+        Assert.Equal(["next SafeMode", "restart 5"], _boot.Steps);
+        Assert.Equal(1, Store.Get()!.Next);
+
+        // after the restart, in Safe Mode: the empty phase, then Safe Mode off, the Run done
+        _safeMode = true;
+        var console = new StringWriter();
+        Assert.Equal(0, new App.RunConsole(console, new StringReader("\n"), new App.QuietConsole()).Resume(Store.Get, _ => Make()));
+        Assert.Equal(["next SafeMode", "restart 5", "clear", "safeboot False"], _boot.Steps);
+        Assert.Null(Store.Get());
+        Assert.Contains("AkariOS is continuing...", console.ToString());
+        Assert.Contains("Press Enter to close this window.", console.ToString());
+        Assert.Contains("Done: 1 applied", _log.Lines);
+    }
+
+    [Fact]
+    public void Resume_with_nothing_saved_says_so()
+    {
+        var console = new StringWriter();
+        Assert.Equal(0, new App.RunConsole(console, new StringReader("\n"), new App.QuietConsole()).Resume(() => null, _ => throw new InvalidOperationException("no engine")));
+        Assert.Contains("Nothing to continue.", console.ToString());
+    }
+
+    [Fact]
+    public void One_click_runs_its_preset_in_the_console()
+    {
+        var console = new StringWriter();
+        var e = Make();
+        Assert.Equal(0, new App.RunConsole(console, new StringReader("\n"), new App.QuietConsole()).OneClick(e, e.Presets.Find("AkariOS")!));
+        Assert.Contains("AkariOS One-click is running...", console.ToString());
+        Assert.Equal(["next SafeMode", "restart 5"], _boot.Steps);
+        // restarting: no summary, no Enter to wait for
+        Assert.DoesNotContain("Press Enter", console.ToString());
     }
 
     [Theory]

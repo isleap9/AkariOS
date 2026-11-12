@@ -55,8 +55,8 @@ public static class HomePage
         oc.Children.Add(zap);
         oc.Children.Add(new TextBlock { Text = "One-click setup" });
         oneClick.Content = oc;
-        // One-click is a Run in phases across restarts (N7)
-        oneClick.Click += (_, _) => s.NotYet("One-click", "N7");
+        // a Run in phases across restarts, in a console once the window is closed
+        oneClick.Click += (_, _) => s.StartOneClick();
         buttons.Children.Add(oneClick);
         var choose = Parts.Button("Choose changes", click: () => { s.Install?.Guide(); s.Shell.Open("Install AkariOS"); });
         choose.Margin = new Thickness(0, 0, 0, 8);

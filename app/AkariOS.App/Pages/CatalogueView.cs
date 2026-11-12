@@ -45,7 +45,7 @@ public sealed class CatalogueView
     /// <summary>The Tweaks it lists (this PC's).</summary>
     public IReadOnlyList<Tweak> Tweaks => _tweaks ??= Catalogue.Tweaks(s.Engine.Loaded.Tweaks, s.Engine.System);
 
-    /// <summary>Safe Mode changes waiting for "Restart and apply" (N7 runs them).</summary>
+    /// <summary>Safe Mode changes waiting for "Restart and apply" (one Run in phases).</summary>
     public Dictionary<string, SafeChange> SafePending { get; } = [];
 
     /// <summary>A change runs now (one at a time, Explorer's and the PC's restart included).</summary>
@@ -266,7 +266,27 @@ public sealed class CatalogueView
         _bars.Update(s.Bars, Catalogue.Split(s.Shell.Page) is not null, SafePending.Count,
             Catalogue.RestartBarText(_explorer.Count, _reboot.Count), _explorer.Count > 0, _reboot.Count > 0);
 
-    private void SafeRun() => s.NotYet("Restart and apply (changes that run in Safe Mode)", "N7");
+    // Start-AkariCatalogueSafeRun: the waiting changes in one Run (after the session's restore point): their Prepares
+    // now, then a Run in phases restarts into Safe Mode for them and back (Engine.SafeMode)
+    private void SafeRun()
+    {
+        if (Running || SafePending.Count == 0) return;
+        var n = SafePending.Count;
+        if (s.Dialogs?.Confirm($"AkariOS restarts into Safe Mode now to apply {n} change{(n != 1 ? "s" : "")}, then back to normal. Save your work first.",
+                "Restart now", "Cancel", "Warning", "Safe Mode") != true) return;
+        var plan = SafePending.Select(kv => new PlanItem(kv.Key, kv.Value.Mode, kv.Value.Value)).ToList();
+        var label = $"Applying {n} change{(n != 1 ? "s" : "")} in Safe Mode";
+        Enqueue(label, restore: true, () => { },
+            () => s.Engine.Runner.Run(plan, s.Engine.Find),
+            r =>
+            {
+                SafePending.Clear();
+                // a Prepare that failed (a download) left its change out of Safe Mode: its card says why
+                foreach (var o in r as IReadOnlyList<Outcome> ?? [])
+                    if (o.Kind == OutcomeKind.Failed && s.Engine.Find(o.Id) is { } t) Card(t).Error = o.Message;
+                foreach (var c in plan.Select(i => s.Engine.Find(i.Id)).OfType<Tweak>()) Show(Card(c));
+            });
+    }
 
     private void RestartExplorer()
     {
@@ -286,7 +306,7 @@ public sealed class CatalogueView
     private void RestartPc()
     {
         if (Running) return;
-        if (s.Engine.Shutdown is not { } shutdown) { s.NotYet("Restarting the PC from here", "N7"); return; }
+        if (s.Engine.Shutdown is not { } shutdown) return;
         if (s.Dialogs?.Confirm("Restart the PC now? Save your work first.", "Restart now", "Cancel", "Warning", "Restart") != true) return;
         Running = true;
         s.Shell.SetBusy(true, "Restarting the PC", locked: false);
@@ -296,7 +316,7 @@ public sealed class CatalogueView
     // ---- closing
 
     /// <summary>The window is closing: a change still running asks first; Safe Mode changes waiting ask to be applied
-    /// (one restart, N7) or discarded. False keeps the window open.</summary>
+    /// (one Run in phases: the PC restarts) or discarded. False keeps the window open.</summary>
     public bool CanClose()
     {
         if (Running && s.Dialogs?.Confirm("A change is still running. Close AkariOS anyway? It may be left half done.", "Close anyway", "Wait", "Warning") != true)
