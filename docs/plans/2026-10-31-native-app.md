@@ -271,7 +271,7 @@ Scheduled tasks wait for N6, the Defender Safe Mode Toggles for N7.
 - Done when: every data-only Tweak and the ported batches show and act on both pages. VM: a Guided Run and Catalogue
   changes, checked in the PowerShell app's States (and back).
 
-## N4: Release and updates (built 2026-11-12, 552 tests; VM check pending)
+## N4: Release and updates (built 2026-11-12, 552 tests; passed on the VM 2026-11-13)
 
 - `.github/workflows/release.yml`: the version checked against the tag, then `dotnet test -c Release`, then
   `dotnet publish app/AkariOS.App -c Release -r win-x64 --self-contained -p:PublishSingleFile=true
@@ -459,7 +459,7 @@ helpers.
   converter's output streamed into the log, run in its folder) as default members; answers never throw
   (`UupAnswer<T>`, `IsoResult`); languages by name in the current culture, then code; ConvertConfig.ini written as
   5.1's ASCII Set-Content.
-- N10d built 2026-11-13 (1012 tests): the page (`Pages/IsoPage`), N10 built, its VM check pending. Decided
+- N10d built 2026-11-13 (1012 tests): the page (`Pages/IsoPage`), N10 built. Decided
   (grilled): the page's state lives in `IsoPage` (`Job` / `Running` / `Working`), no Core model (the pure parts are
   IsoPlan / IsoData); an ISO job doesn't start while the shell is busy or a Catalogue change or Guided Run runs, one ISO
   job at a time, and the Catalogue (cards, services, tasks, its bars), the Guided Run, One-click, Import / Export and
@@ -471,6 +471,13 @@ helpers.
   the port; after a build the image and lists cleared and the path shown with Open folder.
 
 ---
+
+## Status
+
+- 2026-11-13: every milestone N0-N10 built, and every VM check (N2, N3 g8/g9, N4, N5a-d, N6, N7, N8, N9, N10) passed
+  on the VM. Still to do: replace `tests/Fixtures/Iso/provisioned-apps.txt` (written by hand) with a real
+  `dism /Online /Get-ProvisionedAppxPackages /English` capture; the g6 question (leading spaces in AppActions' .reg
+  text).
 
 ## Open after this plan
 
