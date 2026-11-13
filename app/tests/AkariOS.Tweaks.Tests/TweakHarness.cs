@@ -56,6 +56,8 @@ namespace AkariOS.Tweaks.Tests
         public FakeTrusted Trusted { get; } = new();
         public FakeBcd Bcd { get; } = new();
         public FakeW32tm W32tm { get; } = new();
+        public FakeNetsh Netsh { get; } = new();
+        public FakeDnsClient Dns { get; } = new();
         public FakeAppSettings Apps { get; } = new();
         public FakeDownloads Downloads { get; } = new();
         public FakeHttp Http { get; } = new();
@@ -100,7 +102,7 @@ namespace AkariOS.Tweaks.Tests
                 {
                     Hosts = Hosts, Bindings = Bindings, Launcher = Launcher, Services = Services, Tasks = Tasks, Exe = Exe,
                     Memory = Memory, BitLocker = BitLocker, PowerCfg = PowerCfg, Trusted = Trusted,
-                    Processes = Processes, Explorer = Explorer, Shortcuts = Shortcuts, Desktop = Desktop, BcdEdit = Bcd, W32tm = W32tm, AppSettings = Apps,
+                    Processes = Processes, Explorer = Explorer, Shortcuts = Shortcuts, Desktop = Desktop, BcdEdit = Bcd, W32tm = W32tm, Netsh = Netsh, Dns = Dns, AppSettings = Apps,
                     Downloads = Downloads, Remembered = Remembered, SystemRestore = Restore,
                     ProgramData = Folder("ProgramData"), Windows = Folder("Windows"), SystemDrive = Folder("C"), FilesFolder = Folder("Files"),
                     ProgramFiles = Folder("Program Files"), ProgramFilesX86 = Folder("Program Files (x86)"), Public = Folder("Public"),
@@ -240,6 +242,18 @@ namespace AkariOS.Tweaks.Tests
     {
         public List<string> Made { get; } = [];
         public void AdminsOnly(string path) => Made.Add(path);
+
+        /// <summary>Everyone's deny rules by path (seeded or set), and "deny path|mask" for each change, in order.</summary>
+        public Dictionary<string, int> Deny { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public List<string> Calls { get; } = [];
+        public int Denied(string path) => File.Exists(path) || Directory.Exists(path) ? Deny.GetValueOrDefault(path) : 0;
+
+        public void SetDeny(string path, int rights)
+        {
+            if (!File.Exists(path) && !Directory.Exists(path)) throw new FileNotFoundException("not found", path);
+            Calls.Add($"deny {path}|{rights}");
+            Deny[path] = rights;
+        }
     }
 
     /// <summary>Programs run: "path args"; Result decides what each returns (csc writes its out file).</summary>
@@ -381,6 +395,13 @@ namespace AkariOS.Tweaks.Tests
         public string? FeatureState(string name) => FeatureStates.GetValueOrDefault(name);
         public void RemoveCapability(string name) { Dism.Add($"capability remove {name}"); CapabilityStates[name] = "NotPresent"; }
         public void DisableFeature(string name) { Dism.Add($"feature off {name}"); FeatureStates[name] = "DisablePending"; }
+
+        /// <summary>Reserved storage's state (null = none on this Windows); dism.exe runs recorded as "dism &lt;args&gt;",
+        /// each answering ExeCode.</summary>
+        public string? ReservedState { get; set; }
+        public int ExeCode { get; set; }
+        public string? ReservedStorage() => ReservedState;
+        public int Exe(params string[] arguments) { Dism.Add($"dism {string.Join(" ", arguments)}"); return ExeCode; }
 
         public void EnableFeature(string name, string? source)
         {
@@ -532,6 +553,21 @@ namespace AkariOS.Tweaks.Tests
     {
         public List<string> Calls { get; } = [];
         public IReadOnlyList<string> Run(params string[] arguments) { Calls.Add($"w32tm {string.Join(" ", arguments)}"); return []; }
+    }
+
+    internal sealed class FakeNetsh : INetsh
+    {
+        public List<string> Calls { get; } = [];
+        public IReadOnlyList<string> Run(params string[] arguments) { Calls.Add($"netsh {string.Join(" ", arguments)}"); return []; }
+    }
+
+    /// <summary>The PC's physical adapters; how many times the DNS cache was flushed.</summary>
+    internal sealed class FakeDnsClient : IDnsClient
+    {
+        public List<DnsAdapter> List { get; } = [];
+        public int Flushes { get; set; }
+        public IReadOnlyList<DnsAdapter> Adapters() => List.ToList();
+        public void FlushCache() => Flushes++;
     }
 
     /// <summary>Store apps' settings hives by package family (the folder above Settings\settings.dat): their values, the

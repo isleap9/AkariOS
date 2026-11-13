@@ -554,6 +554,21 @@ public sealed class W32tm : IW32tm
     }
 }
 
+/// <summary>The only netsh call (Invoke-AkariNetsh): Teredo's state; its output lines.</summary>
+public interface INetsh
+{
+    IReadOnlyList<string> Run(params string[] arguments);
+}
+
+/// <summary>The real one: %SystemRoot%\System32\netsh.exe (guarded).</summary>
+public sealed class Netsh : INetsh
+{
+    public Netsh() => SystemGuard.Check("netsh");
+
+    public IReadOnlyList<string> Run(params string[] arguments) =>
+        Tool.Lines(Tool.Run(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "netsh.exe"), arguments).Output);
+}
+
 /// <summary>A console tool run and waited for, its output and errors captured.</summary>
 internal static class Tool
 {

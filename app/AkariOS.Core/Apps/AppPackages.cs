@@ -70,6 +70,12 @@ public interface IDism
 
     /// <summary>Add-AkariCapability: its files come from Windows Update.</summary>
     void AddCapability(string name) => throw new NotSupportedException("this engine can't add capabilities");
+
+    /// <summary>Get-AkariReservedStorage: "Enabled" / "Disabled", null on a Windows without reserved storage.</summary>
+    string? ReservedStorage() => throw new NotSupportedException("this engine can't read reserved storage");
+
+    /// <summary>Invoke-AkariDism: dism.exe /English with the arguments (what the DISM API doesn't offer); its exit code.</summary>
+    int Exe(params string[] arguments) => throw new NotSupportedException("this engine can't run dism.exe");
 }
 
 /// <summary>

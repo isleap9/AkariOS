@@ -59,6 +59,25 @@ public sealed partial class DismApi : IDism
     public void AddCapability(string name) => WithSource(null, (paths, count) =>
         Session(s => Check(DismAddCapability(s, name, 0, paths, count, 0, 0, 0))));
 
+    /// <summary>The DISM API has no reserved storage call: dism.exe /English /Online /Get-ReservedStorageState.</summary>
+    public string? ReservedStorage() => ReservedStateOf(Machine.Tool.Run(DismExe, ["/English", "/Online", "/Get-ReservedStorageState"]).Output);
+
+    public int Exe(params string[] arguments) => Machine.Tool.Run(DismExe, ["/English", .. arguments]).ExitCode;
+
+    /// <summary>"Reserved storage is enabled." / "… disabled." in dism.exe's English text; null for anything else.</summary>
+    public static string? ReservedStateOf(string output)
+    {
+        foreach (var line in output.Split('\n'))
+        {
+            var l = line.Trim();
+            if (l.Equals("Reserved storage is enabled.", StringComparison.OrdinalIgnoreCase)) return "Enabled";
+            if (l.Equals("Reserved storage is disabled.", StringComparison.OrdinalIgnoreCase)) return "Disabled";
+        }
+        return null;
+    }
+
+    private static string DismExe => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "dism.exe");
+
     /// <summary>DISM's PCWSTR* SourcePaths: one native string, freed after.</summary>
     private static void WithSource(string? source, Action<nint[]?, uint> work)
     {

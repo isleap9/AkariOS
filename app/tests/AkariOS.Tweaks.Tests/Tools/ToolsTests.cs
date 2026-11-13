@@ -112,6 +112,7 @@ public sealed partial class ToolsTests : IDisposable
     [InlineData("tools-gpu-check", @"%ProgramFiles(x86)%\GPU-Z\GPU-Z.exe")]
     [InlineData("tools-ram-check", @"%ProgramFiles%\CPUID\CPU-Z\cpuz.exe")]
     [InlineData("tools-occt", @"%LOCALAPPDATA%\Microsoft\WinGet\Packages\OCBase.OCCT.Personal_Microsoft.Winget.Source_8wekyb3d8bbwe\OCCTPersonal.exe")]
+    [InlineData("tools-oosu10", @"%LOCALAPPDATA%\Microsoft\WinGet\Packages\OO-Software.ShutUp10_Microsoft.Winget.Source_8wekyb3d8bbwe\OOSU10.exe")]
     public void A_winget_tool_opens_where_it_is(string id, string exe)
     {
         // deeper than two folders down: not looked at

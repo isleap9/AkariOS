@@ -55,14 +55,6 @@ function Undo-AkariWim([string]$Mount) {
     Clear-WindowsCorruptMountPoint -ErrorAction SilentlyContinue | Out-Null
 }
 
-# dism.exe on an image: returns the exit code. Continue: see Invoke-AkariPowerCfg.
-function Invoke-AkariDism {
-    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
-    $ErrorActionPreference = 'Continue'
-    & "$env:SystemRoot\System32\dism.exe" /English @Arguments 2>&1 | Out-Null
-    $LASTEXITCODE
-}
-
 # oscdimg.exe from the Windows ADK, or $null
 function Get-AkariOscdimg {
     foreach ($a in 'amd64', 'x86') {

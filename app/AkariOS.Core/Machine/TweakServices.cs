@@ -32,6 +32,8 @@ public sealed class TweakServices
     public IDesktop? Desktop { get; init; }
     public IBcdEdit? BcdEdit { get; init; }
     public IW32tm? W32tm { get; init; }
+    public INetsh? Netsh { get; init; }
+    public IDnsClient? Dns { get; init; }
     public IAppSettings? AppSettings { get; init; }
     public ITrustedInstaller? Trusted { get; init; }
     public IDownloads? Downloads { get; init; }
@@ -139,6 +141,8 @@ public sealed class TweakServices
             Services = services,
             BcdEdit = new BcdEdit(),
             W32tm = new W32tm(services),
+            Netsh = new Netsh(),
+            Dns = new WmiDnsClient(),
             AppSettings = new RegExeAppSettings(),
             Tasks = new TaskScheduler(),
             Exe = exe,

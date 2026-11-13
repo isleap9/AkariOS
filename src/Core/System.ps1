@@ -98,6 +98,40 @@ function Invoke-AkariW32tm {
     & "$env:SystemRoot\System32\w32tm.exe" @Arguments 2>&1 | ForEach-Object { "$_" }
 }
 
+# dism.exe (on an image, or /Online): returns the exit code. The ISO Builder and tweak blocks call it. Continue: see
+# Invoke-AkariPowerCfg.
+function Invoke-AkariDism {
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
+    $ErrorActionPreference = 'Continue'
+    & "$env:SystemRoot\System32\dism.exe" /English @Arguments 2>&1 | Out-Null
+    $LASTEXITCODE
+}
+
+# reserved storage's state as DISM names it (Enabled / Disabled), $null on a Windows without it. Read only: changes go
+# through Invoke-AkariDism.
+function Get-AkariReservedStorage {
+    try { "$((Get-WindowsReservedStorageState -ErrorAction Stop).ReservedStorageState)" } catch { $null }
+}
+
+# the physical network adapters (Get-NetAdapter -Physical, up or not) by interface index: @{ Index; Name; Guid ({…}) }.
+# Read only: DNS servers change through Invoke-AkariNetsh.
+function Get-AkariDnsAdapters {
+    foreach ($a in @(Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Sort-Object ifIndex)) {
+        [pscustomobject]@{ Index = [int]$a.ifIndex; Name = "$($a.Name)"; Guid = "$($a.InterfaceGuid)" }
+    }
+}
+
+# empties the DNS client's cache (after the servers change)
+function Clear-AkariDnsCache { Clear-DnsClientCache -ErrorAction SilentlyContinue }
+
+# the only netsh call (Teredo's state, DNS servers, DoH templates): runs netsh with $Arguments; returns its output
+# lines. Continue: see Invoke-AkariPowerCfg.
+function Invoke-AkariNetsh {
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
+    $ErrorActionPreference = 'Continue'
+    & "$env:SystemRoot\System32\netsh.exe" @Arguments 2>&1 | ForEach-Object { "$_" }
+}
+
 # the hosts file: Akari's lines sit in named blocks between "# AkariOS <name> start" and "# AkariOS <name> end"; the
 # user's own lines are never touched. Tests point $AkariHostsPath at a test file.
 $AkariHostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
@@ -271,6 +305,30 @@ function Set-AkariAdminOnlyAcl([string]$Path) {
         $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($sid), 'FullControl', 'Allow'))
     }
     Set-Acl -LiteralPath $Path -AclObject $acl
+}
+
+# the rights Everyone (S-1-1-0) is denied on a file or folder by its own explicit rules, as a FileSystemRights mask; 0
+# with none or no such item. Only the access rules are read, so a file whose data is denied still answers.
+function Get-AkariDenyRule([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) { return 0 }
+    $rights = 0
+    foreach ($r in @((Get-Item -LiteralPath $Path -Force).GetAccessControl('Access').GetAccessRules($true, $false, [Security.Principal.SecurityIdentifier]))) {
+        if ($r.AccessControlType -eq 'Deny' -and $r.IdentityReference.Value -eq 'S-1-1-0') { $rights = $rights -bor [int]$r.FileSystemRights }
+    }
+    $rights
+}
+
+# denies Everyone $Rights (a FileSystemRights mask) on the item alone, replacing Everyone's earlier deny rules; 0 only
+# removes them. Only the access rules are written (never the owner). By SID, so it works on every language.
+function Set-AkariDenyRule([string]$Path, [int]$Rights) {
+    $item = Get-Item -LiteralPath $Path -Force
+    $acl = $item.GetAccessControl('Access')
+    $everyone = [Security.Principal.SecurityIdentifier]::new('S-1-1-0')
+    foreach ($r in @($acl.GetAccessRules($true, $false, [Security.Principal.SecurityIdentifier]))) {
+        if ($r.AccessControlType -eq 'Deny' -and $r.IdentityReference.Value -eq 'S-1-1-0') { [void]$acl.RemoveAccessRuleSpecific($r) }
+    }
+    if ($Rights) { $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($everyone, [Security.AccessControl.FileSystemRights]$Rights, 'Deny')) }
+    $item.SetAccessControl($acl)
 }
 
 # unregisters every scheduled task but the ones named in $Keep (protected ones Windows won't let go are skipped);

@@ -65,6 +65,11 @@
 #   in -FeaturesFail, Add-AkariCapability likewise), "capability add|remove <name>", "servicestart <name> <type>"
 #   (Set-AkariServiceStart), "servicecontrol <name> <Start|Stop>", "dailytask <path>|<name>|<exe>|<args>|<at>|<desc>"
 #   (Register-AkariDailyTask), "unregistertask <path>|<name>", "adminacl <path>" (Set-AkariAdminOnlyAcl).
+#   winutil (W3): "netsh <args>" (Invoke-AkariNetsh); "deny <path>|<mask>" (Set-AkariDenyRule; the path as %Root%\… or
+#   %User%\… for -UserFolder), Get-AkariDenyRule answers what was set, seeded by -Denied ('path=mask;…'), 0 for a
+#   missing item; Get-AkariReservedStorage answers -ReservedStorage (';' = $null), "dism <args>" (Invoke-AkariDism:
+#   -DismCode); Get-AkariDnsAdapters answers -DnsAdapters ('index|name|{guid};…'), "flushdns" (Clear-AkariDnsCache);
+#   Get-AkariOSBuild answers -Build (26100 by default).
 # Get-MMAgent answers -MMAgent ('ApplicationLaunchPrefetching=True;…;MaxOperationAPIFiles=512'). -SystemRoot: the
 # blocks' $env:SystemRoot (a temp folder the C# test laid out).
 # Get-AkariGpus answers -Gpus ('Vendor|Path;…'), Get-AkariGpuDevices -GpuDevices ('id;…'), Get-AkariRememberedState
@@ -85,7 +90,8 @@ param([Parameter(Mandatory)][string]$Src, [Parameter(Mandatory)][string]$Out, [s
     [switch]$Logs, [string]$Board = '', [string]$Bios = '', [string]$Volumes = '', [int]$FirmwareCode = 0, [string]$EventLogs = '', [string]$Drivers = '',
     [string]$DriversKept = '', [string]$TestDir = '', [string]$WebContent = '', [string]$WebLinks = '', [string]$Unpack = '', [string]$Downloaded = '',
     [string]$SystemDrive = '', [string]$Snapshot = '', [string]$ExeCodes = '', [string]$FeatureStates = '', [string]$CapabilityStates = '',
-    [string]$WindowsSource = '', [string]$ServiceStarts = '', [string]$FeaturesFail = '')
+    [string]$WindowsSource = '', [string]$ServiceStarts = '', [string]$FeaturesFail = '', [string]$Denied = '',
+    [string]$ReservedStorage = '', [int]$DismCode = 0, [string]$DnsAdapters = '', [int]$Build = 26100)
 $ErrorActionPreference = 'Stop'
 $AkariRoot = $Src
 . (Join-Path $Src 'Core\Loader.ps1')
@@ -159,6 +165,31 @@ function Invoke-AkariPowerCfg { $script:Calls.Add("powercfg $($args -join ' ')")
 function Invoke-AkariBcdEdit([string]$Arguments) { $script:Calls.Add("bcdedit $Arguments"); 0 }
 function Read-AkariBcd([string]$Id = '{current}') { $script:Calls.Add("bcd $Id"); @($BcdLines.Split('|') | Where-Object { $_ }) }
 function Invoke-AkariW32tm { $script:Calls.Add("w32tm $($args -join ' ')") }
+function Invoke-AkariNetsh { $script:Calls.Add("netsh $($args -join ' ')") }
+# winutil W3: Everyone's deny rules, kept here by path (%Root%\… or %User%\…): -Denied seeds them
+function Format-AclPath([string]$Path) {
+    $p = Format-TestPaths $Path
+    if ($UserFolder) { $p = $p.Replace($UserFolder.TrimEnd('\'), '%User%') }
+    $p
+}
+$script:DenyRules = @{}
+foreach ($d in @($Denied.Split(';') | Where-Object { $_ })) { $k, $v = $d.Split('=', 2); $script:DenyRules[$k] = [int]$v }
+function Get-AkariDenyRule([string]$Path) {
+    if (-not (Microsoft.PowerShell.Management\Test-Path -LiteralPath $Path)) { return 0 }
+    $k = Format-AclPath $Path
+    if ($script:DenyRules.ContainsKey($k)) { $script:DenyRules[$k] } else { 0 }
+}
+function Get-AkariReservedStorage { if ($ReservedStorage -and $ReservedStorage -ne ';') { $ReservedStorage } else { $null } }
+function Invoke-AkariDism { $script:Calls.Add("dism $($args -join ' ')"); $DismCode }
+function Get-AkariDnsAdapters {
+    foreach ($a in @($DnsAdapters.Split(';') | Where-Object { $_ })) { $i, $n, $g = $a.Split('|'); [pscustomobject]@{ Index = [int]$i; Name = $n; Guid = $g } }
+}
+function Clear-AkariDnsCache { $script:Calls.Add('flushdns') }
+function Set-AkariDenyRule([string]$Path, [int]$Rights) {
+    $k = Format-AclPath $Path
+    $script:Calls.Add("deny $k|$Rights")
+    $script:DenyRules[$k] = $Rights
+}
 function Import-AkariRegText([string]$Text) { $script:Calls.Add("regimport $Text"); 0 }
 function Set-Reg($Path, $Name, $Value, $Type = 'DWord') { $script:Calls.Add("set $Path|$Name|$(Format-Value $Value)|$Type") }
 function Remove-Reg($Path, $Name) { $script:Calls.Add("remove $Path|$Name") }
@@ -175,7 +206,7 @@ function Invoke-AkariRegistry($Rows, $Mode) { foreach ($e in @($Rows)) { $script
 function Invoke-AkariRegistryTrusted($Rows, $Mode) { foreach ($e in @($Rows)) { $script:Calls.Add("trusted $Mode $($e.Path)|$($e.Name)|$(Format-Value $e.Value)|$(Format-Value $e.Default)") } }
 # a key read on the test key (-TestRoot), never the real hives
 function Get-AkariRegKey([string]$Path) { if ($TestRoot) { Test-Path -LiteralPath (Resolve-AkariRegPath $Path) } else { $false } }
-function Get-AkariOSBuild { 26100 }
+function Get-AkariOSBuild { $Build }
 function Get-AkariUserFolder([string]$Name) { $script:Users }
 function Read-AkariAppSettings([string]$Family) {
     $script:Calls.Add("appread $Family")
