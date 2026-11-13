@@ -273,8 +273,15 @@ namespace AkariOS.Tweaks.Tests
             if (headers is not null) Headers.Add(headers);
             Saved.Add($"{url}|{file}{(headers is null ? "" : " +headers")}");
             Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-            File.WriteAllText(file, "");
+            if (ValidZips && file.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            {
+                using var z = System.IO.Compression.ZipFile.Open(file, System.IO.Compression.ZipArchiveMode.Create);
+            }
+            else File.WriteAllText(file, "");
         }
+
+        /// <summary>A .zip download is an empty archive (winget's dependencies unpacked), not an empty file.</summary>
+        public bool ValidZips { get; set; }
 
         public string Text(string url, IReadOnlyDictionary<string, string>? headers = null)
         {

@@ -322,6 +322,17 @@ public sealed partial class ToolsTests : IDisposable
     [InlineData("tools-factory-reset", "open ms-settings:recovery", "open ms-settings:recovery")]
     [InlineData("tools-local-account", "open netplwiz.exe", @"run %SystemRoot%\System32\netplwiz.exe||False")]
     [InlineData("tools-activation", "open ms-settings:activation", "open ms-settings:activation")]
+    // winutil's Legacy Windows panels (Tools/Panels)
+    [InlineData("tools-panel-computer-management", "open compmgmt.msc", @"run %SystemRoot%\System32\mmc.exe|compmgmt.msc|False")]
+    [InlineData("tools-panel-control", "open control.exe", @"run %SystemRoot%\System32\control.exe||False")]
+    [InlineData("tools-panel-network", "open ncpa.cpl", @"run %SystemRoot%\System32\control.exe|ncpa.cpl|False")]
+    [InlineData("tools-panel-power", "open powercfg.cpl", @"run %SystemRoot%\System32\control.exe|powercfg.cpl|False")]
+    [InlineData("tools-panel-printers", "run explorer.exe|shell:::{A8A91A66-3A7D-4424-8D24-04E180695C7A}", @"run %SystemRoot%\explorer.exe|shell:::{A8A91A66-3A7D-4424-8D24-04E180695C7A}|False")]
+    [InlineData("tools-panel-region", "open intl.cpl", @"run %SystemRoot%\System32\control.exe|intl.cpl|False")]
+    [InlineData("tools-panel-security", "open wscui.cpl", @"run %SystemRoot%\System32\control.exe|wscui.cpl|False")]
+    [InlineData("tools-panel-system", "open sysdm.cpl", @"run %SystemRoot%\System32\control.exe|sysdm.cpl|False")]
+    [InlineData("tools-panel-date-time", "open timedate.cpl", @"run %SystemRoot%\System32\control.exe|timedate.cpl|False")]
+    [InlineData("tools-panel-firewall", "open firewall.cpl", @"run %SystemRoot%\System32\control.exe|firewall.cpl|False")]
     [InlineData("tools-driver-intel",
         "open https://www.intel.com/content/www/us/en/search.html#sortCriteria=%40lastmodifieddt%20descending&f-operatingsystem_en=Windows%2011%20Family*&f-downloadtype=Drivers&cf-tabfilter=Downloads",
         "open https://www.intel.com/content/www/us/en/search.html#sortCriteria=%40lastmodifieddt%20descending&f-operatingsystem_en=Windows%2011%20Family*&f-downloadtype=Drivers&cf-tabfilter=Downloads")]

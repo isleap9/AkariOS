@@ -56,6 +56,8 @@
 #   "snap <file>|<text>" for each file under -Snapshot (what an installer finds); Save-AkariFile copies -Downloaded's
 #   file ('name=path;…') instead of an empty one; -SystemDrive: $env:SystemDrive (%SystemDrive%\… in the lines);
 #   Move-Item takes pipeline input and a folder as -Destination, inside the test's folders.
+#   winutil (W1): Invoke-AkariExe answers -ExeCodes ('chkdsk.exe=1;…', by file name, else 0); "wingettool <True|False>"
+#   (Install-AkariWingetTool -Force).
 # Get-MMAgent answers -MMAgent ('ApplicationLaunchPrefetching=True;…;MaxOperationAPIFiles=512'). -SystemRoot: the
 # blocks' $env:SystemRoot (a temp folder the C# test laid out).
 # Get-AkariGpus answers -Gpus ('Vendor|Path;…'), Get-AkariGpuDevices -GpuDevices ('id;…'), Get-AkariRememberedState
@@ -75,7 +77,7 @@ param([Parameter(Mandatory)][string]$Src, [Parameter(Mandatory)][string]$Out, [s
     [string]$Public = '', [string]$LocalAppData = '', [switch]$MakeFiles, [string]$Value = '', [string]$KeptTasks = '', [switch]$RestoreFails, [string]$Only = '',
     [switch]$Logs, [string]$Board = '', [string]$Bios = '', [string]$Volumes = '', [int]$FirmwareCode = 0, [string]$EventLogs = '', [string]$Drivers = '',
     [string]$DriversKept = '', [string]$TestDir = '', [string]$WebContent = '', [string]$WebLinks = '', [string]$Unpack = '', [string]$Downloaded = '',
-    [string]$SystemDrive = '', [string]$Snapshot = '')
+    [string]$SystemDrive = '', [string]$Snapshot = '', [string]$ExeCodes = '')
 $ErrorActionPreference = 'Stop'
 $AkariRoot = $Src
 . (Join-Path $Src 'Core\Loader.ps1')
@@ -387,6 +389,8 @@ function Unblock-File {
 function Test-AkariWingetInstalled([string]$Id, [string]$Source = 'winget') { $false }
 # its Apply (the Loader's: Before, the install, After): the install recorded
 function Install-AkariWingetPackage([string]$Id, [string]$Source = 'winget') { $script:Calls.Add("winget $Id $Source") }
+# winget's own repair (tools-fix-winget): recorded
+function Install-AkariWingetTool([switch]$Force) { $script:Calls.Add("wingettool $([bool]$Force)") }
 function Save-AkariFile([string]$Name, [string]$OutFile) {
     $script:Calls.Add("download $Name|$OutFile")
     if ($MakeFiles -and (Get-TestFilePath $OutFile)) {
@@ -425,7 +429,9 @@ function Invoke-AkariExe([string]$Path, [string[]]$Arguments) {
             $script:Calls.Add("snap $(Format-TestPaths $f.FullName)|$([IO.File]::ReadAllText($f.FullName))")
         }
     }
-    0
+    # -ExeCodes ('chkdsk.exe=1;…'): a program's exit code by its file name, else 0
+    $code = @($ExeCodes.Split(';') | Where-Object { $_ -like "$(Split-Path $Path -Leaf)=*" } | ForEach-Object { [int]$_.Split('=', 2)[1] }) | Select-Object -First 1
+    if ($code) { $code } else { 0 }
 }
 function New-AkariRestorePoint([string]$Description = 'AkariOS') {
     $script:Calls.Add("restorepoint $Description")

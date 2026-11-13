@@ -34,7 +34,17 @@ function Get-AkariWingetVersion {
 
 # a working winget, once per Run: registers App Installer for the user, else installs it (and its VCLibs / UI.Xaml
 # dependencies) from Microsoft's winget-cli GitHub release. Throws when that fails.
-function Install-AkariWingetTool {
+function Install-AkariWingetTool([switch]$Force) {
+    # -Force (tools-fix-winget): App Installer installed again from winget-cli's latest release, whatever is there
+    if ($Force) {
+        Write-Log 'winget: installing App Installer again'
+        Install-AkariAppInstaller
+        $v = Get-AkariWingetVersion
+        if (-not $v -or $v -lt $AkariWingetMin) { throw 'winget could not be installed' }
+        Write-Log "winget: version $v installed"
+        $script:AkariWingetReady = $true
+        return
+    }
     if ($script:AkariWingetReady) { return }
     $v = Get-AkariWingetVersion
     if (-not $v -or $v -lt $AkariWingetMin) {

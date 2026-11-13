@@ -91,6 +91,16 @@ Describe 'Winget' {
         $script:AkariWingetReady = $false; $state.Version = $null
         { Install-AkariWingetTool } | Should Throw 'could not be installed'
     }
+
+    Context 'forced (tools-fix-winget)' {
+        Mock Install-AkariAppInstaller { $state.Version = 'v1.29.380' }
+        It 'installs App Installer again even when winget works and was checked' {
+            $script:AkariWingetReady = $true; $state.Version = 'v1.29.380'
+            Install-AkariWingetTool -Force
+            Assert-MockCalled Install-AkariAppInstaller -Times 1 -Exactly -Scope It
+            Assert-MockCalled Register-AkariAppInstaller -Times 0 -Exactly -Scope It
+        }
+    }
 }
 
 Describe 'AppSetup' {

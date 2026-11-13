@@ -5,7 +5,7 @@ namespace AkariOS.Tweaks.Tools;
 
 /// <summary>
 /// Start-Process as the Tools blocks use it, never waited for: a URI (ms-settings:, https:) through the launcher, a
-/// Control Panel file through control.exe, a bare program name from System32 (explorer.exe from the Windows folder),
+/// Control Panel file through control.exe, a console (.msc) through mmc.exe, a bare program name from System32 (explorer.exe from the Windows folder),
 /// a full path as it is.
 /// </summary>
 internal static class ShellStart
@@ -21,6 +21,7 @@ internal static class ShellStart
         var (path, args) = target switch
         {
             _ when target.EndsWith(".cpl", StringComparison.OrdinalIgnoreCase) => (Path.Combine(windows, "System32", "control.exe"), target),
+            _ when target.EndsWith(".msc", StringComparison.OrdinalIgnoreCase) => (Path.Combine(windows, "System32", "mmc.exe"), target),
             _ when Path.IsPathRooted(target) => (target, arguments),
             _ when string.Equals(target, "explorer.exe", StringComparison.OrdinalIgnoreCase) => (Path.Combine(windows, target), arguments),
             _ => (Path.Combine(windows, "System32", target), arguments),

@@ -48,9 +48,20 @@ public sealed class Winget(IWinget winget, IPackageManager packages, IHttp http,
         return Version.TryParse(v, out var x) ? x : null;
     }
 
-    /// <summary>Install-AkariWingetTool: a winget of at least <see cref="Min"/>, checked once.</summary>
-    public void EnsureTool()
+    /// <summary>Install-AkariWingetTool: a winget of at least <see cref="Min"/>, checked once. Force (-Force,
+    /// tools-fix-winget): App Installer installed again from winget-cli's latest release, whatever is there.</summary>
+    public void EnsureTool(bool force = false)
     {
+        if (force)
+        {
+            log.Write("winget: installing App Installer again");
+            InstallAppInstaller();
+            var now = ToolVersion();
+            if (now is null || now < Min) throw new InvalidOperationException("winget could not be installed");
+            log.Write($"winget: version {now} installed");
+            _ready = true;
+            return;
+        }
         if (_ready) return;
         var v = ToolVersion();
         if (v is null || v < Min)
