@@ -34,7 +34,7 @@ public sealed class UnattendPage(AppServices s)
     public UIElement Build()
     {
         if (_view != null) return _view;
-        Form.Set(Start());
+        Started();
         var stack = new StackPanel();
         var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
         bar.Children.Add(Parts.Button("Open file…", click: Open));
@@ -70,8 +70,34 @@ public sealed class UnattendPage(AppServices s)
         return _view = column;
     }
 
-    /// <summary>The form's starting fields: the defaults, the samples, this PC's language, region and time zone.</summary>
-    private Dictionary<string, string[]> Start()
+    private bool _started;
+
+    /// <summary>The form starts from <see cref="Start"/> once, when its page is first built or the ISO Builder first
+    /// asks for its file.</summary>
+    private void Started()
+    {
+        if (_started) return;
+        _started = true;
+        Form.Set(Start());
+    }
+
+    /// <summary>
+    /// The answer file of the form's choices, for the ISO Builder ("The Unattend Generator's choices"): the form started
+    /// when its page was never opened, the disk-wipe question first. Null with <paramref name="error"/> = his check
+    /// refused it; null without = the user cancelled.
+    /// </summary>
+    public byte[]? IsoAnswer(out string? error)
+    {
+        error = null;
+        Started();
+        if (!ConfirmWipe()) return null;
+        try { return UnattendFile.Make(Form.Fields()); }
+        catch (UnattendException e) { error = e.Message; return null; }
+    }
+
+    /// <summary>The form's starting fields: the defaults, the samples, this PC's language, region and time zone (also
+    /// the ISO Builder's "A local account").</summary>
+    public Dictionary<string, string[]> Start()
     {
         PcRegion? pc = null;
         try { pc = s.Region?.Read(); }
@@ -107,6 +133,7 @@ public sealed class UnattendPage(AppServices s)
 
     public void Reset()
     {
+        _started = true;
         Form.Set(Start());
         _error.Text = "";
     }

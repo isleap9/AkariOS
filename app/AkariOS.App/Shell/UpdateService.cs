@@ -35,7 +35,7 @@ public sealed class UpdateService(IGitHub github, Updater updater, string exePat
             () => File.Exists(Path.Combine(AkariPaths.MachineFolder, "run.json")), AkariInfo.Version);
 
     private UpdateBlocks Blocks(AppServices s) => new(developerBuild, runSaved(),
-        s.Shell.Busy || s.Catalogue?.Running == true || s.Catalogue?.SafePending.Count > 0 || s.Install?.Running == true);
+        s.Shell.Busy || s.Catalogue?.Running == true || s.Catalogue?.SafePending.Count > 0 || s.Install?.Running == true || s.Iso?.Running == true);
 
     /// <summary>Reads the latest release in the background; manual = About's button (the launch check asks on Home).</summary>
     public void Check(AppServices s, bool manual)

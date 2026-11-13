@@ -89,6 +89,14 @@ public static partial class Program
         var shell = new Shell.ShellViewModel(AkariInfo.Version, Core.Tweaks.Catalogue.Pages(Core.Tweaks.Catalogue.Tweaks(engine.Loaded.Tweaks, engine.System)));
         var services = new Shell.AppServices { Engine = engine, Shell = shell, Theme = theme, Open = new Shell.ShellOpen(), Log = appLog, Picker = new Shell.FilePicker(),
             Drives = new Core.Unattend.LiveSetupDrives(), Region = Core.Unattend.RegistryPcRegion.Live(engine.Registry) };
+        // the ISO Builder: DISM, the hives, the ISO drive, UUP Dump and Massgrave on the engine's parts; AkariOS in an
+        // image is this exe (none for a developer build); a mount left by a closed build is discarded in the background
+        var tw = engine.Services;
+        services.IsoBuild = new Core.Iso.IsoBuild(Core.Iso.IsoParts.Live(engine.Files, engine.Registry, tw.Trusted!, tw.Exe!, tw.Http!, tw.Shortcuts!, appLog));
+        services.IsoDownload = new Core.Iso.IsoDownload(Core.Iso.IsoDownloadParts.Live(tw.Http!, tw.Exe!, appLog, engine.Registry));
+        services.AkariExe = Shell.UpdateService.IsDeveloperBuild() ? null : Environment.ProcessPath;
+        var isoBuild = services.IsoBuild;
+        Task.Run(isoBuild.ClearLeftover);
         var window = new MainWindow(theme, shell, Pages.PageFactory.For(services));
         services.Dialogs = Shell.Dialogs.For(window, appLog);
         services.Bars = window.CatBars;
@@ -100,7 +108,7 @@ public static partial class Program
         window.Closing += (s, e) =>
         {
             if (updating) return;
-            if (services.Install?.CanClose() == false) { e.Cancel = true; return; }
+            if (services.Install?.CanClose() == false || services.Iso?.CanClose() == false) { e.Cancel = true; return; }
             services.Catalogue?.OnClosing(s, e);
         };
         services.Close = () => { updating = true; window.Close(); };

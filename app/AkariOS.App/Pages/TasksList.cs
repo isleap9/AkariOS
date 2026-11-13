@@ -206,6 +206,7 @@ public sealed class TasksList(AppServices s, CatalogueView catalogue)
     private void Change(TaskRow r, bool enabled)
     {
         if (r.Busy.Length > 0) return;
+        if (catalogue.IsoBusy()) { Update(r); return; }
         r.Error = "";
         r.Busy = "Waiting";
         Update(r);

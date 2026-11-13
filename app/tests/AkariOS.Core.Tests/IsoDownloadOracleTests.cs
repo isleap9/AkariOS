@@ -13,40 +13,9 @@ namespace AkariOS.Core.Tests;
 /// (Api, Package, Script, Ini (ConvertConfig.ini's bytes when the converter runs), Page, Sleep), the log and akari.log
 /// lines, each action's result, the files left in the output folder.
 /// </summary>
-public sealed class IsoDownloadOracleTests
+public sealed partial class IsoDownloadOracleTests
 {
-    private const string BuildId = "5f3a6b1c-0d2e-4c8f-9a7b-1e2d3c4b5a69";
-
-    private static object Ok(object response) => new { Json = new { response } };
-
-    private static object Fail(string message) => new { Throw = message };
-
-    private static readonly object ListId = Ok(new
-    {
-        builds = new Dictionary<string, object>
-        {
-            ["0"] = new { uuid = BuildId, title = "Windows 11, version 25H2 (26200.6584) amd64", build = "26200.6584", arch = "amd64" },
-            ["1"] = new { uuid = "older", title = "Windows 11, version 25H2 (26200.6000) amd64", build = "26200.6000", arch = "amd64" },
-            ["2"] = new { uuid = "preview", title = "Windows 11 Insider Preview 26200.7000 amd64", build = "26200.7000", arch = "amd64" },
-        },
-    });
-
-    private static readonly object ListLangs = Ok(new { langFancyNames = new Dictionary<string, string> { ["fr-fr"] = "French", ["en-us"] = "English (United States)", ["de-de"] = "German" } });
-
-    private static readonly object ListEditions = Ok(new { editionFancyNames = new Dictionary<string, string> { ["PROFESSIONAL"] = "Windows Pro", ["CORE"] = "Windows Home", ["PROFESSIONALN"] = "Windows Pro N" } });
-
-    private const string Ini = "[convert-UUP]\r\nAutoStart    =1\r\nAddUpdates   =1\r\nResetBase    =0\r\nNetFx3       =0\r\nStartVirtual =0\r\n\r\n[create_virtual_editions]\r\nvAutoEditions=\r\nvDeleteSource=0\r\n\r\n[Store_Apps]\r\nAutoExit     =0\r\n";
-
-    internal static Dictionary<string, object> Case(params object[] actions) => new()
-    {
-        ["Actions"] = actions,
-        ["Answers"] = Array.Empty<object>(),
-        ["Package"] = new { Files = new Dictionary<string, string> { ["ConvertConfig.ini"] = Ini, ["uup_download_windows.cmd"] = "@echo off" } },
-        ["Script"] = new { Code = 0, Iso = "26200.6584.250915-1200.ge_release_CLIENTPRO_OEMRET_x64FRE_en-us.iso", Lines = new[] { "Downloading 1 of 3", "", "Done" } },
-        ["Pages"] = new Dictionary<string, string?>(),
-        ["Drive"] = new { Free = 40L << 30, Format = "NTFS" },
-        ["Downloads"] = Array.Empty<object>(),
-    };
+    // the case, Side: IsoShared.cs
 
     private static object Save(string? virtualEdition = null, string label = "Pro") => new
     {
@@ -54,31 +23,6 @@ public sealed class IsoDownloadOracleTests
         Build = new { Id = BuildId, Title = "Windows 11, version 25H2", Build = "26200.6584" },
         Target = new { Label = label, Code = "PROFESSIONAL", Virtual = virtualEdition ?? "" },
     };
-
-    // ---- one side
-
-    internal sealed class Side : IDisposable
-    {
-        public string Root { get; } = Path.Combine(Path.GetTempPath(), $"akari-isod-{Guid.NewGuid():N}");
-
-        public Side(Dictionary<string, object> c)
-        {
-            Directory.CreateDirectory(Path.Combine(Root, "out"));
-            var downloads = Directory.CreateDirectory(Path.Combine(Root, "downloads")).FullName;
-            var now = new DateTime(2026, 11, 13, 12, 0, 0, DateTimeKind.Utc);
-            foreach (var d in JsonDocument.Parse(IsoBuildOracleTests.Json(c["Downloads"])).RootElement.EnumerateArray())
-            {
-                var f = Path.Combine(downloads, d.GetProperty("Name").GetString()!);
-                File.WriteAllText(f, "iso");
-                File.SetLastWriteTimeUtc(f, now.AddMinutes(-d.GetProperty("Age").GetInt32()));
-            }
-        }
-
-        public void Dispose() { if (Directory.Exists(Root)) Directory.Delete(Root, recursive: true); }
-
-        public List<string> Files() => [.. Directory.EnumerateFileSystemEntries(Path.Combine(Root, "out"), "*", SearchOption.AllDirectories)
-            .Select(f => f.Replace(Root, "<root>")).Order(StringComparer.OrdinalIgnoreCase)];
-    }
 
     internal sealed record Output(List<string> Calls, List<string> Log, List<string> ErrLog, List<string> Results, List<string> Files);
 
@@ -293,10 +237,6 @@ public sealed class IsoDownloadOracleTests
 
     // ---- Massgrave
 
-    private static string Page(string product, params string[] files) =>
-        $"# Links\n\n**{product}**\n\n| Language | Arch | Link |\n|---|---|---|\n" +
-        string.Concat(files.Select(f => $"| English | x64 | [{f}](https://drive.massgrave.dev/{f}) |\n"));
-
     [Fact]
     public void Reads_both_massgrave_pages()
     {
@@ -336,86 +276,4 @@ public sealed class IsoDownloadOracleTests
     }
 }
 
-/// <summary>The recording fakes behind IsoDownload in IsoDownloadOracleTests: they answer the case as
-/// Oracle/Invoke-IsoDownload.ps1's recorders do and write the same calls.</summary>
-internal sealed class DownloadFakes : IHttp, IExe
-{
-    private readonly string _root;
-    private int _answer;
-
-    public JsonElement Case { get; }
-    public List<string> Calls { get; } = [];
-    public MemoryLog Log { get; } = new();
-    public IsoDownloadParts Parts { get; set; }
-
-    public DownloadFakes(string root, Dictionary<string, object> c)
-    {
-        _root = root;
-        Case = JsonDocument.Parse(IsoBuildOracleTests.Json(c).Replace("<root>", root.Replace(@"\", @"\\"))).RootElement;
-        var drive = Case.GetProperty("Drive");
-        Parts = new IsoDownloadParts
-        {
-            Http = this, Exe = this, Log = Log, Windows = @"C:\Windows",
-            Drive = _ => (drive.GetProperty("Free").GetInt64(), drive.GetProperty("Format").GetString()!),
-            Sleep = ms => Rec($"Sleep {ms / 1000}"),
-            Downloads = () => Path.Combine(root, "downloads"),
-        };
-    }
-
-    public string Norm(string s) => s.Replace(_root, "<root>");
-
-    private void Rec(string s) => Calls.Add(Norm(s));
-
-    private static string Query(IEnumerable<KeyValuePair<string, string>> q) =>
-        string.Join("&", q.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}={p.Value}"));
-
-    public string Text(string url, IReadOnlyDictionary<string, string>? headers = null)
-    {
-        const string api = "https://api.uupdump.net/";
-        if (url.StartsWith(api, StringComparison.Ordinal))
-        {
-            var u = new Uri(url);
-            var name = Path.GetFileNameWithoutExtension(u.AbsolutePath);
-            var q = u.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries)
-                .Select(p => p.Split('=', 2)).Select(p => KeyValuePair.Create(Uri.UnescapeDataString(p[0]), Uri.UnescapeDataString(p[1])));
-            Rec($"Api {name} {Query(q)}");
-            var answers = Case.GetProperty("Answers");
-            if (_answer >= answers.GetArrayLength()) throw new InvalidOperationException("no answer left");
-            var a = answers[_answer++];
-            if (a.TryGetProperty("Throw", out var t)) throw new HttpRequestException(t.GetString());
-            return a.GetProperty("Json").GetRawText();
-        }
-        Rec($"Page {url}");
-        if (!Case.GetProperty("Pages").TryGetProperty(url, out var page) || page.ValueKind == JsonValueKind.Null) throw new HttpRequestException("404 Not Found");
-        return page.GetString()!;
-    }
-
-    public void Download(string url, string file) => throw new NotSupportedException();
-
-    public void Post(string url, IReadOnlyDictionary<string, string> form, string file)
-    {
-        Rec($"Package {url} {Query(form)}");
-        var p = Case.GetProperty("Package");
-        if (p.TryGetProperty("Throw", out var t)) throw new HttpRequestException(t.GetString());
-        using var zip = ZipFile.Open(file, ZipArchiveMode.Create);
-        foreach (var f in p.GetProperty("Files").EnumerateObject())
-        {
-            using var w = new StreamWriter(zip.CreateEntry(f.Name).Open());
-            w.Write(f.Value.GetString());
-        }
-    }
-
-    public ExeResult Run(string path, string arguments, bool wait = true, bool capture = true) => throw new NotSupportedException();
-
-    public int Lines(string path, string arguments, string folder, Action<string> line)
-    {
-        Assert.Equal(@"C:\Windows\System32\cmd.exe", path);
-        Assert.Equal("/c uup_download_windows.cmd", arguments);
-        Rec($"Script {folder}");
-        Rec("Ini " + Convert.ToBase64String(File.ReadAllBytes(Path.Combine(folder, "ConvertConfig.ini"))));
-        var s = Case.GetProperty("Script");
-        foreach (var l in s.GetProperty("Lines").EnumerateArray()) line(l.GetString()!);
-        if (s.GetProperty("Iso").GetString() is { Length: > 0 } iso) File.WriteAllText(Path.Combine(folder, iso), "iso");
-        return s.GetProperty("Code").GetInt32();
-    }
-}
+// DownloadFakes: IsoShared.cs

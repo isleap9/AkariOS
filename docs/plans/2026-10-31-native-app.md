@@ -459,6 +459,16 @@ helpers.
   converter's output streamed into the log, run in its folder) as default members; answers never throw
   (`UupAnswer<T>`, `IsoResult`); languages by name in the current culture, then code; ConvertConfig.ini written as
   5.1's ASCII Set-Content.
+- N10d built 2026-11-13 (1012 tests): the page (`Pages/IsoPage`), N10 built, its VM check pending. Decided
+  (grilled): the page's state lives in `IsoPage` (`Job` / `Running` / `Working`), no Core model (the pure parts are
+  IsoPlan / IsoData); an ISO job doesn't start while the shell is busy or a Catalogue change or Guided Run runs, one ISO
+  job at a time, and the Catalogue (cards, services, tasks, its bars), the Guided Run, One-click, Import / Export and
+  the update all refuse while one runs; Open, Read, Build and the UUP download lock the page, the UUP lists and
+  Massgrave's catalogue don't; Build's progress in the status bar; `AppServices.IsoBuild` / `IsoDownload` from the live
+  parts, `IFilePicker.OpenIso`, `IShellOpen.Url`, `AppServices.Every` (the Massgrave watch); the Core tests' ISO cases
+  and fakes moved to `IsoShared.cs` and linked into the App tests; the generator's answer file through the Unattend
+  page (its form started if never opened, the disk-wipe question first); the image's lists as plain checkbox lists as
+  the port; after a build the image and lists cleared and the path shown with Open folder.
 
 ---
 

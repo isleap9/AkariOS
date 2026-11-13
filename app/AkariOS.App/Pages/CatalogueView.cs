@@ -170,6 +170,7 @@ public sealed class CatalogueView
     public void Change(Tweak t, TweakMode mode, object? value = null)
     {
         var c = Card(t);
+        if (IsoBusy()) { Show(c); return; }
         if (c.Busy != CatalogueBusy.None || c.NotNative is not null) { Show(c); return; }
         if (mode == TweakMode.Apply)
         {
@@ -204,6 +205,15 @@ public sealed class CatalogueView
     /// <summary>A change in the queue: its status bar label, whether it gets the session's restore point first, what
     /// to show when it starts, the work (off the UI thread) and what to show with its result.</summary>
     private sealed record Job(string Label, bool Restore, Action Begin, Func<object?> Work, Action<object?> Done);
+
+    /// <summary>An ISO Builder job runs: changes are refused meanwhile, saying so (the caller leaves its row as it
+    /// was).</summary>
+    public bool IsoBusy()
+    {
+        if (s.Iso?.Running != true) return false;
+        s.Dialogs?.Message("The ISO Builder is still working. Make this change when it is done.", "Info", Pages.IsoPage.Title);
+        return true;
+    }
 
     /// <summary>Queues a change (a Tweak's, a service's, a task's): run one at a time, after the ones before it.</summary>
     public void Enqueue(string label, bool restore, Action begin, Func<object?> work, Action<object?> done)
@@ -270,7 +280,7 @@ public sealed class CatalogueView
     // now, then a Run in phases restarts into Safe Mode for them and back (Engine.SafeMode)
     private void SafeRun()
     {
-        if (Running || SafePending.Count == 0) return;
+        if (Running || SafePending.Count == 0 || IsoBusy()) return;
         var n = SafePending.Count;
         if (s.Dialogs?.Confirm($"AkariOS restarts into Safe Mode now to apply {n} change{(n != 1 ? "s" : "")}, then back to normal. Save your work first.",
                 "Restart now", "Cancel", "Warning", "Safe Mode") != true) return;
@@ -290,7 +300,7 @@ public sealed class CatalogueView
 
     private void RestartExplorer()
     {
-        if (Running) return;
+        if (Running || IsoBusy()) return;
         Running = true;
         s.Shell.SetBusy(true, "Restarting Explorer", locked: false);
         s.Background(() => { s.Engine.Explorer.Restart(); return null; }, _ =>
@@ -305,7 +315,7 @@ public sealed class CatalogueView
 
     private void RestartPc()
     {
-        if (Running) return;
+        if (Running || IsoBusy()) return;
         if (s.Engine.Shutdown is not { } shutdown) return;
         if (s.Dialogs?.Confirm("Restart the PC now? Save your work first.", "Restart now", "Cancel", "Warning", "Restart") != true) return;
         Running = true;

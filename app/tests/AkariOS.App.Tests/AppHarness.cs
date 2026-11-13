@@ -11,6 +11,7 @@ using AkariOS.Core.Presets;
 using AkariOS.Core.Registry;
 using AkariOS.Core.Runs;
 using AkariOS.Core.Sources;
+using AkariOS.Core.Tests;
 using AkariOS.Core.Tweaks;
 using Microsoft.Win32;
 
@@ -40,6 +41,11 @@ internal sealed record AppTest(AppServices S, CatalogueView Page, InstallPage In
     public AppHarness.FakeDrives Drives { get; init; } = null!;
     public AppHarness.FakeRegion Region { get; init; } = null!;
     public List<string> Opened { get; init; } = null!;
+
+    /// <summary>Background work (run at once unless held), the timers (ticked by hand), the links opened.</summary>
+    public AppHarness.FakeBackground Work { get; init; } = null!;
+    public AppHarness.FakeTimers Timers { get; init; } = null!;
+    public List<string> Links { get; init; } = null!;
 }
 
 /// <summary>Makes <see cref="AppTest"/>s; one per test class instance, cleaning its test key and folder after.</summary>
@@ -51,6 +57,7 @@ internal sealed class AppHarness : IDisposable
 
     public void Dispose()
     {
+        foreach (var side in _sides) side.Dispose();
         using var hkcu = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, RegistryView.Registry64);
         hkcu.DeleteSubKeyTree(_root, throwOnMissingSubKey: false);
         if (Directory.Exists(Dir)) Directory.Delete(Dir, recursive: true);
@@ -108,14 +115,82 @@ internal sealed class AppHarness : IDisposable
         public string? Open() => OpenPath;
         public string? FolderPath { get; set; }
         public string? XmlPath { get; set; }
+        public string? IsoPath { get; set; }
         public string? Folder(string description) => FolderPath;
         public string? OpenXml() => XmlPath;
+        public string? OpenIso() => IsoPath;
     }
 
-    /// <summary>Records the folders opened; links and programs are not.</summary>
-    private sealed class NoOpen(List<string> opened) : IShellOpen
+    /// <summary>Background work: run at once, or kept while Hold is on until Release runs it (a job still running).</summary>
+    internal sealed class FakeBackground
     {
-        public void Url(string url) { }
+        private readonly Queue<Action> _held = new();
+        public bool Hold { get; set; }
+        public int Held => _held.Count;
+        public void Run(Func<object?> work, Action<object?> done)
+        {
+            if (Hold) _held.Enqueue(() => done(work()));
+            else done(work());
+        }
+
+        /// <summary>Runs the held jobs (and any they start), with Hold off.</summary>
+        public void Release()
+        {
+            Hold = false;
+            while (_held.TryDequeue(out var a)) a();
+        }
+    }
+
+    /// <summary>The timers started (AppServices.Every): Tick calls every one still running.</summary>
+    internal sealed class FakeTimers
+    {
+        private readonly List<Timer> _all = [];
+        public sealed class Timer(TimeSpan interval, Action tick) : IDisposable
+        {
+            public TimeSpan Interval { get; } = interval;
+            public Action OnTick { get; } = tick;
+            public bool Stopped { get; private set; }
+            public void Dispose() => Stopped = true;
+        }
+        public IReadOnlyList<Timer> All => _all;
+        public IDisposable Start(TimeSpan interval, Action tick)
+        {
+            var t = new Timer(interval, tick);
+            _all.Add(t);
+            return t;
+        }
+        public void Tick() { foreach (var t in _all.Where(t => !t.Stopped).ToList()) t.OnTick(); }
+    }
+
+    /// <summary>The ISO Builder's engine on the Core tests' recording fakes (IsoShared.cs): a case's ISO drive,
+    /// output folder and test key, kept until the harness is disposed. The ISO file is the side's Win11.iso.</summary>
+    public (IsoBuildOracleTests.Side Side, IsoFakes Fakes) Iso(AppTest t, Dictionary<string, object>? c = null)
+    {
+        c ??= IsoBuildOracleTests.Case();
+        var side = new IsoBuildOracleTests.Side(c);
+        _sides.Add(side);
+        File.WriteAllText(Path.Combine(side.Root, "Win11.iso"), "iso");
+        var f = new IsoFakes(side, c);
+        t.S.IsoBuild = new Core.Iso.IsoBuild(f.Parts with { Log = t.S.Log });
+        return (side, f);
+    }
+
+    /// <summary>The ISO Builder's downloads on the Core tests' recording fakes: a case's answers, its own folders.</summary>
+    public (IsoDownloadOracleTests.Side Side, DownloadFakes Fakes) Downloads(AppTest t, Dictionary<string, object> c)
+    {
+        var side = new IsoDownloadOracleTests.Side(c);
+        _sides.Add(side);
+        var f = new DownloadFakes(side.Root, c);
+        t.S.IsoDownload = new Core.Iso.IsoDownload(f.Parts with { Log = t.S.Log });
+        return (side, f);
+    }
+
+    private readonly List<IDisposable> _sides = [];
+
+    /// <summary>Records the folders and links opened; programs are not.</summary>
+    private sealed class NoOpen(List<string> opened, List<string> links) : IShellOpen
+    {
+        public void Url(string url) => links.Add(url);
         public void Folder(string path) => opened.Add(path);
         public void Program(string path) { }
     }
@@ -173,13 +248,15 @@ internal sealed class AppHarness : IDisposable
         var answers = new Queue<string>();
         var bars = new StackPanel();
         var picker = new FakePicker();
-        var (drives, region, opened) = (new FakeDrives(), new FakeRegion(), new List<string>());
+        var (drives, region, opened, links) = (new FakeDrives(), new FakeRegion(), new List<string>(), new List<string>());
+        var (work, timers) = (new FakeBackground(), new FakeTimers());
         var s = new AppServices
         {
-            Engine = engine, Shell = new ShellViewModel("1"), Open = new NoOpen(opened), Log = log, LogFolder = Dir,
+            Engine = engine, Shell = new ShellViewModel("1"), Open = new NoOpen(opened, links), Log = log, LogFolder = Dir,
             Drives = drives, Region = region,
             Theme = new ThemeService(resources, new SettingsFile(Path.Combine(Dir, "settings.json")), () => null, false),
-            Background = (work, done) => done(work()),
+            Background = work.Run,
+            Every = timers.Start,
             Bars = bars,
             Picker = picker,
             Post = a => a(),
@@ -207,7 +284,7 @@ internal sealed class AppHarness : IDisposable
         s.Install = new InstallPage(s);
         s.Install.Attach(footer);
         Assert.Equal("", string.Join(" / ", engine.Loaded.Problems.Select(p => $"{p.File}: {p.Message}")));
-        return new AppTest(s, s.Catalogue, s.Install, footer, asked, answers, explorer, shutdown, restore, bars, picker) { Packages = packages, Dism = dism, Services = services, Tasks = tasks, Trusted = trusted, Boot = boot, Runs = runs, Drives = drives, Region = region, Opened = opened };
+        return new AppTest(s, s.Catalogue, s.Install, footer, asked, answers, explorer, shutdown, restore, bars, picker) { Packages = packages, Dism = dism, Services = services, Tasks = tasks, Trusted = trusted, Boot = boot, Runs = runs, Drives = drives, Region = region, Opened = opened, Work = work, Timers = timers, Links = links };
     }
 
     /// <summary>Fixture Tweaks in one Category (Optimize › Test): HKCU rows under Software\AkariFix.</summary>

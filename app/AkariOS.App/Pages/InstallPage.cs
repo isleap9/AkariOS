@@ -217,6 +217,7 @@ public sealed class InstallPage
     {
         if (Running || Selection.Count == 0) return;
         if (s.Catalogue is { Running: true }) { s.Dialogs?.Message("A change from Optimize is still running. Apply these when it is done."); return; }
+        if (s.Iso is { Running: true }) { s.Dialogs?.Message("The ISO Builder is still working. Apply these when it is done.", "Info", IsoPage.Title); return; }
         var plan = Core.Tweaks.Selection.PlanItems(Selection.Values);
         var restore = !skipRestore && s.RestoreChoice(Mode);
         var label = $"Applying {plan.Count} change{(plan.Count == 1 ? "" : "s")}";

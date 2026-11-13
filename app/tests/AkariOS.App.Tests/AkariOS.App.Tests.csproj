@@ -9,6 +9,12 @@
     <ProjectReference Include="..\..\AkariOS.App\AkariOS.App.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <!-- shared with the Core tests: the ISO Builder's cases and recording fakes (the ISO Builder page) -->
+    <Compile Include="..\AkariOS.Core.Tests\IsoShared.cs" Link="Shared\IsoShared.cs" />
+    <Compile Include="..\AkariOS.Core.Tests\TestKey.cs" Link="Shared\TestKey.cs" />
+    <Compile Include="..\AkariOS.Core.Tests\Repo.cs" Link="Shared\Repo.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="xunit.v3" Version="4.0.2" />
   </ItemGroup>
 </Project>

@@ -17,6 +17,9 @@ public interface IFilePicker
 
     /// <summary>An answer file to read (the Unattend Generator's "Open file…").</summary>
     string? OpenXml();
+
+    /// <summary>A Windows ISO to open (the ISO Builder's "Browse…").</summary>
+    string? OpenIso();
 }
 
 /// <summary>The real dialogs, AkariOS settings (*.json) first (guarded: never shown in a test).</summary>
@@ -47,6 +50,12 @@ public sealed class FilePicker : IFilePicker
     public string? OpenXml()
     {
         var d = new OpenFileDialog { Filter = "Answer files (*.xml)|*.xml|All files (*.*)|*.*" };
+        return d.ShowDialog() == true ? d.FileName : null;
+    }
+
+    public string? OpenIso()
+    {
+        var d = new OpenFileDialog { Filter = "Windows ISO (*.iso)|*.iso|All files (*.*)|*.*" };
         return d.ShowDialog() == true ? d.FileName : null;
     }
 }

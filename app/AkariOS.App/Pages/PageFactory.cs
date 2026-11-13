@@ -13,6 +13,7 @@ public static class PageFactory
         var catalogue = s.Catalogue ??= new CatalogueView(s);
         var install = s.Install ??= new InstallPage(s);
         var unattend = s.Unattend ??= new UnattendPage(s);
+        var iso = s.Iso ??= new IsoPage(s);
         return page =>
         {
             var q = s.Shell.Search.Trim();
@@ -23,6 +24,7 @@ public static class PageFactory
                 "Install AkariOS" or "Downloads" or "Remove apps" => install.Build(q),
                 "About" => AboutPage.Build(s),
                 "Unattend Generator" => unattend.Build(),
+                IsoPage.Title => iso.Build(),
                 _ => Placeholder.For(page),
             };
         };

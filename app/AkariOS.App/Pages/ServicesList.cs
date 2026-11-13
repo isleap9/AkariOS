@@ -254,6 +254,7 @@ public sealed class ServicesList(AppServices s, CatalogueView catalogue)
     private void Change(ServiceRow r, string op, string value)
     {
         if (r.Busy.Length > 0 || value.Length == 0) return;
+        if (catalogue.IsoBusy()) { Update(r); return; }
         var q = ServiceLists.Confirm(r.Info, op, value);
         if (q.Length > 0 && s.Dialogs?.Confirm(q, "Continue", "Cancel", "Warning") != true) { Update(r); return; }
         r.Error = "";

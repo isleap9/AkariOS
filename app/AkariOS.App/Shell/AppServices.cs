@@ -56,6 +56,33 @@ public sealed class AppServices
     /// <summary>The Unattend Generator page (built once per run: keeps what was typed), made by PageFactory.</summary>
     public Pages.UnattendPage? Unattend { get; set; }
 
+    /// <summary>The ISO Builder page (built once per run: keeps the opened ISO and the picks), made by PageFactory.</summary>
+    public Pages.IsoPage? Iso { get; set; }
+
+    /// <summary>The ISO Builder's engine and downloads (set by Program from the live parts; tests set ones on the
+    /// recording fakes; none = the page says it can't work).</summary>
+    public Core.Iso.IsoBuild? IsoBuild { get; set; }
+    public Core.Iso.IsoDownload? IsoDownload { get; set; }
+
+    /// <summary>The running single-file exe the ISO Builder copies into an image; null = a developer build (the
+    /// option is off, saying why).</summary>
+    public string? AkariExe { get; set; }
+
+    /// <summary>Calls an action every interval on the UI thread until disposed (the Massgrave watch; tests tick a
+    /// fake by hand).</summary>
+    public Func<TimeSpan, Action, IDisposable> Every { get; init; } = (interval, tick) =>
+    {
+        var t = new System.Windows.Threading.DispatcherTimer { Interval = interval };
+        t.Tick += (_, _) => tick();
+        t.Start();
+        return new Stopper(t.Stop);
+    };
+
+    private sealed class Stopper(Action stop) : IDisposable
+    {
+        public void Dispose() => stop();
+    }
+
     /// <summary>The drives a setup file can go on, and this PC's language settings the form starts from (set by
     /// Program; fakes in tests; none = no drives, his defaults).</summary>
     public Core.Unattend.ISetupDrives? Drives { get; init; }
@@ -111,7 +138,7 @@ public sealed class AppServices
     /// </summary>
     public void StartOneClick()
     {
-        if (Shell.Busy || Install?.Running == true || Catalogue?.Running == true)
+        if (Shell.Busy || Install?.Running == true || Catalogue?.Running == true || Iso?.Running == true)
         {
             Dialogs?.Message("Wait until the changes running now are done, then start One-click.", "Info", "AkariOS One-click");
             return;

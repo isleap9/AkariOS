@@ -188,7 +188,11 @@ public sealed class PagesTests : IDisposable
         Assert.IsType<Border>(pages("Downloads"));
         Assert.IsType<Border>(pages("Remove apps"));
         Assert.IsType<Grid>(pages("Unattend Generator"));
-        Assert.All(ShellLayout.Pages.Keys.Except(["Home", "About", "Install AkariOS", "Downloads", "Remove apps", "Unattend Generator"]), p => Assert.Contains(All<TextBlock>(pages(p)), t => t.Text == "Not in the native app yet"));
+        Assert.IsType<Grid>(pages("ISO Builder"));
+        // every page is built now: the placeholder is left for a page name nobody gave
+        Assert.Equal(["About", "Downloads", "Home", "ISO Builder", "Install AkariOS", "Remove apps", "Unattend Generator"],
+            ShellLayout.Pages.Keys.Where(p => !p.StartsWith(ShellLayout.CataloguePrefix, StringComparison.Ordinal) && p != "Optimize").Order(StringComparer.Ordinal));
+        Assert.Contains(All<TextBlock>(pages("Nowhere")), t => t.Text == "Not in the native app yet");
     });
 
     [Fact]
