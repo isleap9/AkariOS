@@ -304,6 +304,11 @@ public interface IExe
     /// installer (Start-Process -Wait): its own window, its output not read, waited for alone (a program it starts,
     /// holding the output pipes, would keep a capture waiting).</summary>
     ExeResult Run(string path, string arguments, bool wait = true, bool capture = true);
+
+    /// <summary>Runs it in <paramref name="folder"/>, each output line (stdout and stderr) handed to
+    /// <paramref name="line"/> as it comes, waited for: its exit code (a long tool whose output is the user's progress:
+    /// UUP Dump's converter).</summary>
+    int Lines(string path, string arguments, string folder, Action<string> line) => throw new NotSupportedException("this runner streams no output");
 }
 
 /// <summary>The real one (guarded).</summary>
@@ -326,6 +331,22 @@ public sealed class ExeRunner : IExe
         var output = p.StandardOutput.ReadToEnd();
         p.WaitForExit();
         return new ExeResult(p.ExitCode, output + err.Result);
+    }
+
+    public int Lines(string path, string arguments, string folder, Action<string> line)
+    {
+        var psi = new ProcessStartInfo(path, arguments)
+        { WorkingDirectory = folder, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+        using var p = new Process { StartInfo = psi };
+        var gate = new object();
+        void On(object? _, DataReceivedEventArgs e) { if (e.Data is { } d) lock (gate) line(d); }
+        p.OutputDataReceived += On;
+        p.ErrorDataReceived += On;
+        if (!p.Start()) throw new InvalidOperationException($"{path} did not start");
+        p.BeginOutputReadLine();
+        p.BeginErrorReadLine();
+        p.WaitForExit();
+        return p.ExitCode;
     }
 }
 

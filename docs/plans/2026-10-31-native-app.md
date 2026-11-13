@@ -452,6 +452,13 @@ helpers.
   in dism's /English format (DISM needs elevation and the dev shell wasn't): replace it with a real capture on the VM.
   Oracle traps found: Iso.ps1's own `$root` and `$c` hide a recorder's script variables of the same name (dynamic
   scope), and a `[string]` parameter turns anything assigned to it into text.
+- N10c built 2026-11-13 (988 tests): `IsoDownload` (UUP Dump's API with retries, its converter package and run,
+  Massgrave's catalogue, the browser's download) on `IsoDownloadParts`. Decided (grilled): the oracle
+  `Invoke-IsoDownload.ps1` compares neutral calls (`Api <name> <k=v sorted>`, `Package`, `Script`, `Ini`, `Page`,
+  `Sleep`), log lines, results and the files left; `IHttp.Post` (form, saved to a file) and `IExe.Lines` (the
+  converter's output streamed into the log, run in its folder) as default members; answers never throw
+  (`UupAnswer<T>`, `IsoResult`); languages by name in the current culture, then code; ConvertConfig.ini written as
+  5.1's ASCII Set-Content.
 
 ---
 

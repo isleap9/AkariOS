@@ -71,6 +71,16 @@ public sealed class HttpDownloads : IHttp
         return response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
     }
 
+    public void Post(string url, IReadOnlyDictionary<string, string> form, string file)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = new FormUrlEncodedContent(form) };
+        using var response = Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead).GetAwaiter().GetResult();
+        response.EnsureSuccessStatusCode();
+        using var body = response.Content.ReadAsStream();
+        using var f = File.Create(file);
+        body.CopyTo(f);
+    }
+
     // a header given here replaces the client's own (a browser's User-Agent for AMD's site)
     private static HttpResponseMessage Send(string url, IReadOnlyDictionary<string, string>? headers, HttpCompletionOption completion)
     {

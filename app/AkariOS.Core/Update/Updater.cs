@@ -19,6 +19,10 @@ public interface IHttp
 
     /// <summary>A page's text (Invoke-WebRequest's Content).</summary>
     string Text(string url, IReadOnlyDictionary<string, string>? headers = null) => throw new NotSupportedException("this downloader reads no pages");
+
+    /// <summary>A form posted (application/x-www-form-urlencoded) and the answer saved to a file (Invoke-WebRequest
+    /// -Method Post -Body -OutFile: UUP Dump's converter package); throws when it fails.</summary>
+    void Post(string url, IReadOnlyDictionary<string, string> form, string file) => throw new NotSupportedException("this downloader posts no forms");
 }
 
 public sealed record UpdateResult(bool Ok, string Message);
