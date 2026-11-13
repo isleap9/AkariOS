@@ -63,6 +63,13 @@ public interface IDism
     /// <summary>The third-party driver packages in the driver store (Get-AkariDriverPackages = Get-WindowsDriver
     /// -Online). Read only.</summary>
     IReadOnlyList<DriverPackage> Drivers() => throw new NotSupportedException("this engine can't read the driver store");
+
+    /// <summary>Enable-AkariFeature: turns it on with the features it needs, no restart; <paramref name="source"/> (a
+    /// Windows setup's sources\sxs) = its files from there only, else from Windows Update.</summary>
+    void EnableFeature(string name, string? source) => throw new NotSupportedException("this engine can't turn Windows features on");
+
+    /// <summary>Add-AkariCapability: its files come from Windows Update.</summary>
+    void AddCapability(string name) => throw new NotSupportedException("this engine can't add capabilities");
 }
 
 /// <summary>
@@ -115,6 +122,18 @@ public sealed class AppPackages(IPackageManager packages, IDism dism, IAkariLog 
 
     public void RemoveCapability(string name) => dism.RemoveCapability(name);
     public void DisableFeature(string name) => dism.DisableFeature(name);
+
+    /// <summary>Get-AkariFeatureState / Get-AkariCapabilityState: the state as DISM names it, null when this Windows
+    /// has none.</summary>
+    public string? FeatureState(string name) => dism.FeatureState(name);
+    public string? CapabilityState(string name) => dism.CapabilityState(name);
+    public void EnableFeature(string name, string? source) => dism.EnableFeature(name, source);
+    public void AddCapability(string name) => dism.AddCapability(name);
+
+    /// <summary>Find-AkariWindowsSource: the first &lt;root&gt;\sources\sxs (a mounted Windows ISO or a setup USB stick),
+    /// null when none has one.</summary>
+    public static string? WindowsSource(IEnumerable<string> roots) =>
+        roots.Select(r => Path.Combine(r, "sources", "sxs")).FirstOrDefault(Directory.Exists);
 
     private static List<string> Names(IEnumerable<DismItem> items, string state) =>
         items.Where(i => string.Equals(i.State, state, StringComparison.OrdinalIgnoreCase))

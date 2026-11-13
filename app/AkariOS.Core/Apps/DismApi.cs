@@ -52,6 +52,22 @@ public sealed partial class DismApi : IDism
 
     public void DisableFeature(string name) => Session(s => Check(DismDisableFeature(s, name, null, 0, 0, 0, 0)));
 
+    // Enable-WindowsOptionalFeature -All -NoRestart [-Source -LimitAccess]
+    public void EnableFeature(string name, string? source) => WithSource(source, (paths, count) =>
+        Session(s => Check(DismEnableFeature(s, name, null, 0, source is null ? 0 : 1, paths, count, 1, 0, 0, 0))));
+
+    public void AddCapability(string name) => WithSource(null, (paths, count) =>
+        Session(s => Check(DismAddCapability(s, name, 0, paths, count, 0, 0, 0))));
+
+    /// <summary>DISM's PCWSTR* SourcePaths: one native string, freed after.</summary>
+    private static void WithSource(string? source, Action<nint[]?, uint> work)
+    {
+        if (source is null) { work(null, 0); return; }
+        var p = Marshal.StringToHGlobalUni(source);
+        try { work([p], 1); }
+        finally { Marshal.FreeHGlobal(p); }
+    }
+
     // DismDriverPackage, packed to 1 byte (x64): PublishedName 0, OriginalFileName 8, InBox 16, CatalogFile 20,
     // ClassName 28, ClassGuid 36, ClassDescription 44, BootCritical 52, DriverSignature 56, ProviderName 60,
     // Date (SYSTEMTIME) 68, MajorVersion 84, MinorVersion 88, Build 92, Revision 96: 100 bytes
@@ -177,4 +193,12 @@ public sealed partial class DismApi : IDism
 
     [LibraryImport("dismapi.dll", StringMarshalling = StringMarshalling.Utf16)]
     internal static partial int DismDisableFeature(uint session, string featureName, string? packageName, int removePayload, nint cancelEvent, nint progress, nint userData);
+
+    [LibraryImport("dismapi.dll", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial int DismEnableFeature(uint session, string featureName, string? identifier, int packageIdentifier, int limitAccess,
+        nint[]? sourcePaths, uint sourcePathCount, int enableAll, nint cancelEvent, nint progress, nint userData);
+
+    [LibraryImport("dismapi.dll", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial int DismAddCapability(uint session, string name, int limitAccess, nint[]? sourcePaths, uint sourcePathCount,
+        nint cancelEvent, nint progress, nint userData);
 }

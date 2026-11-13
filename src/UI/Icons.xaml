@@ -8,6 +8,7 @@
   <StreamGeometry x:Key="Ic.arrow-left-right">M 8 3 4 7 l 4 4 M 4 7 h 16 M 16 21 l 4 -4 -4 -4 M 20 17 H 4</StreamGeometry>
   <StreamGeometry x:Key="Ic.arrow-right">M 5 12 h 14 M 12 5 l 7 7 -7 7</StreamGeometry>
   <StreamGeometry x:Key="Ic.bell">M 6 8 a 6 6 0 0 1 12 0 c 0 7 3 9 3 9 H 3 s 3 -2 3 -9 M 10.3 21 a 1.94 1.94 0 0 0 3.4 0</StreamGeometry>
+  <StreamGeometry x:Key="Ic.blocks">M 15 3 H 20 A 1 1 0 0 1 21 4 V 9 A 1 1 0 0 1 20 10 H 15 A 1 1 0 0 1 14 9 V 4 A 1 1 0 0 1 15 3 Z M 10 21 V 8 a 1 1 0 0 0 -1 -1 H 4 a 1 1 0 0 0 -1 1 v 12 a 1 1 0 0 0 1 1 h 12 a 1 1 0 0 0 1 -1 v -5 a 1 1 0 0 0 -1 -1 H 3</StreamGeometry>
   <StreamGeometry x:Key="Ic.bug">M 8 2 l 1.88 1.88 M 14.12 3.88 16 2 M 9 7.13 v -1 a 3.003 3.003 0 1 1 6 0 v 1 M 12 20 c -3.3 0 -6 -2.7 -6 -6 v -3 a 4 4 0 0 1 4 -4 h 4 a 4 4 0 0 1 4 4 v 3 c 0 3.3 -2.7 6 -6 6 M 12 20 v -9 M 6.53 9 C 4.6 8.8 3 7.1 3 5 M 6 13 H 2 M 3 21 c 0 -2.1 1.7 -3.9 3.8 -4 M 20.97 5 c 0 2.1 -1.6 3.8 -3.5 4 M 22 13 h -4 M 17.2 17 c 2.1 0.1 3.8 1.9 3.8 4</StreamGeometry>
   <StreamGeometry x:Key="Ic.check">M 20 6 9 17 l -5 -5</StreamGeometry>
   <StreamGeometry x:Key="Ic.chevron-down">M 6 9 l 6 6 6 -6</StreamGeometry>

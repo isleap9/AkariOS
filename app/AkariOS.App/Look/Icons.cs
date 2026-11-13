@@ -33,7 +33,7 @@ public static class Icons
         ["Accessibility"] = "accessibility", ["Sound"] = "volume-2", ["System"] = "settings-2",
         ["Security"] = "shield-check", ["Display"] = "monitor", ["Apps"] = "app-window", ["Cleanup"] = "eraser", ["Drivers"] = "hard-drive",
         ["Context menu"] = "menu", ["Services"] = "activity", ["Scheduled tasks"] = "history",
-        ["Fixes"] = "wrench", ["Panels"] = "app-window",
+        ["Fixes"] = "wrench", ["Panels"] = "app-window", ["Features"] = "blocks",
     };
 
     public static string Category(string category) => Categories.GetValueOrDefault(category) ?? "settings";

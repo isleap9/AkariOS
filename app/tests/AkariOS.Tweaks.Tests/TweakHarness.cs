@@ -68,6 +68,10 @@ namespace AkariOS.Tweaks.Tests
         public FakeShutdown Shutdown { get; } = new();
         public FakeWinget Winget { get; } = new();
         public FakeAppx Appx { get; } = new();
+        public FakeAcl Acl { get; } = new();
+
+        /// <summary>The drives' roots (where a Windows setup is looked for).</summary>
+        public List<string> DriveRoots { get; } = [];
         public JsonRememberedState Remembered { get; }
         public FakePc Pc { get; } = new();
         public DateTime Now { get; set; } = new(2026, 11, 3, 12, 0, 0, DateTimeKind.Utc);
@@ -102,6 +106,7 @@ namespace AkariOS.Tweaks.Tests
                     ProgramFiles = Folder("Program Files"), ProgramFilesX86 = Folder("Program Files (x86)"), Public = Folder("Public"),
                     LocalAppData = Folder("LocalAppData"), Http = Http,
                     Hardware = Hardware, Clipboard = Clipboard, Wevtutil = Wevtutil, CleanMgr = CleanMgr, Dism = Drivers, PnpUtil = Drivers, Shutdown = Shutdown,
+                    Acl = Acl, DriveRoots = () => DriveRoots.ToList(),
                     Apps = apps,
                     Winget = new Core.Apps.Winget(Winget, Appx, Http, apps, Exe, Log, Folder("winget-temp"), Folder("Windows"), _ => { }),
                     UtcNow = () => Now, Sleep = _ => { },
@@ -193,6 +198,12 @@ namespace AkariOS.Tweaks.Tests
         public void Create(string name, string binaryPath, bool automatic) { Calls.Add($"create {name} {binaryPath}"); Installed[name] = automatic ? "Automatic" : "Manual"; }
         public void Delete(string name) { Calls.Add($"delete {name}"); Installed.Remove(name); }
         public IReadOnlyList<string> Names() => Installed.Keys.ToList();
+
+        public ServiceInfo? One(string name) =>
+            Installed.TryGetValue(name, out var start) ? new ServiceInfo(name, name, "", start, "Stopped", true) : null;
+
+        /// <summary>"control &lt;name&gt; &lt;Start|Stop&gt;" (Invoke-AkariServiceControl).</summary>
+        public void Control(string name, string op) => Calls.Add($"control {name} {op}");
     }
 
     internal sealed class FakeTasks : ITaskScheduler
@@ -210,6 +221,25 @@ namespace AkariOS.Tweaks.Tests
             All.Remove(task);
             return true;
         }
+
+        public TaskInfo? One(string path, string name) =>
+            All.Keys.Any(t => t.Folder == Core.Machine.TaskScheduler.FolderOf(path) && t.Name == name) ? new TaskInfo(path, name, true, "Ready", "", "") : null;
+
+        /// <summary>Daily tasks registered: "path|name|exe|args|at|description".</summary>
+        public List<string> Daily { get; } = [];
+
+        public void RegisterDaily(string path, string name, string exe, string arguments, string at, string description)
+        {
+            Daily.Add($"{path}|{name}|{exe}|{arguments}|{at}|{description}");
+            All[new ScheduledTask(Core.Machine.TaskScheduler.FolderOf(path), name)] = true;
+        }
+    }
+
+    /// <summary>Files made administrators-only, by path.</summary>
+    internal sealed class FakeAcl : IFileAcl
+    {
+        public List<string> Made { get; } = [];
+        public void AdminsOnly(string path) => Made.Add(path);
     }
 
     /// <summary>Programs run: "path args"; Result decides what each returns (csc writes its out file).</summary>
@@ -339,10 +369,32 @@ namespace AkariOS.Tweaks.Tests
         public int DeleteDriver(string inf) { Calls.Add($"pnputil {inf}"); return Kept.Contains(inf) ? 1 : 0; }
         public IReadOnlyList<Core.Apps.DismItem> Capabilities() => [];
         public IReadOnlyList<Core.Apps.DismItem> Features() => [];
-        public string? CapabilityState(string name) => null;
-        public string? FeatureState(string name) => null;
-        public void RemoveCapability(string name) { }
-        public void DisableFeature(string name) { }
+
+        /// <summary>The PC's Windows features and capabilities by name (none = not on this Windows); names whose
+        /// install fails; what was done: "feature on &lt;name&gt;|&lt;source&gt;", "feature off", "capability add|remove".</summary>
+        public Dictionary<string, string> FeatureStates { get; } = [];
+        public Dictionary<string, string> CapabilityStates { get; } = [];
+        public HashSet<string> Fail { get; } = [];
+        public List<string> Dism { get; } = [];
+
+        public string? CapabilityState(string name) => CapabilityStates.GetValueOrDefault(name);
+        public string? FeatureState(string name) => FeatureStates.GetValueOrDefault(name);
+        public void RemoveCapability(string name) { Dism.Add($"capability remove {name}"); CapabilityStates[name] = "NotPresent"; }
+        public void DisableFeature(string name) { Dism.Add($"feature off {name}"); FeatureStates[name] = "DisablePending"; }
+
+        public void EnableFeature(string name, string? source)
+        {
+            Dism.Add($"feature on {name}|{source}");
+            if (Fail.Contains(name)) throw new InvalidOperationException($"{name}: DISM could not get its files.");
+            FeatureStates[name] = "EnablePending";
+        }
+
+        public void AddCapability(string name)
+        {
+            Dism.Add($"capability add {name}");
+            if (Fail.Contains(name)) throw new InvalidOperationException($"{name}: DISM could not get its files.");
+            CapabilityStates[name] = "Installed";
+        }
     }
 
     internal sealed class FakeShutdown : IShutdown

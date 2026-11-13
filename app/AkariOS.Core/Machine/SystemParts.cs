@@ -192,6 +192,12 @@ public interface ITaskScheduler
 
     /// <summary>One task as All gives it, or null when it isn't on this PC.</summary>
     Tweaks.TaskInfo? One(string path, string name) => throw new NotSupportedException("this task scheduler can't read a task");
+
+    /// <summary>Register-AkariDailyTask: registers (or replaces) a task at <paramref name="path"/> ("\AkariOS\") that
+    /// runs <paramref name="exe"/> every day at <paramref name="at"/> ("HH:mm") as SYSTEM, run late when the PC was off
+    /// then.</summary>
+    void RegisterDaily(string path, string name, string exe, string arguments, string at, string description) =>
+        throw new NotSupportedException("this task scheduler can't register tasks");
 }
 
 /// <summary>The real one: the Task Scheduler's COM API (Schedule.Service; guarded).</summary>
@@ -284,6 +290,28 @@ public sealed partial class TaskScheduler : ITaskScheduler
     {
         dynamic t = Connect().GetFolder(task.Folder).GetTask(task.Name);
         t.Enabled = enabled;
+    }
+
+    public void RegisterDaily(string path, string name, string exe, string arguments, string at, string description)
+    {
+        dynamic s = Connect();
+        dynamic root = s.GetFolder(@"\");
+        dynamic folder;
+        try { folder = s.GetFolder(FolderOf(path)); }
+        catch (COMException) { folder = root.CreateFolder(FolderOf(path).TrimStart('\\'), Type.Missing); }
+        dynamic def = s.NewTask(0);
+        def.RegistrationInfo.Description = description;
+        def.Settings.StartWhenAvailable = true;
+        // 2 = TASK_TRIGGER_DAILY
+        dynamic trigger = def.Triggers.Create(2);
+        trigger.StartBoundary = $"2000-01-01T{at}:00";
+        trigger.DaysInterval = (short)1;
+        // 0 = TASK_ACTION_EXEC
+        dynamic action = def.Actions.Create(0);
+        action.Path = exe;
+        action.Arguments = arguments;
+        // 6 = TASK_CREATE_OR_UPDATE, 5 = TASK_LOGON_SERVICE_ACCOUNT
+        folder.RegisterTaskDefinition(name, def, 6, "SYSTEM", Type.Missing, 5, Type.Missing);
     }
 
     public bool Unregister(ScheduledTask task)

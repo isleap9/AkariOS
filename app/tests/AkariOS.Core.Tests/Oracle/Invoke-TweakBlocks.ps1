@@ -58,6 +58,13 @@
 #   Move-Item takes pipeline input and a folder as -Destination, inside the test's folders.
 #   winutil (W1): Invoke-AkariExe answers -ExeCodes ('chkdsk.exe=1;…', by file name, else 0); "wingettool <True|False>"
 #   (Install-AkariWingetTool -Force).
+#   winutil (W2): Get-AkariFeatureState answers -FeatureStates ('name=state;…', else $null), Get-AkariCapabilityState
+#   -CapabilityStates, Find-AkariWindowsSource -WindowsSource (a path, else $null), Get-AkariServices -ServiceStarts
+#   ('name=Start;…': only those services are there), Get-AkariTasks -Tasks; "feature on <name>|<source>" /
+#   "feature off <name>" (Enable- / Disable-AkariFeature; Enable throws "<name>: DISM could not get its files." for a name
+#   in -FeaturesFail, Add-AkariCapability likewise), "capability add|remove <name>", "servicestart <name> <type>"
+#   (Set-AkariServiceStart), "servicecontrol <name> <Start|Stop>", "dailytask <path>|<name>|<exe>|<args>|<at>|<desc>"
+#   (Register-AkariDailyTask), "unregistertask <path>|<name>", "adminacl <path>" (Set-AkariAdminOnlyAcl).
 # Get-MMAgent answers -MMAgent ('ApplicationLaunchPrefetching=True;…;MaxOperationAPIFiles=512'). -SystemRoot: the
 # blocks' $env:SystemRoot (a temp folder the C# test laid out).
 # Get-AkariGpus answers -Gpus ('Vendor|Path;…'), Get-AkariGpuDevices -GpuDevices ('id;…'), Get-AkariRememberedState
@@ -77,7 +84,8 @@ param([Parameter(Mandatory)][string]$Src, [Parameter(Mandatory)][string]$Out, [s
     [string]$Public = '', [string]$LocalAppData = '', [switch]$MakeFiles, [string]$Value = '', [string]$KeptTasks = '', [switch]$RestoreFails, [string]$Only = '',
     [switch]$Logs, [string]$Board = '', [string]$Bios = '', [string]$Volumes = '', [int]$FirmwareCode = 0, [string]$EventLogs = '', [string]$Drivers = '',
     [string]$DriversKept = '', [string]$TestDir = '', [string]$WebContent = '', [string]$WebLinks = '', [string]$Unpack = '', [string]$Downloaded = '',
-    [string]$SystemDrive = '', [string]$Snapshot = '', [string]$ExeCodes = '')
+    [string]$SystemDrive = '', [string]$Snapshot = '', [string]$ExeCodes = '', [string]$FeatureStates = '', [string]$CapabilityStates = '',
+    [string]$WindowsSource = '', [string]$ServiceStarts = '', [string]$FeaturesFail = '')
 $ErrorActionPreference = 'Stop'
 $AkariRoot = $Src
 . (Join-Path $Src 'Core\Loader.ps1')
@@ -391,6 +399,45 @@ function Test-AkariWingetInstalled([string]$Id, [string]$Source = 'winget') { $f
 function Install-AkariWingetPackage([string]$Id, [string]$Source = 'winget') { $script:Calls.Add("winget $Id $Source") }
 # winget's own repair (tools-fix-winget): recorded
 function Install-AkariWingetTool([switch]$Force) { $script:Calls.Add("wingettool $([bool]$Force)") }
+# winutil W2: Windows features, capabilities, services and tasks
+function Get-Answer([string]$List, [string]$Name) {
+    @($List.Split(';') | Where-Object { $_ -like "$Name=*" } | ForEach-Object { $_.Split('=', 2)[1] }) | Select-Object -First 1
+}
+function Get-AkariFeatureState([string]$Name) { Get-Answer $FeatureStates $Name }
+function Get-AkariCapabilityState([string]$Name) { Get-Answer $CapabilityStates $Name }
+function Enable-AkariFeature([string]$Name, [string]$Source = '') {
+    $script:Calls.Add("feature on $Name|$(Format-TestPaths $Source)")
+    if ($Name -in @($FeaturesFail.Split(';'))) { throw "${Name}: DISM could not get its files." }
+}
+function Disable-AkariFeature([string]$Name) { $script:Calls.Add("feature off $Name") }
+function Add-AkariCapability([string]$Name) {
+    $script:Calls.Add("capability add $Name")
+    if ($Name -in @($FeaturesFail.Split(';'))) { throw "${Name}: DISM could not get its files." }
+}
+function Remove-AkariCapability([string]$Name) { $script:Calls.Add("capability remove $Name") }
+function Find-AkariWindowsSource { if ($WindowsSource -and $WindowsSource -ne ';') { $WindowsSource } else { $null } }
+function Get-AkariServices([string]$Name) {
+    foreach ($s in @($ServiceStarts.Split(';') | Where-Object { $_ })) {
+        $n, $st = $s.Split('=', 2)
+        if (-not $Name -or $n -eq $Name) { [pscustomobject]@{ Name = $n; Start = $st } }
+    }
+}
+function Set-AkariServiceStart([string]$Name, [string]$StartType) { $script:Calls.Add("servicestart $Name $StartType") }
+function Invoke-AkariServiceControl([string]$Name, [string]$Op) { $script:Calls.Add("servicecontrol $Name $Op") }
+function Get-AkariTasks([string]$TaskPath, [string]$TaskName) {
+    $found = foreach ($t in @($Tasks.Split(';') | Where-Object { $_ })) {
+        $p, $n = $t.Split('|', 2)
+        if (-not $TaskName -or ($p -eq $TaskPath -and $n -eq $TaskName)) { [pscustomobject]@{ Path = $p; Name = $n } }
+    }
+    # Get-ScheduledTask -TaskName: an error when there is none
+    if ($TaskName -and -not $found) { throw "No MSFT_ScheduledTask objects found with property 'TaskName' equal to '$TaskName'." }
+    $found
+}
+function Register-AkariDailyTask([string]$TaskPath, [string]$TaskName, [string]$Execute, [string]$Argument, [string]$At, [string]$Description) {
+    $script:Calls.Add("dailytask $TaskPath|$TaskName|$Execute|$Argument|$At|$Description")
+}
+function Unregister-AkariTask([string]$TaskPath, [string]$TaskName) { $script:Calls.Add("unregistertask $TaskPath|$TaskName") }
+function Set-AkariAdminOnlyAcl([string]$Path) { $script:Calls.Add("adminacl $(Format-TestPaths $Path)") }
 function Save-AkariFile([string]$Name, [string]$OutFile) {
     $script:Calls.Add("download $Name|$OutFile")
     if ($MakeFiles -and (Get-TestFilePath $OutFile)) {

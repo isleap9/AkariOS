@@ -94,3 +94,39 @@ function Test-AkariFeatureEnabled([string]$Name) {
 function Disable-AkariFeature([string]$Name) {
     Disable-WindowsOptionalFeature -Online -FeatureName $Name -NoRestart -WarningAction SilentlyContinue -ErrorAction Stop | Out-Null
 }
+
+# ---- turning them on (Advanced > Features, winutil W2)
+
+# a Windows feature's state as DISM names it (Enabled, Disabled, EnablePending, DisabledWithPayloadRemoved...), $null
+# when this Windows has no such feature
+function Get-AkariFeatureState([string]$Name) {
+    $f = Get-WindowsOptionalFeature -Online -FeatureName $Name -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($f) { "$($f.State)" } else { $null }
+}
+
+# turns a Windows feature on with the features it needs, no restart; $Source (a Windows setup's sources\sxs) = its
+# files from there, never from Windows Update
+function Enable-AkariFeature([string]$Name, [string]$Source = '') {
+    $p = @{ Online = $true; FeatureName = $Name; All = $true; NoRestart = $true; WarningAction = 'SilentlyContinue'; ErrorAction = 'Stop' }
+    if ($Source) { $p.Source = $Source; $p.LimitAccess = $true }
+    Enable-WindowsOptionalFeature @p | Out-Null
+}
+
+# a capability's state (Installed, NotPresent...), $null when this Windows has no such capability
+function Get-AkariCapabilityState([string]$Name) {
+    $c = Get-WindowsCapability -Online -Name $Name -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($c) { "$($c.State)" } else { $null }
+}
+
+# adds a capability (its files come from Windows Update)
+function Add-AkariCapability([string]$Name) { Add-WindowsCapability -Online -Name $Name -ErrorAction Stop | Out-Null }
+
+# the first <drive>\sources\sxs (a mounted Windows ISO or a setup USB stick), $null when no drive has one. $Roots: the
+# drives' roots (default: every ready drive)
+function Find-AkariWindowsSource([string[]]$Roots = @([IO.DriveInfo]::GetDrives() | Where-Object { $_.IsReady } | ForEach-Object { $_.RootDirectory.FullName })) {
+    foreach ($r in $Roots) {
+        $sxs = Join-Path $r 'sources\sxs'
+        if (Test-Path -LiteralPath $sxs -PathType Container) { return $sxs }
+    }
+    $null
+}

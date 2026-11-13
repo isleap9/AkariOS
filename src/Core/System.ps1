@@ -242,6 +242,37 @@ function Set-AkariTaskEnabled([string]$TaskPath, [string]$TaskName, [bool]$Enabl
     if (("$($t.State)" -ne 'Disabled') -ne $Enabled) { throw "Windows keeps this task $(if ($Enabled) { 'off' } else { 'on' })" }
 }
 
+# registers (or replaces) a task that runs $Execute $Argument every day at $At ('HH:mm') as SYSTEM, run late when the
+# PC was off then. Tests mock this.
+function Register-AkariDailyTask([string]$TaskPath, [string]$TaskName, [string]$Execute, [string]$Argument, [string]$At, [string]$Description) {
+    $action = New-ScheduledTaskAction -Execute $Execute -Argument $Argument
+    $trigger = New-ScheduledTaskTrigger -Daily -At ([datetime]::ParseExact($At, 'HH:mm', $null))
+    $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable
+    Register-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -User 'NT AUTHORITY\SYSTEM' `
+        -Description $Description -Force -ErrorAction Stop | Out-Null
+}
+
+# unregisters one task; nothing when it isn't there. Tests mock this.
+function Unregister-AkariTask([string]$TaskPath, [string]$TaskName) {
+    Unregister-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
+}
+
+# a file only Administrators and SYSTEM may read or write (inheritance off), made empty when it is missing: what sshd
+# asks of administrators_authorized_keys. SIDs, so it works on every language. Tests mock this.
+function Set-AkariAdminOnlyAcl([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) {
+        [void][IO.Directory]::CreateDirectory((Split-Path $Path))
+        [IO.File]::WriteAllText($Path, '')
+    }
+    $acl = Get-Acl -LiteralPath $Path
+    $acl.SetAccessRuleProtection($true, $false)
+    foreach ($r in @($acl.Access)) { [void]$acl.RemoveAccessRule($r) }
+    foreach ($sid in 'S-1-5-32-544', 'S-1-5-18') {
+        $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($sid), 'FullControl', 'Allow'))
+    }
+    Set-Acl -LiteralPath $Path -AclObject $acl
+}
+
 # unregisters every scheduled task but the ones named in $Keep (protected ones Windows won't let go are skipped);
 # returns how many went. Tests mock this.
 function Remove-AkariScheduledTasks([string[]]$Keep) {

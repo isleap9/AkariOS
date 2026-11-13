@@ -87,6 +87,12 @@ public sealed class TweakServices
     public IPnpUtil? PnpUtil { get; init; }
     public IShutdown? Shutdown { get; init; }
 
+    /// <summary>File permissions (Set-AkariAdminOnlyAcl).</summary>
+    public IFileAcl? Acl { get; init; }
+
+    /// <summary>The ready drives' roots (Find-AkariWindowsSource looks for a Windows setup there).</summary>
+    public Func<IReadOnlyList<string>> DriveRoots { get; init; } = () => [];
+
     /// <summary>The logged-in user's SID (their profile folder, when Shell Folders doesn't say).</summary>
     public string? UserSid { get; init; }
 
@@ -121,6 +127,8 @@ public sealed class TweakServices
             Dism = dism,
             PnpUtil = new PnpUtilExe(),
             Shutdown = new ShutdownExe(),
+            Acl = new FileAcl(),
+            DriveRoots = () => DriveInfo.GetDrives().Where(d => d.IsReady).Select(d => d.RootDirectory.FullName).ToList(),
             Apps = apps,
             Winget = new Winget(new WingetExe(), packages, http, apps, exe, log, Path.GetTempPath(), windows, Thread.Sleep),
             Http = http,
