@@ -78,14 +78,16 @@ public sealed partial class DismApi : IDism
         finally { DismDelete(items); }
     });
 
-    private static List<DismItem> Items(nint items, uint count, Func<int, string> state)
+    /// <summary>DISM's list of {name pointer, state, ...} structs (stride: DismFeature / DismCapability 12 bytes,
+    /// DismPackage 32), freed after.</summary>
+    internal static List<DismItem> Items(nint items, uint count, Func<int, string> state, int stride = 12)
     {
         try
         {
             var list = new List<DismItem>((int)count);
             for (var i = 0; i < count; i++)
             {
-                var at = items + i * 12;
+                var at = items + i * stride;
                 list.Add(new DismItem(Marshal.PtrToStringUni(Marshal.ReadIntPtr(at)) ?? "", state(Marshal.ReadInt32(at, 8))));
             }
             return list;
@@ -99,7 +101,13 @@ public sealed partial class DismApi : IDism
         finally { DismDelete(info); }
     }
 
-    private static T Session<T>(Func<uint, T> work)
+    private static T Session<T>(Func<uint, T> work) => Session(Online, work);
+
+    private static void Session(Action<uint> work) => Session<object?>(s => { work(s); return null; });
+
+    /// <summary>DISM initialized once per process, then <paramref name="work"/> under the lock (one DISM call at a
+    /// time; the ISO Builder's mount and unmount too).</summary>
+    internal static T Locked<T>(Func<T> work)
     {
         lock (Gate)
         {
@@ -109,16 +117,20 @@ public sealed partial class DismApi : IDism
                 if (hr < 0 && hr != AlreadyInitialized) Check(hr);
                 _initialized = true;
             }
-            Check(DismOpenSession(Online, null, null, out var session));
-            try { return work(session); }
-            finally { DismCloseSession(session); }
+            return work();
         }
     }
 
-    private static void Session(Action<uint> work) => Session<object?>(s => { work(s); return null; });
+    /// <summary>A session on <paramref name="image"/> (a mounted image's folder; the running Windows by default).</summary>
+    internal static T Session<T>(string image, Func<uint, T> work) => Locked(() =>
+    {
+        Check(DismOpenSession(image, null, null, out var session));
+        try { return work(session); }
+        finally { DismCloseSession(session); }
+    });
 
     /// <summary>A failed HRESULT as DISM's own message (3010, a restart needed, is success).</summary>
-    private static int Check(int hr)
+    internal static int Check(int hr)
     {
         if (hr >= 0) return hr;
         string? text = null;
@@ -140,22 +152,22 @@ public sealed partial class DismApi : IDism
     private static partial int DismCloseSession(uint session);
 
     [LibraryImport("dismapi.dll")]
-    private static partial int DismDelete(nint dismStructure);
+    internal static partial int DismDelete(nint dismStructure);
 
     [LibraryImport("dismapi.dll")]
     private static partial int DismGetLastErrorMessage(out nint errorMessage);
 
     [LibraryImport("dismapi.dll")]
-    private static partial int DismGetCapabilities(uint session, out nint capability, out uint count);
+    internal static partial int DismGetCapabilities(uint session, out nint capability, out uint count);
 
     [LibraryImport("dismapi.dll", StringMarshalling = StringMarshalling.Utf16)]
     private static partial int DismGetCapabilityInfo(uint session, string name, out nint info);
 
     [LibraryImport("dismapi.dll", StringMarshalling = StringMarshalling.Utf16)]
-    private static partial int DismRemoveCapability(uint session, string name, nint cancelEvent, nint progress, nint userData);
+    internal static partial int DismRemoveCapability(uint session, string name, nint cancelEvent, nint progress, nint userData);
 
     [LibraryImport("dismapi.dll", StringMarshalling = StringMarshalling.Utf16)]
-    private static partial int DismGetFeatures(uint session, string? identifier, int packageIdentifier, out nint feature, out uint count);
+    internal static partial int DismGetFeatures(uint session, string? identifier, int packageIdentifier, out nint feature, out uint count);
 
     [LibraryImport("dismapi.dll", StringMarshalling = StringMarshalling.Utf16)]
     private static partial int DismGetFeatureInfo(uint session, string featureName, string? identifier, int packageIdentifier, out nint info);
@@ -164,5 +176,5 @@ public sealed partial class DismApi : IDism
     private static partial int DismGetDrivers(uint session, int allDrivers, out nint driverPackage, out uint count);
 
     [LibraryImport("dismapi.dll", StringMarshalling = StringMarshalling.Utf16)]
-    private static partial int DismDisableFeature(uint session, string featureName, string? packageName, int removePayload, nint cancelEvent, nint progress, nint userData);
+    internal static partial int DismDisableFeature(uint session, string featureName, string? packageName, int removePayload, nint cancelEvent, nint progress, nint userData);
 }

@@ -1,0 +1,51 @@
+
+Deployment Image Servicing and Management tool
+Version: 10.0.26100.5074
+
+Image Version: 10.0.26100.6584
+
+Obtaining list of provisioned app packages ...
+
+DisplayName : Clipchamp.Clipchamp
+Version : 4.3.10120.0
+Architecture : neutral
+ResourceId : ~
+PackageName : Clipchamp.Clipchamp_4.3.10120.0_neutral_~_yxz26nhyzhsrt
+Regions : N/A
+
+DisplayName : Microsoft.BingNews
+Version : 4.55.62231.0
+Architecture : x64
+ResourceId :
+PackageName : Microsoft.BingNews_4.55.62231.0_x64__8wekyb3d8bbwe
+Regions : N/A
+
+DisplayName : Microsoft.DesktopAppInstaller
+Version : 2025.1009.1817.0
+Architecture : neutral
+ResourceId : ~
+PackageName : Microsoft.DesktopAppInstaller_2025.1009.1817.0_neutral_~_8wekyb3d8bbwe
+Regions : N/A
+
+DisplayName : Microsoft.SecHealthUI
+Version : 1000.26100.1.0
+Architecture : x64
+ResourceId :
+PackageName : Microsoft.SecHealthUI_1000.26100.1.0_x64__8wekyb3d8bbwe
+Regions : N/A
+
+DisplayName : Microsoft.VCLibs.140.00
+Version : 14.0.33519.0
+Architecture : x64
+ResourceId :
+PackageName : Microsoft.VCLibs.140.00_14.0.33519.0_x64__8wekyb3d8bbwe
+Regions : N/A
+
+DisplayName : MicrosoftWindows.Client.WebExperience
+Version : 525.31002.150.0
+Architecture : x64
+ResourceId :
+PackageName : MicrosoftWindows.Client.WebExperience_525.31002.150.0_x64__cw5n1h2txyewy
+Regions : N/A
+
+The operation completed successfully.

@@ -484,6 +484,14 @@ Describe 'Invoke-AkariIsoBuild with options and removals' {
         $script:answer | Should Be '<unattend/>'
     }
 
+    It 'removes only the always-on paths and the options'' own Remove lists (no hashtable method as a path)' {
+        New-OptMedia
+        Mock Remove-AkariImagePaths { 0 }
+        [void](Invoke-AkariIsoBuild $c)
+        Assert-MockCalled Remove-AkariImagePaths -Scope It -ParameterFilter { @($Paths | Where-Object { $_ -like '*Remove(*' }).Count -gt 0 } -Times 0 -Exactly
+        Assert-MockCalled Remove-AkariImagePaths -Scope It -ParameterFilter { $Paths -contains 'Program Files\Windows Defender' } -Times 1 -Exactly
+    }
+
     It 'refuses options that exclude each other before touching anything' {
         $bad = $c.Clone(); $bad.Options = @('DisableUpdates', 'SecurityOnly')
         $r = Invoke-AkariIsoBuild $bad

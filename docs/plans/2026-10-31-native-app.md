@@ -440,6 +440,18 @@ helpers.
   `Oracle/Export-Iso.ps1`. Found: the port's `$_.Remove` on an option without a `Remove` key is the hashtable's
   Remove() method, handed to `Remove-AkariImagePaths` as a path that matches nothing (harmless; the native build
   doesn't copy it).
+- N10b built 2026-11-13 (968 tests): `IsoBuild` (Open, MountEdition, Build with progress, ClearLeftover, the image
+  reads, the ADK) on `IsoParts`; real `DismImage`, `OfflineHives`, `WmiDiskImage` (guarded) and `IsoParts.Live`.
+  Decided (grilled): the oracle compares one neutral call vocabulary (DiskMount, WimImages, Export, Mount, Commit,
+  Discard, HiveLoad / HiveUnload, Read, Remove, Dism, Own, Trusted, Oscdimg), the log lines, progress, results, the
+  marker and the hives' registry state; real registry writes on each side's test key with a per-case `Denied` list,
+  TrustedInstaller writes recorded and written; `IsoChoices.AkariExe` (the running exe; the AkariOS step left out of
+  the oracle, tested natively); progress through `IProgress<RunProgress>`; a DISM API removal returns the port's exit
+  codes (0, 3010, else the HRESULT) so the log lines match; the provisioned-app parser on a fixture. The `$_.Remove`
+  bug is fixed in `src/Core/Iso.ps1` (`$_['Remove']`). `tests/Fixtures/Iso/provisioned-apps.txt` is written by hand
+  in dism's /English format (DISM needs elevation and the dev shell wasn't): replace it with a real capture on the VM.
+  Oracle traps found: Iso.ps1's own `$root` and `$c` hide a recorder's script variables of the same name (dynamic
+  scope), and a `[string]` parameter turns anything assigned to it into text.
 
 ---
 

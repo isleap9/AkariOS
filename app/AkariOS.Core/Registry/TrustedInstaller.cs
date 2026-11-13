@@ -164,7 +164,8 @@ public sealed partial class TrustedInstaller : ITrustedInstaller
         if (!SetThreadToken(IntPtr.Zero, t.Handle)) throw new Win32Exception(Marshal.GetLastWin32Error());
     }
 
-    private static void EnablePrivilege(string name)
+    /// <summary>A privilege of this process turned on (SeDebug here; the ISO Builder's hive loads: SeBackup, SeRestore).</summary>
+    internal static void EnablePrivilege(string name)
     {
         if (!OpenProcessToken(Process.GetCurrentProcess().Handle, TokenAdjustPrivileges | TokenQuery, out var token)) throw new Win32Exception(Marshal.GetLastWin32Error());
         try

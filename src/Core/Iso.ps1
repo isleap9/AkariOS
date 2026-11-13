@@ -360,7 +360,7 @@ function Invoke-AkariIsoBuild([hashtable]$Choices) {
                     $rows = @($always.Requirements) + @($always.Registry) + @($picked | ForEach-Object { $_.Registry } | Where-Object { $_ })
                     Invoke-AkariIsoRegistry $w.Mount $rows @($picked | ForEach-Object { $_.RemoveKeys } | Where-Object { $_ })
                 }
-                'Files' { [void](Remove-AkariImagePaths $w.Mount (@($always.Remove) + @($picked | ForEach-Object { $_.Remove } | Where-Object { $_ }))) }
+                'Files' { [void](Remove-AkariImagePaths $w.Mount (@($always.Remove) + @($picked | ForEach-Object { $_['Remove'] } | Where-Object { $_ }))) }
                 'AkariOS' { Copy-AkariToImage $w.Mount $Choices.AkariDir }
                 'Answer' { [IO.File]::WriteAllBytes((Join-Path $w.Media 'autounattend.xml'), [byte[]]$Choices.Unattend) }
                 'NetFx3' {

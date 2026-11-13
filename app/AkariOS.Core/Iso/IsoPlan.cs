@@ -8,8 +8,8 @@ namespace AkariOS.Core.Iso;
 /// <summary>
 /// What a build is asked to do (Invoke-AkariIsoBuild's $Choices): the output folder, the source ISO (for the name),
 /// the install image and edition (from opening the ISO), the option ids, the provisioned packages, features,
-/// capabilities and OS packages to remove, the AkariOS exe to copy in (none = left out), the answer file (none = left
-/// out).
+/// capabilities and OS packages to remove, the running AkariOS exe to copy in (AkariExe, the port's AkariDir; none =
+/// left out), the answer file (none = left out).
 /// </summary>
 public sealed record IsoChoices
 {
@@ -23,7 +23,7 @@ public sealed record IsoChoices
     public string[]? Features { get; init; }
     public string[]? Capabilities { get; init; }
     public string[]? Packages { get; init; }
-    public string? AkariDir { get; init; }
+    public string? AkariExe { get; init; }
     public byte[]? Unattend { get; init; }
 }
 
@@ -67,7 +67,7 @@ public static partial class IsoPlan
         if (List(c.Packages).Count > 0) Add("Packages", "Removing OS packages");
         Add("Registry", "Writing settings into the image's registry");
         Add("Files", "Removing files from the image");
-        if (!string.IsNullOrEmpty(c.AkariDir)) Add("AkariOS", "Adding AkariOS to the image");
+        if (!string.IsNullOrEmpty(c.AkariExe)) Add("AkariOS", "Adding AkariOS to the image");
         Add("NetFx3", "Adding .NET Framework 3.5");
         Add("Cleanup", "Cleaning up the component store");
         Add("Commit", "Saving the image");

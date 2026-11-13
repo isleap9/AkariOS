@@ -43,7 +43,7 @@ public sealed class IsoOracleTests
     private static readonly object[] Plans =
     [
         new { Edition = "Windows 11 Pro" },
-        new { Edition = "Windows 11 Home", Apps = new[] { "a" }, Features = new[] { "f" }, Capabilities = new[] { "c" }, Packages = new[] { "p" }, AkariDir = @"C:\AkariOS", Unattend = "AQ==" },
+        new { Edition = "Windows 11 Home", Apps = new[] { "a" }, Features = new[] { "f" }, Capabilities = new[] { "c" }, Packages = new[] { "p" }, AkariDir = @"C:\AkariOS", AkariExe = @"C:\AkariOS\AkariOS-Native.exe", Unattend = "AQ==" },
         new { Edition = "Pro", Options = new[] { "RemoveDefender" } },
         new { Edition = "Pro", Options = new[] { "RemoveAI", "DisableTelemetry" }, Apps = new[] { "" } },
     ];
