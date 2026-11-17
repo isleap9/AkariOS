@@ -177,12 +177,34 @@ public static class Selection
 
     /// <summary>A Run's counts per Outcome in Glossary order as one line, and whether a restart is needed
     /// (Get-AkariRunSummary).</summary>
-    public static (string Text, bool Reboot) RunSummary(IReadOnlyList<Outcome> outcomes)
+    public static (string Text, bool Reboot) RunSummary(IReadOnlyList<Outcome> outcomes, bool uninstall = false)
     {
         var parts = new[] { OutcomeKind.Applied, OutcomeKind.Reverted, OutcomeKind.Already, OutcomeKind.Skipped, OutcomeKind.Failed }
             .Select(k => (k, n: outcomes.Count(o => o.Kind == k))).Where(x => x.n > 0)
-            .Select(x => $"{x.n} {x.k.ToString().ToLowerInvariant()}");
+            .Select(x => $"{x.n} {OutcomeLabel(x.k, uninstall).ToLowerInvariant()}");
         return (string.Join(", ", parts), outcomes.Any(o => o.Reboot));
+    }
+
+    /// <summary>An Outcome's word on the result step; uninstall: the Outcomes of "Uninstall selected", whose Reverted
+    /// reads "Uninstalled".</summary>
+    public static string OutcomeLabel(OutcomeKind kind, bool uninstall) =>
+        uninstall && kind == OutcomeKind.Reverted ? "Uninstalled" : kind.ToString();
+
+    /// <summary>What "Uninstall selected" asks about these apps (Get-AkariUninstallText). Count = the apps winget
+    /// uninstalls; the others are listed apart with where to go (RemoveWith: Remove apps; no winget id: Windows'
+    /// Installed apps).</summary>
+    public static (string Text, int Count) UninstallText(IEnumerable<Tweak> tweaks)
+    {
+        var all = tweaks.ToList();
+        static bool Here(Tweak t) => t.Winget.Count > 0 && string.IsNullOrEmpty(t.RemoveWith);
+        var go = all.Where(Here).ToList();
+        var not = all.Where(t => !Here(t))
+            .Select(t => $"- {t.Name}: {(string.IsNullOrEmpty(t.RemoveWith) ? "use Windows' Installed apps" : "use Remove apps")}").ToList();
+        if (go.Count == 0) return ("None of these apps can be uninstalled here:\n" + string.Join("\n", not), 0);
+        var text = "Uninstall these apps?\n\n" + string.Join("\n", go.Select(t => $"- {t.Name}"));
+        if (go.Any(t => t.AppType == "Runtimes")) text += "\n\nOther apps may need these runtimes.";
+        if (not.Count > 0) text += "\n\nNot uninstalled here:\n" + string.Join("\n", not);
+        return (text, go.Count);
     }
 
     /// <summary>The Selection as the Runner's items (Get-AkariPlanItems).</summary>

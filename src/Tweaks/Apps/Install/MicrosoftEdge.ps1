@@ -11,6 +11,7 @@
     Risk        = 'Safe'
     Description = 'Microsoft''s web browser, for when you removed it and need it back.'
     Winget      = 'Microsoft.Edge'
+    RemoveWith  = 'remove-edge'
     # the Edge removal (Tweaks\Apps\Remove\Edge.ps1) blocks Edge Update from installing Edge: lift that first
     Before      = {
         Remove-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\EdgeUpdate' 'Install{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}'

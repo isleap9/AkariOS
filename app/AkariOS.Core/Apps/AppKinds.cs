@@ -1,3 +1,4 @@
+using AkariOS.Core.Runs;
 using AkariOS.Core.Tweaks;
 
 namespace AkariOS.Core.Apps;
@@ -51,5 +52,58 @@ public static class AppKinds
                 break;
             case var k: throw new NotSupportedException($"unknown EntryKind '{k}'");
         }
+    }
+
+    /// <summary>Uninstall-AkariApp (after winutil's Invoke-WPFUnInstall): every winget id of an app the Downloads page
+    /// installs, last first, going on after one fails. Not a Revert (an Action has none): its own Outcome, Reverted =
+    /// uninstalled, Already = not installed, Skipped = nothing winget may uninstall here (no winget id, a per-user
+    /// install, or RemoveWith: its own removal under Remove apps). Nothing an install added is undone.</summary>
+    public static Outcome Uninstall(Tweak t, TweakContext c)
+    {
+        Outcome Skipped(string why)
+        {
+            c.Log.Write($"Skipped: {t.Name} ({why})");
+            return new Outcome(t.Id, TweakMode.Revert, OutcomeKind.Skipped, false, why);
+        }
+        if (!string.IsNullOrEmpty(t.RemoveWith)) return Skipped("has its own removal: use Remove apps");
+        if (t.Winget.Count == 0) return Skipped("not installed with winget: uninstall it from Windows' Installed apps");
+        var got = new List<WingetUninstall>();
+        var errors = new List<string>();
+        foreach (var id in t.Winget.Reverse())
+        {
+            try { got.Add(Winget(c).Uninstall(id, Source(t))); }
+            catch (Exception e) { errors.Add(e.Message); }
+        }
+        if (errors.Count > 0)
+        {
+            var message = string.Join("; ", errors);
+            c.Log.Write($"Failed: {t.Name}: {message}");
+            return new Outcome(t.Id, TweakMode.Revert, OutcomeKind.Failed, false, message);
+        }
+        if (got.Contains(WingetUninstall.Uninstalled) || got.Contains(WingetUninstall.Restart))
+        {
+            c.Log.Write($"Uninstalled: {t.Name}");
+            return new Outcome(t.Id, TweakMode.Revert, OutcomeKind.Reverted, got.Contains(WingetUninstall.Restart));
+        }
+        if (got.Contains(WingetUninstall.UserOnly)) return Skipped("installed for this user only: uninstall it from Windows' Installed apps");
+        c.Log.Write($"Already: {t.Name} (not installed)");
+        return new Outcome(t.Id, TweakMode.Revert, OutcomeKind.Already, false, "not installed");
+    }
+
+    /// <summary>Get-AkariInstalledApps (the Downloads page's "Show installed"): the ids of the app installs on this PC:
+    /// every winget id of the Tweak in winget's list (read once), else its own Detect; an install with neither is
+    /// never listed. A hint only.</summary>
+    public static IReadOnlyList<string> InstalledApps(IEnumerable<Tweak> tweaks, TweakContext c)
+    {
+        var apps = tweaks.Where(t => t.Group is null).ToList();
+        var lines = c.Services.Winget?.List() ?? [];
+        var have = global::AkariOS.Core.Apps.Winget.InstalledIds(lines, apps.SelectMany(t => t.Winget)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        bool On(Tweak t)
+        {
+            if (t.Winget.Count > 0) return t.Winget.All(have.Contains);
+            if (!t.Has("Detect") || t.Code is null) return false;
+            try { return t.Code.Detect(t, c) == TweakState.Optimized; } catch (Exception) { return false; }
+        }
+        return apps.Where(On).Select(t => t.Id).ToList();
     }
 }

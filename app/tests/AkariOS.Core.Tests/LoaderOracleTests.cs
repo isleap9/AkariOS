@@ -74,7 +74,7 @@ public class LoaderOracleTests
             Same("Reboot", t.Reboot); Same("SafeMode", t.SafeMode); Same("Restarts", t.Restarts); Same("Explorer", t.Explorer);
             Same("AkariOS", t.AkariOS); Same("Guided", t.Guided); Same("Editable", t.Editable); Same("Keep", t.Keep);
             Same("Requires", t.Requires); Same("Winget", t.Winget); Same("WingetSource", t.WingetSource); Same("AppType", t.AppType);
-            Same("StoreId", t.StoreId); Same("Group", t.Group); Same("Package", t.Package); Same("Source", t.Source);
+            Same("StoreId", t.StoreId); Same("RemoveWith", t.RemoveWith); Same("Group", t.Group); Same("Package", t.Package); Same("Source", t.Source);
             if (!t.RowsAreCode) Same("Rows", t.Registry?.Count ?? 0);
             if (t.Fields.Get("Choices") is not PsCode) Same("Choices", t.Choices.Count);
         }

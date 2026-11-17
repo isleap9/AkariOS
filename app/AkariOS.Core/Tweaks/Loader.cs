@@ -237,6 +237,7 @@ public sealed partial class Loader(ISourceFiles files, IReadOnlyDictionary<strin
             WingetSource = Text(h.Get("WingetSource")),
             AppType = Text(h.Get("AppType")),
             StoreId = Text(h.Get("StoreId")),
+            RemoveWith = Text(h.Get("RemoveWith")),
             Group = Text(h.Get("Group")),
             Package = Text(h.Get("Package")),
             Keep = Truthy(h.Get("Keep")),

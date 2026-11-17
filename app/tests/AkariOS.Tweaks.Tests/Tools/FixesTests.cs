@@ -93,6 +93,24 @@ public sealed partial class ToolsTests
         Assert.Contains(_h.Log.Lines, l => l == "winget: installing App Installer again");
     }
 
+    // winutil W4 (Tools/Setup): one "winget upgrade --all"
+    [Fact]
+    public void Update_all_apps_is_one_winget_upgrade_of_everything()
+    {
+        var ps = Lines(Blocks("tools-update-apps"), "tools-update-apps", "Apply");
+        Assert.Equal(["wingetupgrade"], ps);
+        _h.Winget.Upgrade = new(0, ["Found Steam [Valve.Steam] Version 2", "  -  "]);
+        Assert.Equal(OutcomeKind.Applied, Apply("tools-update-apps").Kind);
+        Assert.Equal(["upgrade --all --include-unknown --silent --accept-package-agreements --accept-source-agreements --disable-interactivity"], _h.Winget.Upgrades);
+        Assert.Contains("winget: Found Steam [Valve.Steam] Version 2", _h.Log.Lines);
+        // nothing to update is done too; winget's failure fails the Action with its code and last line
+        _h.Winget.Upgrade = new(-1978335189, []);
+        Assert.Equal(OutcomeKind.Applied, Apply("tools-update-apps").Kind);
+        _h.Winget.Upgrade = new(-1978335188, ["1 package(s) failed to upgrade."]);
+        var o = Apply("tools-update-apps");
+        Assert.Equal((OutcomeKind.Failed, "winget could not update every app (0x8A15002C): 1 package(s) failed to upgrade."), (o.Kind, o.Message));
+    }
+
     [Fact]
     public void AutoLogon_opens_Sysinternals_Autologon_installing_it_first_when_missing()
     {

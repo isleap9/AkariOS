@@ -11,6 +11,7 @@
     Button      = 'Install'
     Risk        = 'Safe'
     Description = 'Brings Windows'' Remote Desktop Connection (mstsc) back after a debloat.'
+    RemoveWith  = 'remove-remote-desktop-connection'
     Detect      = { Test-Path "$env:SystemRoot\System32\mstsc.exe" }
     Apply       = {
         $exe = Save-AkariFile 'remotedesktopconnection.exe' "$env:SystemRoot\Temp\remotedesktopconnection.exe"

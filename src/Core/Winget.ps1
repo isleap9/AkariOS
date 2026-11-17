@@ -119,6 +119,62 @@ function Install-AkariWingetPackage([string]$Id, [string]$Source = 'winget') {
     }
 }
 
+# ---- uninstall, update all and the installed list (after Chris Titus Tech's winutil, MIT: Install-WinUtilProgramWinget,
+# Invoke-WinUtilCurrentSystem)
+
+# done, and Windows must restart to finish: Windows Installer's 3010 / 1641 and winget's own two
+$AkariWingetRestart = 3010, 1641, -1978334967, -1978334965
+# NO_APPLICATIONS_FOUND: nothing installed matches the id
+$AkariWingetMissing = -1978335212
+# ADMIN_CONTEXT_ACTION_PROHIBITED: installed for one user; winget run as administrator won't touch it
+$AkariWingetUserOnly = -1978335107
+
+# "(0x8A150014): winget's last line with words in it" (progress bars and spinners left out)
+function Get-AkariWingetFailure($Result) {
+    $last = @($Result.Out | Where-Object { $_ -match '[A-Za-z]{3}' }) | Select-Object -Last 1
+    "(0x{0:X8}): {1}" -f $Result.Code, "$last".Trim()
+}
+
+# uninstalls one winget package silently: 'Uninstalled', 'Restart' (done, restart to finish), 'Missing' (not
+# installed) or 'UserOnly' (a per-user install winget won't touch as administrator); throws when it fails
+function Uninstall-AkariWingetPackage([string]$Id, [string]$Source = 'winget') {
+    Install-AkariWingetTool
+    Write-Log "winget: uninstalling $Id"
+    $r = Invoke-AkariWinget @('uninstall', '--id', $Id, '--exact', '--source', $Source, '--silent', '--accept-source-agreements', '--disable-interactivity')
+    if ($r.Code -eq 0) { return 'Uninstalled' }
+    if ($r.Code -in $AkariWingetRestart) { return 'Restart' }
+    if ($r.Code -eq $AkariWingetMissing) { return 'Missing' }
+    if ($r.Code -eq $AkariWingetUserOnly) { return 'UserOnly' }
+    throw "winget could not uninstall $Id $(Get-AkariWingetFailure $r)"
+}
+
+# updates every app winget can (every source; pinned ones are skipped by winget), its lines logged: 'Updated',
+# 'UpToDate' or 'Restart'; throws when winget reports a failure. One call: winget's table can't be parsed safely.
+function Update-AkariWingetPackages {
+    Install-AkariWingetTool
+    Write-Log 'winget: updating every app'
+    $r = Invoke-AkariWinget @('upgrade', '--all', '--include-unknown', '--silent', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity')
+    foreach ($l in @($r.Out | Where-Object { $_ -match '[A-Za-z]{3}' })) { Write-Log "winget: $("$l".Trim())" }
+    if ($r.Code -eq 0) { return 'Updated' }
+    if ($r.Code -eq -1978335189) { Write-Log 'winget: every app is up to date'; return 'UpToDate' }
+    if ($r.Code -in $AkariWingetRestart) { Write-Log 'winget: restart Windows to finish the updates'; return 'Restart' }
+    throw "winget could not update every app $(Get-AkariWingetFailure $r)"
+}
+
+# winget's table of everything installed, as its lines (read only); empty when winget is missing or fails
+function Get-AkariWingetList {
+    try { $r = Invoke-AkariWinget @('list', '--accept-source-agreements', '--disable-interactivity') } catch { return @() }
+    if ($r.Code -ne 0) { return @() }
+    @($r.Out)
+}
+
+# the ids of $Ids that stand in those lines as a column of their own (ids are never translated; one winget cuts short
+# is not found). Pure.
+function Get-AkariInstalledIds([string[]]$Lines, [string[]]$Ids) {
+    $text = @($Lines) -join "`n"
+    @($Ids | Where-Object { $_ -and $text -match "(?im)(?<=[^\S\r\n])$([regex]::Escape($_))(?=[^\S\r\n]|$)" })
+}
+
 # installed, by winget or not (winget matches what Windows lists under installed apps)
 function Test-AkariWingetInstalled([string]$Id, [string]$Source = 'winget') {
     try { $r = Invoke-AkariWinget @('list', '--id', $Id, '--exact', '--source', $Source, '--accept-source-agreements', '--disable-interactivity') }

@@ -569,6 +569,9 @@ function Show-AkariSteps {
             # an apps flow: its tab alone, no tab buttons; Guided: both tabs
             Set-AkariAppsOnly $(if ($flow) { $flow.Tab } else { '' })
             Set-AkariAppsFilter $Search.Text.Trim()
+            # Downloads built anew after Show installed was asked for: its marks are read again
+            if ($script:AppsNew -and $script:ShowInstalled -and $flow -and $flow.Tab -eq 'Install') { Start-AkariInstalledRead }
+            $script:AppsNew = $false
         }
         1 {
             [void]$StepBody.Children.Add((Get-AkariTweaksView))
@@ -606,13 +609,14 @@ function Show-AkariSteps {
 # ---- Apply: one Run in the background job, restore point first
 
 # counts per Outcome, in Glossary order, and whether a restart is needed. Pure, no WPF.
-function Get-AkariRunSummary($Outcomes) {
+# -Uninstall: the Outcomes of "Uninstall selected", whose Reverted reads "uninstalled".
+function Get-AkariRunSummary($Outcomes, [switch]$Uninstall) {
     $counts = [ordered]@{}
     foreach ($k in 'Applied', 'Reverted', 'Already', 'Skipped', 'Failed') {
         $n = @($Outcomes | Where-Object { $_.Outcome -eq $k }).Count
         if ($n) { $counts[$k] = $n }
     }
-    $text = ($counts.Keys | ForEach-Object { "$($counts[$_]) $($_.ToLower())" }) -join ', '
+    $text = ($counts.Keys | ForEach-Object { "$($counts[$_]) $(if ($Uninstall -and $_ -eq 'Reverted') { 'uninstalled' } else { $_.ToLower() })" }) -join ', '
     [pscustomobject]@{ Counts = $counts; Text = $text; Reboot = [bool]($Outcomes | Where-Object { $_.Reboot }) }
 }
 
@@ -638,10 +642,12 @@ function Get-AkariRestoreChoice([string]$Flow) {
     $true
 }
 
-function Start-AkariApply {
-    if ($script:Busy -or -not $script:Sel.Count) { return }
+# $Plan: these items instead of the Selection, with no restore point (Downloads' "Update all apps"), under $Label
+function Start-AkariApply($Plan = $null, [string]$Label = '') {
+    if ($script:Busy -or -not ($Plan -or $script:Sel.Count)) { return }
     $q = { param($s) "'" + ([string]$s -replace "'", "''") + "'" }
-    $shared = [hashtable]::Synchronized(@{ Plan = @(Get-AkariPlanItems $script:Sel); SkipRestore = -not (Get-AkariRestoreChoice $script:Mode) })
+    $shared = if ($Plan) { [hashtable]::Synchronized(@{ Plan = @($Plan); SkipRestore = $true }) }
+              else { [hashtable]::Synchronized(@{ Plan = @(Get-AkariPlanItems $script:Sel); SkipRestore = -not (Get-AkariRestoreChoice $script:Mode) }) }
     # the job loads the tweaks itself: a script block must not cross runspaces
     $code = @"
 `$root = $(& $q "$Root\Tweaks")
@@ -655,7 +661,7 @@ if (-not `$AkariShared.SkipRestore) {
 }
 `$AkariShared.Outcomes = @(Invoke-AkariPlan `$AkariShared.Plan `$all)
 "@
-    $label = "Applying $($script:Sel.Count) change$(if ($script:Sel.Count -ne 1) { 's' })"
+    $label = if ($Label) { $Label } else { "Applying $($script:Sel.Count) change$(if ($script:Sel.Count -ne 1) { 's' })" }
     Set-Busy $true $label
     Add-Log $label
     $script:Job = Start-AkariJob $code $script:Queue "$Root\Core" $shared
@@ -675,6 +681,7 @@ function Complete-AkariApply($Shared) {
         return
     }
     $script:Outcomes = @($Shared.Outcomes)
+    $script:ResultUninstall = $false
     # Last used (Quick select): what a Guided Run was asked to do (an apps flow's Run would replace it with apps only)
     if ($script:Mode -eq 'Guided') {
         try { Save-AkariLastUsed @($Shared.Plan) } catch { Add-Log "Warning: Last used not saved ($($_.Exception.Message))" }
@@ -682,8 +689,94 @@ function Complete-AkariApply($Shared) {
     $script:Step = 3
 }
 
+# ---- Downloads' own buttons (after Chris Titus Tech's winutil, MIT: Invoke-WPFUnInstall, Invoke-WPFInstallUpgrade,
+# Invoke-WPFGetInstalled). They act right away, in a job, with no restore point (as the installs).
+
+# what "Uninstall selected" asks about these apps: @{ Text; Count }. Count = the apps winget uninstalls; the others
+# are listed apart with where to go (RemoveWith: Remove apps; no winget id: Windows' Installed apps). Pure, no WPF.
+function Get-AkariUninstallText($Tweaks) {
+    $go = @($Tweaks | Where-Object { $_.Winget -and -not $_.RemoveWith })
+    $not = @($Tweaks | Where-Object { $_.RemoveWith -or -not $_.Winget } | ForEach-Object {
+        "- $($_.Name): $(if ($_.RemoveWith) { 'use Remove apps' } else { "use Windows' Installed apps" })"
+    })
+    if (-not $go.Count) { return [pscustomobject]@{ Count = 0; Text = "None of these apps can be uninstalled here:`n" + ($not -join "`n") } }
+    $text = "Uninstall these apps?`n`n" + (@($go | ForEach-Object { "- $($_.Name)" }) -join "`n")
+    if ($go | Where-Object { $_.AppType -eq 'Runtimes' }) { $text += "`n`nOther apps may need these runtimes." }
+    if ($not.Count) { $text += "`n`nNot uninstalled here:`n" + ($not -join "`n") }
+    [pscustomobject]@{ Count = $go.Count; Text = $text }
+}
+
+# Uninstall selected: the checked installs, asked first, then one job (Uninstall-AkariApp per app) and the result step
+function Start-AkariUninstall {
+    if ($script:Busy) { return }
+    $picked = @($script:AppRows.Values | Where-Object { $_.Control.IsChecked -and -not (Test-AkariRemoveRow $_) } | ForEach-Object { $_.Tweak })
+    if (-not $picked.Count) { return }
+    $ask = Get-AkariUninstallText $picked
+    if (-not $ask.Count) { Show-AkariMessage $ask.Text 'Info' 'Uninstall'; return }
+    if (-not (Confirm-AkariDialog $ask.Text 'Uninstall' 'Cancel' 'Question' 'Uninstall')) { return }
+    $q = { param($s) "'" + ([string]$s -replace "'", "''") + "'" }
+    $shared = [hashtable]::Synchronized(@{ Ids = @($picked | ForEach-Object { $_.Id }) })
+    $code = @"
+`$all = @((Get-AkariTweaks $(& $q "$Root\Tweaks")).Tweaks)
+`$ids = @(`$AkariShared.Ids)
+`$out = @()
+for (`$n = 0; `$n -lt `$ids.Count; `$n++) {
+    `$t = `$all | Where-Object { `$_.Id -eq `$ids[`$n] } | Select-Object -First 1
+    if (-not `$t) { continue }
+    Set-AkariProgress `$n `$ids.Count `$t.Name
+    `$out += Uninstall-AkariApp `$t
+}
+`$AkariShared.Outcomes = `$out
+"@
+    $label = "Uninstalling $($picked.Count) app$(if ($picked.Count -ne 1) { 's' })"
+    Set-Busy $true $label
+    Add-Log $label
+    $script:Job = Start-AkariJob $code $script:Queue "$Root\Core" $shared
+    $script:Job.Label = $label
+    $script:Job.Kind = 'Uninstall'
+}
+
+# called by the Shell timer when the uninstall job has ended
+function Complete-AkariUninstall($Shared) {
+    if ($null -eq $Shared.Outcomes) { return }
+    $script:Outcomes = @($Shared.Outcomes)
+    $script:ResultUninstall = $true
+    $script:Step = 3
+}
+
+# Update all apps: the Tools Tweak tools-update-apps (one "winget upgrade --all"), asked with its own Confirm
+function Start-AkariUpdateApps {
+    if ($script:Busy) { return }
+    $t = $script:Tweaks | Where-Object { $_.Id -eq 'tools-update-apps' } | Select-Object -First 1
+    if (-not $t) { return }
+    if ($t.Confirm -and -not (Confirm-AkariDialog $t.Confirm 'Update all' 'Cancel' 'Question' $t.Name)) { return }
+    Start-AkariApply @(@{ Id = $t.Id; Mode = 'Apply' }) 'Updating all apps'
+}
+
+# Show installed: which installs are on this PC, read in a job that leaves the page usable (one "winget list", the
+# other apps' Detects); remembered, so a Downloads page built later shows its marks again
+function Start-AkariInstalledRead {
+    if ($script:Busy) { return }
+    $script:ShowInstalled = $true
+    $q = { param($s) "'" + ([string]$s -replace "'", "''") + "'" }
+    $code = @"
+`$all = @((Get-AkariTweaks $(& $q "$Root\Tweaks")).Tweaks | Where-Object { `$_.Section -eq 'Apps' -and `$_.Category -eq 'Install' })
+`$AkariShared.Ids = @(Get-AkariInstalledApps `$all)
+"@
+    $label = 'Reading the installed apps'
+    Set-Busy $true $label $false
+    $script:Job = Start-AkariJob $code $script:Queue "$Root\Core" ([hashtable]::Synchronized(@{}))
+    $script:Job.Label = $label
+    $script:Job.Kind = 'AppsInstalled'
+}
+
+# called by the Shell timer when that read has ended
+function Complete-AkariInstalledRead($Shared) {
+    if ($null -ne $Shared.Ids) { Set-AkariAppsInstalled @($Shared.Ids) }
+}
+
 function Show-AkariResult {
-    $sum = Get-AkariRunSummary $script:Outcomes
+    $sum = Get-AkariRunSummary $script:Outcomes -Uninstall:([bool]$script:ResultUninstall)
     $head = New-AkariText $sum.Text 14
     $head.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
     [void]$StepBody.Children.Add($head)
@@ -694,7 +787,8 @@ function Show-AkariResult {
     }
     foreach ($o in $script:Outcomes) {
         $t = $script:Tweaks | Where-Object { $_.Id -eq $o.Id } | Select-Object -First 1
-        $line = if ($o.Message) { "$($o.Outcome): $($o.Message)" } else { $o.Outcome }
+        $kind = if ($script:ResultUninstall -and $o.Outcome -eq 'Reverted') { 'Uninstalled' } else { $o.Outcome }
+        $line = if ($o.Message) { "${kind}: $($o.Message)" } else { $kind }
         $icon, $brush = switch ($o.Outcome) {
             { $_ -in 'Applied', 'Reverted' } { 'circle-check', 'Ok' }
             'Already' { 'circle-minus', 'Mu' }
@@ -754,4 +848,5 @@ function Clear-AkariSteps {
     $script:AppsView = $null
     $script:AppTab = 'Remove'
     $script:Outcomes = @()
+    $script:ResultUninstall = $false
 }

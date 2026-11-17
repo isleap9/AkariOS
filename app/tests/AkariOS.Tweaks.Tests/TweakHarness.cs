@@ -434,9 +434,16 @@ namespace AkariOS.Tweaks.Tests
         public List<string> Installs { get; } = [];
         public Action<string>? OnInstall { get; set; }
 
+        /// <summary>The "upgrade" calls, whole.</summary>
+        public List<string> Upgrades { get; } = [];
+
+        /// <summary>What "upgrade" answers: its exit code and lines.</summary>
+        public Core.Apps.WingetResult Upgrade { get; set; } = new(0, []);
+
         public Core.Apps.WingetResult Run(params string[] arguments)
         {
             if (arguments[0] == "--version") return new(0, ["v1.9.0"]);
+            if (arguments[0] == "upgrade") { Upgrades.Add(string.Join(" ", arguments)); return Upgrade; }
             if (arguments[0] == "install")
             {
                 var id = arguments[Array.IndexOf(arguments, "--id") + 1];

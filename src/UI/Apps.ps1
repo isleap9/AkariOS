@@ -215,6 +215,14 @@ function New-AkariAppRow($Item) {
         $dot = New-AkariRiskMark $t.Risk
         [Windows.Controls.Grid]::SetColumn($dot, 1)
         [void]$g.Children.Add($dot)
+    } else {
+        # an install: the "on this PC" mark, shown by Show installed (Set-AkariAppsInstalled)
+        $e.Mark = New-AkariGlyph 'circle-check' 'Ok' 'Installed on this PC'
+        $e.Mark.Margin = [Windows.Thickness]::new(0)
+        $e.Mark.HorizontalAlignment = 'Left'
+        $e.Mark.Visibility = 'Collapsed'
+        [Windows.Controls.Grid]::SetColumn($e.Mark, 1)
+        [void]$g.Children.Add($e.Mark)
     }
     $icon = New-AkariAppIcon $t
     $name = New-AkariAppCell $t.Name 3
@@ -265,12 +273,20 @@ function Clear-AkariInstalls {
     Update-AkariAppsStatus
 }
 
+# Show installed (Downloads): the installs with these ids get their "Installed on this PC" mark, the others lose it
+function Set-AkariAppsInstalled([string[]]$Ids) {
+    foreach ($e in @($script:AppRows.Values | Where-Object { $_.Mark })) {
+        $e.Mark.Visibility = if ($e.Tweak.Id -in $Ids) { 'Visible' } else { 'Collapsed' }
+    }
+}
+
 function Update-AkariAppsStatus {
     if (-not $script:AppsStatus) { return }
     $on = @($script:AppRows.Values | Where-Object { $_.Control.IsChecked })
     $rm = @($on | Where-Object { Test-AkariRemoveRow $_ }).Count
     $in = $on.Count - $rm
     $script:AppsStatus.Text = "$rm to remove, $in to install"
+    if ($script:AppsParts -and $script:AppsParts.Uninstall) { $script:AppsParts.Uninstall.IsEnabled = ($in -gt 0) }
     # Downloads shows the count on its Next button ("Review (n)")
     if ($StepNext) { Update-AkariStepFooter }
 }
@@ -394,6 +410,8 @@ function Set-AkariAppsOnly([string]$Tab) {
     $p = $script:AppsParts
     $p.Tabs.Visibility = if ($Tab) { 'Collapsed' } else { 'Visible' }
     if ($p.QuickSelect) { $p.QuickSelect.Visibility = if ($Tab) { 'Collapsed' } else { 'Visible' } }
+    # Downloads' own buttons (winutil W4): not on Guided's Install tab, whose picks wait for Review & Apply
+    foreach ($b in $p.UpdateAll, $p.Uninstall, $p.ShowInstalled) { $b.Visibility = if ($Tab -eq 'Install') { 'Visible' } else { 'Collapsed' } }
     if ($Tab) { Show-AkariAppsTab $Tab }
 }
 
@@ -444,6 +462,12 @@ function Get-AkariAppsView {
     $p.InstallBar.Orientation = 'Horizontal'
     $p.InstallBar.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
     [void]$p.InstallBar.Children.Add((New-AkariAppsButton 'Clear selection' 'Uncheck every app to install' { Clear-AkariInstalls }))
+    # Downloads only (after Chris Titus Tech's winutil, MIT: Upgrade all, Uninstall selected, Get Installed); they act
+    # right away, in a job (UI\Steps.ps1)
+    $p.Uninstall = New-AkariAppsButton 'Uninstall selected' 'Uninstall the checked apps with winget, after asking' { Start-AkariUninstall }
+    $p.UpdateAll = New-AkariAppsButton 'Update all apps' 'Update every app winget knows a newer version of' { Start-AkariUpdateApps }
+    $p.ShowInstalled = New-AkariAppsButton 'Show installed' 'Mark the apps of this list that are on this PC' { Start-AkariInstalledRead }
+    foreach ($b in $p.Uninstall, $p.UpdateAll, $p.ShowInstalled) { [void]$p.InstallBar.Children.Add($b) }
     [void]$view.Children.Add($p.InstallBar)
 
     # Remove: four sections; the two feature ones say "Reading..." until the background read is done
@@ -489,6 +513,8 @@ function Get-AkariAppsView {
     $script:AppsView = $view
     # the features are read when the Remove tab is first shown (Downloads opens on Install and never reads them)
     $script:AppsFeatureRead = $false
+    # a view built anew has no Installed marks yet (Show-AkariSteps reads them again when they were asked for)
+    $script:AppsNew = $true
     Show-AkariAppsTab $(if ($AkariAppFlows -and $AkariAppFlows.Contains("$script:Mode")) { $AkariAppFlows["$script:Mode"].Tab } else { $script:AppTab })
     Update-AkariAppsStatus
     $view

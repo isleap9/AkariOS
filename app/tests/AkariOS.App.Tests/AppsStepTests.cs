@@ -155,6 +155,121 @@ public sealed class AppsStepTests : IDisposable
         Assert.Equal("Home", t.S.Shell.Page);
     });
 
+    // ---- winutil W4: Downloads' own toolbar (Update all apps, Uninstall selected, Show installed)
+
+    private static UIElement Downloads(AppTest t)
+    {
+        t.S.Shell.Open("Downloads");
+        return t.Install.Build("");
+    }
+
+    private const string UninstallFlags = "--exact --source winget --silent --accept-source-agreements --disable-interactivity";
+
+    [Fact]
+    public void Downloads_has_its_own_three_buttons_and_guided_has_not() => LookTests.OnSta(() =>
+    {
+        var t = Pc();
+        var guided = Guided(t);
+        Click(Button(guided, "Install"));
+        foreach (var b in new[] { "Update all apps", "Uninstall selected", "Show installed" }) Assert.False(AncestorsVisible(Button(guided, b)));
+        var ui = Downloads(t);
+        foreach (var b in new[] { "Update all apps", "Uninstall selected", "Show installed" }) Assert.True(AncestorsVisible(Button(ui, b)));
+        Assert.False(Button(ui, "Uninstall selected").IsEnabled);
+        Tick(t, "install-steam");
+        Assert.True(Button(ui, "Uninstall selected").IsEnabled);
+        Tick(t, "install-steam");
+        Assert.False(Button(ui, "Uninstall selected").IsEnabled);
+    });
+
+    [Fact]
+    public void Uninstall_selected_asks_with_the_names_then_uninstalls_the_checked_apps() => LookTests.OnSta(() =>
+    {
+        var t = Pc();
+        var ui = Downloads(t);
+        foreach (var id in new[] { "install-steam", "install-vcredist", "install-microsoft-edge", "install-custom-resolution-utility" }) Tick(t, id);
+        // Esc: nothing runs
+        Click(Button(ui, "Uninstall selected"));
+        var asked = t.Asked[^1];
+        Assert.StartsWith("Uninstall these apps?\n\n- ", asked);
+        Assert.Contains("- Steam", asked);
+        Assert.Contains("\n\nOther apps may need these runtimes.\n\nNot uninstalled here:\n", asked);
+        Assert.Contains("- Microsoft Edge: use Remove apps", asked);
+        Assert.Contains("- Custom Resolution Utility: use Windows' Installed apps", asked);
+        Assert.Empty(t.Winget.Calls);
+        Assert.Equal(0, t.Install.Step);
+
+        t.Answers.Enqueue("Uninstall");
+        Click(Button(ui, "Uninstall selected"));
+        Assert.Contains($"uninstall --id Valve.Steam {UninstallFlags}", t.Winget.Calls);
+        Assert.DoesNotContain(t.Winget.Calls, c => c.Contains("Microsoft.Edge", StringComparison.Ordinal));
+        Assert.Equal((3, true, false), (t.Install.Step, t.Install.Uninstalled, t.Install.Running));
+        Assert.Equal(["Reverted", "Reverted", "Skipped", "Skipped"], t.Install.Outcomes.Select(o => o.Kind.ToString()).Order());
+        Assert.Empty(t.Restore.Points);
+        var result = Texts(t.Install.Build(""));
+        Assert.Contains("2 uninstalled, 2 skipped", result);
+        Assert.Contains("Uninstalled", result);
+        Assert.Contains("Skipped: has its own removal: use Remove apps", result);
+        // Done: back where Downloads was opened, the next result in the usual words again
+        Click(t.Footer.Next);
+        Assert.Equal(("Home", false), (t.S.Shell.Page, t.Install.Uninstalled));
+    });
+
+    [Fact]
+    public void Uninstall_selected_only_says_so_when_nothing_picked_can_be_uninstalled_here() => LookTests.OnSta(() =>
+    {
+        var t = Pc();
+        var ui = Downloads(t);
+        Tick(t, "install-microsoft-edge");
+        Click(Button(ui, "Uninstall selected"));
+        Assert.Equal("None of these apps can be uninstalled here:\n- Microsoft Edge: use Remove apps", t.Asked[^1]);
+        Assert.Equal((0, false), (t.Install.Step, t.Install.Running));
+        Assert.Empty(t.Winget.Calls);
+    });
+
+    [Fact]
+    public void Show_installed_marks_the_apps_on_this_pc_and_reads_again_for_a_new_page() => LookTests.OnSta(() =>
+    {
+        var t = Pc();
+        t.Winget.Answer = a => a[0] == "list" ? new(0, ["Name   Id            Version", "Steam  Valve.Steam   2.10"]) : null;
+        var ui = Downloads(t);
+        Assert.Equal(Visibility.Collapsed, Apps(t).Rows["install-steam"].Mark!.Visibility);
+        Assert.Empty(t.Winget.Calls);
+        Click(Button(ui, "Show installed"));
+        Assert.Equal(["list --accept-source-agreements --disable-interactivity"], t.Winget.Calls);
+        Assert.Equal(Visibility.Visible, Apps(t).Rows["install-steam"].Mark!.Visibility);
+        Assert.Equal(Visibility.Collapsed, Apps(t).Rows["install-discord"].Mark!.Visibility);
+        Assert.False(t.S.Shell.Busy);
+        // a removal row has no such mark
+        Assert.Null(Apps(t).Rows.Values.First(r => r.Removal).Mark);
+
+        // after a run the page is built anew: its marks are read again by themselves
+        Tick(t, "install-steam");
+        t.Answers.Enqueue("Uninstall");
+        Click(Button(ui, "Uninstall selected"));
+        Click(t.Footer.Next);
+        Downloads(t);
+        Assert.Equal(Visibility.Visible, Apps(t).Rows["install-steam"].Mark!.Visibility);
+        Assert.Equal(2, t.Winget.Calls.Count(c => c.StartsWith("list ", StringComparison.Ordinal)));
+    });
+
+    [Fact]
+    public void Update_all_apps_asks_with_the_tweaks_own_question_then_runs_it_alone() => LookTests.OnSta(() =>
+    {
+        var t = Pc();
+        var ui = Downloads(t);
+        Tick(t, "install-steam");
+        Click(Button(ui, "Update all apps"));
+        Assert.Equal(t.S.Engine.Find("tools-update-apps")!.Confirm, t.Asked[^1]);
+        Assert.Equal(0, t.Install.Step);
+        t.Answers.Enqueue("Update all");
+        Click(Button(ui, "Update all apps"));
+        // the Tools Tweak alone (not the picked install), no restore point, the result in the usual words
+        Assert.Equal(["tools-update-apps"], t.Install.Outcomes.Select(o => o.Id));
+        Assert.Equal((3, false), (t.Install.Step, t.Install.Uninstalled));
+        Assert.Empty(t.Restore.Points);
+        Assert.DoesNotContain(t.Winget.Calls, c => c.StartsWith("install ", StringComparison.Ordinal));
+    });
+
     private static bool AncestorsVisible(FrameworkElement e)
     {
         for (DependencyObject? p = e; p is not null; p = LogicalTreeHelperParent(p))

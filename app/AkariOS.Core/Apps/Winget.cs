@@ -151,8 +151,81 @@ public sealed class Winget(IWinget winget, IPackageManager packages, IHttp http,
     private static string[] InstallArgs(string id, string source) => ["install", "--id", id, "--exact", "--source", source, .. Flags];
 
     /// <summary>winget's last line with words in it (progress bars and spinners left out).</summary>
-    private static string LastLine(WingetResult r) => (r.Output.LastOrDefault(l => Regex.IsMatch(l, "[A-Za-z]{3}")) ?? "").Trim();
+    private static string LastLine(WingetResult r) => (r.Output.LastOrDefault(HasWords) ?? "").Trim();
+
+    private static bool HasWords(string line) => Regex.IsMatch(line, "[A-Za-z]{3}");
+
+    // ---- uninstall, update all and the installed list (after Chris Titus Tech's winutil, MIT:
+    // Install-WinUtilProgramWinget, Invoke-WinUtilCurrentSystem)
+
+    /// <summary>$AkariWingetRestart: done, and Windows must restart to finish (Windows Installer's two, winget's two).</summary>
+    public static IReadOnlyList<int> RestartCodes { get; } = [3010, 1641, -1978334967, -1978334965];
+
+    /// <summary>NO_APPLICATIONS_FOUND: nothing installed matches the id.</summary>
+    public const int MissingCode = -1978335212;
+
+    /// <summary>ADMIN_CONTEXT_ACTION_PROHIBITED: a per-user install winget won't touch as administrator.</summary>
+    public const int UserOnlyCode = -1978335107;
+
+    /// <summary>UPDATE_NOT_APPLICABLE: nothing to update.</summary>
+    public const int UpToDateCode = -1978335189;
+
+    // Get-AkariWingetFailure
+    private static string Failure(WingetResult r) => $"(0x{r.Code:X8}): {LastLine(r)}";
+
+    /// <summary>Uninstall-AkariWingetPackage: one package, silently, by its exact id; throws when it fails.</summary>
+    public WingetUninstall Uninstall(string id, string source = "winget")
+    {
+        EnsureTool();
+        log.Write($"winget: uninstalling {id}");
+        var r = winget.Run("uninstall", "--id", id, "--exact", "--source", source, "--silent", "--accept-source-agreements", "--disable-interactivity");
+        if (r.Code == 0) return WingetUninstall.Uninstalled;
+        if (RestartCodes.Contains(r.Code)) return WingetUninstall.Restart;
+        if (r.Code == MissingCode) return WingetUninstall.Missing;
+        if (r.Code == UserOnlyCode) return WingetUninstall.UserOnly;
+        throw new InvalidOperationException($"winget could not uninstall {id} {Failure(r)}");
+    }
+
+    /// <summary>Update-AkariWingetPackages: every app winget can update, in one call (every source; pinned ones are
+    /// skipped by winget), its lines logged; throws when winget reports a failure.</summary>
+    public WingetUpgrade UpgradeAll()
+    {
+        EnsureTool();
+        log.Write("winget: updating every app");
+        var r = winget.Run("upgrade", "--all", "--include-unknown", "--silent", "--accept-package-agreements", "--accept-source-agreements", "--disable-interactivity");
+        foreach (var l in r.Output.Where(HasWords)) log.Write($"winget: {l.Trim()}");
+        if (r.Code == 0) return WingetUpgrade.Updated;
+        if (r.Code == UpToDateCode) { log.Write("winget: every app is up to date"); return WingetUpgrade.UpToDate; }
+        if (RestartCodes.Contains(r.Code)) { log.Write("winget: restart Windows to finish the updates"); return WingetUpgrade.Restart; }
+        throw new InvalidOperationException($"winget could not update every app {Failure(r)}");
+    }
+
+    /// <summary>Get-AkariWingetList: winget's table of everything installed, as its lines (read only); empty when
+    /// winget is missing or fails.</summary>
+    public IReadOnlyList<string> List()
+    {
+        WingetResult r;
+        try { r = winget.Run("list", "--accept-source-agreements", "--disable-interactivity"); }
+        catch (Exception) { return []; }
+        return r.Code == 0 ? r.Output : [];
+    }
+
+    /// <summary>Get-AkariInstalledIds: the ids that stand in those lines as a column of their own (ids are never
+    /// translated; one winget cuts short is not found). Pure.</summary>
+    public static IReadOnlyList<string> InstalledIds(IEnumerable<string> lines, IEnumerable<string> ids)
+    {
+        var text = string.Join("\n", lines);
+        return ids.Where(id => id.Length > 0 && Regex.IsMatch(text, $@"(?<=[^\S\r\n]){Regex.Escape(id)}(?=[^\S\r\n]|$)",
+            RegexOptions.IgnoreCase | RegexOptions.Multiline)).ToList();
+    }
 }
+
+/// <summary>What an uninstall did: done, done and Windows must restart, nothing installed matched, or a per-user
+/// install winget won't touch as administrator.</summary>
+public enum WingetUninstall { Uninstalled, Restart, Missing, UserOnly }
+
+/// <summary>What "update all" did.</summary>
+public enum WingetUpgrade { Updated, UpToDate, Restart }
 
 /// <summary>The real winget.exe (guarded): on PATH, else the newest App Installer folder under WindowsApps.</summary>
 public sealed class WingetExe : IWinget

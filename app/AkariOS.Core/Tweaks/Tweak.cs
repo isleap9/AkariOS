@@ -68,6 +68,10 @@ public sealed class Tweak
     public string? AppType { get; init; }
     public string? StoreId { get; init; }
 
+    /// <summary>An install whose app has its own removal under Remove apps (that Tweak's id): "Uninstall selected"
+    /// leaves it alone and says so.</summary>
+    public string? RemoveWith { get; init; }
+
     /// <summary>Entries: the Group's id, the package or feature name, the keep-list mark.</summary>
     public string? Group { get; init; }
     public string? Package { get; init; }

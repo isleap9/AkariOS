@@ -89,4 +89,30 @@ public class StepsOracleTests
             Assert.Equal(ps.GetProperty(t.Id).EnumerateArray().Select(e => e.GetString()),
                 new[] { TweakState.Optimized, TweakState.Default, TweakState.Custom, TweakState.Unknown }.Select(s => Selection.RowTip(t, s)));
     }
+
+    // winutil W4: what "Uninstall selected" asks, for every real app install alone and for all of them at once
+    [Fact]
+    public void The_same_uninstall_question()
+    {
+        var ps = PowerShell.Value.GetProperty("Uninstall");
+        var installs = Loaded.Value.Where(t => t.Section == "Apps" && t.Category == "Install").ToList();
+        Assert.True(installs.Count > 60, "the app installs");
+        string Same((string Text, int Count) u) => $"{u.Count}: {u.Text}";
+        string Theirs(string key) => $"{ps.GetProperty(key).GetProperty("Count").GetInt32()}: {ps.GetProperty(key).GetProperty("Text").GetString()}";
+        foreach (var t in installs) Assert.Equal(Theirs(t.Id), Same(Selection.UninstallText([t])));
+        Assert.Equal(Theirs("*"), Same(Selection.UninstallText(installs)));
+        Assert.Contains("Other apps may need these runtimes.", Selection.UninstallText(installs).Text);
+    }
+
+    [Fact]
+    public void The_same_summary_line_in_both_wordings()
+    {
+        foreach (var c in PowerShell.Value.GetProperty("Summary").EnumerateArray())
+        {
+            var outcomes = c.GetProperty("Kinds").EnumerateArray()
+                .Select(k => new Core.Runs.Outcome("x", TweakMode.Apply, Enum.Parse<Core.Runs.OutcomeKind>(k.GetString()!))).ToList();
+            Assert.Equal(c.GetProperty("Text").GetString(), Selection.RunSummary(outcomes).Text);
+            Assert.Equal(c.GetProperty("Uninstall").GetString(), Selection.RunSummary(outcomes, uninstall: true).Text);
+        }
+    }
 }

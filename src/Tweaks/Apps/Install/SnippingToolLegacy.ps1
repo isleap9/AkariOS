@@ -12,6 +12,7 @@
     Button      = 'Install'
     Risk        = 'Safe'
     Description = 'Brings the classic Snipping Tool back after a debloat. The new one is in this card as a Store app while it is missing.'
+    RemoveWith  = 'remove-snipping-tool-legacy'
     Detect      = { Test-Path "$env:SystemRoot\System32\SnippingTool.exe" }
     Apply       = {
         $exe = Save-AkariFile 'snippingtool.exe' "$env:SystemRoot\Temp\snippingtool.exe"

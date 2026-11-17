@@ -14,7 +14,8 @@ $m = [regex]::Match($cards, '(?ms)^function Get-AkariRowTip.*?^\}')
 . ([scriptblock]::Create($m.Value))
 # Steps.ps1 needs WPF too: its Section order and Get-AkariStepGroups, taken out of its text
 $steps = [IO.File]::ReadAllText((Join-Path $Src 'UI\Steps.ps1'))
-foreach ($p in '(?m)^\$AkariSectionOrder = .*$', '(?m)^\$AkariSectionHeaders = .*$', '(?ms)^function Get-AkariStepGroups.*?^\}') {
+foreach ($p in '(?m)^\$AkariSectionOrder = .*$', '(?m)^\$AkariSectionHeaders = .*$', '(?ms)^function Get-AkariStepGroups.*?^\}',
+               '(?ms)^function Get-AkariRunSummary.*?^\}', '(?ms)^function Get-AkariUninstallText.*?^\}') {
     . ([scriptblock]::Create([regex]::Match($steps, $p).Value))
 }
 
@@ -64,4 +65,15 @@ foreach ($t in $tweaks) {
     }
     $pending[$t.Id] = @($items)
 }
-[IO.File]::WriteAllText($Out, (ConvertTo-Json ([ordered]@{ Groups = $groups; Pending = $pending; Tips = $tips }) -Depth 10 -Compress), [Text.UTF8Encoding]::new($false))
+# winutil W4: what "Uninstall selected" asks, for every app install alone and for all of them at once; and a Run's
+# summary line in both wordings (Outcomes as 'Kind' names, in this order)
+$installs = @($tweaks | Where-Object { $_.Section -eq 'Apps' -and $_.Category -eq 'Install' })
+$uninstall = [ordered]@{}
+foreach ($t in $installs) { $u = Get-AkariUninstallText @($t); $uninstall[$t.Id] = [ordered]@{ Text = $u.Text; Count = $u.Count } }
+$u = Get-AkariUninstallText $installs
+$uninstall['*'] = [ordered]@{ Text = $u.Text; Count = $u.Count }
+$summary = @(foreach ($kinds in @('Reverted', 'Reverted', 'Skipped'), @('Applied', 'Already', 'Failed', 'Reverted'), @('Already')) {
+    $o = @($kinds | ForEach-Object { [pscustomobject]@{ Outcome = $_; Reboot = $false } })
+    [ordered]@{ Kinds = @($kinds); Text = (Get-AkariRunSummary $o).Text; Uninstall = (Get-AkariRunSummary $o -Uninstall).Text }
+})
+[IO.File]::WriteAllText($Out, (ConvertTo-Json ([ordered]@{ Groups = $groups; Pending = $pending; Tips = $tips; Uninstall = $uninstall; Summary = $summary }) -Depth 10 -Compress), [Text.UTF8Encoding]::new($false))

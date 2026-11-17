@@ -219,6 +219,41 @@ Describe 'Get-AkariRunSummary' {
     }
 
     It 'flags a reboot' { (Get-AkariRunSummary @((O 'Applied' $true), (O 'Already'))).Reboot | Should Be $true }
+
+    It 'says uninstalled for an uninstall' {
+        (Get-AkariRunSummary @((O 'Reverted'), (O 'Reverted'), (O 'Skipped')) -Uninstall).Text | Should Be '2 uninstalled, 1 skipped'
+    }
+}
+
+# winutil W4: what "Uninstall selected" asks. Fake apps.
+Describe 'Get-AkariUninstallText' {
+    foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
+    . "$Root\UI\Selection.ps1"
+    . "$Root\UI\Steps.ps1"
+    function App([string]$Name, $More) { ConvertTo-AkariTweak (@{ Id = $Name; Name = $Name; Section = 'Apps'; Category = 'Install'; Kind = 'Action' } + $More) 'x' $false }
+    $steam = App 'Steam' @{ Winget = 'A.Steam'; AppType = 'Game launchers' }
+    $vc = App 'Visual C++' @{ Winget = 'A.VC1', 'A.VC2'; AppType = 'Runtimes' }
+    $edge = App 'Edge' @{ Winget = 'A.Edge'; RemoveWith = 'remove-edge' }
+    $cru = App 'CRU' @{ Apply = { } }
+
+    It 'lists the apps winget uninstalls' {
+        $q = Get-AkariUninstallText @($steam)
+        $q.Count | Should Be 1
+        $q.Text | Should Be "Uninstall these apps?`n`n- Steam"
+    }
+
+    It 'warns about runtimes and lists apart what is not uninstalled here, with where to go' {
+        $q = Get-AkariUninstallText @($steam, $edge, $vc, $cru)
+        $q.Count | Should Be 2
+        $q.Text | Should Be ("Uninstall these apps?`n`n- Steam`n- Visual C++`n`nOther apps may need these runtimes.`n`n" +
+            "Not uninstalled here:`n- Edge: use Remove apps`n- CRU: use Windows' Installed apps")
+    }
+
+    It 'says so when nothing picked can be uninstalled here' {
+        $q = Get-AkariUninstallText @($edge)
+        $q.Count | Should Be 0
+        $q.Text | Should Be "None of these apps can be uninstalled here:`n- Edge: use Remove apps"
+    }
 }
 
 Describe 'Apply from Review (fake id, no restore point, no window)' {
@@ -472,6 +507,7 @@ $script:Tweaks = @(
     New-AkariEntry $g @{ Name = 'Akari.Test.Kept'; Display = 'Kept app'; Description = 'D'; Risk = 'Advanced'; Keep = $true }
     New-AkariEntry $g @{ Name = 'Akari.Test.Gone'; Display = 'Gone app'; Description = 'D'; Risk = 'Safe' }
     ConvertTo-AkariTweak @{ Id = 'inst'; Name = 'Inst app'; Description = 'D'; Section = 'Apps'; Category = 'Install'; Kind = 'Action'; Button = 'Install'; Risk = 'Safe'; Winget = 'Akari.Test.Inst'; Apply = { } } 'x' $false
+    ConvertTo-AkariTweak @{ Id = 'tools-update-apps'; Name = 'Update all apps'; Description = 'D'; Section = 'Tools'; Category = 'Setup'; Kind = 'Action'; Risk = 'Safe'; Confirm = 'Update every app?'; Apply = { } } 'x' $false
 )
 foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps') { . "$Root\UI\$f.ps1" }
 # the fake PC has three of the listed apps and one the list doesn't know
@@ -561,6 +597,43 @@ Enter-AkariFlow 'Remove apps'; Show-AkariSteps; Enter-AkariFlow 'Downloads'; Sho
 "dlAfterRm=$script:Mode,$($script:AppsParts.RemoveTables.Visibility),$($script:AppsParts.InstallTables.Visibility)"
 Enter-AkariFlow 'Install AkariOS'; $script:Mode = 'Guided'; Show-AkariSteps
 "guidedParts=$($script:AppsParts.Tabs.Visibility),$($script:AppsParts.QuickSelect.Visibility)"
+# winutil W4: Downloads' own toolbar (Update all apps, Uninstall selected, Show installed); no job really starts
+"w4Guided=$($script:AppsParts.UpdateAll.Visibility),$($script:AppsParts.Uninstall.Visibility),$($script:AppsParts.ShowInstalled.Visibility)"
+$script:Busy = $false; $script:Queue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
+function Set-Busy($b, $l) { $script:Busy = $b }
+function Add-Log($m) { }
+function Start-AkariJob($code, $q, $dir, $shared) { @{ Shared = $shared; Code = $code } }
+function Confirm-AkariDialog { $script:asked = $args[0]; $script:answer }
+Enter-AkariFlow 'Downloads'; Show-AkariSteps
+"w4Bar=$($script:AppsParts.UpdateAll.Visibility),$($script:AppsParts.Uninstall.Visibility),$($script:AppsParts.ShowInstalled.Visibility),$($script:AppsParts.Uninstall.IsEnabled)"
+"w4MarkStart=$($script:AppRows['inst'].Mark.Visibility)"
+$e = $script:AppRows['inst']; $e.Control.IsChecked = $true; Step-AkariAppCheck 'inst'
+"w4Picked=$($script:AppsParts.Uninstall.IsEnabled)"
+$script:answer = $false; Start-AkariUninstall
+"w4Cancel=$($null -eq $script:Job),$($script:asked -replace "`n", '|')"
+$script:answer = $true; Start-AkariUninstall
+"w4Job=$($script:Job.Kind),$($script:Job.Shared.Ids -join ','),$script:Busy"
+$script:Busy = $false
+Complete-AkariUninstall ([hashtable]::Synchronized(@{ Outcomes = @([pscustomobject]@{ Id = 'inst'; Outcome = 'Reverted'; Reboot = $false; Message = '' }) }))
+Show-AkariSteps
+"w4Result=$script:Step,$($StepBody.Children[0].Text),$($StepBody.Children[1].Child.Children[2].Children[1].Text)"
+Reset-AkariSteps
+# Show installed: read in a job, the rows marked; shown again by itself the next time Downloads is built
+Enter-AkariFlow 'Downloads'; Show-AkariSteps
+$script:Job = $null; Start-AkariInstalledRead
+"w4Read=$($script:Job.Kind)"; $script:Busy = $false
+Complete-AkariInstalledRead ([hashtable]::Synchronized(@{ Ids = @('inst') }))
+"w4Mark=$($script:AppRows['inst'].Mark.Visibility)"
+Complete-AkariInstalledRead ([hashtable]::Synchronized(@{ Ids = @() }))
+"w4Unmark=$($script:AppRows['inst'].Mark.Visibility)"
+$script:Step = 3; Reset-AkariSteps; $script:Job = $null
+Enter-AkariFlow 'Downloads'; Show-AkariSteps
+"w4ReadAgain=$($script:Job.Kind)"; $script:Busy = $false
+# Update all apps: the Tools Tweak, asked with its own Confirm, one Apply job without a restore point
+$script:Job = $null; $script:answer = $false; Start-AkariUpdateApps
+"w4UpCancel=$($null -eq $script:Job),$script:asked"
+$script:answer = $true; Start-AkariUpdateApps
+"w4Up=$($script:Job.Kind),$($script:Job.Shared.Plan[0].Id),$($script:Job.Shared.Plan[0].Mode),$($script:Job.Shared.SkipRestore)"
 '@
     $out = @{}
     & powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root 2>&1 | ForEach-Object {
@@ -634,6 +707,27 @@ Enter-AkariFlow 'Install AkariOS'; $script:Mode = 'Guided'; Show-AkariSteps
     It 'Downloads after Remove apps starts afresh on the Install cards; Guided keeps both tabs and Quick select' {
         $out.dlAfterRm | Should Be 'Downloads,Collapsed,Visible'
         $out.guidedParts | Should Be 'Visible,Visible'
+    }
+    It 'shows Update all apps, Uninstall selected and Show installed on Downloads only' {
+        $out.w4Guided | Should Be 'Collapsed,Collapsed,Collapsed'
+        $out.w4Bar | Should Be 'Visible,Visible,Visible,False'
+        $out.w4Picked | Should Be 'True'
+    }
+    It 'Uninstall selected asks with the names; Cancel starts nothing, Uninstall one job for the checked apps' {
+        $out.w4Cancel | Should Be 'True,Uninstall these apps?||- Inst app'
+        $out.w4Job | Should Be 'Uninstall,inst,True'
+    }
+    It 'shows the uninstall on the result step, in its own words' { $out.w4Result | Should Be '3,1 uninstalled,Uninstalled' }
+    It 'Show installed marks the rows on this PC, and reads again when Downloads is built anew' {
+        $out.w4MarkStart | Should Be 'Collapsed'
+        $out.w4Read | Should Be 'AppsInstalled'
+        $out.w4Mark | Should Be 'Visible'
+        $out.w4Unmark | Should Be 'Collapsed'
+        $out.w4ReadAgain | Should Be 'AppsInstalled'
+    }
+    It 'Update all apps asks with the Tweak''s Confirm, then runs it as one Apply job with no restore point' {
+        $out.w4UpCancel | Should Be 'True,Update every app?'
+        $out.w4Up | Should Be 'Apply,tools-update-apps,Apply,True'
     }
     It 'gives the features that arrive late the last quick select (FR33THY: all but the keep-list)' {
         $out.lateSel | Should Be 'capability/App.StepsRecorder~~~~0.0.1.0,feature/WorkFolders-Client'

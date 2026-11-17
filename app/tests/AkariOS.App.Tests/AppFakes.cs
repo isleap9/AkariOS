@@ -27,6 +27,26 @@ internal sealed class FakePackages : IPackageManager
     public void Deprovision(string family) => Calls.Add($"deprovision {family}");
 }
 
+/// <summary>winget.exe for the App tests: every call recorded, "--version" 1.9.0, the rest code 0 with no lines unless
+/// Answer says otherwise (null = that default). Nothing real is run.</summary>
+internal sealed class FakeWinget : IWinget
+{
+    public List<string> Calls { get; } = [];
+    public Func<string[], WingetResult?>? Answer { get; set; }
+
+    public WingetResult Run(params string[] arguments)
+    {
+        Calls.Add(string.Join(" ", arguments));
+        return Answer?.Invoke(arguments) ?? (arguments[0] == "--version" ? new(0, ["v1.9.0"]) : new(0, []));
+    }
+}
+
+/// <summary>No downloads in the App tests (winget's own repair never runs: the fake winget is recent).</summary>
+internal sealed class NoDownloads : Core.Update.IHttp
+{
+    public void Download(string url, string file) => throw new InvalidOperationException("no downloads in tests");
+}
+
 /// <summary>The PC's services for the Services page: All / One answer List; Control records and updates the status.</summary>
 internal sealed class FakeServiceManager : IServiceManager
 {

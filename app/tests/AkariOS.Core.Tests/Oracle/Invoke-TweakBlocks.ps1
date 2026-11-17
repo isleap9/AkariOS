@@ -57,7 +57,7 @@
 #   file ('name=path;…') instead of an empty one; -SystemDrive: $env:SystemDrive (%SystemDrive%\… in the lines);
 #   Move-Item takes pipeline input and a folder as -Destination, inside the test's folders.
 #   winutil (W1): Invoke-AkariExe answers -ExeCodes ('chkdsk.exe=1;…', by file name, else 0); "wingettool <True|False>"
-#   (Install-AkariWingetTool -Force).
+#   (Install-AkariWingetTool -Force). winutil (W4): "wingetupgrade" (Update-AkariWingetPackages).
 #   winutil (W2): Get-AkariFeatureState answers -FeatureStates ('name=state;…', else $null), Get-AkariCapabilityState
 #   -CapabilityStates, Find-AkariWindowsSource -WindowsSource (a path, else $null), Get-AkariServices -ServiceStarts
 #   ('name=Start;…': only those services are there), Get-AkariTasks -Tasks; "feature on <name>|<source>" /
@@ -430,6 +430,8 @@ function Test-AkariWingetInstalled([string]$Id, [string]$Source = 'winget') { $f
 function Install-AkariWingetPackage([string]$Id, [string]$Source = 'winget') { $script:Calls.Add("winget $Id $Source") }
 # winget's own repair (tools-fix-winget): recorded
 function Install-AkariWingetTool([switch]$Force) { $script:Calls.Add("wingettool $([bool]$Force)") }
+# winutil W4 (tools-update-apps): one "winget upgrade --all", recorded
+function Update-AkariWingetPackages { $script:Calls.Add('wingetupgrade'); 'Updated' }
 # winutil W2: Windows features, capabilities, services and tasks
 function Get-Answer([string]$List, [string]$Name) {
     @($List.Split(';') | Where-Object { $_ -like "$Name=*" } | ForEach-Object { $_.Split('=', 2)[1] }) | Select-Object -First 1

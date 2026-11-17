@@ -103,6 +103,172 @@ Describe 'Winget' {
     }
 }
 
+# winutil W4: uninstall, update all, the installed list. Invoke-AkariWinget answers from $w.Codes (by package id, or
+# 'upgrade' / 'list'); nothing real is called.
+Describe 'Winget: uninstall, update all and the installed list' {
+    $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
+    foreach ($f in 'Log', 'Winget') { . "$Root\Core\$f.ps1" }
+    $w = @{ Calls = [Collections.Generic.List[string]]::new(); Codes = @{}; Out = @{} }
+    Mock Install-AkariWingetTool { }
+    Mock Invoke-AkariWinget {
+        $w.Calls.Add(($Arguments -join ' '))
+        $key = if ($Arguments[0] -eq 'uninstall') { $Arguments[2] } else { $Arguments[0] }
+        $out = if ($w.Out.ContainsKey($key)) { @($w.Out[$key]) } else { @() }
+        @{ Code = $(if ($w.Codes.ContainsKey($key)) { $w.Codes[$key] } else { 0 }); Out = $out }
+    }
+
+    It 'uninstalls one package silently, by its exact id and source' {
+        Uninstall-AkariWingetPackage 'Akari.Test.Ok' | Should Be 'Uninstalled'
+        $w.Calls[-1] | Should Be 'uninstall --id Akari.Test.Ok --exact --source winget --silent --accept-source-agreements --disable-interactivity'
+        Uninstall-AkariWingetPackage '9TESTSTOREID' 'msstore' | Should Be 'Uninstalled'
+        $w.Calls[-1] | Should Match '--source msstore'
+    }
+
+    It 'tells a restart, a missing app and a per-user install apart' {
+        $w.Codes = @{ 'A.Restart' = 3010; 'A.Restart2' = -1978334967; 'A.Missing' = -1978335212; 'A.User' = -1978335107 }
+        Uninstall-AkariWingetPackage 'A.Restart' | Should Be 'Restart'
+        Uninstall-AkariWingetPackage 'A.Restart2' | Should Be 'Restart'
+        Uninstall-AkariWingetPackage 'A.Missing' | Should Be 'Missing'
+        Uninstall-AkariWingetPackage 'A.User' | Should Be 'UserOnly'
+    }
+
+    It 'fails an uninstall with the code and winget''s last line' {
+        $w.Codes = @{ 'A.Bad' = -1978335226 }; $w.Out = @{ 'A.Bad' = @('Uninstall failed with exit code: 1603', '  -  ') }
+        { Uninstall-AkariWingetPackage 'A.Bad' } | Should Throw 'winget could not uninstall A.Bad (0x8A150006): Uninstall failed with exit code: 1603'
+    }
+
+    It 'updates every app in one call, pinned ones left to winget' {
+        $w.Codes = @{}; $w.Out = @{ upgrade = @('Found Steam [Valve.Steam] Version 2', '  -  ', 'Successfully installed') }
+        Update-AkariWingetPackages | Should Be 'Updated'
+        $w.Calls[-1] | Should Be 'upgrade --all --include-unknown --silent --accept-package-agreements --accept-source-agreements --disable-interactivity'
+        $log = $LogQueue.ToArray()
+        ($log -contains 'winget: Found Steam [Valve.Steam] Version 2') | Should Be $true
+        ($log -contains 'winget:   -  ') | Should Be $false
+    }
+
+    It 'counts nothing to update and a wanted restart as done' {
+        $w.Out = @{}; $w.Codes = @{ upgrade = -1978335189 }
+        Update-AkariWingetPackages | Should Be 'UpToDate'
+        $w.Codes = @{ upgrade = 3010 }
+        Update-AkariWingetPackages | Should Be 'Restart'
+    }
+
+    It 'fails the update with the code and winget''s last line' {
+        $w.Codes = @{ upgrade = -1978335188 }; $w.Out = @{ upgrade = @('2 package(s) failed to upgrade.') }
+        { Update-AkariWingetPackages } | Should Throw 'winget could not update every app (0x8A15002C): 2 package(s) failed to upgrade.'
+    }
+
+    It 'reads winget''s list of installed apps as lines' {
+        $w.Codes = @{}; $w.Out = @{ list = @('Name  Id  Version', 'Steam  Valve.Steam  2') }
+        @(Get-AkariWingetList).Count | Should Be 2
+        $w.Calls[-1] | Should Be 'list --accept-source-agreements --disable-interactivity'
+        $w.Codes = @{ list = -1978335212 }
+        @(Get-AkariWingetList).Count | Should Be 0
+    }
+
+    It 'finds the ids that stand as a column of their own in that list' {
+        $lines = 'Name                Id                    Version  Source',
+                 '------------------------------------------------------',
+                 'Steam               Valve.Steam           2.10     winget',
+                 'Git Extensions Git  GitExtensionsTeam.Git 4.0      winget',
+                 'Brave               brave.brave           1.60',
+                 'WhatsApp            9NKSQGP7F2NH          2.24     msstore',
+                 'Chrome Google.Chrome.EXE 120 winget'
+        $found = @(Get-AkariInstalledIds $lines @('Valve.Steam', 'Git.Git', 'Brave.Brave', '9NKSQGP7F2NH', 'Google.Chrome.EXE', 'Google.Chrome', 'Mozilla.Firefox'))
+        ($found -join ',') | Should Be 'Valve.Steam,Brave.Brave,9NKSQGP7F2NH,Google.Chrome.EXE'
+        @(Get-AkariInstalledIds @() @('Valve.Steam')).Count | Should Be 0
+    }
+
+    Context 'winget missing' {
+        Mock Invoke-AkariWinget { throw 'winget is not available' }
+        It 'has an empty list when winget is missing' { @(Get-AkariWingetList).Count | Should Be 0 }
+    }
+}
+
+Describe 'Uninstall-AkariApp and the installed apps' {
+    $AkariStatePath = "$TestDrive\state.json"
+    foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Winget', 'Runner') { . "$Root\Core\$f.ps1" }
+    $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
+    $u = @{ Calls = [Collections.Generic.List[string]]::new(); Results = @{}; List = @() }
+    Mock Uninstall-AkariWingetPackage {
+        $u.Calls.Add("$Id $Source")
+        $r = if ($u.Results.ContainsKey($Id)) { $u.Results[$Id] } else { 'Uninstalled' }
+        if ($r -like 'throw*') { throw $r.Substring(6) }
+        $r
+    }
+    Mock Get-AkariWingetList { $u.List }
+    Set-Content "$TestDrive\T.ps1" '@{}'
+    function New-App([string]$Id, $More) {
+        ConvertTo-AkariTweak (@{ Id = $Id; Name = $Id; Section = 'Apps'; Category = 'Install'; Kind = 'Action' } + $More) "$TestDrive\T.ps1" $false
+    }
+
+    It 'uninstalls every id of the app, last first' {
+        $o = Uninstall-AkariApp (New-App 'two' @{ Winget = 'A.One', 'A.Two' })
+        "$($o.Outcome) $($o.Mode) $($o.Reboot)" | Should Be 'Reverted Revert False'
+        ($u.Calls -join ',') | Should Be 'A.Two winget,A.One winget'
+    }
+
+    It 'uninstalls a Store app from the msstore source' {
+        $u.Calls.Clear()
+        (Uninstall-AkariApp (New-App 'store' @{ Winget = '9TESTSTOREID'; WingetSource = 'msstore' })).Outcome | Should Be 'Reverted'
+        $u.Calls[0] | Should Be '9TESTSTOREID msstore'
+    }
+
+    It 'asks for a restart when winget says so' {
+        $u.Results = @{ 'A.One' = 'Restart' }
+        (Uninstall-AkariApp (New-App 'r' @{ Winget = 'A.One' })).Reboot | Should Be $true
+    }
+
+    It 'is Already when nothing of it is installed' {
+        $u.Results = @{ 'A.One' = 'Missing'; 'A.Two' = 'Missing' }
+        $o = Uninstall-AkariApp (New-App 'gone' @{ Winget = 'A.One', 'A.Two' })
+        "$($o.Outcome): $($o.Message)" | Should Be 'Already: not installed'
+    }
+
+    It 'skips a per-user install, pointing at Windows' {
+        $u.Results = @{ 'A.One' = 'UserOnly' }
+        $o = Uninstall-AkariApp (New-App 'user' @{ Winget = 'A.One' })
+        "$($o.Outcome): $($o.Message)" | Should Be "Skipped: installed for this user only: uninstall it from Windows' Installed apps"
+    }
+
+    It 'goes on after an id fails, and fails with its message' {
+        $u.Calls.Clear(); $u.Results = @{ 'A.Two' = 'throw winget could not uninstall A.Two (0x8A150006): no' }
+        $o = Uninstall-AkariApp (New-App 'bad' @{ Winget = 'A.One', 'A.Two' })
+        "$($o.Outcome): $($o.Message)" | Should Be 'Failed: winget could not uninstall A.Two (0x8A150006): no'
+        $u.Calls.Count | Should Be 2
+    }
+
+    It 'never uninstalls an app with no winget id or with its own removal' {
+        $u.Calls.Clear()
+        $o = Uninstall-AkariApp (New-App 'file' @{ Apply = { }; Detect = { $true } })
+        "$($o.Outcome): $($o.Message)" | Should Be "Skipped: not installed with winget: uninstall it from Windows' Installed apps"
+        $o = Uninstall-AkariApp (New-App 'edge' @{ Winget = 'A.One'; RemoveWith = 'remove-edge' })
+        "$($o.Outcome): $($o.Message)" | Should Be 'Skipped: has its own removal: use Remove apps'
+        $u.Calls.Count | Should Be 0
+    }
+
+    It 'lists the installs on this PC: every winget id in the list, or its own Detect' {
+        $u.List = 'Name  Id  Version', 'One  A.One  1', 'Two  A.Two  1', 'Three  A.Three  1'
+        $apps = @(
+            (New-App 'both' @{ Winget = 'A.One', 'A.Two' }), (New-App 'half' @{ Winget = 'A.One', 'A.Nine' }), (New-App 'none' @{ Winget = 'A.Nine' }),
+            (New-App 'there' @{ Apply = { }; Detect = { $true } }), (New-App 'notthere' @{ Apply = { }; Detect = { $false } }),
+            (New-App 'broken' @{ Apply = { }; Detect = { throw 'no' } }), (New-App 'blind' @{ Apply = { } })
+        )
+        (@(Get-AkariInstalledApps $apps) -join ',') | Should Be 'both,there'
+    }
+
+    It 'marks the installs that have their own removal, and ships Update all apps' {
+        $r = Get-AkariTweaks "$Root\Tweaks"
+        @($r.Problems | Where-Object { $_.Level -eq 'Error' }).Count | Should Be 0
+        $with = @($r.Tweaks | Where-Object { $_.RemoveWith } | Sort-Object Id | ForEach-Object { "$($_.Id)=$($_.RemoveWith)" })
+        ($with -join ',') | Should Be 'install-microsoft-edge=remove-edge,install-onedrive=remove-onedrive,install-remote-desktop-connection=remove-remote-desktop-connection,install-snipping-tool-legacy=remove-snipping-tool-legacy,install-webview2-runtime=remove-webview2'
+        foreach ($id in @($r.Tweaks | Where-Object { $_.RemoveWith } | ForEach-Object { $_.RemoveWith })) { @($r.Tweaks | Where-Object { $_.Id -eq $id }).Count | Should Be 1 }
+        $up = $r.Tweaks | Where-Object { $_.Id -eq 'tools-update-apps' }
+        "$($up.Section)/$($up.Category) $($up.Kind) $([bool]$up.AkariOS)" | Should Be 'Tools/Setup Action False'
+        "$($up.Apply)".Trim() | Should Be 'Update-AkariWingetPackages | Out-Null'
+    }
+}
+
 Describe 'AppSetup' {
     foreach ($f in 'Log', 'Registry', 'AppSetup') { . "$Root\Core\$f.ps1" }
     $k = "HKCU:\Software\AkariTest\$([guid]::NewGuid())"

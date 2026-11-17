@@ -188,7 +188,7 @@ public sealed class InstallPage
                 0 => Apps.View(_query, AppFlow ? flow.Tab : ""),
                 1 => Tweaks.View(_query),
                 2 => ReviewStep.Review(Selection.Values, s.Engine.Find),
-                _ => ReviewStep.Result(Outcomes, s.Engine.Find),
+                _ => ReviewStep.Result(Outcomes, s.Engine.Find, Uninstalled),
             };
         }
         if (_root.Child != body)
@@ -215,12 +215,76 @@ public sealed class InstallPage
     /// the PC last), after the session's restore point; Windows refusing it asks whether to go on without one.</summary>
     public void Apply(bool skipRestore = false)
     {
-        if (Running || Selection.Count == 0) return;
-        if (s.Catalogue is { Running: true }) { s.Dialogs?.Message("A change from Optimize is still running. Apply these when it is done."); return; }
-        if (s.Iso is { Running: true }) { s.Dialogs?.Message("The ISO Builder is still working. Apply these when it is done.", "Info", IsoPage.Title); return; }
+        if (Running || Selection.Count == 0 || !Free()) return;
         var plan = Core.Tweaks.Selection.PlanItems(Selection.Values);
-        var restore = !skipRestore && s.RestoreChoice(Mode);
-        var label = $"Applying {plan.Count} change{(plan.Count == 1 ? "" : "s")}";
+        Run(plan, !skipRestore && s.RestoreChoice(Mode), $"Applying {plan.Count} change{(plan.Count == 1 ? "" : "s")}");
+    }
+
+    // nothing else is changing the PC (a Catalogue change, the ISO Builder); says so when something is
+    private bool Free()
+    {
+        if (s.Catalogue is { Running: true }) { s.Dialogs?.Message("A change from Optimize is still running. Apply these when it is done."); return false; }
+        if (s.Iso is { Running: true }) { s.Dialogs?.Message("The ISO Builder is still working. Apply these when it is done.", "Info", IsoPage.Title); return false; }
+        return true;
+    }
+
+    // ---- Downloads' own buttons (after Chris Titus Tech's winutil, MIT: Invoke-WPFInstallUpgrade, Invoke-WPFUnInstall).
+    // They act right away, in the background, with no restore point (as the installs).
+
+    /// <summary>The result screen shows an uninstall: its Reverted Outcomes read "Uninstalled".</summary>
+    public bool Uninstalled { get; private set; }
+
+    /// <summary>Show installed was asked for this session: a Downloads page built later reads its marks again.</summary>
+    public bool ShowInstalled { get; set; }
+
+    /// <summary>Start-AkariUpdateApps: the Tools Tweak tools-update-apps (one "winget upgrade --all") alone, asked
+    /// with its own Confirm.</summary>
+    public void UpdateApps()
+    {
+        if (Running || s.Engine.Find("tools-update-apps") is not { } t || !Free()) return;
+        if (!string.IsNullOrEmpty(t.Confirm) && s.Dialogs?.Confirm(t.Confirm, "Update all", "Cancel", "Question", t.Name) != true) return;
+        Run([new Core.Runs.PlanItem(t.Id, TweakMode.Apply)], restore: false, "Updating all apps");
+    }
+
+    /// <summary>Start-AkariUninstall: the checked installs, asked first with their names (those winget can't
+    /// uninstall here listed apart), then uninstalled one by one in the background and shown on the result step.</summary>
+    public void Uninstall()
+    {
+        if (Running) return;
+        var picked = Apps.PickedInstalls();
+        if (picked.Count == 0 || !Free()) return;
+        var (text, count) = Core.Tweaks.Selection.UninstallText(picked);
+        if (count == 0) { s.Dialogs?.Message(text, "Info", "Uninstall"); return; }
+        if (s.Dialogs?.Confirm(text, "Uninstall", "Cancel", "Question", "Uninstall") != true) return;
+        var label = $"Uninstalling {picked.Count} app{(picked.Count == 1 ? "" : "s")}";
+        Running = true;
+        s.Shell.SetBusy(true, label);
+        s.Log.Write(label);
+        UpdateFooter();
+        var progress = new Posted(s, p => s.Shell.SetProgress(p.Done, p.Total, p.Step));
+        s.Background(() =>
+        {
+            var outcomes = new List<Core.Runs.Outcome>();
+            for (var i = 0; i < picked.Count; i++)
+            {
+                progress.Report(new Core.Runs.RunProgress(i, picked.Count, picked[i].Name));
+                try { outcomes.Add(Core.Apps.AppKinds.Uninstall(picked[i], s.Engine.Context)); }
+                catch (Exception e) { outcomes.Add(new Core.Runs.Outcome(picked[i].Id, TweakMode.Revert, Core.Runs.OutcomeKind.Failed, false, e.Message)); }
+            }
+            return outcomes;
+        }, r =>
+        {
+            Running = false;
+            s.Shell.SetBusy(false);
+            Outcomes = r as IReadOnlyList<Core.Runs.Outcome> ?? [];
+            Uninstalled = true;
+            Go(Mode, 3);
+        });
+    }
+
+    // one Run of these items in the background (locked, its progress in the status bar), then the result step
+    private void Run(IReadOnlyList<Core.Runs.PlanItem> plan, bool restore, string label)
+    {
         Running = true;
         s.Shell.SetBusy(true, label);
         s.Log.Write(label);
@@ -256,6 +320,7 @@ public sealed class InstallPage
             return;
         }
         Outcomes = outcomes;
+        Uninstalled = false;
         // Last used (Quick select): what a Guided Run was asked to do (not the apps flows)
         if (Mode == "Guided")
             try { s.Engine.Presets.SaveLastUsed(plan); }
@@ -279,6 +344,7 @@ public sealed class InstallPage
     {
         Selection.Clear();
         Outcomes = [];
+        Uninstalled = false;
         Tweaks = NewTweaks();
         Apps = NewApps();
         _root.Child = null;

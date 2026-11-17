@@ -43,10 +43,10 @@ public static class ReviewStep
 
     /// <summary>The result screen (Show-AkariResult): the counts, "Restart Windows to finish." when needed, a row per
     /// Outcome with its message.</summary>
-    public static StackPanel Result(IReadOnlyList<Outcome> outcomes, Func<string, Tweak?> find)
+    public static StackPanel Result(IReadOnlyList<Outcome> outcomes, Func<string, Tweak?> find, bool uninstall = false)
     {
         var panel = new StackPanel();
-        var (text, reboot) = Selection.RunSummary(outcomes);
+        var (text, reboot) = Selection.RunSummary(outcomes, uninstall);
         var head = Parts.Text(text, 14);
         head.Margin = new Thickness(0, 0, 0, 12);
         panel.Children.Add(head);
@@ -58,7 +58,8 @@ public static class ReviewStep
         }
         foreach (var o in outcomes)
         {
-            var line = o.Message.Length > 0 ? $"{o.Kind}: {o.Message}" : o.Kind.ToString();
+            var kind = Selection.OutcomeLabel(o.Kind, uninstall);
+            var line = o.Message.Length > 0 ? $"{kind}: {o.Message}" : kind;
             var (icon, brush) = o.Kind switch
             {
                 OutcomeKind.Applied or OutcomeKind.Reverted => ("circle-check", "Ok"),

@@ -68,6 +68,54 @@ function Invoke-AkariTweak($Tweak, [ValidateSet('Apply', 'Revert')][string]$Mode
     New-AkariOutcome $Tweak.Id $Mode $done $Tweak.Reboot
 }
 
+# Uninstalls an app the Downloads page installs (after Chris Titus Tech's winutil, MIT: Invoke-WPFUnInstall): every
+# winget id of the Tweak, last first, going on after one fails. Not a Revert (an Action has none): its own Outcome,
+# Reverted = uninstalled, Already = not installed, Skipped = nothing winget may uninstall here (no winget id, a per-user
+# install, or RemoveWith: the app has its own removal under Remove apps). Nothing an install added is undone.
+function Uninstall-AkariApp($Tweak) {
+    $skip = if ($Tweak.RemoveWith) { 'has its own removal: use Remove apps' }
+            elseif (-not $Tweak.Winget) { "not installed with winget: uninstall it from Windows' Installed apps" }
+    if ($skip) {
+        Write-Log "Skipped: $($Tweak.Name) ($skip)"
+        return New-AkariOutcome $Tweak.Id 'Revert' 'Skipped' $false $skip
+    }
+    $src = if ($Tweak.WingetSource) { [string]$Tweak.WingetSource } else { 'winget' }
+    $ids = @($Tweak.Winget)
+    $got = @(); $errors = @()
+    for ($i = $ids.Count - 1; $i -ge 0; $i--) {
+        try { $got += Uninstall-AkariWingetPackage $ids[$i] $src } catch { $errors += $_.Exception.Message }
+    }
+    if ($errors.Count) {
+        Write-Log "Failed: $($Tweak.Name): $($errors -join '; ')"
+        return New-AkariOutcome $Tweak.Id 'Revert' 'Failed' $false ($errors -join '; ')
+    }
+    if ($got -contains 'Uninstalled' -or $got -contains 'Restart') {
+        Write-Log "Uninstalled: $($Tweak.Name)"
+        return New-AkariOutcome $Tweak.Id 'Revert' 'Reverted' ($got -contains 'Restart')
+    }
+    if ($got -contains 'UserOnly') {
+        $skip = "installed for this user only: uninstall it from Windows' Installed apps"
+        Write-Log "Skipped: $($Tweak.Name) ($skip)"
+        return New-AkariOutcome $Tweak.Id 'Revert' 'Skipped' $false $skip
+    }
+    Write-Log "Already: $($Tweak.Name) (not installed)"
+    New-AkariOutcome $Tweak.Id 'Revert' 'Already' $false 'not installed'
+}
+
+# the ids of the app installs in $Tweaks that are on this PC (the Downloads page's "Show installed"): every winget id
+# of the Tweak in winget's list (read once), else its own Detect; an install with neither is never listed. A hint only.
+function Get-AkariInstalledApps($Tweaks) {
+    $apps = @($Tweaks | Where-Object { -not $_.Group })
+    $have = @{}
+    foreach ($id in @(Get-AkariInstalledIds @(Get-AkariWingetList) @($apps | ForEach-Object { $_.Winget } | Where-Object { $_ }))) { $have[$id] = $true }
+    foreach ($t in $apps) {
+        $on = if ($t.Winget) { -not @(@($t.Winget) | Where-Object { -not $have.ContainsKey($_) }).Count }
+              elseif ($t.Detect) { try { [bool](& ([scriptblock]::Create($t.Detect.ToString()))) } catch { $false } }
+              else { $false }
+        if ($on) { $t.Id }
+    }
+}
+
 # runs one of a tweak's blocks (Apply, Revert, After, Prepare), its output logged; it sees the caller's $AkariTweakDir
 # (and a block Choice's $AkariValue) and $AkariMode. Rebuilt from text, so a block loaded in another runspace never runs in that runspace's session state.
 # Cmdlet errors stop it (-ErrorAction Stop by default) and throw to the caller; a native tool's stderr (reg.exe,

@@ -12,6 +12,9 @@ namespace AkariOS.App.Pages;
 public sealed class AppRow(Tweak tweak, bool installed, Grid row, CheckBox box)
 {
     public Tweak Tweak { get; } = tweak;
+
+    /// <summary>An install's "Installed on this PC" mark (Show installed); a removal has none.</summary>
+    public FrameworkElement? Mark { get; init; }
     public bool Installed { get; } = installed;
     public Grid Row { get; } = row;
     public CheckBox Box { get; } = box;
@@ -51,7 +54,7 @@ public sealed class AppsStep(AppServices s, IDictionary<string, Pending> sel, Ac
     private sealed class Ui
     {
         public required StackPanel Tabs, RemoveBar, InstallBar, RemoveTables, InstallTables, Legend;
-        public required Button RemoveTab, InstallTab;
+        public required Button RemoveTab, InstallTab, Uninstall, UpdateAll, ShowInstalled;
         public Button? Quick;
         public required Table Capabilities, Features;
         public required TextBlock Status;
@@ -104,8 +107,40 @@ public sealed class AppsStep(AppServices s, IDictionary<string, Pending> sel, Ac
             ShowOnly();
             Filter(_query);
             if (_pendingPick is { } p) { _pendingPick = null; QuickSelect(p.Preset, p.Ids); }
+            // Downloads built anew after Show installed was asked for: its marks are read again
+            if (_only == "Install" && s.Install is { ShowInstalled: true }) ReadInstalled();
         });
     }
+
+    /// <summary>Show installed (after winutil's Get Installed): which installs are on this PC, read in the background
+    /// with the page still usable (one "winget list", the other apps' Detects), then their rows marked. Remembered for
+    /// the session, so a Downloads page built later shows its marks again. A hint only.</summary>
+    public void ReadInstalled()
+    {
+        if (_view is null || _readingInstalled || s.Shell.Busy) return;
+        if (s.Install is { } page) page.ShowInstalled = true;
+        _readingInstalled = true;
+        s.Shell.SetBusy(true, "Reading the installed apps", locked: false);
+        var installs = s.Engine.Loaded.Tweaks.Where(t => t.Section == "Apps" && t.Category == "Install").ToList();
+        s.Background(() =>
+        {
+            try { return AppKinds.InstalledApps(installs, s.Engine.Context); }
+            catch (Exception e) { s.Log.Write($"Warning: the installed apps could not be read ({e.Message})"); return null; }
+        }, r =>
+        {
+            _readingInstalled = false;
+            s.Shell.SetBusy(false);
+            if (r is not IReadOnlyList<string> ids) return;
+            var have = ids.ToHashSet(StringComparer.Ordinal);
+            foreach (var row in _rows.Values)
+                if (row.Mark is { } mark) mark.Visibility = have.Contains(row.Tweak.Id) ? Visibility.Visible : Visibility.Collapsed;
+        });
+    }
+
+    private bool _readingInstalled;
+
+    /// <summary>The checked installs (Uninstall selected), in the page's order.</summary>
+    public IReadOnlyList<Tweak> PickedInstalls() => _rows.Values.Where(r => !r.Removal && r.Box.IsChecked == true).Select(r => r.Tweak).ToList();
 
     // Get-AkariAppsView's reads, off the UI thread: one package read (the removable ones, every name for the restore
     // card, the installed apps' logos) and the legacy apps' Detects
@@ -178,6 +213,12 @@ public sealed class AppsStep(AppServices s, IDictionary<string, Pending> sel, Ac
 
         var installBar = Bar();
         installBar.Children.Add(Button("Clear selection", "Uncheck every app to install", ClearInstalls));
+        // Downloads only (after Chris Titus Tech's winutil, MIT: Uninstall selected, Upgrade all, Get Installed): they
+        // act right away, in the background (InstallPage)
+        var uninstall = Button("Uninstall selected", "Uninstall the checked apps with winget, after asking", () => s.Install?.Uninstall());
+        var updateAll = Button("Update all apps", "Update every app winget knows a newer version of", () => s.Install?.UpdateApps());
+        var showInstalled = Button("Show installed", "Mark the apps of this list that are on this PC", ReadInstalled);
+        foreach (var b in new[] { uninstall, updateAll, showInstalled }) installBar.Children.Add(b);
         view.Children.Add(installBar);
 
         // Remove: four sections; the two feature ones say "Reading…" until their background read is done
@@ -223,7 +264,7 @@ public sealed class AppsStep(AppServices s, IDictionary<string, Pending> sel, Ac
         _p = new Ui
         {
             Tabs = tabs, RemoveBar = removeBar, InstallBar = installBar, RemoveTables = removeTables, InstallTables = installTables, Legend = legend,
-            RemoveTab = removeTab, InstallTab = installTab, Quick = quick, Capabilities = caps, Features = feats, Status = status,
+            RemoveTab = removeTab, InstallTab = installTab, Uninstall = uninstall, UpdateAll = updateAll, ShowInstalled = showInstalled, Quick = quick, Capabilities = caps, Features = feats, Status = status,
         };
         _view = view;
         UpdateStatus();
@@ -235,6 +276,8 @@ public sealed class AppsStep(AppServices s, IDictionary<string, Pending> sel, Ac
         if (_p is null) return;
         _p.Tabs.Visibility = _only.Length > 0 ? Visibility.Collapsed : Visibility.Visible;
         if (_p.Quick is not null) _p.Quick.Visibility = _only.Length > 0 ? Visibility.Collapsed : Visibility.Visible;
+        // Downloads' own buttons: not on Guided's Install tab, whose picks wait for Review & Apply
+        _p.Uninstall.Visibility = _p.UpdateAll.Visibility = _p.ShowInstalled.Visibility = _only == "Install" ? Visibility.Visible : Visibility.Collapsed;
         ShowTab(_only.Length > 0 ? _only : Tab);
     }
 
@@ -357,11 +400,23 @@ public sealed class AppsStep(AppServices s, IDictionary<string, Pending> sel, Ac
         var box = new CheckBox { Tag = t.Id, VerticalAlignment = VerticalAlignment.Center };
         box.SetResourceReference(FrameworkElement.StyleProperty, "Check");
         g.Children.Add(box);
+        FrameworkElement? mark = null;
         if (AppLists.IsRemoval(t))
         {
             var dot = RiskMark(t.Risk);
             System.Windows.Controls.Grid.SetColumn(dot, 1);
             g.Children.Add(dot);
+        }
+        else
+        {
+            // an install: the "on this PC" mark, shown by Show installed
+            mark = Icons.Make("circle-check", 14, "Ok");
+            mark.ToolTip = "Installed on this PC";
+            mark.HorizontalAlignment = HorizontalAlignment.Left;
+            mark.VerticalAlignment = VerticalAlignment.Center;
+            mark.Visibility = Visibility.Collapsed;
+            System.Windows.Controls.Grid.SetColumn(mark, 1);
+            g.Children.Add(mark);
         }
         var icon = AppIcons.Make(t, _logos);
         System.Windows.Controls.Grid.SetColumn(icon, 2);
@@ -377,7 +432,7 @@ public sealed class AppsStep(AppServices s, IDictionary<string, Pending> sel, Ac
         var pkg = Cell(src, 5, "Ter", 12);
         pkg.ToolTip = item.Installed ? src : $"{src} (not on this PC)";
         g.Children.Add(pkg);
-        var row = new AppRow(t, item.Installed, g, box);
+        var row = new AppRow(t, item.Installed, g, box) { Mark = mark };
         box.Click += (_, _) => Step(row);
         return row;
     }
@@ -444,6 +499,7 @@ public sealed class AppsStep(AppServices s, IDictionary<string, Pending> sel, Ac
         {
             var (rm, inst) = Counts();
             _p.Status.Text = $"{rm} to remove, {inst} to install";
+            _p.Uninstall.IsEnabled = inst > 0;
         }
         changed();
     }

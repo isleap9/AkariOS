@@ -20,6 +20,7 @@ $tweaks = foreach ($t in $r.Tweaks) {
         Requires = @($t.Requires | Where-Object { $_ } | ForEach-Object { [string]$_ })
         Winget = @($t.Winget | Where-Object { $_ } | ForEach-Object { [string]$_ })
         WingetSource = Get-Text $t.WingetSource; AppType = Get-Text $t.AppType; StoreId = Get-Text $t.StoreId
+        RemoveWith = Get-Text $t.RemoveWith
         Group = Get-Text $t.Group; Package = Get-Text $t.Package
         Rows = @($t.Registry).Where({ $null -ne $_ }).Count
         Choices = @($t.Choices).Where({ $null -ne $_ }).Count

@@ -11,4 +11,5 @@
     Risk        = 'Safe'
     Description = 'Brings OneDrive back after a debloat: Microsoft''s cloud file sync.'
     Winget      = 'Microsoft.OneDrive'
+    RemoveWith  = 'remove-onedrive'
 }
