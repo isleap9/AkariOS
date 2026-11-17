@@ -120,8 +120,7 @@
         </Setter.Value>
       </Setter>
     </Style>
-    <!-- Primary button: the crimson pill (Acc, AccT text) with the lamp glow under it (its own cached layer, so the
-         fades never redraw the shadow); AccH on hover, AccP pressed. -->
+    <!-- Primary button: the accent pill (Acc, AccT text), no glow (ADR 0008); AccH on hover, AccP pressed. -->
     <Style x:Key="BtnP" TargetType="Button" BasedOn="{StaticResource Btn}">
       <Setter Property="Background" Value="{DynamicResource Acc}"/>
       <Setter Property="Foreground" Value="{DynamicResource AccT}"/>
@@ -131,12 +130,7 @@
           <ControlTemplate TargetType="Button">
             <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
               <Grid.RenderTransform><ScaleTransform/></Grid.RenderTransform>
-              <Border x:Name="Glow" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="18">
-                <Border.CacheMode><BitmapCache/></Border.CacheMode>
-                <Border.Effect>
-                  <DropShadowEffect Color="{DynamicResource AccC}" BlurRadius="24" ShadowDepth="8" Direction="270" Opacity="0.35"/>
-                </Border.Effect>
-              </Border>
+              <Border x:Name="B" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="18"/>
               <Border x:Name="H" CornerRadius="18" Background="{DynamicResource AccH}" Opacity="0"/>
               <Border x:Name="P" CornerRadius="18" Background="{DynamicResource AccP}" Opacity="0"/>
               <Border BorderThickness="1" Padding="{TemplateBinding Padding}">
@@ -182,7 +176,6 @@
               </Trigger>
               <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Opacity" Value="0.4"/>
-                <Setter TargetName="Glow" Property="Effect" Value="{x:Null}"/>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>

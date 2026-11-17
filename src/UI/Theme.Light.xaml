@@ -1,42 +1,54 @@
 <!-- AkariOS light theme: every brush the UI uses, swapped as a whole by Set-AkariTheme (UI\Shell.ps1).
-     Values from the AkariOS design system (tokens.json); keep Theme.Dark.xaml and Theme.Light.xaml on the same keys. -->
+     Windows 11's (WinUI 3) colours, plan docs/plans/2026-11-17-windows-11-style.md (ADR 0008); keep Theme.Dark.xaml and
+     Theme.Light.xaml on the same keys. Acc, AccH, AccP, AccT, AccText, AccSoft and Info are the default-blue fallbacks:
+     Set-AkariAccent puts the user's Windows accent in their place. -->
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <SolidColorBrush x:Key="Bg"       Color="#F8F3F1"/> <!-- window body (solid: Windows 10, light theme, no Mica) -->
-  <SolidColorBrush x:Key="Tint"     Color="#E6F8F3F1"/> <!-- window body over Mica: Bg at 90% -->
-  <SolidColorBrush x:Key="Surf"     Color="#FFFDFC"/> <!-- the page panel -->
-  <SolidColorBrush x:Key="S1"       Color="#FFFFFF"/> <!-- cards -->
-  <SolidColorBrush x:Key="S2"       Color="#FFFFFF"/> <!-- raised: dialogs, menus, drop-downs -->
-  <SolidColorBrush x:Key="Bd"       Color="#EADFDC"/> <!-- 1 px hairlines -->
-  <SolidColorBrush x:Key="Tx"       Color="#1A1213"/> <!-- primary text -->
-  <SolidColorBrush x:Key="Mu"       Color="#6B5D5C"/> <!-- secondary text, unchecked strokes -->
-  <SolidColorBrush x:Key="Ter"      Color="#7A6C6A"/> <!-- 12 px+ labels: version, ids, notes -->
-  <SolidColorBrush x:Key="Acc"      Color="#C8102E"/> <!-- Akari crimson: primary buttons, on switches, checks, selection, progress -->
-  <SolidColorBrush x:Key="AccH"     Color="#B00D27"/> <!-- crimson on hover -->
-  <SolidColorBrush x:Key="AccP"     Color="#940A20"/> <!-- crimson pressed -->
-  <SolidColorBrush x:Key="AccT"     Color="#FFFFFF"/> <!-- text and marks on Acc -->
-  <SolidColorBrush x:Key="AccText"  Color="#B00D27"/> <!-- crimson as text or icon on Bg / S1 / S2 -->
-  <SolidColorBrush x:Key="AccSoft"  Color="#14C8102E"/> <!-- crimson tint: selected rows, icon blobs -->
-  <SolidColorBrush x:Key="Glow"     Color="#2EC8102E"/> <!-- the lamp glow behind the hero -->
-  <SolidColorBrush x:Key="Focus"    Color="#B00D27"/> <!-- 2 px keyboard focus ring -->
-  <SolidColorBrush x:Key="Warn"     Color="#9A5B00"/> <!-- Risk (amber): Caution outline, Advanced solid -->
-  <SolidColorBrush x:Key="WarnT"    Color="#FFFFFF"/> <!-- text on solid Warn -->
-  <SolidColorBrush x:Key="WarnSoft" Color="#149A5B00"/> <!-- Caution badge fill -->
-  <SolidColorBrush x:Key="Bad"      Color="#B3261E"/> <!-- failed Outcomes -->
-  <SolidColorBrush x:Key="Ok"       Color="#17803D"/> <!-- ready, succeeded -->
-  <SolidColorBrush x:Key="Ctl"      Color="#FFFFFF"/> <!-- control fill at rest -->
-  <SolidColorBrush x:Key="CtlH"     Color="#FAF5F4"/> <!-- control fill on hover -->
-  <SolidColorBrush x:Key="CtlP"     Color="#F1EAE8"/> <!-- control fill pressed -->
-  <SolidColorBrush x:Key="CtlBd"    Color="#DDD1CE"/> <!-- 1 px control stroke -->
-  <SolidColorBrush x:Key="Line"     Color="#731A1213"/> <!-- text box underline, scrollbar thumb -->
+  <SolidColorBrush x:Key="Bg"       Color="#F3F3F3"/> <!-- window body without Mica (Windows 10), the dialog's button strip -->
+  <SolidColorBrush x:Key="Tint"     Color="#D9F3F3F3"/> <!-- window body over Mica: Bg at 85% -->
+  <SolidColorBrush x:Key="Surf"     Color="#80FFFFFF"/> <!-- the content layer right of the navigation pane -->
+  <SolidColorBrush x:Key="S1"       Color="#B3FFFFFF"/> <!-- settings cards, expanders, tiles -->
+  <SolidColorBrush x:Key="S1Alt"    Color="#80F6F6F6"/> <!-- nested rows inside an expanded settings expander -->
+  <SolidColorBrush x:Key="S2"       Color="#F9F9F9"/> <!-- flyouts, menus, drop-downs, dialogs -->
+  <SolidColorBrush x:Key="Bd"       Color="#0F000000"/> <!-- 1 px card stroke -->
+  <SolidColorBrush x:Key="Div"      Color="#0F000000"/> <!-- dividers between rows, the content layer's edge -->
+  <SolidColorBrush x:Key="Fly"      Color="#0F000000"/> <!-- 1 px stroke of flyouts, menus, dialogs -->
+  <SolidColorBrush x:Key="Tx"       Color="#E4000000"/> <!-- primary text and icons -->
+  <SolidColorBrush x:Key="Mu"       Color="#9E000000"/> <!-- secondary text: descriptions, the status line, icons in rows -->
+  <SolidColorBrush x:Key="Ter"      Color="#8F000000"/> <!-- tertiary text (12 px+): ids, versions, placeholders -->
+  <SolidColorBrush x:Key="TxDis"    Color="#5C000000"/> <!-- disabled text and icons -->
+  <SolidColorBrush x:Key="Acc"      Color="#0067C0"/> <!-- accent fill: primary buttons, on toggles, checks, selection, progress (AccentDark1) -->
+  <SolidColorBrush x:Key="AccH"     Color="#E60067C0"/> <!-- accent on hover (90%) -->
+  <SolidColorBrush x:Key="AccP"     Color="#CC0067C0"/> <!-- accent pressed (80%) -->
+  <SolidColorBrush x:Key="AccT"     Color="#FFFFFF"/> <!-- text and glyphs on Acc / AccH / AccP -->
+  <SolidColorBrush x:Key="AccText"  Color="#003E92"/> <!-- accent as text: links, the selected nav icon (AccentDark2) -->
+  <SolidColorBrush x:Key="AccSoft"  Color="#1A0067C0"/> <!-- selected rows, icon tiles: the accent at 10% -->
+  <SolidColorBrush x:Key="Focus"    Color="#E4000000"/> <!-- keyboard focus: the 2 px outer ring -->
+  <SolidColorBrush x:Key="FocusIn"  Color="#B3FFFFFF"/> <!-- keyboard focus: the 1 px inner ring -->
+  <SolidColorBrush x:Key="Sub"      Color="#09000000"/> <!-- subtle buttons, nav items, menu rows on hover; the selected nav item -->
+  <SolidColorBrush x:Key="SubP"     Color="#06000000"/> <!-- subtle buttons and nav items pressed -->
+  <SolidColorBrush x:Key="Ctl"      Color="#B3FFFFFF"/> <!-- control fill at rest; toggle track when off -->
+  <SolidColorBrush x:Key="CtlH"     Color="#80F9F9F9"/> <!-- control fill on hover -->
+  <SolidColorBrush x:Key="CtlP"     Color="#4DF9F9F9"/> <!-- control fill pressed -->
+  <SolidColorBrush x:Key="CtlBd"    Color="#0F000000"/> <!-- control stroke (top and sides) -->
+  <SolidColorBrush x:Key="CtlBd2"   Color="#29000000"/> <!-- control stroke, bottom edge -->
+  <SolidColorBrush x:Key="Line"     Color="#72000000"/> <!-- strong strokes: off toggle, unchecked boxes, text box underline -->
   <SolidColorBrush x:Key="InFocus"  Color="#FFFFFF"/> <!-- text box fill with keyboard focus -->
-  <SolidColorBrush x:Key="Tip"      Color="#1A1213"/> <!-- tooltip fill -->
-  <SolidColorBrush x:Key="TipBd"    Color="#331A1213"/> <!-- tooltip border -->
-  <SolidColorBrush x:Key="TipT"     Color="#FBF5F4"/> <!-- tooltip text -->
-  <SolidColorBrush x:Key="Track"    Color="#1A1A1213"/> <!-- progress and step tracks -->
-  <SolidColorBrush x:Key="Scrim"    Color="#661A1213"/> <!-- dims the window under a dialog -->
-  <SolidColorBrush x:Key="CloseH"   Color="#C42B1C"/> <!-- title bar close on hover (Windows red) -->
+  <SolidColorBrush x:Key="Warn"     Color="#9D5D00"/> <!-- caution: the risk badge, the InfoBar icon -->
+  <SolidColorBrush x:Key="WarnSoft" Color="#FFF4CE"/> <!-- caution InfoBar and badge background -->
+  <SolidColorBrush x:Key="WarnT"    Color="#FFFFFF"/> <!-- text on solid Warn -->
+  <SolidColorBrush x:Key="Bad"      Color="#C42B1C"/> <!-- critical: failed Outcomes, errors -->
+  <SolidColorBrush x:Key="BadSoft"  Color="#FDE7E9"/> <!-- error InfoBar background -->
+  <SolidColorBrush x:Key="Ok"       Color="#0F7B0F"/> <!-- success: Applied Outcomes, the ready dot -->
+  <SolidColorBrush x:Key="OkSoft"   Color="#DFF6DD"/> <!-- success InfoBar background -->
+  <SolidColorBrush x:Key="Info"     Color="#005FB7"/> <!-- informational InfoBar icon (follows AccText) -->
+  <SolidColorBrush x:Key="InfoSoft" Color="#80F6F6F6"/> <!-- informational InfoBar background -->
+  <SolidColorBrush x:Key="Tip"      Color="#F9F9F9"/> <!-- tooltip fill -->
+  <SolidColorBrush x:Key="TipBd"    Color="#0F000000"/> <!-- tooltip stroke -->
+  <SolidColorBrush x:Key="TipT"     Color="#E4000000"/> <!-- tooltip text -->
+  <SolidColorBrush x:Key="Track"    Color="#72000000"/> <!-- progress track (1 px) under the 3 px Acc bar -->
+  <SolidColorBrush x:Key="Scrim"    Color="#4D000000"/> <!-- dims the window under a dialog -->
+  <SolidColorBrush x:Key="CloseH"   Color="#C42B1C"/> <!-- title bar close on hover -->
   <SolidColorBrush x:Key="CloseP"   Color="#C83C30"/> <!-- title bar close pressed -->
   <SolidColorBrush x:Key="CloseT"   Color="#FFFFFF"/> <!-- close glyph on CloseH / CloseP -->
-  <Color x:Key="AccC">#C8102E</Color> <!-- Acc as a colour: the primary buttons' glow (DropShadowEffect) -->
 </ResourceDictionary>

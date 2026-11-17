@@ -212,6 +212,21 @@ function Get-AkariFonts([string]$Dir) {
 # a TextBlock (or control) in one of the window's fonts: Display (Unbounded), Text (Manrope) or Mono
 function Set-AkariFont($Block, [string]$Font) { $Block.SetResourceReference([Windows.Documents.TextElement]::FontFamilyProperty, "Font$Font") }
 
+# the accent brushes for a theme from Windows' AccentPalette (ADR 0008; pure): 32 bytes, 8 colours as R, G, B, A:
+# Light3, Light2, Light1, Base, Dark1, Dark2, Dark3, unused. Dark: Acc = Light2, AccText = Info = Light3, AccT black;
+# Light: Acc = Dark1, AccText = Info = Dark2, AccT white; AccH / AccP / AccSoft = Acc at 90 / 80 / 10%. Key ->
+# '#AARRGGBB'; $null when the palette is missing or short (the theme's default blue stays).
+function Get-AkariAccentColors($Palette, [string]$Theme) {
+    if ($null -eq $Palette -or @($Palette).Count -lt 28) { return $null }
+    $p = [byte[]]@($Palette)
+    $hex = { param([int]$i, [int]$a) '#{0:X2}{1:X2}{2:X2}{3:X2}' -f $a, $p[$i * 4], $p[$i * 4 + 1], $p[$i * 4 + 2] }
+    $acc, $text, $on = if ($Theme -eq 'Light') { 4, 5, '#FFFFFFFF' } else { 1, 0, '#FF000000' }
+    [ordered]@{
+        Acc = & $hex $acc 0xFF; AccH = & $hex $acc 0xE6; AccP = & $hex $acc 0xCC; AccSoft = & $hex $acc 0x1A
+        AccT = $on; AccText = & $hex $text 0xFF; Info = & $hex $text 0xFF
+    }
+}
+
 function New-AkariCategoryCard([string]$Title, [string]$Icon, [string]$Note) {
     $card = [Windows.Controls.Border]::new()
     $card.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'CategoryCard')

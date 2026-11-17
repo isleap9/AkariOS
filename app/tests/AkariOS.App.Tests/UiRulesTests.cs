@@ -35,8 +35,9 @@ public class UiRulesTests
     [Fact]
     public void No_colours_but_the_themes()
     {
+        // Look/Accent.cs makes the accent brushes from Windows' AccentPalette bytes (ADR 0008): colours from Windows, no literals
         var bad = Sources("*.cs", "*.xaml")
-            .Where(s => Regex.IsMatch(s.Text, @"""#[0-9A-Fa-f]{3,8}""|Color\.FromRgb|Color\.FromArgb|Brushes\.(?!Transparent)\w+"))
+            .Where(s => s.File != "Accent.cs" && Regex.IsMatch(s.Text, @"""#[0-9A-Fa-f]{3,8}""|Color\.FromRgb|Color\.FromArgb|Brushes\.(?!Transparent)\w+"))
             .Select(s => s.File).ToList();
         Assert.True(bad.Count == 0, "a colour outside Theme.Dark / Theme.Light: " + string.Join(", ", bad));
     }

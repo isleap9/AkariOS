@@ -60,7 +60,7 @@ public static class Parts
         return tb;
     }
 
-    /// <summary>A poster card (New-AkariModeCard): blob, title, text; Hot = the recommended one (crimson border, glow).</summary>
+    /// <summary>A poster card (New-AkariModeCard): blob, title, text; Hot = the recommended one (an accent border).</summary>
     public static Button ModeCard(string icon, string title, string text, bool enabled = true, bool hot = false)
     {
         var b = new Button { IsEnabled = enabled };
@@ -79,7 +79,7 @@ public static class Parts
         return b;
     }
 
-    /// <summary>A badge (New-AkariBadge): AkariOS (crimson tint), Caution (amber outline), Advanced (amber fill).</summary>
+    /// <summary>A badge (New-AkariBadge): AkariOS (accent tint), Caution (amber outline), Advanced (amber fill).</summary>
     public static Border Badge(string kind)
     {
         var (fg, bg, bd) = kind switch

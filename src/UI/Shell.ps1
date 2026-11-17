@@ -79,6 +79,24 @@ function Update-AkariLogo {
     if ($Logo) { $Logo.Source = $script:LogoCache[$name] }
 }
 
+# the user's Windows accent (ADR 0008): the real user's AccentPalette, $null when it can't be read
+function Get-AkariAccentPalette {
+    try { Get-AkariRegValue 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent' 'AccentPalette' } catch { $null }
+}
+
+# puts the accent brushes (Get-AkariAccentColors, UI\Cards.ps1) into the current theme dictionary: every Acc* brush
+# is a DynamicResource, so the window repaints. An unreadable palette keeps the theme file's default blue.
+function Set-AkariAccent {
+    if (-not $script:ThemeDict) { return }
+    $c = Get-AkariAccentColors (Get-AkariAccentPalette) $script:Theme
+    if (-not $c) { return }
+    foreach ($k in $c.Keys) {
+        $b = [Windows.Media.SolidColorBrush]::new([Windows.Media.ColorConverter]::ConvertFromString($c[$k]))
+        $b.Freeze()
+        $script:ThemeDict[$k] = $b
+    }
+}
+
 # $Theme: System, Dark or Light; -Save keeps it in settings.json
 function Set-AkariTheme([string]$Theme = 'System', [switch]$Save) {
     if ($Theme -notin $AkariThemes) { $Theme = 'System' }
@@ -86,8 +104,10 @@ function Set-AkariTheme([string]$Theme = 'System', [switch]$Save) {
     $d = Get-AkariXaml "$Root\UI\Theme.$name.xaml"
     $md = $window.Resources.MergedDictionaries
     if ($script:ThemeDict) { [void]$md.Remove($script:ThemeDict) }
-    $md.Insert(0, $d)
     $script:ThemeDict = $d; $script:ThemeSetting = $Theme; $script:Theme = $name
+    # the accent goes in before the dictionary is merged: one repaint
+    Set-AkariAccent
+    $md.Insert(0, $d)
     Update-AkariFrame
     Update-AkariLogo
     if ($Save) { Save-AkariThemeSetting $Theme }
@@ -155,12 +175,14 @@ $window.Add_SourceInitialized({
     }
     # the frame (dark or light) and the body over Mica, for the current theme
     Update-AkariFrame
-    # Theme = System: follow Windows when its app mode changes (WM_SETTINGCHANGE "ImmersiveColorSet")
+    # follow Windows: its app mode while Theme = System, and its accent always (WM_SETTINGCHANGE "ImmersiveColorSet",
+    # WM_DWMCOLORIZATIONCOLORCHANGED)
     try {
         [Windows.Interop.HwndSource]::FromHwnd($h).AddHook([Windows.Interop.HwndSourceHook] {
             param($hwnd, $msg, $wParam, $lParam, [ref]$handled)
-            if ($msg -eq 0x1A -and $script:ThemeSetting -eq 'System' -and $lParam -ne [IntPtr]::Zero -and
-                [Runtime.InteropServices.Marshal]::PtrToStringUni($lParam) -eq 'ImmersiveColorSet') { Set-AkariTheme 'System' }
+            $colors = ($msg -eq 0x1A -and $lParam -ne [IntPtr]::Zero -and [Runtime.InteropServices.Marshal]::PtrToStringUni($lParam) -eq 'ImmersiveColorSet')
+            if ($colors -and $script:ThemeSetting -eq 'System') { Set-AkariTheme 'System' }
+            elseif ($colors -or $msg -eq 0x320) { Set-AkariAccent }
             [IntPtr]::Zero
         })
     } catch { Write-ErrLog "Theme hook: $_" }

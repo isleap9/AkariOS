@@ -140,7 +140,7 @@ Describe 'Icons (UI\Icons.xaml, Lucide)' {
 }
 
 Describe 'Themes (UI\Theme.Dark.xaml, UI\Theme.Light.xaml)' {
-    # brushes, and the colours a DropShadowEffect needs (AccC)
+    # brushes (and any Color entry, should one come back)
     $keys = { param($f) $x = ([xml](Get-Content $f -Raw)).ResourceDictionary; @($x.SolidColorBrush) + @($x.Color) | Where-Object { $_ } | ForEach-Object { $_.Key } }
     $dark = @(& $keys "$Root\UI\Theme.Dark.xaml" | Sort-Object)
     $light = @(& $keys "$Root\UI\Theme.Light.xaml" | Sort-Object)
@@ -177,6 +177,47 @@ Describe 'Themes (UI\Theme.Dark.xaml, UI\Theme.Light.xaml)' {
     It 'have no Inv / InvT left (renamed Acc / AccT)' {
         $hits = Select-String -Path "$Root\UI\*.xaml", "$Root\UI\*.ps1" -Pattern "Resource Inv(T)?\}|'Inv(T)?'"
         @($hits).Count | Should Be 0
+    }
+
+    # ADR 0008: Windows 11's keys, no glow
+    It 'hold the Windows 11 keys and no Glow / AccC' {
+        foreach ($k in 'S1Alt', 'Div', 'Fly', 'TxDis', 'FocusIn', 'Sub', 'SubP', 'CtlBd2', 'OkSoft', 'BadSoft', 'Info', 'InfoSoft') { "$k $($dark -contains $k)" | Should Be "$k True" }
+        foreach ($k in 'Glow', 'AccC') { "$k $($dark -contains $k)" | Should Be "$k False" }
+        $app = Join-Path (Split-Path $Root) 'app\AkariOS.App'
+        $files = @(Get-ChildItem "$Root\UI" -Include *.ps1, *.xaml -Recurse) + @(Get-ChildItem $app -Include *.cs, *.xaml -Recurse | Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' })
+        $hits = Select-String -Path ($files | ForEach-Object FullName) -Pattern "Resource (Glow|AccC)\}|'(Glow|AccC)'|""(Glow|AccC)""|DropShadowEffect Color="
+        @($hits | ForEach-Object { "$($_.Filename):$($_.LineNumber)" }) -join ', ' | Should Be ''
+    }
+}
+
+Describe 'Accent (Get-AkariAccentColors, UI\Cards.ps1)' {
+    . "$Root\UI\Cards.ps1"
+    # Windows' default blue: Light3, Light2, Light1, Base, Dark1, Dark2, Dark3, unused (R, G, B, A each)
+    $blue = [byte[]](0x99,0xEB,0xFF,0, 0x4C,0xC2,0xFF,0, 0x00,0x91,0xF8,0, 0x00,0x78,0xD4,0, 0x00,0x67,0xC0,0, 0x00,0x3E,0x92,0, 0x00,0x1A,0x68,0, 0xF7,0x63,0x0C,0)
+    # a green accent
+    $green = [byte[]](0xA9,0xF5,0xA9,0, 0x6C,0xCB,0x5F,0, 0x3F,0xB2,0x3F,0, 0x10,0x89,0x3E,0, 0x0F,0x7B,0x0F,0, 0x0B,0x5A,0x0B,0, 0x05,0x3D,0x05,0, 0,0,0,0)
+    $line = { param($c) ($c.Keys | ForEach-Object { "$_=$($c[$_])" }) -join ' ' }
+
+    It 'maps the palette to the dark brushes: Light2, Light3, black text' {
+        & $line (Get-AkariAccentColors $green 'Dark') | Should Be 'Acc=#FF6CCB5F AccH=#E66CCB5F AccP=#CC6CCB5F AccSoft=#1A6CCB5F AccT=#FF000000 AccText=#FFA9F5A9 Info=#FFA9F5A9'
+    }
+    It 'maps the palette to the light brushes: Dark1, Dark2, white text' {
+        & $line (Get-AkariAccentColors $green 'Light') | Should Be 'Acc=#FF0F7B0F AccH=#E60F7B0F AccP=#CC0F7B0F AccSoft=#1A0F7B0F AccT=#FFFFFFFF AccText=#FF0B5A0B Info=#FF0B5A0B'
+    }
+    It 'gives the theme files'' default blue for Windows'' default palette' {
+        foreach ($t in 'Dark', 'Light') {
+            $x = ([xml](Get-Content "$Root\UI\Theme.$t.xaml" -Raw)).ResourceDictionary.SolidColorBrush
+            $c = Get-AkariAccentColors $blue $t
+            foreach ($k in 'Acc', 'AccH', 'AccP', 'AccSoft', 'AccT', 'AccText') {
+                $v = ($x | Where-Object Key -eq $k).Color
+                if ($v.Length -eq 7) { $v = '#FF' + $v.Substring(1) }
+                "$t $k $($c[$k])" | Should Be "$t $k $v"
+            }
+        }
+    }
+    It 'keeps the default blue (no colours) when the palette is missing or short' {
+        $null -eq (Get-AkariAccentColors $null 'Dark') | Should Be $true
+        $null -eq (Get-AkariAccentColors ([byte[]](1, 2, 3)) 'Light') | Should Be $true
     }
 }
 
@@ -988,9 +1029,9 @@ $Sections.SelectedItem = $Sections.Items[2]
     }
     It 'starts on Follow Windows with one theme dictionary' { $out.themeStart | Should Be 'System,1' }
     It 'the Theme menu row cycles to Light: swaps the dictionary, repaints the body and saves the choice' {
-        $out.themeLight | Should Be 'Theme: Light|#FFF8F3F1|1|Light|#FFF8F3F1'
+        $out.themeLight | Should Be 'Theme: Light|#FFF3F3F3|1|Light|#FFF3F3F3'
     }
-    It 'Set-AkariTheme Dark loads the dark brushes without saving' { $out.themeDark | Should Be '#FF0D0A0B|Light' }
+    It 'Set-AkariTheme Dark loads the dark brushes without saving' { $out.themeDark | Should Be '#FF202020|Light' }
     It 'swaps the title bar logo with the theme' { $out.logo | Should Be 'AkariLogo-light.png|AkariLogo-dark.png' }
     It 'an unknown theme falls back to Follow Windows' { $out.themeBad | Should Be 'System' }
     It 'the status bar shows the version' { $out.appVersion | Should Match '^AkariOS \d+\.\d+\.\d+$' }
