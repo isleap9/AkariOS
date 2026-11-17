@@ -61,9 +61,18 @@ function Get-AkariLegacyRemoveList($Tweaks) {
     }
 }
 
-# the Install tab's cards, in this order (an app with another AppType goes under Other, before the restore card)
-$AkariAppTypes = 'Browsers', 'Communication', 'Game launchers', 'Gaming & hardware', 'Media', 'Utilities', 'Runtimes', 'Dev tools'
+# the Install tab's cards, in this order (an app with another AppType goes under Other, before the restore card);
+# System tools to Home server & streaming and Languages & SDKs came with winutil's apps (W5)
+$AkariAppTypes = 'Browsers', 'Communication', 'Game launchers', 'Gaming & hardware', 'Media', 'Utilities', 'System tools', 'Documents',
+    'Network & remote', 'Home server & streaming', 'Runtimes', 'Dev tools', 'Languages & SDKs'
 $AkariRestoreType = 'Restore removed apps'
+
+# an install's Caution mark (paid, or adds a driver or service; the row's description says which): @{ Icon; Brush;
+# Tip }, or $null for a Safe install and for every removal (those have their Risk marks). Pure, no WPF.
+function Get-AkariInstallMark($Tweak) {
+    if ($Tweak.Category -ne 'Install' -or "$($Tweak.Risk)" -ne 'Caution') { return $null }
+    @{ Icon = 'triangle-alert'; Brush = 'Warn'; Tip = 'Check before installing: paid, or adds a driver or service' }
+}
 
 # the rows of the Install tab: the app installs, by name. Pure, no WPF.
 function Get-AkariInstallList($Tweaks) {
@@ -199,7 +208,8 @@ function New-AkariAppGrid {
     $g
 }
 
-# one table row: @{ Tweak; Installed; Row; Control; Muted }. A removal has a Risk mark; an install does not.
+# one table row: @{ Tweak; Installed; Row; Control; Muted; Mark; Caution }. A removal has a Risk mark; an install
+# has its "Installed on this PC" mark and, when Caution, its Get-AkariInstallMark.
 function New-AkariAppRow($Item) {
     $t = $Item.Tweak
     $e = @{ Tweak = $t; Installed = $Item.Installed; Muted = $false }
@@ -223,6 +233,15 @@ function New-AkariAppRow($Item) {
         $e.Mark.Visibility = 'Collapsed'
         [Windows.Controls.Grid]::SetColumn($e.Mark, 1)
         [void]$g.Children.Add($e.Mark)
+        # a Caution install: its mark in the same column, hidden while the app shows as installed
+        if ($m = Get-AkariInstallMark $t) {
+            $e.Caution = New-AkariIcon $m.Icon 14 $m.Brush
+            $e.Caution.ToolTip = $m.Tip
+            $e.Caution.HorizontalAlignment = 'Left'
+            $e.Caution.VerticalAlignment = 'Center'
+            [Windows.Controls.Grid]::SetColumn($e.Caution, 1)
+            [void]$g.Children.Add($e.Caution)
+        }
     }
     $icon = New-AkariAppIcon $t
     $name = New-AkariAppCell $t.Name 3
@@ -273,10 +292,13 @@ function Clear-AkariInstalls {
     Update-AkariAppsStatus
 }
 
-# Show installed (Downloads): the installs with these ids get their "Installed on this PC" mark, the others lose it
+# Show installed (Downloads): the installs with these ids get their "Installed on this PC" mark, the others lose it;
+# a Caution mark gives way to it
 function Set-AkariAppsInstalled([string[]]$Ids) {
     foreach ($e in @($script:AppRows.Values | Where-Object { $_.Mark })) {
-        $e.Mark.Visibility = if ($e.Tweak.Id -in $Ids) { 'Visible' } else { 'Collapsed' }
+        $on = $e.Tweak.Id -in $Ids
+        $e.Mark.Visibility = if ($on) { 'Visible' } else { 'Collapsed' }
+        if ($e.Caution) { $e.Caution.Visibility = if ($on) { 'Collapsed' } else { 'Visible' } }
     }
 }
 

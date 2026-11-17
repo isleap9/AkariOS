@@ -16,8 +16,17 @@ public sealed record AppCard(string Title, IReadOnlyList<AppItem> Items);
 /// </summary>
 public static class AppLists
 {
-    /// <summary>$AkariAppTypes: the Install cards in order (another AppType goes under Other, before the restore card).</summary>
-    public static IReadOnlyList<string> Types { get; } = ["Browsers", "Communication", "Game launchers", "Gaming & hardware", "Media", "Utilities", "Runtimes", "Dev tools"];
+    /// <summary>$AkariAppTypes: the Install cards in order (another AppType goes under Other, before the restore card);
+    /// System tools to Home server &amp; streaming and Languages &amp; SDKs came with winutil's apps (W5).</summary>
+    public static IReadOnlyList<string> Types { get; } = ["Browsers", "Communication", "Game launchers", "Gaming & hardware", "Media", "Utilities",
+        "System tools", "Documents", "Network & remote", "Home server & streaming", "Runtimes", "Dev tools", "Languages & SDKs"];
+
+    /// <summary>Get-AkariInstallMark: a Caution install's mark (paid, or adds a driver or service; its description says
+    /// which), or null for a Safe install and every removal (those have their Risk marks).</summary>
+    public static (string Icon, string Brush, string Tip)? InstallMark(Tweak t) =>
+        t.Category == "Install" && t.Risk == Risk.Caution
+            ? ("triangle-alert", "Warn", "Check before installing: paid, or adds a driver or service")
+            : null;
 
     /// <summary>$AkariRestoreType: Store apps and Windows tools the debloat removed, listed only while missing.</summary>
     public const string RestoreType = "Restore removed apps";

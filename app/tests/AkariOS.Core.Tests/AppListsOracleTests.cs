@@ -43,11 +43,22 @@ public class AppListsOracleTests
     {
         var t = i.Tweak;
         var icon = (AppLists.IconFile(t, Logos, Assets, File.Exists) ?? "").Replace(Assets, "%Assets%", StringComparison.Ordinal);
-        return $"{t.Id} | {t.Name} | {t.Package} | {i.Installed} | {t.Keep} | {t.Risk} | {t.Description} | {AppLists.Source(t)} | {icon}";
+        var mark = AppLists.InstallMark(t) is { } m ? $"{m.Icon}/{m.Brush}/{m.Tip}" : "";
+        return $"{t.Id} | {t.Name} | {t.Package} | {i.Installed} | {t.Keep} | {t.Risk} | {t.Description} | {AppLists.Source(t)} | {icon} | {mark}";
     }
 
     private static List<string> PsRows(string pc, string list) => PowerShell.Value.GetProperty(pc).GetProperty(list).EnumerateArray().Select(r =>
-        string.Join(" | ", new[] { "Id", "Name", "Package", "Installed", "Keep", "Risk", "Description", "Source", "Icon" }.Select(k => Text(r.GetProperty(k))))).ToList();
+        string.Join(" | ", new[] { "Id", "Name", "Package", "Installed", "Keep", "Risk", "Description", "Source", "Icon", "Mark" }.Select(k => Text(r.GetProperty(k))))).ToList();
+
+    // winutil W5: the real installs include Caution ones, so the marks are compared on real rows too
+    [Fact]
+    public void Some_real_installs_carry_the_caution_mark() =>
+        Assert.Contains(AppLists.Install(Loaded.Value.Tweaks, Pc("Win11")), i => AppLists.InstallMark(i.Tweak) is not null);
+
+    [Fact]
+    public void The_cards_come_in_the_W5_order() => Assert.Equal(
+        ["Browsers", "Communication", "Game launchers", "Gaming & hardware", "Media", "Utilities", "System tools", "Documents",
+         "Network & remote", "Home server & streaming", "Runtimes", "Dev tools", "Languages & SDKs"], AppLists.Types);
 
     private static string? Text(JsonElement v) => v.ValueKind switch
     {

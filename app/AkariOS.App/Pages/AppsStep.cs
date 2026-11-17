@@ -15,6 +15,9 @@ public sealed class AppRow(Tweak tweak, bool installed, Grid row, CheckBox box)
 
     /// <summary>An install's "Installed on this PC" mark (Show installed); a removal has none.</summary>
     public FrameworkElement? Mark { get; init; }
+
+    /// <summary>A Caution install's mark (AppLists.InstallMark), in the Mark's column, hidden while that shows.</summary>
+    public FrameworkElement? Caution { get; init; }
     public bool Installed { get; } = installed;
     public Grid Row { get; } = row;
     public CheckBox Box { get; } = box;
@@ -133,7 +136,13 @@ public sealed class AppsStep(AppServices s, IDictionary<string, Pending> sel, Ac
             if (r is not IReadOnlyList<string> ids) return;
             var have = ids.ToHashSet(StringComparer.Ordinal);
             foreach (var row in _rows.Values)
-                if (row.Mark is { } mark) mark.Visibility = have.Contains(row.Tweak.Id) ? Visibility.Visible : Visibility.Collapsed;
+            {
+                if (row.Mark is not { } mark) continue;
+                var on = have.Contains(row.Tweak.Id);
+                mark.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+                // a Caution mark gives way to "Installed on this PC"
+                if (row.Caution is { } c) c.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
+            }
         });
     }
 
@@ -390,7 +399,7 @@ public sealed class AppsStep(AppServices s, IDictionary<string, Pending> sel, Ac
         return m;
     }
 
-    // New-AkariAppRow: a removal has a Risk mark, an install does not
+    // New-AkariAppRow: a removal has a Risk mark; an install its "Installed on this PC" mark and, when Caution, its InstallMark
     private AppRow NewRow(AppItem item)
     {
         var t = item.Tweak;
@@ -400,7 +409,7 @@ public sealed class AppsStep(AppServices s, IDictionary<string, Pending> sel, Ac
         var box = new CheckBox { Tag = t.Id, VerticalAlignment = VerticalAlignment.Center };
         box.SetResourceReference(FrameworkElement.StyleProperty, "Check");
         g.Children.Add(box);
-        FrameworkElement? mark = null;
+        FrameworkElement? mark = null, caution = null;
         if (AppLists.IsRemoval(t))
         {
             var dot = RiskMark(t.Risk);
@@ -417,6 +426,16 @@ public sealed class AppsStep(AppServices s, IDictionary<string, Pending> sel, Ac
             mark.Visibility = Visibility.Collapsed;
             System.Windows.Controls.Grid.SetColumn(mark, 1);
             g.Children.Add(mark);
+            // a Caution install: its mark in the same column, hidden while the app shows as installed
+            if (AppLists.InstallMark(t) is { } m)
+            {
+                caution = Icons.Make(m.Icon, 14, m.Brush);
+                caution.ToolTip = m.Tip;
+                caution.HorizontalAlignment = HorizontalAlignment.Left;
+                caution.VerticalAlignment = VerticalAlignment.Center;
+                System.Windows.Controls.Grid.SetColumn(caution, 1);
+                g.Children.Add(caution);
+            }
         }
         var icon = AppIcons.Make(t, _logos);
         System.Windows.Controls.Grid.SetColumn(icon, 2);
@@ -432,7 +451,7 @@ public sealed class AppsStep(AppServices s, IDictionary<string, Pending> sel, Ac
         var pkg = Cell(src, 5, "Ter", 12);
         pkg.ToolTip = item.Installed ? src : $"{src} (not on this PC)";
         g.Children.Add(pkg);
-        var row = new AppRow(t, item.Installed, g, box) { Mark = mark };
+        var row = new AppRow(t, item.Installed, g, box) { Mark = mark, Caution = caution };
         box.Click += (_, _) => Step(row);
         return row;
     }

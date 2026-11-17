@@ -4,7 +4,7 @@
     Name        = 'Node.js LTS'
     Section     = 'Apps'
     Category    = 'Install'
-    AppType     = 'Dev tools'
+    AppType     = 'Languages & SDKs'
     Kind        = 'Action'
     Button      = 'Install'
     Risk        = 'Safe'

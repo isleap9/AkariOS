@@ -252,6 +252,22 @@ public sealed class AppsStepTests : IDisposable
         Assert.Equal(2, t.Winget.Calls.Count(c => c.StartsWith("list ", StringComparison.Ordinal)));
     });
 
+    // winutil W5: a Caution install (paid, or adds a driver or service) shows its mark in the mark column, which
+    // gives way to "Installed on this PC" when Show installed finds it
+    [Fact]
+    public void A_caution_install_shows_its_mark_until_it_is_found_installed() => LookTests.OnSta(() =>
+    {
+        var t = Pc();
+        t.Winget.Answer = a => a[0] == "list" ? new(0, ["Name     Id               Version", "OpenRGB  OpenRGB.OpenRGB  1.0"]) : null;
+        var ui = Downloads(t);
+        var row = Apps(t).Rows["install-openrgb"];
+        Assert.Equal(Visibility.Visible, row.Caution!.Visibility);
+        Assert.Equal("Check before installing: paid, or adds a driver or service", row.Caution.ToolTip);
+        Assert.Null(Apps(t).Rows["install-steam"].Caution);
+        Click(Button(ui, "Show installed"));
+        Assert.Equal((Visibility.Visible, Visibility.Collapsed), (row.Mark!.Visibility, row.Caution.Visibility));
+    });
+
     [Fact]
     public void Update_all_apps_asks_with_the_tweaks_own_question_then_runs_it_alone() => LookTests.OnSta(() =>
     {

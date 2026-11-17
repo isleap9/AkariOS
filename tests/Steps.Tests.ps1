@@ -405,6 +405,26 @@ Describe 'Get-AkariInstallCards' {
     }
     It 'sorts each card by name' { ($cards[0].Items | ForEach-Object { $_.Tweak.Id }) -join ',' | Should Be 'b1,b2' }
     It 'offers to restore only the Store apps missing from the PC' { ($cards[3].Items | ForEach-Object { $_.Tweak.Id }) -join ',' | Should Be 'photos' }
+    # winutil W5: AkariOS's eight, System tools / Documents / Network / Home server after Utilities, Languages after Dev tools
+    It 'orders the cards as AkariOS''s kinds, then winutil''s new ones' {
+        $AkariAppTypes -join ',' | Should Be ('Browsers,Communication,Game launchers,Gaming & hardware,Media,Utilities,System tools,Documents,' +
+            'Network & remote,Home server & streaming,Runtimes,Dev tools,Languages & SDKs')
+    }
+}
+
+Describe 'Get-AkariInstallMark' {
+    foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
+    . "$Root\UI\Apps.ps1"
+    function T($cat, $risk) { ConvertTo-AkariTweak @{ Id = "x-$cat-$risk"; Name = 'x'; Section = 'Apps'; Category = $cat; Kind = 'Action'; Risk = $risk } 'x' $false }
+
+    It 'marks a Caution install: check before installing' {
+        $m = Get-AkariInstallMark (T 'Install' 'Caution')
+        "$($m.Icon),$($m.Brush),$($m.Tip)" | Should Be 'triangle-alert,Warn,Check before installing: paid, or adds a driver or service'
+    }
+    It 'leaves a Safe install and every removal unmarked' {
+        Get-AkariInstallMark (T 'Install' 'Safe') | Should Be $null
+        Get-AkariInstallMark (T 'Remove' 'Caution') | Should Be $null
+    }
 }
 
 Describe 'App icons' {
@@ -424,10 +444,10 @@ Describe 'App icons' {
     It 'finds a black-or-white logo''s mask' { Get-AkariAppIconFile @{ Id = 'install-black' } @{} $dir | Should Be "$dir\install-black.mono.png" }
     It 'else none (the row shows a Lucide icon)' { Get-AkariAppIconFile @{ Id = 'install-other'; Package = 'Akari.Other' } @{} $dir | Should Be $null }
 
-    # build\AppIcons.ps1 makes them: run it after adding an app. More Clock Tool and the braille driver have no logo
-    # of their own: they keep the Lucide icon.
+    # build\AppIcons.ps1 makes them: run it after adding an app. More Clock Tool, the braille driver and four of
+    # winutil's apps (lazygit, fnm, JPEGView, K-Lite) have no usable logo: they keep the Lucide icon.
     It 'has a bundled icon for every app to install, legacy app and Store app to restore' {
-        $none = 'install-more-clock-tool', 'remove-brlapi'
+        $none = 'install-more-clock-tool', 'remove-brlapi', 'install-lazygit', 'install-fnm', 'install-jpegview', 'install-k-lite-codecs'
         $ids = @(Get-ChildItem "$Root\Tweaks\Apps\Install\*.ps1", "$Root\Tweaks\Apps\Remove\*.ps1" | ForEach-Object {
             $text = Get-Content $_.FullName -Raw
             if ($text -notmatch 'EntryKind' -and $text -match "Id\s*=\s*'([^']+)'") { $Matches[1] }
@@ -507,6 +527,7 @@ $script:Tweaks = @(
     New-AkariEntry $g @{ Name = 'Akari.Test.Kept'; Display = 'Kept app'; Description = 'D'; Risk = 'Advanced'; Keep = $true }
     New-AkariEntry $g @{ Name = 'Akari.Test.Gone'; Display = 'Gone app'; Description = 'D'; Risk = 'Safe' }
     ConvertTo-AkariTweak @{ Id = 'inst'; Name = 'Inst app'; Description = 'D'; Section = 'Apps'; Category = 'Install'; Kind = 'Action'; Button = 'Install'; Risk = 'Safe'; Winget = 'Akari.Test.Inst'; Apply = { } } 'x' $false
+    ConvertTo-AkariTweak @{ Id = 'instc'; Name = 'Paid app'; Description = 'D'; Section = 'Apps'; Category = 'Install'; Kind = 'Action'; Button = 'Install'; Risk = 'Caution'; Winget = 'Akari.Test.Paid'; Apply = { } } 'x' $false
     ConvertTo-AkariTweak @{ Id = 'tools-update-apps'; Name = 'Update all apps'; Description = 'D'; Section = 'Tools'; Category = 'Setup'; Kind = 'Action'; Risk = 'Safe'; Confirm = 'Update every app?'; Apply = { } } 'x' $false
 )
 foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps') { . "$Root\UI\$f.ps1" }
@@ -542,6 +563,7 @@ Set-AkariAppsFilter 'Optional'
 Show-AkariAppsTab 'Install'
 "installTab=$($script:AppsParts.RemoveTables.Visibility),$($script:AppsParts.InstallTables.Visibility),$($script:AppsParts.Legend.Visibility)"
 "source=$(Get-AkariAppSource $script:AppRows['inst'].Tweak)"
+"caution=$($script:AppRows['instc'].Caution.Visibility),$($script:AppRows['instc'].Caution.ToolTip),$($null -eq $script:AppRows['inst'].Caution)"
 $e = $script:AppRows['inst']; $e.Control.IsChecked = $true; Step-AkariAppCheck 'inst'
 "installReview=$((Get-AkariReviewItems $script:Sel | Where-Object { $_.Id -eq 'inst' } | ForEach-Object { $_.Name + ':' + $_.To }))"
 "bothStatus=$($script:AppsStatus.Text)"
@@ -622,10 +644,10 @@ Reset-AkariSteps
 Enter-AkariFlow 'Downloads'; Show-AkariSteps
 $script:Job = $null; Start-AkariInstalledRead
 "w4Read=$($script:Job.Kind)"; $script:Busy = $false
-Complete-AkariInstalledRead ([hashtable]::Synchronized(@{ Ids = @('inst') }))
-"w4Mark=$($script:AppRows['inst'].Mark.Visibility)"
+Complete-AkariInstalledRead ([hashtable]::Synchronized(@{ Ids = @('inst', 'instc') }))
+"w4Mark=$($script:AppRows['inst'].Mark.Visibility),$($script:AppRows['instc'].Mark.Visibility),$($script:AppRows['instc'].Caution.Visibility)"
 Complete-AkariInstalledRead ([hashtable]::Synchronized(@{ Ids = @() }))
-"w4Unmark=$($script:AppRows['inst'].Mark.Visibility)"
+"w4Unmark=$($script:AppRows['inst'].Mark.Visibility),$($script:AppRows['instc'].Caution.Visibility)"
 $script:Step = 3; Reset-AkariSteps; $script:Job = $null
 Enter-AkariFlow 'Downloads'; Show-AkariSteps
 "w4ReadAgain=$($script:Job.Kind)"; $script:Busy = $false
@@ -642,8 +664,8 @@ $script:answer = $true; Start-AkariUpdateApps
 
     It 'runs without errors' { $out['error'] | Should BeNullOrEmpty }
     It 'lists the data file apps and the unknown installed one; Only installed hides the missing one' {
-        $out.rows | Should Be '6'
-        $out.visible | Should Be '5'
+        $out.rows | Should Be '7'
+        $out.visible | Should Be '6'
     }
     It 'Select recommended checks the installed Safe apps (Win11Debloat)' { $out.recommended | Should Be 'appx/Akari.Test.Safe' }
     It 'AkariOS checks every installed app but the keep-list (FR33THY)' {
@@ -653,12 +675,14 @@ $script:answer = $true; Start-AkariUpdateApps
     It 'Clear selection empties the Selection' { $out.cleared | Should Be '0' }
     It 'a checked app is reviewed as Remove' { $out.review | Should Be 'Optional app:Remove' }
     It 'filters by Only installed and by search' {
-        $out.allVisible | Should Be '6'
+        $out.allVisible | Should Be '7'
         $out.searched | Should Be '1'
     }
     It 'Install tab: its own table, no legend, the winget id as source, reviewed as Install' {
         $out.installTab | Should Be 'Collapsed,Visible,Collapsed'
         $out.source | Should Be 'winget: Akari.Test.Inst'
+        # winutil W5: a Caution install shows its mark; a Safe one has none
+        $out.caution | Should Be 'Visible,Check before installing: paid, or adds a driver or service,True'
         $out.installReview | Should Be 'Inst app:Install'
         $out.bothStatus | Should Be '1 to remove, 1 to install'
         $out.afterClear | Should Be '1 to remove, 0 to install'
@@ -721,8 +745,8 @@ $script:answer = $true; Start-AkariUpdateApps
     It 'Show installed marks the rows on this PC, and reads again when Downloads is built anew' {
         $out.w4MarkStart | Should Be 'Collapsed'
         $out.w4Read | Should Be 'AppsInstalled'
-        $out.w4Mark | Should Be 'Visible'
-        $out.w4Unmark | Should Be 'Collapsed'
+        $out.w4Mark | Should Be 'Visible,Visible,Collapsed'
+        $out.w4Unmark | Should Be 'Collapsed,Visible'
         $out.w4ReadAgain | Should Be 'AppsInstalled'
     }
     It 'Update all apps asks with the Tweak''s Confirm, then runs it as one Apply job with no restore point' {

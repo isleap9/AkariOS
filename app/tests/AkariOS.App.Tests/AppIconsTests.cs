@@ -16,11 +16,12 @@ public sealed class AppIconsTests
     private static readonly Lazy<LoadResult> Loaded = new(() =>
         new Loader(new FolderSourceFiles(LookTests.RepoRoot()), new Dictionary<string, ITweakCode>()).Load());
 
-    // build\AppIcons.ps1 makes them; More Clock Tool and the braille driver have no logo of their own
+    // build\AppIcons.ps1 makes them; More Clock Tool, the braille driver and four of winutil's apps (lazygit, fnm,
+    // JPEGView, K-Lite) have no usable logo
     [Fact]
     public void Every_app_to_install_legacy_app_and_store_app_to_restore_has_a_bundled_icon()
     {
-        string[] none = ["install-more-clock-tool", "remove-brlapi"];
+        string[] none = ["install-more-clock-tool", "remove-brlapi", "install-lazygit", "install-fnm", "install-jpegview", "install-k-lite-codecs"];
         var apps = Loaded.Value.Tweaks.Where(t => t.Section == "Apps" && t.Group is null || t.Group == "store").ToList();
         Assert.True(apps.Count > 80);
         Assert.Equal("", string.Join(", ", apps.Where(t => !none.Contains(t.Id) && AppIcons.File(t, null) is null).Select(t => t.Id)));

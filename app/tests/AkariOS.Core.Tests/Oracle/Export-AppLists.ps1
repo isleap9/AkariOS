@@ -1,6 +1,6 @@
 # The reference for the native Apps lists (app/AkariOS.Core/Tweaks/AppLists.cs): src\UI\Apps.ps1's pure functions
 # (Get-AkariAppList, Get-AkariFoundList, Get-AkariInstallList, Get-AkariInstallCards, Get-AkariAppSource,
-# Get-AkariAppIconFile) on src\Tweaks, written as JSON for AppListsOracleTests. The functions are read out of
+# Get-AkariAppIconFile, Get-AkariInstallMark) on src\Tweaks, written as JSON for AppListsOracleTests. The functions are read out of
 # Apps.ps1 (the file's WPF parts never load). Two made-up PCs (the system reads are replaced): Win11 Pro desktop with
 # an NVIDIA GPU, Win10 Home laptop with none. What is on the PC is given: -Installed (Store package names), -Capabilities,
 # -Features, -Appx (every package name, for the restore card), -Logos ('package=file;…'); each ';'-separated.
@@ -11,7 +11,7 @@ function Split-List([string]$s) { @($s.Split(';') | Where-Object { $_ }) }
 . (Join-Path $Src 'Core\Loader.ps1')
 . (Join-Path $Src 'Core\System.ps1')
 $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $Src 'UI\Apps.ps1'), [ref]$null, [ref]$null)
-foreach ($fn in 'Get-AkariAppList', 'Get-AkariFoundList', 'Get-AkariInstallList', 'Get-AkariInstallCards', 'Get-AkariAppSource', 'Get-AkariAppIconFile') {
+foreach ($fn in 'Get-AkariAppList', 'Get-AkariFoundList', 'Get-AkariInstallList', 'Get-AkariInstallCards', 'Get-AkariAppSource', 'Get-AkariAppIconFile', 'Get-AkariInstallMark') {
     . ([scriptblock]::Create($ast.Find({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $fn }, $true).Extent.Text))
 }
 foreach ($v in 'AkariAppTypes', 'AkariRestoreType') {
@@ -26,7 +26,8 @@ $assets = Join-Path $Src 'Assets\Apps'
 function ConvertTo-Row($i) {
     [ordered]@{ Id = $i.Tweak.Id; Name = $i.Tweak.Name; Package = $i.Tweak.Package; Installed = [bool]$i.Installed; Keep = [bool]$i.Tweak.Keep
         Risk = "$($i.Tweak.Risk)"; Description = $i.Tweak.Description; Source = (Get-AkariAppSource $i.Tweak)
-        Icon = "$(Get-AkariAppIconFile $i.Tweak $logoMap $assets)".Replace($assets, '%Assets%') }
+        Icon = "$(Get-AkariAppIconFile $i.Tweak $logoMap $assets)".Replace($assets, '%Assets%')
+        Mark = $(if ($m = Get-AkariInstallMark $i.Tweak) { "$($m.Icon)/$($m.Brush)/$($m.Tip)" } else { '' }) }
 }
 $pcs = [ordered]@{
     Win11 = @{ Build = 26100; Edition = 'Professional'; Chassis = 'Desktop'; Gpus = @(@{ Vendor = 'NVIDIA' }) }

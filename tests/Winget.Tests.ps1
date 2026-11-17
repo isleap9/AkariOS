@@ -361,11 +361,39 @@ Describe 'The real app installs' {
 
     It 'loads every install with no Errors' {
         @($r.Problems | Where-Object { $_.Level -eq 'Error' }).Count | Should Be 0
-        # + OneDrive, Remote Desktop Connection, Snipping Tool (Windows 10) in the restore card (batch 2c)
-        $apps.Count | Should Be 70
+        # + OneDrive, Remote Desktop Connection, Snipping Tool (Windows 10) in the restore card (batch 2c);
+        # + winutil W5a's 79
+        $apps.Count | Should Be 149
     }
 
-    It 'installs most apps with winget' { @($apps | Where-Object { $_.Winget }).Count | Should Be 61 }
+    It 'installs most apps with winget' { @($apps | Where-Object { $_.Winget }).Count | Should Be 140 }
+
+    # winutil W5: the cards hold at most 30 rows, and every app has a named card (nothing under Other)
+    . "$Root\UI\Apps.ps1"
+    It 'puts every app in a named card of at most 30 rows' {
+        @($apps | Where-Object { $_.AppType -notin @($AkariAppTypes) + $AkariRestoreType } | ForEach-Object { $_.Id }) -join ', ' | Should Be ''
+        @($apps | Group-Object AppType | Where-Object { $_.Name -ne $AkariRestoreType -and $_.Count -gt 30 } | ForEach-Object { "$($_.Name) ($($_.Count))" }) -join ', ' | Should Be ''
+    }
+
+    $w5 = @(Get-ChildItem "$Root\Tweaks\Apps\Install\*.ps1" | Where-Object { (Get-Content $_.FullName -TotalCount 3) -match 'config/applications\.json' })
+    It 'takes winutil''s apps as data-only winget installs, credited, Safe or Caution' {
+        $w5.Count | Should Be 79
+        foreach ($f in $w5) {
+            $d = Import-PowerShellDataFile $f.FullName
+            $bad = @()
+            if (-not $d.Winget) { $bad += 'no Winget' }
+            if (@($d.Keys | Where-Object { $d[$_] -is [scriptblock] }).Count) { $bad += 'a script block' }
+            if ($d.Risk -notin 'Safe', 'Caution') { $bad += "Risk $($d.Risk)" }
+            if ($d.AkariOS) { $bad += 'AkariOS' }
+            if (((Get-Content $f.FullName -TotalCount 3) -join "`n") -notmatch 'Chris Titus Tech''s winutil \(MIT, Copyright \(c\) 2022 CT Tech Group LLC\)') { $bad += 'no credit' }
+            "$($f.Name): $($bad -join ', ')" | Should Be "$($f.Name): "
+        }
+    }
+
+    It 'gives every install its own id and winget id' {
+        @($apps | Group-Object Id | Where-Object Count -gt 1 | ForEach-Object Name) -join ', ' | Should Be ''
+        @($apps | ForEach-Object { @($_.Winget) } | Where-Object { $_ } | Group-Object | Where-Object Count -gt 1 | ForEach-Object Name) -join ', ' | Should Be ''
+    }
 
     It 'ships the files the installs copy' {
         foreach ($p in 'NotepadPlusPlus\config.xml', 'Afterburner\MSI Afterburner\Profiles\MSIAfterburner.cfg',
