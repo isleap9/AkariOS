@@ -19,4 +19,9 @@
     <Company>AkariOS</Company>
     <Copyright>AkariOS contributors, MIT</Copyright>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- Windows' own (NLS) culture compare, as PowerShell 5.1's .NET Framework: ICU weighs hyphens, so names sorted
+         differently (K-Lite before KeePassXC, PDF-XChange before PDF24) -->
+    <RuntimeHostConfigurationOption Include="System.Globalization.UseNls" Value="true" />
+  </ItemGroup>
 </Project>

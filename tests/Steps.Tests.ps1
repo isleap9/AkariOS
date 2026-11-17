@@ -444,10 +444,10 @@ Describe 'App icons' {
     It 'finds a black-or-white logo''s mask' { Get-AkariAppIconFile @{ Id = 'install-black' } @{} $dir | Should Be "$dir\install-black.mono.png" }
     It 'else none (the row shows a Lucide icon)' { Get-AkariAppIconFile @{ Id = 'install-other'; Package = 'Akari.Other' } @{} $dir | Should Be $null }
 
-    # build\AppIcons.ps1 makes them: run it after adding an app. More Clock Tool, the braille driver and four of
-    # winutil's apps (lazygit, fnm, JPEGView, K-Lite) have no usable logo: they keep the Lucide icon.
+    # build\AppIcons.ps1 makes them: run it after adding an app. More Clock Tool, the braille driver and five of
+    # winutil's apps (lazygit, fnm, JPEGView, K-Lite, Policy Plus) have no usable logo: they keep the Lucide icon.
     It 'has a bundled icon for every app to install, legacy app and Store app to restore' {
-        $none = 'install-more-clock-tool', 'remove-brlapi', 'install-lazygit', 'install-fnm', 'install-jpegview', 'install-k-lite-codecs'
+        $none = 'install-more-clock-tool', 'remove-brlapi', 'install-lazygit', 'install-fnm', 'install-jpegview', 'install-k-lite-codecs', 'install-policy-plus'
         $ids = @(Get-ChildItem "$Root\Tweaks\Apps\Install\*.ps1", "$Root\Tweaks\Apps\Remove\*.ps1" | ForEach-Object {
             $text = Get-Content $_.FullName -Raw
             if ($text -notmatch 'EntryKind' -and $text -match "Id\s*=\s*'([^']+)'") { $Matches[1] }
