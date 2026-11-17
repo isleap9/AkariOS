@@ -25,7 +25,7 @@ public static class Placeholder
         icon.HorizontalAlignment = HorizontalAlignment.Left;
         icon.Margin = new Thickness(0, 0, 0, 16);
         panel.Children.Add(icon);
-        var title = new TextBlock { Text = $"Not in the native app yet", FontSize = 20, FontWeight = FontWeights.Bold };
+        var title = new TextBlock { Text = $"Not in the native app yet", FontSize = 20, FontWeight = FontWeights.SemiBold };
         title.SetResourceReference(TextBlock.FontFamilyProperty, "FontDisplay");
         panel.Children.Add(title);
         var line = new TextBlock { Text = $"{page} comes with {Milestone(page)} (docs/plans/2026-10-31-native-app.md). The PowerShell app has it today.", Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap };

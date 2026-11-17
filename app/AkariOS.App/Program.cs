@@ -80,7 +80,6 @@ public static partial class Program
         Look.Motion.HookSegmentPills();
         foreach (var d in AkariXaml.SharedResources("Dark", motion))
             app.Resources.MergedDictionaries.Add(d);
-        Look.Assets.AddFonts(app.Resources);
         // System follows the real user's app mode, the accent is the real user's (rule 6: their hive, not the elevated account's)
         var theme = new Look.ThemeService(app.Resources, new Look.SettingsFile(Path.Combine(AkariPaths.UserFolder, "settings.json")),
             () => engine.Registry.GetValue(@"HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "AppsUseLightTheme") is uint v ? (int)v : null,

@@ -18,12 +18,12 @@ public static class Parts
         return t;
     }
 
-    /// <summary>A heading in Unbounded (Display).</summary>
-    public static TextBlock Title(string text, double size = 20, FontWeight? weight = null)
+    /// <summary>A heading in FontDisplay (Segoe UI Variable Display); font: another font key.</summary>
+    public static TextBlock Title(string text, double size = 20, FontWeight? weight = null, string font = "FontDisplay")
     {
         var t = Text(text, size);
         t.FontWeight = weight ?? FontWeights.SemiBold;
-        t.SetResourceReference(TextElement.FontFamilyProperty, "FontDisplay");
+        t.SetResourceReference(TextElement.FontFamilyProperty, font);
         return t;
     }
 

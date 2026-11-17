@@ -543,7 +543,7 @@ function Update-AkariStepFooter {
 }
 
 # the two ways to install: big cards, like Win11Debloat's start screen
-# a poster card (the design system's): icon blob, Unbounded title, muted text. -Hot: the recommended one, crimson
+# a poster card (the design system's): icon blob, Display title, muted text. -Hot: the recommended one, accent
 # border and glow (style ModeCardHot)
 function New-AkariModeCard([string]$Icon, [string]$Title, [string]$Text, [bool]$Enabled, [switch]$Hot) {
     $b = [Windows.Controls.Button]::new()
@@ -636,7 +636,7 @@ function New-AkariStepItem([int]$Number, [string]$Name, [string]$State, [bool]$L
         $c.Child = $ic
     } else {
         $t = [Windows.Controls.TextBlock]::new()
-        $t.Text = [string]$Number; $t.FontSize = 12; $t.FontWeight = 'Bold'
+        $t.Text = [string]$Number; $t.FontSize = 12; $t.FontWeight = 'SemiBold'
         $t.HorizontalAlignment = 'Center'; $t.VerticalAlignment = 'Center'
         Set-AkariFont $t 'Display'
         $c.Child = $t

@@ -47,7 +47,7 @@ function New-Row($t) {
     <Grid.ColumnDefinitions><ColumnDefinition Width="22"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
     <Ellipse x:Name="Dot" Visibility="$dotVis" Width="9" Height="9" Stroke="{DynamicResource Mu}" StrokeThickness="1.5" HorizontalAlignment="Left" VerticalAlignment="Center"/>
     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-      <TextBlock Text="$(& $e $t.Name)" FontWeight="Medium"/>
+      <TextBlock Text="$(& $e $t.Name)" FontWeight="Normal"/>
       <TextBlock Text="$(& $e $t.Description)" Foreground="{DynamicResource Mu}" FontSize="12.5" TextWrapping="Wrap"/>
     </StackPanel>
     <Border Grid.Column="2" BorderThickness="1" CornerRadius="3" Padding="7,1" Margin="12,0" VerticalAlignment="Center"

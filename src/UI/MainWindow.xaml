@@ -2,10 +2,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="AkariOS" Width="1100" Height="720" MinWidth="860" MinHeight="560"
         WindowStartupLocation="CenterScreen" UseLayoutRounding="True" SnapsToDevicePixels="True"
-        FontFamily="{DynamicResource FontText}" FontSize="14" FontWeight="Medium"
+        FontFamily="{DynamicResource FontText}" FontSize="14" FontWeight="Normal"
         Background="Transparent" Foreground="{DynamicResource Tx}">
   <!-- The shell (the design system's): a 64 px top bar (the A mark and wordmark, pill tabs, search, the options
-       menu and caption buttons), a page header (icon, Unbounded title, subtitle), Optimize's sub-header (Sections and
+       menu and caption buttons), a page header (icon, Display title, subtitle), Optimize's sub-header (Sections and
        Category chips), the page on one rounded surface, and a status bar. The frame is extended over the whole window
        (GlassFrameThickness -1) so Windows draws Mica behind it; the window draws its own min / max / close buttons. -->
   <WindowChrome.WindowChrome>
@@ -770,7 +770,7 @@
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,24,0">
         <!-- the A mark for the theme (Update-AkariLogo, UI\Shell.ps1) -->
         <Image x:Name="Logo" Width="24" Height="24" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-        <TextBlock x:Name="TitleText" Text="AkariOS" FontFamily="{DynamicResource FontDisplay}" FontWeight="Bold" FontSize="16" VerticalAlignment="Center"/>
+        <TextBlock x:Name="TitleText" Text="AkariOS" FontFamily="{DynamicResource FontDisplay}" FontWeight="SemiBold" FontSize="16" VerticalAlignment="Center"/>
       </StackPanel>
       <!-- the tabs, over the current tab's tint pill (TabPill: slides to the checked tab, Enable-AkariPillGroup) -->
       <Grid Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Left" ClipToBounds="True">
@@ -843,7 +843,7 @@
           </Canvas>
         </Viewbox>
         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-          <TextBlock x:Name="Heading" FontFamily="{DynamicResource FontDisplay}" FontSize="32" FontWeight="Bold"
+          <TextBlock x:Name="Heading" FontFamily="{DynamicResource FontDisplay}" FontSize="28" FontWeight="SemiBold"
                      TextTrimming="CharacterEllipsis"/>
           <TextBlock x:Name="HeaderSub" Foreground="{DynamicResource Mu}" FontSize="14" Margin="0,2,0,0" TextWrapping="Wrap"/>
         </StackPanel>
@@ -910,9 +910,9 @@
                 </DockPanel>
               </Border>
               <StackPanel x:Name="Hero" Margin="8,12,8,36">
-                <TextBlock x:Name="HeroOver" FontFamily="{DynamicResource FontDisplay}" FontSize="11" FontWeight="SemiBold"
+                <TextBlock x:Name="HeroOver" FontFamily="{DynamicResource FontSmall}" FontSize="12" FontWeight="SemiBold"
                            Foreground="{DynamicResource AccText}" Margin="0,0,0,12"/>
-                <TextBlock Text="Windows, tuned for games." FontFamily="{DynamicResource FontDisplay}" FontSize="40" FontWeight="Bold"
+                <TextBlock Text="Windows, tuned for games." FontFamily="{DynamicResource FontDisplay}" FontSize="40" FontWeight="SemiBold"
                            TextWrapping="Wrap"/>
                 <TextBlock Foreground="{DynamicResource Mu}" FontSize="16" TextWrapping="Wrap" MaxWidth="620" HorizontalAlignment="Left" Margin="0,12,0,0"
                            Text="Remove the bloat, apply the tweaks that matter and keep a way back: every change can be reverted to the Windows default."/>
@@ -929,7 +929,7 @@
                 <!-- the stats: Tweaks, removable apps, changes applied (a dash until read) -->
                 <StackPanel x:Name="HeroStats" Orientation="Horizontal" Margin="0,28,0,0"/>
               </StackPanel>
-              <TextBlock Text="MORE TOOLS" FontFamily="{DynamicResource FontDisplay}" FontSize="11" FontWeight="SemiBold"
+              <TextBlock Text="MORE TOOLS" FontFamily="{DynamicResource FontSmall}" FontSize="12" FontWeight="SemiBold"
                          Foreground="{DynamicResource Mu}" Margin="8,0,0,12"/>
               <!-- columns follow the window's width (Update-AkariWidth) -->
               <UniformGrid x:Name="HomeTiles" Columns="5"/>

@@ -3,9 +3,9 @@
         Title="AkariOS" Width="488" SizeToContent="Height" WindowStyle="None" AllowsTransparency="True"
         Background="Transparent" ResizeMode="NoResize" ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
         UseLayoutRounding="True" SnapsToDevicePixels="True"
-        FontFamily="{DynamicResource FontText}" FontSize="14" FontWeight="Medium" Foreground="{DynamicResource Tx}">
+        FontFamily="{DynamicResource FontText}" FontSize="14" FontWeight="Normal" Foreground="{DynamicResource Tx}">
   <!-- Akari's dialog (UI\Dialog.ps1): a raised card over the dimmed window, the design system's Dialog: an icon blob
-       beside the Unbounded title, the text (an optional text box under it), then the buttons: ghost ones and the
+       beside the Display title, the text (an optional text box under it), then the buttons: ghost ones and the
        crimson main action last. The 20 px margin leaves room for the shadow. Styles and brushes come from the main
        window's resources. -->
   <Border Margin="20" Background="{DynamicResource S2}" BorderBrush="{DynamicResource Bd}" BorderThickness="1" CornerRadius="20">

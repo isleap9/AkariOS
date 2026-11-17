@@ -22,7 +22,7 @@ public sealed record DialogIcon(string Glyph, string Brush, string Fill)
 
 /// <summary>
 /// Akari's dialogs (src/UI/Dialog.ps1), from the shared src/UI/Dialog.xaml as it is: a dark card over the dimmed
-/// window, an icon blob beside the Unbounded title, buttons that say what they do, the last one the crimson main
+/// window, an icon blob beside the Display title, buttons that say what they do, the last one the accent main
 /// action (Enter), the first one Esc. Windows' message box only if Akari's can't open (the crash box stays native).
 /// </summary>
 public sealed class Dialogs(Func<ResourceDictionary> resources, IAkariLog log)

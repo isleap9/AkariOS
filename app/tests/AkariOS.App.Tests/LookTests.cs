@@ -186,17 +186,25 @@ public sealed class LookTests : IDisposable
     public void The_body_brush(bool mica, string theme, string brush) => Assert.Equal(brush, WindowFrame.BodyBrush(mica, theme));
 
     [Fact]
-    public void Fonts_and_logos_are_in_the_exe()
+    public void Logos_are_in_the_exe_and_no_fonts()
     {
         var asm = typeof(Assets).Assembly;
         using var stream = asm.GetManifestResourceStream("AkariOS-Native.g.resources")!;
         using var reader = new ResourceReader(stream);
         var names = reader.Cast<System.Collections.DictionaryEntry>().Select(e => (string)e.Key).ToList();
-        foreach (var f in new[] { "unbounded-bold.ttf", "unbounded-semibold.ttf", "manrope-medium.ttf", "manrope-semibold.ttf", "manrope-bold.ttf", "jetbrainsmono-medium.ttf" })
-            Assert.Contains($"assets/fonts/{f}", names);
         foreach (var l in new[] { "akarilogo-dark.png", "akarilogo-light.png", "akarilogo.ico" })
             Assert.Contains($"assets/{l}", names);
+        Assert.DoesNotContain(names, n => n.StartsWith("assets/fonts/"));
         Assert.Equal(new Uri(Assets.Base + "AkariLogo-light.png"), Assets.LogoFor("Light"));
-        Assert.Equal(["FontDisplay", "FontText", "FontMono"], Assets.FontNames.Keys);
     }
+
+    // ADR 0008: Windows' own fonts, from the shared Controls.xaml
+    [Fact]
+    public void The_fonts_are_segoe_ui_variable_from_the_shared_controls() => OnSta(() =>
+    {
+        var controls = AkariXaml.SharedResources("Dark", false).Last();
+        Assert.Equal(
+            ["Segoe UI Variable Display, Segoe UI", "Segoe UI Variable Text, Segoe UI", "Segoe UI Variable Small, Segoe UI", "Cascadia Mono, Consolas"],
+            new[] { "FontDisplay", "FontText", "FontSmall", "FontMono" }.Select(k => ((FontFamily)controls[k]).Source));
+    });
 }

@@ -16,7 +16,6 @@
         @{ Name = 'winget'; Text = 'App installs'; Url = 'https://github.com/microsoft/winget-cli' }
         @{ Name = 'NVIDIA Profile Inspector'; Text = 'NVIDIA driver profiles (Orbmu2k)'; Url = 'https://github.com/Orbmu2k/nvidiaProfileInspector' }
         @{ Name = 'Display Driver Uninstaller'; Text = 'Clean graphics driver removal (Wagnardsoft)'; Url = 'https://www.wagnardsoft.com/display-driver-uninstaller-ddu' }
-        @{ Name = 'Unbounded, Manrope, JetBrains Mono'; Text = 'The fonts (SIL Open Font License 1.1)'; Url = 'https://fonts.google.com/' }
         @{ Name = 'Lucide'; Text = 'The icons (ISC License)'; Url = 'https://lucide.dev' }
     )
     FullCredits = 'https://github.com/isleap9/AkariOS/blob/main/CREDITS.md'

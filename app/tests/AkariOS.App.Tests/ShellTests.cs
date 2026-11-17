@@ -184,9 +184,6 @@ public sealed class MainWindowTests
     {
         Motion.Initialize(false);
         var resources = AkariXaml.SharedResources("Dark", false).ToList();
-        var fonts = new ResourceDictionary();
-        Assets.AddFonts(fonts);
-        resources.Add(fonts);
         var host = new ResourceDictionary();
         foreach (var d in resources) host.MergedDictionaries.Add(d);
         var theme = new ThemeService(host, new SettingsFile(Path.Combine(Path.GetTempPath(), $"akari-shell-{Guid.NewGuid():N}.json")), () => null, false);

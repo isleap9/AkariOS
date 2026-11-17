@@ -16,11 +16,6 @@ $AppVersionText.Text = "AkariOS $AkariVersion"
 # the page glides on the mouse wheel (UI\Motion.ps1)
 Enable-AkariSmoothScroll $PageScroll
 
-# ---- fonts (Get-AkariFonts, UI\Cards.ps1): FontDisplay, FontText, FontMono; Dialog.ps1 gets them through the
-# window's resources
-$f = Get-AkariFonts "$Root\Assets\Fonts"
-foreach ($k in $f.Keys) { $window.Resources[$k] = $f[$k] }
-
 # ---- theme: UI\Theme.Dark.xaml or UI\Theme.Light.xaml, merged first into the window's resources (every brush is a
 # DynamicResource, so swapping the dictionary repaints the window). The choice (System, Dark, Light) is settings.json's
 # Theme, next to akari.log; System follows Windows' app mode and changes with it.
@@ -572,7 +567,7 @@ foreach ($s in @(@('Tweaks', 'Tweaks'), @('Apps', 'Removable apps'), @('Applied'
     }
     $sp = [Windows.Controls.StackPanel]::new()
     $n = [Windows.Controls.TextBlock]::new()
-    $n.Text = [string][char]0x2014; $n.FontSize = 28; $n.FontWeight = 'Bold'
+    $n.Text = [string][char]0x2014; $n.FontSize = 28; $n.FontWeight = 'SemiBold'
     Set-AkariFont $n 'Display'
     $l = [Windows.Controls.TextBlock]::new()
     $l.Text = $s[1]; $l.FontSize = 13

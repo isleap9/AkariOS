@@ -17,9 +17,9 @@
     <ProjectReference Include="..\AkariOS.Core\AkariOS.Core.csproj" />
     <ProjectReference Include="..\AkariOS.Tweaks\AkariOS.Tweaks.csproj" />
   </ItemGroup>
-  <!-- Fonts (SIL OFL) and logos from src/Assets, as WPF resources: pack://application:,,,/AkariOS-Native;component/Assets/... -->
+  <!-- Logos and app icons from src/Assets, as WPF resources: pack://application:,,,/AkariOS-Native;component/Assets/...
+       (the fonts are Windows' own, ADR 0008) -->
   <ItemGroup>
-    <Resource Include="$(AkariSrc)Assets\Fonts\*.ttf" Link="Assets\Fonts\%(Filename)%(Extension)" />
     <!-- the app icons (build\AppIcons.ps1): the Apps step's rows -->
     <Resource Include="$(AkariSrc)Assets\Apps\*.png" Link="Assets\Apps\%(Filename)%(Extension)" />
     <Resource Include="$(AkariSrc)Assets\AkariLogo-dark.png;$(AkariSrc)Assets\AkariLogo-light.png;$(AkariSrc)Assets\AkariLogo.png;$(AkariSrc)Assets\AkariLogo.ico" Link="Assets\%(Filename)%(Extension)" />

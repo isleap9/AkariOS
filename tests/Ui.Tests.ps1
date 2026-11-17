@@ -50,40 +50,32 @@ Describe 'UI files' {
     }
 }
 
-Describe 'Fonts (Assets\Fonts)' {
-    Add-Type -AssemblyName PresentationCore, PresentationFramework
-    . "$Root\UI\Cards.ps1"
-    $dir = "$Root\Assets\Fonts"
-    $files = @{ 'Unbounded' = 'Unbounded-SemiBold', 'Unbounded-Bold'; 'Manrope' = 'Manrope-Medium', 'Manrope-SemiBold', 'Manrope-Bold'; 'JetBrains Mono' = 'JetBrainsMono-Medium' }
+Describe 'Fonts (ADR 0008: Windows'' own, UI\Controls.xaml)' {
+    $repo = Split-Path $Root
+    $controls = [xml](Get-Content "$Root\UI\Controls.xaml" -Raw)
+    $fonts = @{}; foreach ($f in $controls.ResourceDictionary.FontFamily) { $fonts[$f.Key] = $f.InnerText }
 
-    It 'ships each static TTF with its family name, and an OFL licence per family' {
-        foreach ($fam in $files.Keys) {
-            foreach ($n in $files[$fam]) {
-                $g = [Windows.Media.GlyphTypeface]::new([Uri]"$dir\$n.ttf")
-                "$n=$($g.FamilyNames['en-us'])" | Should Be "$n=$fam"
-            }
-        }
-        foreach ($l in 'Unbounded', 'Manrope', 'JetBrainsMono') { (Get-Content "$dir\$l-OFL.txt" -Raw) | Should Match 'SIL Open Font License' }
+    It 'are Segoe UI Variable (Segoe UI on Windows 10) and Cascadia Mono, defined once in Controls.xaml' {
+        "$($fonts.FontDisplay)|$($fonts.FontText)|$($fonts.FontSmall)|$($fonts.FontMono)" |
+            Should Be 'Segoe UI Variable Display, Segoe UI|Segoe UI Variable Text, Segoe UI|Segoe UI Variable Small, Segoe UI|Cascadia Mono, Consolas'
+        $other = Select-String -Path "$Root\UI\*.xaml", "$Root\UI\*.ps1" -Pattern 'Segoe UI|Consolas|Cascadia' | Where-Object { $_.Filename -ne 'Controls.xaml' -and $_.Line -notmatch '^\s*#' }
+        @($other | ForEach-Object { "$($_.Filename):$($_.LineNumber)" }) -join ', ' | Should Be ''
     }
-    It 'are static, not variable fonts (WPF ignores variable axes)' {
-        foreach ($f in Get-ChildItem $dir -Filter *.ttf) {
-            $b = [IO.File]::ReadAllBytes($f.FullName); $n = $b[4] * 256 + $b[5]
-            $tags = for ($i = 0; $i -lt $n; $i++) { [Text.Encoding]::ASCII.GetString($b, 12 + 16 * $i, 4) }
-            "$($f.Name):$($tags -contains 'fvar')" | Should Be "$($f.Name):False"
-        }
+    It 'ship nothing: no fonts folder, no font loader, no font files in the native app' {
+        Test-Path "$Root\Assets\Fonts" | Should Be $false
+        @(Get-ChildItem $repo -Recurse -Include *.ttf, *.otf -File -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notmatch '\\(bin|obj|_ref|graphify-out|\.git)\\' }).Count | Should Be 0
+        @(Select-String -Path "$Root\UI\*.ps1", "$repo\app\AkariOS.App\*.csproj" -Pattern 'Get-AkariFonts|AddFonts|Assets\\Fonts').Count | Should Be 0
     }
-    It 'load from the folder as FontDisplay, FontText and FontMono with every weight the UI uses' {
-        $f = Get-AkariFonts $dir
-        $w = { param($k) (@($f[$k].GetTypefaces() | ForEach-Object { "$($_.Weight)" }) | Sort-Object -Unique) -join ',' }
-        & $w 'FontDisplay' | Should Be 'Bold,SemiBold'
-        & $w 'FontText' | Should Be 'Bold,Medium,SemiBold'
-        & $w 'FontMono' | Should Match 'Medium'
+    It 'leave no Unbounded, Manrope or JetBrains Mono anywhere in src or app' {
+        $files = @(Get-ChildItem $Root, "$repo\app" -Recurse -File -Include *.ps1, *.psd1, *.xaml, *.cs, *.csproj, *.json, *.md |
+            Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' }) + @(Get-Item "$repo\CREDITS.md")
+        $hits = Select-String -Path ($files | ForEach-Object FullName) -Pattern 'Unbounded|Manrope|JetBrains ?Mono' -CaseSensitive
+        @($hits | ForEach-Object { "$($_.Filename):$($_.LineNumber)" }) -join ', ' | Should Be ''
     }
-    It 'go into the release zip (the workflow ships all of src)' {
-        (Get-Content "$Root\..\.github\workflows\release.yml" -Raw) | Should Match 'Copy-Item src/\* dist/AkariOS -Recurse'
-    }
-    It 'leave no Segoe UI or Consolas in the UI but the fallbacks' {
-        @(Select-String -Path "$Root\UI\*.xaml", "$Root\UI\*.ps1" -Pattern 'Segoe UI|Consolas' | Where-Object { $_.Line -notmatch '\./#|^\s*#' }).Count | Should Be 0
+    It 'follow the ramp: body text Normal (400), no Bold or Medium in the UI' {
+        $files = @(Get-ChildItem "$Root\UI\*.ps1", "$Root\UI\*.xaml") + @(Get-ChildItem "$repo\app\AkariOS.App" -Recurse -Include *.cs, *.xaml | Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' })
+        $hits = Select-String -Path ($files | ForEach-Object FullName) -Pattern 'FontWeight="(Bold|Medium)"|FontWeight = ''(Bold|Medium)''|FontWeights\.(Bold|Medium)'
+        @($hits | ForEach-Object { "$($_.Filename):$($_.LineNumber)" }) -join ', ' | Should Be ''
     }
 }
 
@@ -163,9 +155,7 @@ Describe 'Themes (UI\Theme.Dark.xaml, UI\Theme.Light.xaml)' {
             foreach ($f in $xaml) { [regex]::Matches((Get-Content $f.FullName -Raw), '\{(?:Dynamic|Static)Resource ([A-Za-z0-9]+)\}') | ForEach-Object { $_.Groups[1].Value } }
             foreach ($f in Get-ChildItem "$Root\UI\*.ps1") { [regex]::Matches((Get-Content $f.FullName -Raw), "(?:SetResourceReference\([^,]+,\s*|FindResource\()'([A-Za-z0-9]+)'") | ForEach-Object { $_.Groups[1].Value } }
         ) | Sort-Object -Unique
-        # the fonts are put in the window's resources by UI\Shell.ps1 (Get-AkariFonts), not by a theme
-        $fonts = 'FontDisplay', 'FontText', 'FontMono'
-        $miss = @($used | Where-Object { $_ -notin $defined -and $_ -notin $dark -and $_ -notin $fonts })
+        $miss = @($used | Where-Object { $_ -notin $defined -and $_ -notin $dark })
         ($miss -join ', ') | Should Be ''
     }
 
@@ -1011,8 +1001,8 @@ $Sections.SelectedItem = $Sections.Items[2]
         $out.catLeft | Should Be 'Check|Check,Refresh,Setup,Graphics,Windows,Hardware,Advanced|Collapsed'
     }
     It 'the title bar says AkariOS' { $out.title | Should Be 'AkariOS' }
-    It 'uses Manrope for text, Unbounded 32 for the page title and the wordmark, JetBrains Mono for the version' {
-        $out.fonts | Should Be './#Manrope|./#Unbounded|32|./#Unbounded|./#JetBrains Mono'
+    It 'uses Segoe UI Variable Text for text, Display 28 for the page title and the wordmark, Cascadia Mono for the version' {
+        $out.fonts | Should Be 'Segoe UI Variable Text|Segoe UI Variable Display|28|Segoe UI Variable Display|Cascadia Mono'
     }
     It 'the options menu: Import / Export settings, System Restore, the About links, Logs, About' {
         $out.menu | Should Be 'Import settings,Export settings,System Restore,Theme: Follow Windows,-,GitHub,Report a bug,Discord,Logs,About'

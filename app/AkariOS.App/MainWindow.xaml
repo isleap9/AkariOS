@@ -1,6 +1,6 @@
 <!-- The native shell, laid out as src/UI/MainWindow.xaml (the design system's): a 64 px top bar (the A mark and
      wordmark, the tabs over their sliding pill, the search, the options menu and caption buttons), the page header
-     (icon, Unbounded title, subtitle; none on Home), the page on one rounded surface, and the status bar. The frame is
+     (icon, Display title, subtitle; none on Home), the page on one rounded surface, and the status bar. The frame is
      extended over the whole window (GlassFrameThickness -1) so Windows draws Mica behind it. Bound to ShellViewModel;
      the tabs and the page are built in code (MainWindow.xaml.cs). -->
 <Window x:Class="AkariOS.App.MainWindow"
@@ -8,7 +8,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="AkariOS" Width="1360" Height="800" MinWidth="860" MinHeight="560"
         WindowStartupLocation="CenterScreen" UseLayoutRounding="True" SnapsToDevicePixels="True"
-        FontFamily="{DynamicResource FontText}" FontSize="14" FontWeight="Medium"
+        FontFamily="{DynamicResource FontText}" FontSize="14" FontWeight="Normal"
         Background="Transparent" Foreground="{DynamicResource Tx}">
   <WindowChrome.WindowChrome>
     <WindowChrome CaptionHeight="64" GlassFrameThickness="-1" ResizeBorderThickness="6"
@@ -34,7 +34,7 @@
       </Grid.ColumnDefinitions>
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,24,0">
         <Image x:Name="Logo" Width="24" Height="24" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-        <TextBlock x:Name="TitleText" Text="AkariOS" FontFamily="{DynamicResource FontDisplay}" FontWeight="Bold" FontSize="16" VerticalAlignment="Center"/>
+        <TextBlock x:Name="TitleText" Text="AkariOS" FontFamily="{DynamicResource FontDisplay}" FontWeight="SemiBold" FontSize="16" VerticalAlignment="Center"/>
       </StackPanel>
       <!-- the tabs, over the current tab's tint pill (TabPill: slides to the checked tab, Motion.PillGroup) -->
       <Grid Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Left" ClipToBounds="True">
@@ -117,7 +117,7 @@
           </Canvas>
         </Viewbox>
         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-          <TextBlock Text="{Binding Heading}" FontFamily="{DynamicResource FontDisplay}" FontSize="32" FontWeight="Bold"
+          <TextBlock Text="{Binding Heading}" FontFamily="{DynamicResource FontDisplay}" FontSize="28" FontWeight="SemiBold"
                      TextTrimming="CharacterEllipsis"/>
           <TextBlock Text="{Binding Sub}" Foreground="{DynamicResource Mu}" FontSize="14" Margin="0,2,0,0" TextWrapping="Wrap"/>
         </StackPanel>
