@@ -362,11 +362,11 @@ Describe 'The real app installs' {
     It 'loads every install with no Errors' {
         @($r.Problems | Where-Object { $_.Level -eq 'Error' }).Count | Should Be 0
         # + OneDrive, Remote Desktop Connection, Snipping Tool (Windows 10) in the restore card (batch 2c);
-        # + winutil W5a's 79, W5b's 52
-        $apps.Count | Should Be 201
+        # + winutil W5a's 79, W5b's 52, W5c's 25
+        $apps.Count | Should Be 226
     }
 
-    It 'installs most apps with winget' { @($apps | Where-Object { $_.Winget }).Count | Should Be 192 }
+    It 'installs most apps with winget' { @($apps | Where-Object { $_.Winget }).Count | Should Be 217 }
 
     # winutil W5: the cards hold at most 30 rows, and every app has a named card (nothing under Other)
     . "$Root\UI\Apps.ps1"
@@ -377,7 +377,7 @@ Describe 'The real app installs' {
 
     $w5 = @(Get-ChildItem "$Root\Tweaks\Apps\Install\*.ps1" | Where-Object { (Get-Content $_.FullName -TotalCount 3) -match 'config/applications\.json' })
     It 'takes winutil''s apps as data-only winget installs, credited, Safe or Caution' {
-        $w5.Count | Should Be 131
+        $w5.Count | Should Be 156
         foreach ($f in $w5) {
             $d = Import-PowerShellDataFile $f.FullName
             $bad = @()
