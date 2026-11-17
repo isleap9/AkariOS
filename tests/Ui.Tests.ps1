@@ -48,6 +48,56 @@ Describe 'UI files' {
              "if (`$miss) { 'missing: ' + (`$miss -join ', ') } else { 'ok' }"
         Test-XamlInChild $s | Should Be 'ok'
     }
+
+    # Windows 11 controls (plan docs/plans/2026-11-17-windows-11-style.md, batch 4)
+    $controlsText = Get-Content "$Root\UI\Controls.xaml" -Raw
+    $windowText = [regex]::Match((Get-Content "$Root\UI\MainWindow.xaml" -Raw), '(?s)<Window\.Resources>.*</Window\.Resources>').Value
+    # each x:Key'd style's text, by key
+    function Get-StyleBlocks([string]$Text) {
+        $h = @{}
+        foreach ($m in [regex]::Matches($Text, '(?s)<Style x:Key="([^"{]+)".*?</Style>')) { $h[$m.Groups[1].Value] = $m.Value }
+        $h
+    }
+    It 'has no CornerRadius above 8 in the shared styles; only the toggle tracks round fully (radios are ellipses)' {
+        $bad = foreach ($src in @(@{ N = 'Controls.xaml'; T = $controlsText }, @{ N = 'MainWindow.xaml'; T = $windowText })) {
+            foreach ($m in [regex]::Matches($src.T, '(?:CornerRadius="|Property="CornerRadius" Value=")([0-9.,]+)"')) {
+                if (@($m.Groups[1].Value -split ',' | Where-Object { [double]$_ -gt 8 }).Count) { "$($src.N): $($m.Value)" }
+            }
+            $styles = Get-StyleBlocks $src.T
+            foreach ($k in $styles.Keys) {
+                foreach ($m in [regex]::Matches($styles[$k], 'RadiusX="([0-9.]+)"')) { if ([double]$m.Groups[1].Value -gt 8 -and $k -notin 'Switch', 'CatSwitch') { "$($src.N) $k RadiusX $($m.Groups[1].Value)" } }
+            }
+        }
+        (@($bad) -join '; ') | Should Be ''
+    }
+    It 'eases without overshoot: no PowerShell style or code uses Motion.Spring' {
+        $hits = Select-String -Path "$Root\UI\*.xaml", "$Root\UI\*.ps1" -Pattern 'Motion\.Spring|-Easing Spring' | Where-Object { $_.Filename -ne 'Motion.xaml' }
+        (@($hits | ForEach-Object { "$($_.Filename):$($_.LineNumber)" }) -join ', ') | Should Be ''
+        (Get-Content "$Root\UI\Motion.xaml" -Raw) | Should Match '<ExponentialEase x:Key="Motion.Ease" EasingMode="EaseOut" Exponent="7"/>'
+    }
+    It 'retires the segmented picker and the hot mode card from the PowerShell code (the native app keeps them for now)' {
+        $hits = Select-String -Path "$Root\UI\*.ps1" -Pattern "'(Segmented|SegItem|ModeCardHot)'"
+        (@($hits | ForEach-Object { "$($_.Filename):$($_.LineNumber)" }) -join ', ') | Should Be ''
+        # only Optimize's Sections row is left, until batch 5's navigation pane
+        @([regex]::Matches((Get-Content "$Root\UI\MainWindow.xaml" -Raw), 'Resource Segmented\}')).Count | Should Be 1
+    }
+    It 'has WinUI metrics: 32 px buttons, combo and text box, a 120 px accent button, 40 x 20 switches, 20 px boxes, 68 px cards' {
+        $c = Get-StyleBlocks $controlsText; $w = Get-StyleBlocks $windowText
+        foreach ($k in 'Btn', 'Flat') { "$k $($w[$k] -match '"MinHeight" Value="32"')" | Should Be "$k True" }
+        "Combo $($c['Combo'] -match '"MinHeight" Value="32"')" | Should Be 'Combo True'
+        "Accent $($c['Accent'] -match '"MinHeight" Value="32"' -and $c['Accent'] -match '"MinWidth" Value="120"')" | Should Be 'Accent True'
+        foreach ($k in 'Switch', 'CatSwitch') { "$k $($c[$k] -match '<Grid Width="40" Height="20"' -and $c[$k] -match 'x:Name="Thumb" Width="12" Height="12"')" | Should Be "$k True" }
+        "Check $($c['Check'] -match 'x:Name="Box" Width="20" Height="20"')" | Should Be 'Check True'
+        "Radio $($c['Radio'] -match '<Grid Width="20" Height="20"')" | Should Be 'Radio True'
+        "Card $($c['SettingCard'] -match '"MinHeight" Value="68"' -and $c['SettingCard'] -match '"Padding" Value="16,12"' -and $c['SettingCard'] -match '"Margin" Value="0,0,0,4"')" | Should Be 'Card True'
+        "Btn edge $($w['Btn'] -match 'CtlBd2')" | Should Be 'Btn edge True'
+    }
+    It 'draws Fluent''s double focus ring: 2 px Focus outside a 1 px FocusIn, on every focus style' {
+        $w = Get-StyleBlocks $windowText
+        foreach ($k in 'FocusRing', 'FocusBox') {
+            "$k $($w[$k] -match 'Margin="-3"[^>]*Stroke="\{DynamicResource Focus\}" StrokeThickness="2"' -and $w[$k] -match 'Margin="-1"[^>]*Stroke="\{DynamicResource FocusIn\}" StrokeThickness="1"')" | Should Be "$k True"
+        }
+    }
 }
 
 Describe 'Fonts (ADR 0008: Windows'' own, UI\Controls.xaml)' {
@@ -231,7 +281,7 @@ Describe 'Motion (UI\Motion.ps1, UI\Motion.xaml)' {
 
     It 'takes the entries between the root tags, every Duration 0:0:0 with motion off' {
         $on = Get-AkariMotionEntries $motion $true
-        $on | Should Match 'x:Key="Motion.Fast">0:0:0.12<'
+        $on | Should Match 'x:Key="Motion.Fast">0:0:0.083<'
         $on | Should Not Match '<ResourceDictionary'
         $off = Get-AkariMotionEntries $motion $false
         [regex]::Matches($off, '<Duration\b[^>]*>0:0:0</Duration>').Count | Should Be ([regex]::Matches($on, '<Duration\b').Count)
@@ -244,7 +294,7 @@ Describe 'Motion (UI\Motion.ps1, UI\Motion.xaml)' {
     }
     It 'plans each kind: Fade, Rise, Pop, Scale, Slide, Fill' {
         ((Get-AkariMotionPlan Fade) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'Opacity 0>1'
-        ((Get-AkariMotionPlan Rise) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'Opacity 0>1, Y 10>0'
+        ((Get-AkariMotionPlan Rise) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'Opacity 0>1, Y 8>0'
         ((Get-AkariMotionPlan Pop) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'Opacity 0>1, ScaleX 0.96>1, ScaleY 0.96>1'
         ((Get-AkariMotionPlan Scale 1 0.97) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'ScaleX 1>0.97, ScaleY 1>0.97'
         ((Get-AkariMotionPlan Slide $null 40) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'X >40'
@@ -306,7 +356,7 @@ foreach ($m in 'on', 'off') {
 $r -join '|'
 '@
         $out = @(& powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root 2>&1 | ForEach-Object { "$_" }) -join "`n"
-        $out | Should Be 'on fast=120|on rise op=1 y=0 x=40 anim=True same=True|off fast=0|off rise op=1 y=0 x=40 anim=False same=True'
+        $out | Should Be 'on fast=83|on rise op=1 y=0 x=40 anim=True same=True|off fast=0|off rise op=1 y=0 x=40 anim=False same=True'
     }
 
     # the controls' storyboards run (no window: the dispatcher is pumped) and end on each state's values
@@ -352,7 +402,7 @@ $r += "none $($pill.Visibility)"
 $r += "step $($sn.RenderTransform.ScaleX)"
 $r -join '|'
 '@
-        $want = 'on 20 0 1 1 On|null 0 10 0.8 0 Unchanged|cat 20|check 1 1|radio 1|seg Visible 0 0 True True|none Hidden|step 1'
+        $want = 'on 20 0 1 1 On|null 0 10 1 0 Unchanged|cat 20|check 1 1|radio 1|seg Visible 0 0 True True|none Hidden|step 1'
         foreach ($m in 'on', 'off') {
             $out = @(& powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -Motion $m 2>&1 | ForEach-Object { "$_" }) -join "`n"
             "$m $out" | Should Be "$m $want"
@@ -397,7 +447,7 @@ $r += "count $($tx.Text)"
 $r -join '|'
 '@
         $out = @(& powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -Motion on 2>&1 | ForEach-Object { "$_" }) -join "`n"
-        $out | Should Be ('page 0>1|stagger 12>0|bar Visible|hiding False|hidden Collapsed 1 True|count ' + ('{0:N0}' -f 1234))
+        $out | Should Be ('page 0>1|stagger 8>0|bar Visible|hiding False|hidden Collapsed 1 True|count ' + ('{0:N0}' -f 1234))
         $out = @(& powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -Motion off 2>&1 | ForEach-Object { "$_" }) -join "`n"
         $out | Should Be ('page 1>1|stagger 0>0|bar Visible|hiding True|hidden Collapsed 1 True|count ' + ('{0:N0}' -f 1234))
     }
@@ -572,13 +622,13 @@ Set-AkariRowControl $e 'None'; "chNoChange=$(Get-AkariComboValue $e)"
 $e = New-AkariTweakRow $ch 'Custom' 7; Show $e
 "chUnlisted=$(Get-AkariRowStart $e $true)"
 Set-AkariRowControl $e 7; "chTyped=$($e.Control.Text)"
-# a Choice with up to 4 values that can't be typed: the segmented picker, driven by the same row code
+# a Choice with up to 4 values that can't be typed: a combobox too (the segmented picker is retired, ADR 0008)
 $seg = ConvertTo-AkariTweak @{ Id = 'seg'; Name = 'Seg'; Description = 'D'; Kind = 'Choice'; Risk = 'Safe'; Recommended = 1; Default = 0
     Registry = @{ Path = 'HKCU:\x'; Name = 'S'; Type = 'DWord' }; Choices = @(@{ Value = 0; Label = 'Off' }, @{ Value = 1; Label = 'On' }, @{ Value = 2; Label = 'Max' }) } 'x' $false
 $e = New-AkariTweakRow $seg 'Default' 0; Show $e
 Set-AkariRowControl $e 2; $v2 = Get-AkariComboValue $e
 Set-AkariRowControl $e 'None'
-"seg=$($e.Control.GetType().Name)|$($e.Control.Items.Count)|$v2|$(Get-AkariComboValue $e)|$($e.Control.Style -eq $host_.FindResource('Segmented'))|$(@($e.Control.Items | ForEach-Object { $_.GetType().Name } | Sort-Object -Unique) -join ',')"
+"seg=$($e.Control.GetType().Name)|$($e.Control.Items.Count)|$v2|$(Get-AkariComboValue $e)|$($e.Control.Style -eq $host_.FindResource('Combo'))|$(@($e.Control.Items | ForEach-Object { $_.GetType().Name } | Sort-Object -Unique) -join ',')"
 "chType=$((New-AkariTweakRow $ch 'Default' 0x26).Control.GetType().Name)"
 $e = New-AkariTweakRow $act 'Unknown'; Show $e
 "actType=$($e.Control.GetType().Name)"; "actGlyphs=$($e.Glyphs.Children.Count)"
@@ -631,9 +681,8 @@ $b = New-AkariBadge 'Advanced'; "badge=$($b.Tag)|$($b.Child.Text)"
         $out.chTyped | Should Be '7'
     }
 
-    It 'shows a short Choice as the segmented picker (same items, same row code), an editable one as a combobox' {
-        # ListBoxItems: a ComboBoxItem in a ListBox ignores the mouse
-        $out.seg | Should Be 'ListBox|4|2|None|True|ListBoxItem'
+    It 'shows every Choice as a combobox, a short one too (WinUI: no segmented picker)' {
+        $out.seg | Should Be 'ComboBox|4|2|None|True|ComboBoxItem'
         $out.chType | Should Be 'ComboBox'
     }
 

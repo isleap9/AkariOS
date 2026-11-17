@@ -145,11 +145,14 @@ function Get-AkariServiceBar {
     $all.Switch.Add_Click({ param($s, $a) $script:SvcAll = ($s.IsChecked -eq $true); Show-Page })
     [Windows.Controls.DockPanel]::SetDock($all.Panel, 'Right')
     [void]$bar.Children.Add($all.Panel)
-    $seg = [Windows.Controls.ListBox]::new()
-    $seg.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Segmented')
+    $seg = [Windows.Controls.ComboBox]::new()
+    $seg.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Combo')
     $seg.Margin = [Windows.Thickness]::new(0, 0, 16, 0)
+    $seg.MinWidth = 160
+    $seg.VerticalAlignment = 'Center'
+    $seg.ToolTip = 'Show only these services'
     foreach ($f in $AkariServiceFilters) {
-        $it = [Windows.Controls.ListBoxItem]::new()
+        $it = [Windows.Controls.ComboBoxItem]::new()
         $it.Content = $(if ($f -eq 'Changed') { 'Not default' } else { $f }); $it.Tag = $f
         if ($f -eq 'Changed') { $it.ToolTip = 'Startup types that differ from the Windows default (for the services Akari knows the default of)' }
         [void]$seg.Items.Add($it)

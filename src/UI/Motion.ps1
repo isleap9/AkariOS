@@ -1,4 +1,4 @@
-﻿# Motion (plan docs/plans/2026-10-31-motion-polish.md): the tokens in UI\Motion.xaml, the XAML loader that puts them
+# Motion (plan docs/plans/2026-10-31-motion-polish.md): the tokens in UI\Motion.xaml, the XAML loader that puts them
 # into every file it parses (Get-AkariXaml), and Start-AkariMotion, the only code that starts an animation.
 # Dot-sourced first of the UI files by Akari.ps1. Pure helpers first (tests dot-source this file).
 
@@ -29,13 +29,13 @@ function Test-AkariMotionOn {
 }
 
 # what Start-AkariMotion animates for a kind: @{ Property = Opacity|ScaleX|ScaleY|X|Y; From; To }
-# (Fade: opacity; Rise: opacity and Y from 10 px below; Pop: opacity and scale from 0.96; Scale / Slide: scale or X only;
+# (Fade: opacity; Rise: opacity and Y from 8 px below, Fluent's page entrance; Pop: opacity and scale from 0.96; Scale / Slide: scale or X only;
 # Fill: the width scale alone, a bar that grows from its RenderTransformOrigin; SlideY: Y only; Width / Height: the
 # element's own size, only for a small absolutely placed element (it lays out again each frame): the segmented pill)
 function Get-AkariMotionPlan([string]$Kind, $From = $null, $To = $null) {
     switch ($Kind) {
         'Fade'  { @(@{ Property = 'Opacity'; From = $(if ($null -ne $From) { $From } else { 0 }); To = $(if ($null -ne $To) { $To } else { 1 }) }) }
-        'Rise'  { @(@{ Property = 'Opacity'; From = 0; To = 1 }, @{ Property = 'Y'; From = $(if ($null -ne $From) { $From } else { 10 }); To = $(if ($null -ne $To) { $To } else { 0 }) }) }
+        'Rise'  { @(@{ Property = 'Opacity'; From = 0; To = 1 }, @{ Property = 'Y'; From = $(if ($null -ne $From) { $From } else { 8 }); To = $(if ($null -ne $To) { $To } else { 0 }) }) }
         'Pop'   { $f = if ($null -ne $From) { $From } else { 0.96 }; $t = if ($null -ne $To) { $To } else { 1 }
                   @(@{ Property = 'Opacity'; From = 0; To = 1 }, @{ Property = 'ScaleX'; From = $f; To = $t }, @{ Property = 'ScaleY'; From = $f; To = $t }) }
         'Scale' { $t = if ($null -ne $To) { $To } else { 1 }
@@ -135,7 +135,7 @@ function Start-AkariEntrance($Element, [string]$Kind = 'Rise', $From = $null, [s
 }
 
 # the first $Max elements come in one after another, Motion.Stagger apart (the rest at once): cards on a page
-function Start-AkariStagger($Elements, [int]$Max = 12, [string]$Kind = 'Rise', $From = 8) {
+function Start-AkariStagger($Elements, [int]$Max = 8, [string]$Kind = 'Rise', $From = 8) {
     if (-not $script:AkariMotionOn) { return }
     $gap = $AkariMotion['Motion.Stagger'].TimeSpan
     $n = 0

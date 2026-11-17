@@ -24,9 +24,9 @@ public class AkariXamlTests
     public void Motion_on_keeps_the_tokens()
     {
         var on = AkariXaml.MotionEntries(AkariXaml.Text("Motion.xaml"), on: true);
-        Assert.Contains(">0:0:0.12</Duration>", on);
-        Assert.Contains(">0:0:0.2</Duration>", on);
-        Assert.Contains(">0:0:0.28</Duration>", on);
+        Assert.Contains(">0:0:0.083</Duration>", on);
+        Assert.Contains(">0:0:0.167</Duration>", on);
+        Assert.Contains(">0:0:0.25</Duration>", on);
         Assert.Contains(">0:0:0.03</Duration>", on);
         Assert.Contains("Motion.Spring", on);
     }

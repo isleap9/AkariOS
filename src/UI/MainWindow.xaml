@@ -15,20 +15,25 @@
 
   <Window.Resources>
     <!-- Brushes come from UI\Theme.Dark.xaml or UI\Theme.Light.xaml, merged in by Set-AkariTheme (UI\Shell.ps1):
-         every colour here is a DynamicResource so a theme switch repaints the window. -->
+         every colour here is a DynamicResource so a theme switch repaints the window. Windows 11 (WinUI) metrics (plan
+         docs/plans/2026-11-17-windows-11-style.md): 4 px corners on controls and rows, 8 px on menus. -->
     <!-- a Fluent icon (UI\Icons.xaml, Ic.<name>) in a 20x20 Canvas inside a Viewbox: filled, in the colour of the
          button or control it sits in (the caption buttons' hover colours carry over) -->
     <Style x:Key="Ic" TargetType="Path">
       <Setter Property="Fill" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Control}}"/>
     </Style>
 
-    <!-- Keyboard focus: a 2 px Focus ring 3 px outside the control. FocusRing for pills (buttons, switches, text
-         boxes, combos), FocusBox for square things (check boxes, cards). Every focusable control uses one. -->
+    <!-- Keyboard focus, Fluent's double ring: a 2 px Focus ring outside a 1 px FocusIn ring, both just outside the
+         control (3 px out, 7 px corners). FocusRing and FocusBox are the same ring (the two keys stay for the styles
+         and code that name them). Every focusable control uses one. -->
     <Style x:Key="FocusRing">
       <Setter Property="Control.Template">
         <Setter.Value>
           <ControlTemplate>
-            <Rectangle Margin="-3" RadiusX="21" RadiusY="21" Stroke="{DynamicResource Focus}" StrokeThickness="2" SnapsToDevicePixels="True"/>
+            <Grid SnapsToDevicePixels="True">
+              <Rectangle Margin="-3" RadiusX="7" RadiusY="7" Stroke="{DynamicResource Focus}" StrokeThickness="2"/>
+              <Rectangle Margin="-1" RadiusX="5" RadiusY="5" Stroke="{DynamicResource FocusIn}" StrokeThickness="1"/>
+            </Grid>
           </ControlTemplate>
         </Setter.Value>
       </Setter>
@@ -37,35 +42,37 @@
       <Setter Property="Control.Template">
         <Setter.Value>
           <ControlTemplate>
-            <Rectangle Margin="-3" RadiusX="9" RadiusY="9" Stroke="{DynamicResource Focus}" StrokeThickness="2" SnapsToDevicePixels="True"/>
+            <Grid SnapsToDevicePixels="True">
+              <Rectangle Margin="-3" RadiusX="7" RadiusY="7" Stroke="{DynamicResource Focus}" StrokeThickness="2"/>
+              <Rectangle Margin="-1" RadiusX="5" RadiusY="5" Stroke="{DynamicResource FocusIn}" StrokeThickness="1"/>
+            </Grid>
           </ControlTemplate>
         </Setter.Value>
       </Setter>
     </Style>
 
     <!-- Motion (UI\Motion.xaml, as in UI\Controls.xaml): hover / press colours are layers whose Opacity fades over
-         Motion.Fast, presses shrink the pill a little (not the caption buttons: Windows' own don't); each animated
-         value belongs to one trigger. -->
-    <!-- Secondary button: a pill with a control fill and a 1 px stroke, SemiBold text. -->
+         Motion.Fast; nothing lifts or shrinks (Fluent's buttons don't); pressed text dims. -->
+    <!-- Standard button (WinUI Button): 32 px, 4 px corners, 11 px side padding, Ctl with a CtlBd stroke and a CtlBd2
+         bottom edge (the slight elevation WinUI draws), CtlH on hover, CtlP pressed. -->
     <Style x:Key="Btn" TargetType="Button">
       <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
       <Setter Property="Background" Value="{DynamicResource Ctl}"/>
       <Setter Property="BorderBrush" Value="{DynamicResource CtlBd}"/>
-      <Setter Property="Padding" Value="16,7,16,8"/>
-      <Setter Property="MinHeight" Value="36"/>
+      <Setter Property="Padding" Value="11,5,11,6"/>
+      <Setter Property="MinHeight" Value="32"/>
       <Setter Property="FontSize" Value="14"/>
-      <Setter Property="FontWeight" Value="SemiBold"/>
       <Setter Property="Margin" Value="6,0,0,0"/>
       <Setter Property="Cursor" Value="Hand"/>
       <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusRing}"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
-              <Grid.RenderTransform><ScaleTransform/></Grid.RenderTransform>
-              <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="18"/>
-              <Border x:Name="H" Margin="1" CornerRadius="17" Background="{DynamicResource CtlH}" Opacity="0"/>
-              <Border x:Name="P" Margin="1" CornerRadius="17" Background="{DynamicResource CtlP}" Opacity="0"/>
+            <Grid x:Name="Root">
+              <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="4"/>
+              <Border x:Name="Edge" BorderBrush="{DynamicResource CtlBd2}" BorderThickness="0,0,0,1" CornerRadius="4"/>
+              <Border x:Name="H" Margin="1" CornerRadius="3" Background="{DynamicResource CtlH}" Opacity="0"/>
+              <Border x:Name="P" Margin="1" CornerRadius="3" Background="{DynamicResource CtlP}" Opacity="0"/>
               <Border BorderThickness="1" Padding="{TemplateBinding Padding}">
                 <ContentPresenter x:Name="C" HorizontalAlignment="Center" VerticalAlignment="Center"/>
               </Border>
@@ -89,12 +96,11 @@
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
                 <Setter TargetName="C" Property="Opacity" Value="0.78"/>
+                <Setter TargetName="Edge" Property="Visibility" Value="Hidden"/>
                 <Trigger.EnterActions>
                   <BeginStoryboard>
                     <Storyboard>
                       <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="0.97" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="0.97" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
                     </Storyboard>
                   </BeginStoryboard>
                 </Trigger.EnterActions>
@@ -102,8 +108,6 @@
                   <BeginStoryboard>
                     <Storyboard>
                       <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Spring}"/>
-                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Spring}"/>
                     </Storyboard>
                   </BeginStoryboard>
                 </Trigger.ExitActions>
@@ -116,7 +120,8 @@
         </Setter.Value>
       </Setter>
     </Style>
-    <!-- Primary button: the accent pill (Acc, AccT text), no glow (ADR 0008); AccH on hover, AccP pressed. -->
+    <!-- Primary button (WinUI AccentButton, as Controls.xaml's Accent): Acc with AccT text, AccH on hover, AccP pressed,
+         no glow (ADR 0008). -->
     <Style x:Key="BtnP" TargetType="Button" BasedOn="{StaticResource Btn}">
       <Setter Property="Background" Value="{DynamicResource Acc}"/>
       <Setter Property="Foreground" Value="{DynamicResource AccT}"/>
@@ -124,11 +129,10 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
-              <Grid.RenderTransform><ScaleTransform/></Grid.RenderTransform>
-              <Border x:Name="B" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="18"/>
-              <Border x:Name="H" CornerRadius="18" Background="{DynamicResource AccH}" Opacity="0"/>
-              <Border x:Name="P" CornerRadius="18" Background="{DynamicResource AccP}" Opacity="0"/>
+            <Grid x:Name="Root">
+              <Border x:Name="B" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="4"/>
+              <Border x:Name="H" CornerRadius="4" Background="{DynamicResource AccH}" Opacity="0"/>
+              <Border x:Name="P" CornerRadius="4" Background="{DynamicResource AccP}" Opacity="0"/>
               <Border BorderThickness="1" Padding="{TemplateBinding Padding}">
                 <ContentPresenter x:Name="C" HorizontalAlignment="Center" VerticalAlignment="Center"/>
               </Border>
@@ -151,12 +155,11 @@
                 </Trigger.ExitActions>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="C" Property="Opacity" Value="0.8"/>
                 <Trigger.EnterActions>
                   <BeginStoryboard>
                     <Storyboard>
                       <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="0.97" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="0.97" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
                     </Storyboard>
                   </BeginStoryboard>
                 </Trigger.EnterActions>
@@ -164,8 +167,6 @@
                   <BeginStoryboard>
                     <Storyboard>
                       <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Spring}"/>
-                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Spring}"/>
                     </Storyboard>
                   </BeginStoryboard>
                 </Trigger.ExitActions>
@@ -178,7 +179,8 @@
         </Setter.Value>
       </Setter>
     </Style>
-    <!-- Ghost button: no fill until hover (the pane toggle, icon buttons), round. -->
+    <!-- Subtle button (WinUI's subtle / icon buttons: the search button, Back): no fill until hover (Sub), SubP pressed,
+         4 px corners. -->
     <Style x:Key="Ghost" TargetType="Button">
       <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
       <Setter Property="Cursor" Value="Hand"/>
@@ -186,10 +188,9 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Grid x:Name="Root" Background="Transparent" RenderTransformOrigin="0.5,0.5">
-              <Grid.RenderTransform><ScaleTransform/></Grid.RenderTransform>
-              <Border x:Name="H" CornerRadius="18" Background="{DynamicResource Ctl}" Opacity="0"/>
-              <Border x:Name="P" CornerRadius="18" Background="{DynamicResource CtlP}" Opacity="0"/>
+            <Grid x:Name="Root" Background="Transparent">
+              <Border x:Name="H" CornerRadius="4" Background="{DynamicResource Sub}" Opacity="0"/>
+              <Border x:Name="P" CornerRadius="4" Background="{DynamicResource SubP}" Opacity="0"/>
               <ContentPresenter x:Name="C" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Grid>
             <ControlTemplate.Triggers>
@@ -215,8 +216,6 @@
                   <BeginStoryboard>
                     <Storyboard>
                       <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="0.94" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="0.94" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
                     </Storyboard>
                   </BeginStoryboard>
                 </Trigger.EnterActions>
@@ -224,8 +223,6 @@
                   <BeginStoryboard>
                     <Storyboard>
                       <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Spring}"/>
-                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Spring}"/>
                     </Storyboard>
                   </BeginStoryboard>
                 </Trigger.ExitActions>
@@ -236,11 +233,11 @@
       </Setter>
     </Style>
 
-    <!-- Menus (the title bar menu, Quick select): a dark rounded panel with a shadow, rows with an icon column,
-         after Win11Debloat's options menu. It fades in and drops 6 px into place when it opens. -->
+    <!-- Menus (the title bar menu, Quick select; WinUI MenuFlyout): an S2 flyout with 8 px corners, a Fly stroke and a
+         shadow, rows with an icon column. It fades in and drops 6 px into place when it opens. -->
     <Style TargetType="ContextMenu">
       <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
-      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="FontSize" Value="14"/>
       <Setter Property="HasDropShadow" Value="False"/>
       <Setter Property="HorizontalOffset" Value="-12"/>
       <Setter Property="VerticalOffset" Value="-8"/>
@@ -250,10 +247,10 @@
             <!-- the outer margin leaves room for the shadow inside the popup -->
             <Border x:Name="M" Margin="12">
               <Border.RenderTransform><TranslateTransform/></Border.RenderTransform>
-              <Border Background="{DynamicResource S2}" BorderBrush="{DynamicResource Bd}" BorderThickness="1"
-                      CornerRadius="12" Padding="6" MinWidth="200">
+              <Border Background="{DynamicResource S2}" BorderBrush="{DynamicResource Fly}" BorderThickness="1"
+                      CornerRadius="8" Padding="4" MinWidth="200">
                 <Border.Effect>
-                  <DropShadowEffect BlurRadius="14" Opacity="0.4" ShadowDepth="4" Direction="270"/>
+                  <DropShadowEffect BlurRadius="16" Opacity="0.26" ShadowDepth="4" Direction="270"/>
                 </Border.Effect>
                 <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
               </Border>
@@ -284,20 +281,21 @@
     <Style TargetType="MenuItem">
       <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
       <Setter Property="Background" Value="Transparent"/>
-      <Setter Property="Height" Value="34"/>
+      <Setter Property="Height" Value="32"/>
+      <Setter Property="Margin" Value="0,1"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="MenuItem">
             <Grid Background="{TemplateBinding Background}">
-              <Border x:Name="H" CornerRadius="8" Background="{DynamicResource CtlH}" Opacity="0"/>
-              <Border x:Name="P" CornerRadius="8" Background="{DynamicResource CtlP}" Opacity="0"/>
-              <Grid Margin="8,0,16,0">
+              <Border x:Name="H" CornerRadius="4" Background="{DynamicResource Sub}" Opacity="0"/>
+              <Border x:Name="P" CornerRadius="4" Background="{DynamicResource SubP}" Opacity="0"/>
+              <Grid Margin="12,0,16,0">
                 <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="20"/>
+                  <ColumnDefinition Width="16"/>
                   <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
                 <ContentPresenter ContentSource="Icon" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" Margin="10,0,0,1"/>
+                <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" Margin="12,0,0,1"/>
               </Grid>
             </Grid>
             <ControlTemplate.Triggers>
@@ -334,7 +332,7 @@
                 </Trigger.ExitActions>
               </Trigger>
               <Trigger Property="IsEnabled" Value="False">
-                <Setter Property="Opacity" Value="0.4"/>
+                <Setter Property="Foreground" Value="{DynamicResource TxDis}"/>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -342,17 +340,18 @@
       </Setter>
     </Style>
     <Style x:Key="{x:Static MenuItem.SeparatorStyleKey}" TargetType="Separator">
-      <Setter Property="Margin" Value="4,4"/>
+      <Setter Property="Margin" Value="-4,4"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Separator">
-            <Border Height="1" Background="{DynamicResource Bd}"/>
+            <Border Height="1" Background="{DynamicResource Div}"/>
           </ControlTemplate>
         </Setter.Value>
       </Setter>
     </Style>
 
-    <!-- Title bar caption button (46 x 32, clickable inside the drag region): fades only, as Windows' own. -->
+    <!-- Title bar caption button (46 x 32, clickable inside the drag region): Sub on hover, SubP pressed, fades only, as
+         Windows' own. -->
     <Style x:Key="Cap" TargetType="Button">
       <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
       <Setter Property="Width" Value="46"/>
@@ -363,8 +362,8 @@
         <Setter.Value>
           <ControlTemplate TargetType="Button">
             <Grid Background="Transparent">
-              <Border x:Name="H" Background="{DynamicResource Ctl}" Opacity="0"/>
-              <Border x:Name="P" Background="{DynamicResource CtlP}" Opacity="0"/>
+              <Border x:Name="H" Background="{DynamicResource Sub}" Opacity="0"/>
+              <Border x:Name="P" Background="{DynamicResource SubP}" Opacity="0"/>
               <ContentPresenter x:Name="C" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Grid>
             <ControlTemplate.Triggers>
@@ -457,12 +456,11 @@
       </Setter>
     </Style>
 
-    <!-- Top bar tab (Home, Install, Optimize, Downloads, USB): a pill with an icon and a label (built in UI\Shell.ps1),
-         crimson text when it is the current one, over the crimson tint pill (TabPill) that slides from tab to tab.
-         Clickable inside the title bar's drag region. -->
+    <!-- Top bar tab (until batch 5's navigation pane): an icon and a label (built in UI\Shell.ps1), Sub on hover, accent
+         text when current, over the tint pill (TabPill) that slides from tab to tab. 4 px corners. Clickable inside the
+         title bar's drag region. -->
     <Style x:Key="Tab" TargetType="RadioButton">
       <Setter Property="Foreground" Value="{DynamicResource Mu}"/>
-      <Setter Property="FontWeight" Value="SemiBold"/>
       <Setter Property="Cursor" Value="Hand"/>
       <Setter Property="Margin" Value="0,0,4,0"/>
       <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusRing}"/>
@@ -471,9 +469,9 @@
         <Setter.Value>
           <ControlTemplate TargetType="RadioButton">
             <Grid Background="Transparent">
-              <Border x:Name="H" CornerRadius="18" Background="{DynamicResource CtlH}" Opacity="0"/>
-              <Border x:Name="P" CornerRadius="18" Background="{DynamicResource CtlP}" Opacity="0"/>
-              <Border Padding="14,7,14,8">
+              <Border x:Name="H" CornerRadius="4" Background="{DynamicResource Sub}" Opacity="0"/>
+              <Border x:Name="P" CornerRadius="4" Background="{DynamicResource SubP}" Opacity="0"/>
+              <Border Padding="12,6,12,7">
                 <ContentPresenter x:Name="C" VerticalAlignment="Center"/>
               </Border>
             </Grid>
@@ -511,7 +509,7 @@
                   </BeginStoryboard>
                 </Trigger.ExitActions>
               </Trigger>
-              <!-- the current tab: crimson text over the top bar's sliding TabPill, no hover tint under it -->
+              <!-- the current tab: accent text over the top bar's sliding TabPill, no hover tint under it -->
               <Trigger Property="IsChecked" Value="True">
                 <Setter Property="Foreground" Value="{DynamicResource AccText}"/>
                 <Setter TargetName="H" Property="Visibility" Value="Hidden"/>
@@ -522,21 +520,19 @@
       </Setter>
     </Style>
 
-    <!-- Category chip (Optimize's sub-header, under the Section row): a small outlined pill; the current one shows the
-         row's crimson ChipPill, which slides from chip to chip. -->
+    <!-- Category chip (Optimize's sub-header, until batch 5's second-level nav items): a small outlined control, 4 px
+         corners; the current one shows the row's ChipPill, which slides from chip to chip. -->
     <Style x:Key="Chip" TargetType="RadioButton">
       <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
-      <Setter Property="FontSize" Value="13"/>
       <Setter Property="Cursor" Value="Hand"/>
       <Setter Property="Margin" Value="0,0,6,6"/>
       <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusRing}"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="RadioButton">
-            <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
-              <Grid.RenderTransform><ScaleTransform/></Grid.RenderTransform>
-              <Border x:Name="Base" CornerRadius="15" BorderThickness="1" BorderBrush="{DynamicResource CtlBd}" Background="{DynamicResource Ctl}"/>
-              <Border x:Name="H" Margin="1" CornerRadius="14" Background="{DynamicResource CtlH}" Opacity="0"/>
+            <Grid x:Name="Root">
+              <Border x:Name="Base" CornerRadius="4" BorderThickness="1" BorderBrush="{DynamicResource CtlBd}" Background="{DynamicResource Ctl}"/>
+              <Border x:Name="H" Margin="1" CornerRadius="3" Background="{DynamicResource CtlH}" Opacity="0"/>
               <Border BorderThickness="1" Padding="10,4,12,5">
                 <ContentPresenter VerticalAlignment="Center"/>
               </Border>
@@ -558,24 +554,6 @@
                   </BeginStoryboard>
                 </Trigger.ExitActions>
               </Trigger>
-              <Trigger Property="IsPressed" Value="True">
-                <Trigger.EnterActions>
-                  <BeginStoryboard>
-                    <Storyboard>
-                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="0.95" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="0.95" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    </Storyboard>
-                  </BeginStoryboard>
-                </Trigger.EnterActions>
-                <Trigger.ExitActions>
-                  <BeginStoryboard>
-                    <Storyboard>
-                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Spring}"/>
-                      <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Spring}"/>
-                    </Storyboard>
-                  </BeginStoryboard>
-                </Trigger.ExitActions>
-              </Trigger>
               <!-- the current chip: light text, its own fill and stroke gone over the row's sliding ChipPill -->
               <Trigger Property="IsChecked" Value="True">
                 <Setter Property="Foreground" Value="{DynamicResource AccT}"/>
@@ -588,26 +566,27 @@
       </Setter>
     </Style>
 
-    <!-- Text box: a pill (a multi-line box: 12 px corners), control fill and stroke; with keyboard focus the stroke
-         turns crimson inside a soft crimson halo (the focus ring of text boxes), both fading in. -->
+    <!-- Text box (WinUI TextBox): 32 px, 4 px corners, Ctl with a CtlBd stroke and a 1 px Line bottom edge; with
+         keyboard focus the fill turns InFocus and the bottom edge a 2 px Acc line (its focus mark: no ring). -->
     <Style x:Key="Flat" TargetType="TextBox">
       <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
       <Setter Property="Background" Value="{DynamicResource Ctl}"/>
       <Setter Property="BorderBrush" Value="{DynamicResource CtlBd}"/>
       <Setter Property="CaretBrush" Value="{DynamicResource Tx}"/>
       <Setter Property="SelectionBrush" Value="{DynamicResource Acc}"/>
-      <Setter Property="Padding" Value="14,7,14,8"/>
-      <Setter Property="MinHeight" Value="36"/>
+      <Setter Property="Padding" Value="10,5,6,6"/>
+      <Setter Property="MinHeight" Value="32"/>
       <Setter Property="VerticalContentAlignment" Value="Center"/>
       <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="TextBox">
             <Grid>
-              <Border x:Name="Halo" Margin="-3" CornerRadius="21" BorderThickness="3" BorderBrush="{DynamicResource AccSoft}" Opacity="0"/>
-              <Border x:Name="B" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="18"/>
-              <Border x:Name="H" Margin="1" CornerRadius="17" Background="{DynamicResource CtlH}" Opacity="0"/>
-              <Border x:Name="F" CornerRadius="18" BorderThickness="1" BorderBrush="{DynamicResource Acc}" Background="{DynamicResource InFocus}" Opacity="0"/>
+              <Border x:Name="B" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="4"/>
+              <Border x:Name="H" Margin="1" CornerRadius="3" Background="{DynamicResource CtlH}" Opacity="0"/>
+              <Border x:Name="F" CornerRadius="4" BorderThickness="1" BorderBrush="{DynamicResource CtlBd}" Background="{DynamicResource InFocus}" Opacity="0"/>
+              <Border x:Name="U" CornerRadius="4" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource Line}"/>
+              <Border x:Name="UF" CornerRadius="4" BorderThickness="0,0,0,2" BorderBrush="{DynamicResource Acc}" Opacity="0"/>
               <!-- no Padding here: the TextBox pads its own text host with its Padding -->
               <Border BorderThickness="1">
                 <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
@@ -615,10 +594,6 @@
             </Grid>
             <ControlTemplate.Triggers>
               <Trigger Property="AcceptsReturn" Value="True">
-                <Setter TargetName="B" Property="CornerRadius" Value="12"/>
-                <Setter TargetName="H" Property="CornerRadius" Value="11"/>
-                <Setter TargetName="F" Property="CornerRadius" Value="12"/>
-                <Setter TargetName="Halo" Property="CornerRadius" Value="15"/>
                 <Setter TargetName="PART_ContentHost" Property="VerticalAlignment" Value="Stretch"/>
               </Trigger>
               <Trigger Property="IsMouseOver" Value="True">
@@ -642,7 +617,7 @@
                   <BeginStoryboard>
                     <Storyboard>
                       <DoubleAnimation Storyboard.TargetName="F" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                      <DoubleAnimation Storyboard.TargetName="Halo" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
+                      <DoubleAnimation Storyboard.TargetName="UF" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
                     </Storyboard>
                   </BeginStoryboard>
                 </Trigger.EnterActions>
@@ -650,7 +625,7 @@
                   <BeginStoryboard>
                     <Storyboard>
                       <DoubleAnimation Storyboard.TargetName="F" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                      <DoubleAnimation Storyboard.TargetName="Halo" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
+                      <DoubleAnimation Storyboard.TargetName="UF" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
                     </Storyboard>
                   </BeginStoryboard>
                 </Trigger.ExitActions>
@@ -708,15 +683,26 @@
       </Setter>
     </Style>
 
-    <!-- Tooltip: fades in when it opens. -->
+    <!-- Tooltip (WinUI ToolTip): Tip with a TipBd stroke, 4 px corners, a shadow; fades in when it opens. -->
     <Style TargetType="ToolTip">
       <Setter Property="Foreground" Value="{DynamicResource TipT}"/>
+      <Setter Property="HasDropShadow" Value="False"/>
+      <Setter Property="FontSize" Value="12"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="ToolTip">
-            <!-- inverted: paper on black in dark, ink on paper in light -->
-            <Border x:Name="T" Background="{DynamicResource Tip}" BorderBrush="{DynamicResource TipBd}" BorderThickness="1" CornerRadius="8" Padding="10,6,10,7">
-              <ContentPresenter/>
+            <!-- the outer margin leaves room for the shadow inside the popup -->
+            <Border x:Name="T" Padding="8,4,8,10">
+              <Border Background="{DynamicResource Tip}" BorderBrush="{DynamicResource TipBd}" BorderThickness="1" CornerRadius="4" Padding="8,5,8,7" MaxWidth="320">
+                <Border.Effect>
+                  <DropShadowEffect BlurRadius="8" Opacity="0.2" ShadowDepth="2" Direction="270"/>
+                </Border.Effect>
+                <ContentPresenter>
+                  <ContentPresenter.Resources>
+                    <Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/></Style>
+                  </ContentPresenter.Resources>
+                </ContentPresenter>
+              </Border>
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsOpen" Value="True">
@@ -771,7 +757,7 @@
       <!-- the tabs, over the current tab's tint pill (TabPill: slides to the checked tab, Enable-AkariPillGroup) -->
       <Grid Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Left" ClipToBounds="True">
         <Canvas IsHitTestVisible="False">
-          <Border x:Name="TabPill" Width="0" Height="0" CornerRadius="18" Background="{DynamicResource AccSoft}" Visibility="Hidden"/>
+          <Border x:Name="TabPill" Width="0" Height="0" CornerRadius="4" Background="{DynamicResource AccSoft}" Visibility="Hidden"/>
         </Canvas>
         <StackPanel x:Name="Tabs" Orientation="Horizontal"/>
       </Grid>
@@ -860,7 +846,7 @@
           <!-- the Category chips over the current one's crimson pill (ChipPill: slides to the checked chip) -->
           <Grid HorizontalAlignment="Left">
             <Canvas IsHitTestVisible="False">
-              <Border x:Name="ChipPill" Width="0" Height="0" CornerRadius="15" Background="{DynamicResource Acc}" Visibility="Hidden"/>
+              <Border x:Name="ChipPill" Width="0" Height="0" CornerRadius="4" Background="{DynamicResource Acc}" Visibility="Hidden"/>
             </Canvas>
             <WrapPanel x:Name="Chips"/>
           </Grid>

@@ -56,8 +56,8 @@ public sealed class MotionTests
     {
         // the tokens, as Motion.xaml gives them
         Motion.Initialize(true);
-        Assert.Equal([120, 200, 280, 30], new[] { "Fast", "Base", "Slow", "Stagger" }.Select(s => Motion.Duration(s).TotalMilliseconds));
-        Assert.IsType<System.Windows.Media.Animation.CubicEase>(Motion.Easing("Ease"));
+        Assert.Equal([83, 167, 250, 30], new[] { "Fast", "Base", "Slow", "Stagger" }.Select(s => Motion.Duration(s).TotalMilliseconds));
+        Assert.IsType<System.Windows.Media.Animation.ExponentialEase>(Motion.Easing("Ease"));
         Assert.IsType<System.Windows.Media.Animation.BackEase>(Motion.Easing("Spring"));
 
         // on: the end value is set at once, the animation plays over it

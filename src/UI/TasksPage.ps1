@@ -69,11 +69,14 @@ function Get-AkariTaskBar {
     $all.Switch.Add_Click({ param($s, $a) $script:TaskAll = ($s.IsChecked -eq $true); Show-Page })
     [Windows.Controls.DockPanel]::SetDock($all.Panel, 'Right')
     [void]$bar.Children.Add($all.Panel)
-    $seg = [Windows.Controls.ListBox]::new()
-    $seg.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Segmented')
+    $seg = [Windows.Controls.ComboBox]::new()
+    $seg.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Combo')
     $seg.Margin = [Windows.Thickness]::new(0, 0, 16, 0)
+    $seg.MinWidth = 160
+    $seg.VerticalAlignment = 'Center'
+    $seg.ToolTip = 'Show only these tasks'
     foreach ($f in $AkariTaskFilters) {
-        $it = [Windows.Controls.ListBoxItem]::new()
+        $it = [Windows.Controls.ComboBoxItem]::new()
         $it.Content = $(if ($f -eq 'Microsoft') { 'Windows' } elseif ($f -eq 'Other') { 'Apps' } else { $f }); $it.Tag = $f
         if ($f -eq 'Microsoft') { $it.ToolTip = 'Windows'' own tasks (the \Microsoft\ folder)' }
         if ($f -eq 'Other') { $it.ToolTip = 'Tasks apps added: updaters, helpers' }

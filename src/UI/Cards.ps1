@@ -130,21 +130,12 @@ function New-AkariTweakRow($Tweak, [string]$State, $Current = $null) {
     $row.Tag = $Tweak.Id
     [Windows.Controls.DockPanel]::SetDock($glyphs, 'Right')
     if ($Tweak.Kind -eq 'Choice') {
-        # up to 4 values (and not typed in): a segmented picker, a ListBox with the same SelectedIndex / SelectedItem /
-        # SelectionChanged, so the row code doesn't tell them apart; else a combobox. Each holds its own item type:
-        # a ComboBoxItem in a ListBox ignores clicks.
-        if (-not $Tweak.Editable -and @($Tweak.Choices).Count -le 4) {
-            $ctl = [Windows.Controls.ListBox]::new()
-            $ctl.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Segmented')
-            $ctl.HorizontalAlignment = 'Left'
-            $itemType = [Windows.Controls.ListBoxItem]
-        } else {
-            $ctl = [Windows.Controls.ComboBox]::new()
-            $ctl.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Combo')
-            $ctl.IsEditable = $Tweak.Editable
-            $ctl.HorizontalAlignment = 'Stretch'
-            $itemType = [Windows.Controls.ComboBoxItem]
-        }
+        # a combobox, as WinUI does for a pick from a list (the segmented picker is retired: ADR 0008)
+        $ctl = [Windows.Controls.ComboBox]::new()
+        $ctl.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Combo')
+        $ctl.IsEditable = $Tweak.Editable
+        $ctl.HorizontalAlignment = 'Stretch'
+        $itemType = [Windows.Controls.ComboBoxItem]
         $ctl.Margin = [Windows.Thickness]::new(0, 6, 0, 0)
         # index 0 is always "No change"
         $none = $itemType::new()

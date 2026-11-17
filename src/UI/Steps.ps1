@@ -543,11 +543,11 @@ function Update-AkariStepFooter {
 }
 
 # the two ways to install: big cards, like Win11Debloat's start screen
-# a poster card (the design system's): icon blob, Display title, muted text. -Hot: the recommended one, accent
-# border and glow (style ModeCardHot)
+# a tile (style ModeCard): icon blob, Display title, muted text. -Hot (the recommended one) is kept for its callers;
+# Windows 11 marks no card (ADR 0008), batch 6 gives the chooser its own look
 function New-AkariModeCard([string]$Icon, [string]$Title, [string]$Text, [bool]$Enabled, [switch]$Hot) {
     $b = [Windows.Controls.Button]::new()
-    $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, $(if ($Hot) { 'ModeCardHot' } else { 'ModeCard' }))
+    $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'ModeCard')
     $b.IsEnabled = $Enabled
     $sp = [Windows.Controls.StackPanel]::new()
     $ic = New-AkariBlob $Icon 48
