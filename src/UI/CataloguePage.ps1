@@ -170,7 +170,7 @@ function Show-AkariCataloguePage([string]$Query) {
         $HeaderSub.Text = "$header. Each change applies right away."
         Set-AkariIcon $HeaderIcon (Get-AkariCategoryIcon $cat)
     }
-    $list = @(Get-AkariCatalogueList $script:Tweaks $script:Cat $Query)
+    $list = @(Find-AkariCatalogueList (Get-AkariCatalogueOf $script:Tweaks) $script:Cat $Query)
     if ($extra) {
         foreach ($t in $list) { $e = Get-AkariCatalogueCard $t; [void]$Rows.Children.Add($e.Card); Set-AkariCatalogueCard $e }
         if (-not $again) { Start-AkariCatalogueStates $list }
@@ -185,7 +185,7 @@ function Show-AkariCataloguePage([string]$Query) {
     $refresh.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Btn')
     $refresh.Content = 'Refresh'
     $refresh.ToolTip = 'Read the current state of these tweaks again'
-    $refresh.Add_Click({ Start-AkariCatalogueStates @(Get-AkariCatalogueList $script:Tweaks $script:Cat $Search.Text.Trim()) })
+    $refresh.Add_Click({ Start-AkariCatalogueStates @(Find-AkariCatalogueList (Get-AkariCatalogueOf $script:Tweaks) $script:Cat $Search.Text.Trim()) })
     [Windows.Controls.DockPanel]::SetDock($refresh, 'Right')
     [void]$bar.Children.Add($refresh)
     $count = New-AkariText "$($list.Count) tweak$(if ($list.Count -ne 1) { 's' })" 13 'Mu'

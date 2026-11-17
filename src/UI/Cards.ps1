@@ -58,6 +58,25 @@ function Get-AkariMasonry([int[]]$Sizes, [int]$Columns) {
     }
 }
 
+# an image file as a frozen bitmap ($Width: decoded at that pixel width, 0 = its own), read once per session (the apps
+# lists are built again on every flow switch). Decoded from the file's bytes: WPF's UriSource path took ~5 ms a file,
+# the bytes ~0.4 ms, and leave no file open. Throws when the file can't be read or decoded.
+$script:AkariBitmaps = @{}
+function Get-AkariBitmap([string]$Path, [int]$Width = 0) {
+    $key = "$Width|$Path"
+    if (-not $script:AkariBitmaps.ContainsKey($key)) {
+        $bi = [Windows.Media.Imaging.BitmapImage]::new()
+        $bi.BeginInit()
+        $bi.StreamSource = [IO.MemoryStream]::new([IO.File]::ReadAllBytes($Path))
+        if ($Width) { $bi.DecodePixelWidth = $Width }
+        $bi.CacheOption = 'OnLoad'
+        $bi.EndInit()
+        $bi.Freeze()
+        $script:AkariBitmaps[$key] = $bi
+    }
+    $script:AkariBitmaps[$key]
+}
+
 # a small mark next to a name (Risk, restart, Safe Mode, an unread State): a 14 px icon with a tooltip
 function New-AkariGlyph([string]$Icon, [string]$Brush, [string]$Tip) {
     $g = New-AkariIcon $Icon 14 $Brush

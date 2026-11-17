@@ -44,7 +44,8 @@ function ConvertTo-AkariTweak([hashtable]$h, [string]$Source, [bool]$Legacy) {
 # before the version counts too ('App.StepsRecorder~~~~0.0.1.0' -> row 'App.StepsRecorder')
 function Get-AkariEntryRow($Group, [string]$Name) {
     $base = if ($Group.EntryKind -eq 'CapabilityRemove') { ($Name -split '~')[0] } else { $Name }
-    @($Group.Entries | Where-Object { $Name -like $_.Name -or $base -like $_.Name }) | Select-Object -First 1
+    # foreach, not Where-Object: the loader asks this for every row of every Group (pipelines made it ~0.5 s)
+    foreach ($r in $Group.Entries) { if ($Name -like $r.Name -or $base -like $r.Name) { return $r } }
 }
 
 # one Entry of a data-list Group: id '<group-id>/<name>', an Action that does the Group's job (remove, install),
@@ -57,7 +58,8 @@ function New-AkariEntry($Group, [hashtable]$Row) {
     $name = [string]$Row.Name
     $known = Get-AkariEntryRow $Group $name
     if ($known -and -not $Row.Display) { foreach ($f in 'Display', 'Description', 'Risk', 'Keep', 'StoreId') { if ($null -eq $Row[$f]) { $Row[$f] = $known[$f] } } }
-    $keep = [bool]$Row.Keep -or [bool](@($Group.KeepNames | Where-Object { $name -like $_ }).Count)
+    $keep = [bool]$Row.Keep
+    if (-not $keep) { foreach ($p in $Group.KeepNames) { if ($p -and $name -like $p) { $keep = $true; break } } }
     $risk = if ($Row.Risk) { $Row.Risk } elseif ($keep) { 'Advanced' } else { 'Caution' }
     $q = { param($s) "'" + ([string]$s -replace "'", "''") + "'" }
     $h = @{
@@ -104,8 +106,10 @@ function Import-AkariTweakFile([string]$Path, [string]$TweaksRoot) {
     foreach ($r in @($h.Requires | Where-Object { $_ })) {
         if ($r -notin $AkariRequirements) { throw "${rel}: Requires '$r' is not one of $($AkariRequirements -join ', ')" }
     }
-    $catDir = Split-Path (Split-Path $Path -Parent) -Leaf
-    $secDir = Split-Path (Split-Path (Split-Path $Path -Parent) -Parent) -Leaf
+    # string work, not Split-Path: this runs for every file (the cmdlets took ~0.4 ms each)
+    $parent = [IO.Path]::GetDirectoryName($Path)
+    $catDir = [IO.Path]::GetFileName($parent)
+    $secDir = [IO.Path]::GetFileName([IO.Path]::GetDirectoryName($parent))
     if ($catDir -ne $h.Category -or $secDir -ne $h.Section) {
         throw "${rel}: Section/Category '$($h.Section)/$($h.Category)' must match the folder '$secDir/$catDir'"
     }
@@ -164,7 +168,9 @@ function Import-AkariTweakFile([string]$Path, [string]$TweaksRoot) {
                 $t.Detect = [scriptblock]::Create((@($ids | ForEach-Object { "(Test-AkariWingetInstalled '$_'$tail)" }) -join ' -and '))
             } elseif ($t.After -or $t.Before) { throw "${rel}: Before and After are only for an Action with Winget" }
             if (-not $t.Apply) { throw "${rel}: an Action needs Apply" }
-            if (-not (Select-String -Path $Path -Pattern '^\s*#\s*Action:\s*\S' -Quiet)) {
+            # the file's text through .NET (Select-String took ~0.6 ms a file); a line, any case, as Select-String reads it
+            $full = if ([IO.Path]::IsPathRooted($Path)) { $Path } else { Convert-Path -LiteralPath $Path }
+            if (-not [regex]::IsMatch([IO.File]::ReadAllText($full), '(?im)^[ \t]*#[ \t]*Action:[ \t]*\S')) {
                 throw "${rel}: an Action file needs a '# Action: <why it can't be a Toggle>' line"
             }
         }
@@ -214,23 +220,31 @@ function Find-AkariRegistryOwner($Tweak, $Index) {
 }
 
 function Get-AkariTweaks([string]$TweaksRoot) {
-    $TweaksRoot = (Resolve-Path $TweaksRoot).Path
+    # the file system path (.NET lists it below; a PSDrive path such as TestDrive:\ means nothing to it)
+    $TweaksRoot = (Resolve-Path $TweaksRoot).ProviderPath
     $tweaks = [System.Collections.Generic.List[object]]::new()
     $groups = [System.Collections.Generic.List[object]]::new()
     $problems = [System.Collections.Generic.List[object]]::new()
     # exactly <Section>\<Category>\file.ps1: the legacy top-level files are not tweak files
-    $files = Get-ChildItem $TweaksRoot -Directory | ForEach-Object { Get-ChildItem $_.FullName -Directory } |
-        ForEach-Object { Get-ChildItem $_.FullName -Filter *.ps1 -File } | Sort-Object FullName
+    # listed through .NET (Get-ChildItem took ~0.15 s), hidden items left out as Get-ChildItem does; sorted as text
+    $hidden = [IO.FileAttributes]::Hidden
+    $files = @(foreach ($sec in [IO.Directory]::GetDirectories($TweaksRoot)) {
+        if ([IO.File]::GetAttributes($sec) -band $hidden) { continue }
+        foreach ($cat in [IO.Directory]::GetDirectories($sec)) {
+            if ([IO.File]::GetAttributes($cat) -band $hidden) { continue }
+            foreach ($file in [IO.Directory]::GetFiles($cat, '*.ps1')) { if (-not ([IO.File]::GetAttributes($file) -band $hidden)) { $file } }
+        }
+    }) | Sort-Object
     $seen = @{}
     $owners = New-AkariOwnerIndex
     foreach ($f in $files) {
-        try { $t = Import-AkariTweakFile $f.FullName $TweaksRoot }
-        catch { $problems.Add([pscustomobject]@{ File = $f.FullName; Level = 'Error'; Message = $_.Exception.Message }); continue }
+        try { $t = Import-AkariTweakFile $f $TweaksRoot }
+        catch { $problems.Add([pscustomobject]@{ File = $f; Level = 'Error'; Message = $_.Exception.Message }); continue }
         if ($seen.ContainsKey($t.Id)) {
-            $problems.Add([pscustomobject]@{ File = $f.FullName; Level = 'Error'; Message = "Id '$($t.Id)' is already used by $($seen[$t.Id])" })
+            $problems.Add([pscustomobject]@{ File = $f; Level = 'Error'; Message = "Id '$($t.Id)' is already used by $($seen[$t.Id])" })
             continue
         }
-        $seen[$t.Id] = $f.FullName
+        $seen[$t.Id] = $f
         if ($t.Kind -eq 'Group') {
             # the Group itself is not a Tweak of its own here: its Entries are (for the Installed kinds, only once the
             # GUI has read what is on the PC, through Resolve-AkariEntry)
@@ -239,21 +253,21 @@ function Get-AkariTweaks([string]$TweaksRoot) {
             foreach ($r in $t.Entries) {
                 $e = New-AkariEntry $t $r
                 if ($seen.ContainsKey($e.Id)) {
-                    $problems.Add([pscustomobject]@{ File = $f.FullName; Level = 'Error'; Message = "Id '$($e.Id)' is already used by $($seen[$e.Id])" })
+                    $problems.Add([pscustomobject]@{ File = $f; Level = 'Error'; Message = "Id '$($e.Id)' is already used by $($seen[$e.Id])" })
                     continue
                 }
-                $seen[$e.Id] = $f.FullName
+                $seen[$e.Id] = $f
                 $tweaks.Add($e)
             }
             continue
         }
         if ($t.Kind -eq 'Toggle' -and -not $t.Detect -and -not $t.Registry) {
-            $problems.Add([pscustomobject]@{ File = $f.FullName; Level = 'Warning'; Message = 'no Detect: State falls back to what Akari last applied' })
+            $problems.Add([pscustomobject]@{ File = $f; Level = 'Warning'; Message = 'no Detect: State falls back to what Akari last applied' })
         }
         if ($t.Registry) {
             $owner = Find-AkariRegistryOwner $t $owners
             if ($owner) {
-                $problems.Add([pscustomobject]@{ File = $f.FullName; Level = 'Error'; Message = "a registry value of '$($t.Id)' is already owned by '$owner' (one owner per value)" })
+                $problems.Add([pscustomobject]@{ File = $f; Level = 'Error'; Message = "a registry value of '$($t.Id)' is already owned by '$owner' (one owner per value)" })
                 $seen.Remove($t.Id)
                 continue
             }

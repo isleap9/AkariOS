@@ -80,7 +80,7 @@ $Rows.AddHandler([Windows.Controls.Primitives.ButtonBase]::ClickEvent, [Windows.
     $b = $ev.OriginalSource -as [Windows.Controls.Button]
     if (-not $b -or -not $b.Tag) { return }
     $id, $kind, $arg = ([string]$b.Tag).Split('|')
-    $t = $script:Tweaks | Where-Object { $_.Id -eq $id } | Select-Object -First 1
+    $t = Find-AkariTweak $id
     if (-not $t) { return }
     # one-file tweaks go through the Runner: the job re-imports the file (a script block must not cross runspaces)
     if (-not $t.Legacy -and $kind -in 'Apply', 'Revert', 'Run') {

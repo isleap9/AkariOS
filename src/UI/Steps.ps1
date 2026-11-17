@@ -28,6 +28,18 @@ $script:TweaksView = $null
 # "Show current state": rows start on the State read from this PC (Win11Debloat's "Show currently applied tweaks")
 $script:UseState = $true
 $script:Outcomes = @()
+
+# the loaded Tweak with id $Id (the first one, ids ignore case), or $null; an index made once, again when
+# $script:Tweaks changes size (a scan per row took seconds on the Tweaks step)
+$script:TweakIndex = $null; $script:TweakIndexSize = -1; $script:TweakIndexOf = $null
+function Find-AkariTweak([string]$Id) {
+    if (-not $script:TweakIndex -or $script:TweakIndexSize -ne @($script:Tweaks).Count -or -not [object]::ReferenceEquals($script:TweakIndexOf, $script:Tweaks)) {
+        $ix = @{}
+        foreach ($t in $script:Tweaks) { if ($null -ne $t.Id -and -not $ix.ContainsKey([string]$t.Id)) { $ix[[string]$t.Id] = $t } }
+        $script:TweakIndex = $ix; $script:TweakIndexSize = @($script:Tweaks).Count; $script:TweakIndexOf = $script:Tweaks
+    }
+    $script:TweakIndex[$Id]
+}
 # a restore point is made once per GUI session; the user may also choose to go on without one
 $script:RestoreDone = $false
 
@@ -131,11 +143,102 @@ function New-AkariText([string]$Text, [double]$Size = 13, [string]$Brush = 'Tx')
     $t
 }
 
-# reads every State now (on the UI thread; see the M2a plan, Review Focus 6)
-function New-AkariRowEntry($t) {
-    $state = Get-AkariState $t
+# ---- the Tweaks step's States: read once in the background (Start-AkariTweakStates, from the Apps step on), the view
+# built when they are in (Complete-AkariTweakStates); "Reading..." until then. $AkariReadInline: read them at once on
+# this thread instead (tests: no dispatcher runs there).
+if ($null -eq $AkariReadInline) { $AkariReadInline = $false }
+# id -> @{ State; Current } once read, else $null; the job reading them; a Quick select waiting for them; Clear-AkariSteps
+# bumps Gen so a read started before it is dropped
+$script:TweakStates = $null; $script:TweakStatesJob = $null; $script:QuickPending = $null; $script:TweakStatesGen = 0; $script:StepGroups = $null
+
+# the Tweaks the grid shows (Get-AkariStepGroups), worked out once per States read
+function Get-AkariStepTweaks {
+    if (-not $script:StepGroups) { $script:StepGroups = @(Get-AkariStepGroups $script:Tweaks $script:Ported) }
+    foreach ($g in $script:StepGroups) { foreach ($c in $g.Categories) { foreach ($id in $c.Ids) { Find-AkariTweak $id } } }
+}
+
+function Read-AkariTweakState($t) {
     $cur = $null
     if ($t.Kind -eq 'Choice') { try { $cur = Get-AkariChoiceValue $t } catch { } }
+    @{ State = (Get-AkariState $t); Current = $cur }
+}
+
+function Start-AkariTweakStates {
+    if ($script:TweakStates -or $script:TweakStatesJob) { return }
+    # Actions have no State (Get-AkariState: Unknown): nothing to read
+    $list = @(Get-AkariStepTweaks | Where-Object { $_ -and $_.Kind -ne 'Action' })
+    if ($AkariReadInline -or -not $list.Count) {
+        $m = @{}
+        foreach ($t in $list) { $m[$t.Id] = Read-AkariTweakState $t }
+        $script:TweakStates = $m
+        return
+    }
+    $q = { param($s) "'" + ([string]$s -replace "'", "''") + "'" }
+    $shared = [hashtable]::Synchronized(@{ Items = @($list | ForEach-Object { @{ Id = $_.Id; Source = $_.Source; Legacy = [bool]$_.Legacy } }); States = [hashtable]::Synchronized(@{}) })
+    # one-file Tweaks from their file, legacy ones from the legacy files (a script block must not cross runspaces)
+    $code = @"
+`$legacy = `$null
+foreach (`$i in `$AkariShared.Items) {
+    try {
+        if (`$i.Legacy) {
+            if (`$null -eq `$legacy) { `$legacy = @{}; foreach (`$x in @(Import-AkariLegacyTweaks $(& $q "$Root\Tweaks"))) { `$legacy[`$x.Id] = `$x } }
+            `$t = `$legacy[`$i.Id]
+        } else { `$t = Import-AkariTweakFile -Path `$i.Source -TweaksRoot $(& $q "$Root\Tweaks") }
+        `$cur = `$null
+        if (`$t.Kind -eq 'Choice') { try { `$cur = Get-AkariChoiceValue `$t } catch { } }
+        `$AkariShared.States[`$i.Id] = @{ State = (Get-AkariState `$t); Current = `$cur }
+    } catch { `$AkariShared.States[`$i.Id] = @{ State = 'Unknown'; Current = `$null } }
+}
+"@
+    $job = Start-AkariJob $code ([System.Collections.Concurrent.ConcurrentQueue[string]]::new()) "$Root\Core" $shared
+    $job.Gen = $script:TweakStatesGen
+    $script:TweakStatesJob = $job
+    $tm = [Windows.Threading.DispatcherTimer]::new()
+    $tm.Interval = [TimeSpan]::FromMilliseconds(200)
+    $tm.Tag = $job
+    $tm.Add_Tick({
+        param($s, $a)
+        $j = $s.Tag
+        if (-not $j.Handle.IsCompleted) { return }
+        $s.Stop()
+        try { [void]$j.Ps.EndInvoke($j.Handle) } catch { Write-ErrLog "Tweak states: $_" }
+        $j.Ps.Dispose(); $j.Rs.Dispose()
+        Complete-AkariTweakStates $j
+    })
+    $tm.Start()
+}
+
+# the States are in: the grid is built if its step is showing, and a Quick select that waited for them is picked
+function Complete-AkariTweakStates($Job) {
+    if ($script:TweakStatesJob -eq $Job) { $script:TweakStatesJob = $null }
+    if ($Job.Gen -ne $script:TweakStatesGen) { return }
+    $m = @{}
+    foreach ($i in $Job.Shared.Items) { $m[$i.Id] = if ($Job.Shared.States.ContainsKey($i.Id)) { $Job.Shared.States[$i.Id] } else { @{ State = 'Unknown'; Current = $null } } }
+    $script:TweakStates = $m
+    Resume-AkariQuickSelect
+    if ($script:Mode -eq 'Guided' -and $script:Step -eq 1 -and $script:Cat -eq 'Install AkariOS') { Show-AkariSteps }
+}
+
+# both reads a Quick select needs (the Tweaks' States, the Store packages): started, and true once both are in
+function Test-AkariStepsRead {
+    Start-AkariTweakStates
+    Start-AkariAppxRead
+    [bool]($script:TweakStates -and $script:Appx)
+}
+
+# a Quick select that waited for the reads, picked once both are in
+function Resume-AkariQuickSelect {
+    $p = $script:QuickPending
+    if (-not $p -or -not $script:TweakStates -or -not $script:Appx) { return }
+    $script:QuickPending = $null
+    Set-AkariQuickSelect $p
+}
+
+# a Tweak's row; its State from the background read (read here when it has none: an Action, or a test)
+function New-AkariRowEntry($t) {
+    $r = if ($script:TweakStates -and $script:TweakStates.ContainsKey($t.Id)) { $script:TweakStates[$t.Id] } else { Read-AkariTweakState $t }
+    $state = $r.State
+    $cur = $r.Current
     $e = New-AkariTweakRow $t $state $cur
     switch ($t.Kind) {
         'Choice' {
@@ -209,6 +312,12 @@ function Get-AkariQuickSelectList {
 # puts the Selection on $Preset: every row back where it starts, then the preset's changes checked. Both views are
 # built first (they read every State and app once). Wildcards (appx/*, ...) are remembered for the features read later.
 function Set-AkariQuickSelect($Preset) {
+    # the rows need the States and the apps: picked once both background reads are in (Resume-AkariQuickSelect)
+    if (-not (Test-AkariStepsRead)) {
+        $script:QuickPending = $Preset
+        Add-Log "Quick select: $($Preset.Name), picked once the apps and the current state of each tweak are read"
+        return
+    }
     [void](Get-AkariAppsView)
     [void](Get-AkariTweaksView)
     $known = @($script:Tweaks) + @($script:AppRows.Values | ForEach-Object { $_.Tweak })
@@ -227,7 +336,7 @@ function Set-AkariQuickSelect($Preset) {
             if ($script:AppRows.Contains($i.Id)) { continue }
             # a Toggle or Choice Guided doesn't show (Optimize › Advanced only): selected all the same, listed apart
             # on Review (never an Action, nor One-click's own steps)
-            $t = $script:Tweaks | Where-Object { $_.Id -eq $i.Id } | Select-Object -First 1
+            $t = Find-AkariTweak $i.Id
             if ($t -and @(Get-AkariExportTweaks @($t)).Count) { Set-AkariHiddenPending $t $i } else { $missing++ }
             continue
         }
@@ -346,9 +455,19 @@ function Set-AkariTweaksColumns([int]$Cols) {
 # category cards
 function Get-AkariTweaksView {
     if ($script:TweaksView) { return $script:TweaksView }
+    # the States first: until they are read, a line saying so (Complete-AkariTweakStates shows the step again)
+    if (-not $script:TweakStates) {
+        Start-AkariTweakStates
+        if (-not $script:TweakStates) {
+            $wait = New-AkariText ('Reading the current state of each tweak' + [char]0x2026) 13 'Mu'
+            $wait.Margin = [Windows.Thickness]::new(2, 4, 0, 0)
+            return $wait
+        }
+    }
     $script:TweakCards = @()
     $script:TweakSections = @()
-    foreach ($g in Get-AkariStepGroups $script:Tweaks $script:Ported) {
+    if (-not $script:StepGroups) { $script:StepGroups = @(Get-AkariStepGroups $script:Tweaks $script:Ported) }
+    foreach ($g in $script:StepGroups) {
         $script:TweakSections += @{ Section = $g.Section; Header = $g.Header }
         foreach ($c in $g.Categories) {
             # one-file tweaks: a card per Category; legacy tweaks: a card per old page, marked "Not yet ported"
@@ -357,7 +476,7 @@ function Get-AkariTweaksView {
             $cc = New-AkariCategoryCard $title (Get-AkariCategoryIcon $title) $(if ($legacy) { 'Not yet ported' } else { '' })
             $size = 0
             foreach ($id in $c.Ids) {
-                $t = $script:Tweaks | Where-Object { $_.Id -eq $id } | Select-Object -First 1
+                $t = Find-AkariTweak $id
                 $e = New-AkariRowEntry $t
                 $e.Card = $cc.Card
                 $script:TweakRows[$id] = $e
@@ -566,12 +685,19 @@ function Show-AkariSteps {
     switch ($script:Step) {
         0 {
             [void]$StepBody.Children.Add((Get-AkariAppsView))
-            # an apps flow: its tab alone, no tab buttons; Guided: both tabs
-            Set-AkariAppsOnly $(if ($flow) { $flow.Tab } else { '' })
-            Set-AkariAppsFilter $Search.Text.Trim()
-            # Downloads built anew after Show installed was asked for: its marks are read again
-            if ($script:AppsNew -and $script:ShowInstalled -and $flow -and $flow.Tab -eq 'Install') { Start-AkariInstalledRead }
-            $script:AppsNew = $false
+            # the view is built once the apps are read (Complete-AkariAppxRead shows the step again)
+            if ($script:AppsView) {
+                # a kept view (Clear-AkariSteps): Guided starts on the Remove tab, as a new one does
+                if ($script:AppsTabFresh) { $script:AppsTabFresh = $false; if (-not $flow) { Show-AkariAppsTab 'Remove' } }
+                # an apps flow: its tab alone, no tab buttons; Guided: both tabs
+                Set-AkariAppsOnly $(if ($flow) { $flow.Tab } else { '' })
+                Set-AkariAppsFilter $Search.Text.Trim()
+                # Downloads built anew after Show installed was asked for: its marks are read again
+                if ($script:AppsNew -and $script:ShowInstalled -and $flow -and $flow.Tab -eq 'Install') { Start-AkariInstalledRead }
+                $script:AppsNew = $false
+            }
+            # Guided: the Tweaks step's States are read meanwhile, so Next finds them in
+            if (-not $flow -and -not $AkariReadInline) { Start-AkariTweakStates }
         }
         1 {
             [void]$StepBody.Children.Add((Get-AkariTweaksView))
@@ -682,6 +808,8 @@ function Complete-AkariApply($Shared) {
     }
     $script:Outcomes = @($Shared.Outcomes)
     $script:ResultUninstall = $false
+    # the apps on this PC changed: read and built again next time
+    Clear-AkariAppsView
     # Last used (Quick select): what a Guided Run was asked to do (an apps flow's Run would replace it with apps only)
     if ($script:Mode -eq 'Guided') {
         try { Save-AkariLastUsed @($Shared.Plan) } catch { Add-Log "Warning: Last used not saved ($($_.Exception.Message))" }
@@ -741,13 +869,14 @@ function Complete-AkariUninstall($Shared) {
     if ($null -eq $Shared.Outcomes) { return }
     $script:Outcomes = @($Shared.Outcomes)
     $script:ResultUninstall = $true
+    Clear-AkariAppsView
     $script:Step = 3
 }
 
 # Update all apps: the Tools Tweak tools-update-apps (one "winget upgrade --all"), asked with its own Confirm
 function Start-AkariUpdateApps {
     if ($script:Busy) { return }
-    $t = $script:Tweaks | Where-Object { $_.Id -eq 'tools-update-apps' } | Select-Object -First 1
+    $t = Find-AkariTweak 'tools-update-apps'
     if (-not $t) { return }
     if ($t.Confirm -and -not (Confirm-AkariDialog $t.Confirm 'Update all' 'Cancel' 'Question' $t.Name)) { return }
     Start-AkariApply @(@{ Id = $t.Id; Mode = 'Apply' }) 'Updating all apps'
@@ -786,7 +915,7 @@ function Show-AkariResult {
         [void]$StepBody.Children.Add($rb)
     }
     foreach ($o in $script:Outcomes) {
-        $t = $script:Tweaks | Where-Object { $_.Id -eq $o.Id } | Select-Object -First 1
+        $t = Find-AkariTweak $o.Id
         $kind = if ($script:ResultUninstall -and $o.Outcome -eq 'Reverted') { 'Uninstalled' } else { $o.Outcome }
         $line = if ($o.Message) { "${kind}: $($o.Message)" } else { $kind }
         $icon, $brush = switch ($o.Outcome) {
@@ -802,7 +931,7 @@ function Show-AkariResult {
 # a Review / result row (the design system's ReviewRow): the Tweak's Category blob, its name, then the change
 # (From -> To) or the Outcome, and a status icon on the right
 function New-AkariReviewRow([string]$Id, [string]$Name, [string]$Line, [string]$Icon, [string]$Brush) {
-    $t = $script:Tweaks | Where-Object { $_.Id -eq $Id } | Select-Object -First 1
+    $t = Find-AkariTweak $Id
     $blob = if (-not $t) { 'settings' } elseif ($t.Section -eq 'Apps') { if ($t.Category -eq 'Install') { 'download' } else { 'trash-2' } } else { Get-AkariCategoryIcon $t.Category }
     $b = [Windows.Controls.Border]::new()
     $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
@@ -837,16 +966,21 @@ function Reset-AkariSteps {
     Select-AkariPage $exit
 }
 
-# forgets the Selection and the cached views (they are built again, reading every State and app afresh)
+# forgets the Selection and the Tweaks view (built again, reading every State afresh). The apps view stays, its rows
+# unchecked: what is on this PC is the same until a Run (Complete-AkariApply / -Uninstall drop it: Clear-AkariAppsView)
 function Clear-AkariSteps {
     $script:Sel = New-AkariSelection
     $script:TweakRows = [ordered]@{}
     $script:TweakCards = @()
     $script:TweakSections = @()
     $script:TweaksView = $null
-    $script:AppRows = [ordered]@{}
-    $script:AppsView = $null
-    $script:AppTab = 'Remove'
+    # the States are read again; a read still running is dropped when it ends
+    $script:StepGroups = $null; $script:TweakStates = $null; $script:TweakStatesJob = $null; $script:QuickPending = $null
+    $script:TweakStatesGen++
+    foreach ($e in @($script:AppRows.Values)) { $e.Muted = $true; try { $e.Control.IsChecked = $false } finally { $e.Muted = $false } }
+    $script:AppsPick = $null
+    # Guided opens the apps on their Remove tab (Show-AkariSteps, the next time the kept view shows)
+    $script:AppTab = 'Remove'; $script:AppsTabFresh = $true
     $script:Outcomes = @()
     $script:ResultUninstall = $false
 }

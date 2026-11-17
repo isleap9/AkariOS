@@ -18,40 +18,68 @@ $AkariCatalogueLists = @{
 # the Tweaks the Catalogue lists: one-file Toggles, Choices and Actions (no Legacy, no Group Entries, not the Apps or
 # OneClick Sections) whose Requires this PC meets
 function Get-AkariCatalogueTweaks($Tweaks) {
-    @($Tweaks | Where-Object {
-        -not $_.Legacy -and -not $_.Group -and $_.Section -notin 'Apps', 'OneClick' -and $_.Kind -in 'Toggle', 'Choice', 'Action' -and
-        (-not $_.Requires -or -not (Test-AkariRequirement $_))
+    # foreach, not Where-Object: this runs over every loaded Tweak (5.1's pipeline is many times slower)
+    @(foreach ($t in $Tweaks) {
+        if (-not $t.Legacy -and -not $t.Group -and $t.Section -notin 'Apps', 'OneClick' -and $t.Kind -in 'Toggle', 'Choice', 'Action' -and
+            (-not $t.Requires -or -not (Test-AkariRequirement $t))) { $t }
     })
+}
+
+# the whole Catalogue of $Tweaks, worked out once: @{ Tweaks (Get-AkariCatalogueTweaks); Pages (Get-AkariCataloguePages);
+# ByPage (page key -> its Tweaks, in load order); Source; Count (the list it was made from and its size: the GUI makes it
+# again when they change, Get-AkariCatalogueOf) }. Pure but for Test-AkariRequirement.
+function New-AkariCatalogue($Tweaks) {
+    $list = Get-AkariCatalogueTweaks $Tweaks
+    $bySection = [ordered]@{}
+    $byPage = @{}
+    foreach ($t in $list) {
+        if (-not $bySection.Contains([string]$t.Section)) { $bySection[[string]$t.Section] = [System.Collections.Generic.List[string]]::new() }
+        $key = "$AkariCataloguePrefix$($t.Section)/$($t.Category)"
+        if (-not $byPage.ContainsKey($key)) { $byPage[$key] = [System.Collections.Generic.List[object]]::new(); $bySection[[string]$t.Section].Add([string]$t.Category) }
+        $byPage[$key].Add($t)
+    }
+    $sections = @($bySection.Keys)
+    $ordered = @($AkariCatalogueSections | Where-Object { $_ -in $sections }) + @($sections | Where-Object { $_ -notin $AkariCatalogueSections } | Sort-Object)
+    $pages = @(foreach ($s in $ordered) {
+        $cats = @($bySection[$s] | Sort-Object)
+        [pscustomobject]@{
+            Section = $s
+            Header  = $(if ($AkariCatalogueHeaders.ContainsKey($s)) { $AkariCatalogueHeaders[$s] } else { $s })
+            Pages   = @(foreach ($c in $cats) { [pscustomobject]@{ Key = "$AkariCataloguePrefix$s/$c"; Category = $c } })
+        }
+    })
+    @{ Tweaks = $list; Pages = $pages; ByPage = $byPage; Source = $Tweaks; Count = @($Tweaks).Count }
+}
+
+# the GUI's Catalogue of $Tweaks (the loaded list, $script:Tweaks): made once, again only when that list is another one
+# or its size changed. Page switches and the search use it instead of filtering every Tweak again.
+$script:AkariCatalogueMemo = $null
+function Get-AkariCatalogueOf($Tweaks) {
+    $m = $script:AkariCatalogueMemo
+    if (-not $m -or -not [object]::ReferenceEquals($m.Source, $Tweaks) -or $m.Count -ne $Tweaks.Count) {
+        $m = New-AkariCatalogue $Tweaks
+        $script:AkariCatalogueMemo = $m
+    }
+    $m
 }
 
 # the sidebar: one entry per Section (Header) with its Category pages, in $AkariCatalogueSections order (unknown
 # Sections after them, by name; Categories by name). @{ Section; Header; Pages = @(@{ Key; Category }) }
-function Get-AkariCataloguePages($Tweaks) {
-    $list = Get-AkariCatalogueTweaks $Tweaks
-    $sections = @($list | ForEach-Object { $_.Section } | Select-Object -Unique)
-    $ordered = @($AkariCatalogueSections | Where-Object { $_ -in $sections }) + @($sections | Where-Object { $_ -notin $AkariCatalogueSections } | Sort-Object)
-    foreach ($s in $ordered) {
-        $cats = @($list | Where-Object { $_.Section -eq $s } | ForEach-Object { $_.Category } | Select-Object -Unique | Sort-Object)
-        [pscustomobject]@{
-            Section = $s
-            Header  = $(if ($AkariCatalogueHeaders.ContainsKey($s)) { $AkariCatalogueHeaders[$s] } else { $s })
-            Pages   = @($cats | ForEach-Object { [pscustomobject]@{ Key = "$AkariCataloguePrefix$s/$_"; Category = $_ } })
-        }
-    }
-}
+function Get-AkariCataloguePages($Tweaks) { (New-AkariCatalogue $Tweaks).Pages }
 
 # the Tweaks of one page (its key), or every match of $Query (name or description) in sidebar order
-function Get-AkariCatalogueList($Tweaks, [string]$Key, [string]$Query) {
-    $list = Get-AkariCatalogueTweaks $Tweaks
+function Get-AkariCatalogueList($Tweaks, [string]$Key, [string]$Query) { Find-AkariCatalogueList (New-AkariCatalogue $Tweaks) $Key $Query }
+
+# the same from a Catalogue New-AkariCatalogue made: the search goes page by page, each page in its own order
+function Find-AkariCatalogueList($Catalogue, [string]$Key, [string]$Query) {
     if ($Query) {
-        $order = @{}
-        $i = 0
-        foreach ($s in Get-AkariCataloguePages $Tweaks) { foreach ($p in $s.Pages) { $order["$($s.Section)/$($p.Category)"] = $i++ } }
-        $hits = @($list | Where-Object { "$($_.Name) $($_.Description)" -like "*$Query*" })
-        return @($hits | Sort-Object { $order["$($_.Section)/$($_.Category)"] })
+        $like = "*$Query*"
+        return @(foreach ($s in $Catalogue.Pages) { foreach ($p in $s.Pages) {
+            foreach ($t in $Catalogue.ByPage[$p.Key]) { if ("$($t.Name) $($t.Description)" -like $like) { $t } }
+        } })
     }
-    $sc = $Key.Substring($AkariCataloguePrefix.Length)
-    @($list | Where-Object { "$($_.Section)/$($_.Category)" -eq $sc })
+    $hit = $Catalogue.ByPage[$Key]
+    if ($null -ne $hit) { @($hit) }
 }
 
 # a Safe Mode Tweak was switched to $Mode (Apply / Revert) while its State is $State: it waits for Safe Mode, or, when

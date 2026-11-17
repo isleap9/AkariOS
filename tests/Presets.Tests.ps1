@@ -122,6 +122,7 @@ $script:Tweaks = @(
     ConvertTo-AkariTweak @{ Id = 'adv'; Name = 'Adv'; Description = 'D'; Section = 'Optimize'; Category = 'Gaming'; Risk = 'Safe'; Guided = $false
         Registry = @{ Path = $Key; Name = 'H'; Type = 'DWord'; Value = 1; Default = $null } } 'x' $false
 ) + @($fx.Tweaks | Where-Object { $_.Group })
+$AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
 foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps') { . "$Root\UI\$f.ps1" }
 function Get-AkariAppxInstalled { @('Akari.Test.One', 'Akari.Test.Two') }; function Start-AkariFeatureRead { }; function Add-Log($m) { }
 $res = [Windows.Controls.StackPanel]::new()
@@ -144,6 +145,34 @@ Set-AkariQuickSelect $p
 # Clear selection drops the hidden change too
 Reset-AkariTweakRows
 "afterClear=$((Get-AkariPlanItems $script:Sel | ForEach-Object { $_.Id }) -join ' ')"
+
+# in the window the States and apps are read in the background: the grid says "Reading..." and a Quick select waits for
+# both reads (the jobs are recorded, never run; their results are handed over by hand)
+$AkariReadInline = $false
+Clear-AkariSteps; $script:Appx = $null
+$script:Jobs = @()
+function Start-AkariJob($Code, $Queue, $CoreDir, $Shared) { $j = @{ Code = $Code; Shared = $Shared; Handle = [pscustomobject]@{ IsCompleted = $false } }; $script:Jobs += , $j; $j }
+"waitView=$((Get-AkariTweaksView).GetType().Name)|$($null -eq $script:TweaksView)"
+Set-AkariQuickSelect $p
+"waitPick=$($script:QuickPending.Name)|$($script:Sel.Count)|$($script:Jobs.Count)"
+$sj = $script:Jobs | Where-Object { $_.Shared.Items } | Select-Object -First 1
+$aj = $script:Jobs | Where-Object { -not $_.Shared.Items } | Select-Object -First 1
+"stateItems=$(($sj.Shared.Items | ForEach-Object { $_.Id }) -join ',')"
+$sj.Shared.States['tog'] = @{ State = 'Default'; Current = $null }; $sj.Shared.States['opt'] = @{ State = 'Optimized'; Current = $null }
+Complete-AkariTweakStates $sj
+"afterStates=$($null -ne $script:QuickPending)|$($script:Sel.Count)|$($script:TweakStates['ch'].State)"
+$aj.Shared.Result = @{ Names = @('Akari.Test.One', 'Akari.Test.Two'); Installed = @('Akari.Test.One', 'Akari.Test.Two'); Logos = @{} }
+Complete-AkariAppxRead $aj
+"bgSel=$((Get-AkariPlanItems $script:Sel | ForEach-Object { "$($_.Id):$($_.Mode)" }) -join ' ')"
+"bgPending=$($null -eq $script:QuickPending)|$($script:TweakRows['opt'].State)"
+# a read that ends after the steps were cleared (a flow switch, Done) is dropped
+$script:Jobs = @()
+Clear-AkariSteps
+[void](Get-AkariTweaksView)
+$old = $script:Jobs | Where-Object { $_.Shared.Items } | Select-Object -First 1
+Clear-AkariSteps
+Complete-AkariTweakStates $old
+"stale=$($null -eq $script:TweakStates)|$($null -eq $script:TweakStatesJob)"
 '@
     $k = "HKCU:\Software\AkariTest\$([guid]::NewGuid())"
     $out = @{}
@@ -166,6 +195,18 @@ Reset-AkariTweakRows
         $out.hidden | Should Be 'adv'
         $out.afterClear | Should Be 'good-group/Akari.Test.One'
     }
+    It 'reads the States and apps in the background: the grid says Reading until they are in' {
+        $out.waitView | Should Be 'TextBlock|True'
+        # Actions have no State to read
+        $out.stateItems | Should Be 'tog,opt,ch'
+    }
+    It 'keeps a Quick select waiting for both reads, then picks it as before' {
+        $out.waitPick | Should Be 'P|0|2'
+        $out.afterStates | Should Be 'True|0|Unknown'
+        $out.bgSel | Should Be 'good-group/Akari.Test.One:Apply tog:Apply opt:Revert adv:Apply'
+        $out.bgPending | Should Be 'True|Optimized'
+    }
+    It 'drops a read that ends after the steps were cleared' { $out.stale | Should Be 'True|True' }
 }
 
 Describe 'Export settings' {

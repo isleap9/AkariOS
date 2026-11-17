@@ -3,6 +3,7 @@
 Describe 'Get-AkariStepGroups' {
     foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
     . "$Root\UI\Selection.ps1"
+    $AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
     . "$Root\UI\Steps.ps1"
     function T($id, $sec, $cat, $kind = 'Toggle', $legacy = $false) {
         ConvertTo-AkariTweak @{ Id = $id; Name = $id; Section = $sec; Category = $cat; Kind = $kind; Risk = 'Safe' } 'x' $legacy
@@ -76,6 +77,7 @@ $script:Tweaks = @(
         Choices = @(@{ Value = 0x26; Label = 'A' }, @{ Value = 0x28; Label = 'B' }) } 'x' $false
     ConvertTo-AkariTweak @{ Id = 'leg'; Name = 'Leg'; Description = 'D'; Section = 'Windows'; Category = ''; Risk = 'Safe'; Apply = { }; Revert = { } } 'x' $true
 )
+$AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
 foreach ($f in 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps') { . "$Root\UI\$f.ps1" }
 # no real AppX read in tests: no app installed, no data-list Group
 function Get-AkariAppxInstalled { @() }; function Start-AkariFeatureRead { }; $script:Groups = @()
@@ -205,6 +207,7 @@ $script:Step = 1; Show-AkariSteps
 Describe 'Get-AkariRunSummary' {
     foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
     . "$Root\UI\Selection.ps1"
+    $AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
     . "$Root\UI\Steps.ps1"
     function O($o, $r = $false) { [pscustomobject]@{ Id = 'x'; Outcome = $o; Reboot = $r; Message = '' } }
 
@@ -229,6 +232,7 @@ Describe 'Get-AkariRunSummary' {
 Describe 'Get-AkariUninstallText' {
     foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
     . "$Root\UI\Selection.ps1"
+    $AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
     . "$Root\UI\Steps.ps1"
     function App([string]$Name, $More) { ConvertTo-AkariTweak (@{ Id = $Name; Name = $Name; Section = 'Apps'; Category = 'Install'; Kind = 'Action' } + $More) 'x' $false }
     $steam = App 'Steam' @{ Winget = 'A.Steam'; AppType = 'Game launchers' }
@@ -267,6 +271,7 @@ foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner') { . "$Root\Core\$
 $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
 $fake = ConvertTo-AkariTweak @{ Id = 'zz-fake-id'; Name = 'Fake'; Description = 'D'; Section = 'Optimize'; Category = 'Gaming'; Risk = 'Safe'; Apply = { }; Revert = { } } 'x' $false
 $script:Tweaks = @($fake)
+$AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
 foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps') { . "$Root\UI\$f.ps1" }
 # no real AppX read in tests: no app installed, no data-list Group
 function Get-AkariAppxInstalled { @() }; function Start-AkariFeatureRead { }; $script:Groups = @()
@@ -343,6 +348,7 @@ foreach ($m in 'Downloads', 'Remove apps', 'Guided') {
 Describe 'Get-AkariFlowStep' {
     foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
     . "$Root\UI\Selection.ps1"
+    $AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
     . "$Root\UI\Steps.ps1"
     It 'walks Guided through Apps, Tweaks, Review' {
         Get-AkariFlowStep 'Guided' 0 1 | Should Be 1
@@ -364,6 +370,7 @@ Describe 'Get-AkariFlowStep' {
 Describe 'Optimize Legacy pages' {
     foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
     . "$Root\UI\Selection.ps1"
+    $AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
     . "$Root\UI\Steps.ps1"
     function L($id, $page, $name) { ConvertTo-AkariTweak @{ Id = $id; Name = $name; Description = 'D'; Section = $page; Category = ''; Risk = 'Safe'; Apply = { }; Revert = { } } 'x' $true }
     $list = @(
@@ -530,6 +537,7 @@ $script:Tweaks = @(
     ConvertTo-AkariTweak @{ Id = 'instc'; Name = 'Paid app'; Description = 'D'; Section = 'Apps'; Category = 'Install'; Kind = 'Action'; Button = 'Install'; Risk = 'Caution'; Winget = 'Akari.Test.Paid'; Apply = { } } 'x' $false
     ConvertTo-AkariTweak @{ Id = 'tools-update-apps'; Name = 'Update all apps'; Description = 'D'; Section = 'Tools'; Category = 'Setup'; Kind = 'Action'; Risk = 'Safe'; Confirm = 'Update every app?'; Apply = { } } 'x' $false
 )
+$AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
 foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps') { . "$Root\UI\$f.ps1" }
 # the fake PC has three of the listed apps and one the list doesn't know
 function Get-AkariAppxInstalled { @('Akari.Test.Safe', 'Akari.Test.Opt', 'Akari.Test.Kept', 'Akari.Test.Extra') }
@@ -648,7 +656,14 @@ Complete-AkariInstalledRead ([hashtable]::Synchronized(@{ Ids = @('inst', 'instc
 "w4Mark=$($script:AppRows['inst'].Mark.Visibility),$($script:AppRows['instc'].Mark.Visibility),$($script:AppRows['instc'].Caution.Visibility)"
 Complete-AkariInstalledRead ([hashtable]::Synchronized(@{ Ids = @() }))
 "w4Unmark=$($script:AppRows['inst'].Mark.Visibility),$($script:AppRows['instc'].Caution.Visibility)"
-$script:Step = 3; Reset-AkariSteps; $script:Job = $null
+# a flow switch keeps the view and its marks; a Run's end (Complete-AkariApply / -Uninstall) drops it, so Downloads is
+# built anew and reads them again
+$view = $script:AppsView
+$script:AppRows['inst'].Control.IsChecked = $true; Step-AkariAppCheck 'inst'
+Enter-AkariFlow 'Remove apps'; Show-AkariSteps; $script:Job = $null
+Enter-AkariFlow 'Downloads'; Show-AkariSteps
+"w4Kept=$([object]::ReferenceEquals($view, $script:AppsView))|$($null -eq $script:Job)|$($script:AppRows['inst'].Control.IsChecked)|$($script:Sel.Count)|$($script:AppsParts.InstallBar.Visibility)"
+$script:Step = 3; Clear-AkariAppsView; Reset-AkariSteps; $script:Job = $null
 Enter-AkariFlow 'Downloads'; Show-AkariSteps
 "w4ReadAgain=$($script:Job.Kind)"; $script:Busy = $false
 # Update all apps: the Tools Tweak, asked with its own Confirm, one Apply job without a restore point
@@ -748,6 +763,9 @@ $script:answer = $true; Start-AkariUpdateApps
         $out.w4Mark | Should Be 'Visible,Visible,Collapsed'
         $out.w4Unmark | Should Be 'Collapsed,Visible'
         $out.w4ReadAgain | Should Be 'AppsInstalled'
+    }
+    It 'keeps the apps view across a flow switch, its picks unchecked; a Run''s end builds it anew' {
+        $out.w4Kept | Should Be 'True|True|False|0|Visible'
     }
     It 'Update all apps asks with the Tweak''s Confirm, then runs it as one Apply job with no restore point' {
         $out.w4UpCancel | Should Be 'True,Update every app?'

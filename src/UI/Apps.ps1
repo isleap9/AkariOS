@@ -130,9 +130,11 @@ $script:AppLogos = @{}
 # the image file of a row's icon, or $null. Pure, no WPF: $Logos = package name -> logo path; $Dir = Assets\Apps.
 function Get-AkariAppIconFile($Tweak, $Logos, [string]$Dir) {
     if ($Tweak.Package -and $Logos -and $Logos[$Tweak.Package]) { return $Logos[$Tweak.Package] }
-    foreach ($k in @($Tweak.Package, $Tweak.Id) | Where-Object { $_ }) {
-        foreach ($f in (Join-Path $Dir "$k.png"), (Join-Path $Dir "$k.mono.png")) {
-            if (Test-Path -LiteralPath $f) { return $f }
+    # .NET's file check, not Test-Path: this runs for every row (four provider calls a row took ~0.8 ms)
+    foreach ($k in $Tweak.Package, $Tweak.Id) {
+        if (-not $k) { continue }
+        foreach ($f in [IO.Path]::Combine($Dir, "$k.png"), [IO.Path]::Combine($Dir, "$k.mono.png")) {
+            if ([IO.File]::Exists($f)) { return $f }
         }
     }
     $null
@@ -166,13 +168,7 @@ function New-AkariAppIcon($Tweak) {
     $icon = $null
     if ($file) {
         try {
-            $bi = [Windows.Media.Imaging.BitmapImage]::new()
-            $bi.BeginInit()
-            $bi.UriSource = [Uri]::new($file)
-            $bi.DecodePixelWidth = 40
-            $bi.CacheOption = 'OnLoad'
-            $bi.EndInit()
-            $bi.Freeze()
+            $bi = Get-AkariBitmap $file 40
             $mono = $file -like '*.mono.png'
             if (-not $mono -and $Tweak.Package -and $script:AppLogos[$Tweak.Package] -eq $file) { $mono = Test-AkariWhiteLogo $bi }
             if ($mono) {
@@ -437,14 +433,76 @@ function Set-AkariAppsOnly([string]$Tab) {
     if ($Tab) { Show-AkariAppsTab $Tab }
 }
 
-# builds the Apps view once: Store apps and legacy apps now (on the UI thread), the features in the background
+# ---- the Store packages: one read in the background (Start-AkariAppxRead), the view built when it is in
+# (Complete-AkariAppxRead); "Reading..." until then. $AkariReadInline: read at once on this thread (tests).
+if ($null -eq $AkariReadInline) { $AkariReadInline = $false }
+# @{ Names (every package: the restore card); Installed (the removable ones); Logos (their logos) } once read, else
+# $null; Clear-AkariSteps forgets it (read again after a Run) and bumps Gen, so a read started before is dropped
+$script:Appx = $null; $script:AppxJob = $null; $script:AppxGen = 0
+
+# the read itself, as text: run here (inline) or in the job's runspace
+$AkariAppxReadCode = @'
+$pkgs = @(try { Get-AkariAppxPackages } catch { })
+$installed = @(try { Get-AkariAppxInstalled $pkgs } catch { })
+$logos = @{}
+try { $logos = Get-AkariAppxLogos @($pkgs | Where-Object { $_.Name -in $installed }) } catch { }
+@{ Names = @($pkgs | ForEach-Object { $_.Name }); Installed = $installed; Logos = $logos }
+'@
+
+function Start-AkariAppxRead {
+    if ($script:Appx -or $script:AppxJob) { return }
+    if ($AkariReadInline) { $script:Appx = & ([scriptblock]::Create($AkariAppxReadCode)); return }
+    $shared = [hashtable]::Synchronized(@{})
+    $job = Start-AkariJob ("`$AkariShared.Result = & {`n$AkariAppxReadCode`n}") ([System.Collections.Concurrent.ConcurrentQueue[string]]::new()) "$Root\Core" $shared
+    $job.Gen = $script:AppxGen
+    $script:AppxJob = $job
+    $tm = [Windows.Threading.DispatcherTimer]::new()
+    $tm.Interval = [TimeSpan]::FromMilliseconds(150)
+    $tm.Tag = $job
+    $tm.Add_Tick({
+        param($s, $a)
+        $j = $s.Tag
+        if (-not $j.Handle.IsCompleted) { return }
+        $s.Stop()
+        try { [void]$j.Ps.EndInvoke($j.Handle) } catch { Write-ErrLog "Apps read: $_" }
+        $j.Ps.Dispose(); $j.Rs.Dispose()
+        Complete-AkariAppxRead $j
+    })
+    $tm.Start()
+}
+
+# the packages are in: the apps step is built if it is showing, and a Quick select that waited is picked
+function Complete-AkariAppxRead($Job) {
+    if ($script:AppxJob -eq $Job) { $script:AppxJob = $null }
+    if ($Job.Gen -ne $script:AppxGen) { return }
+    $r = $Job.Shared.Result
+    $script:Appx = if ($r) { $r } else { @{ Names = @(); Installed = @(); Logos = @{} } }
+    if (Get-Command Resume-AkariQuickSelect -ErrorAction SilentlyContinue) { Resume-AkariQuickSelect }
+    if ($script:Step -eq 0 -and $script:Mode -ne 'Choose' -and ($script:Cat -eq 'Install AkariOS' -or ($AkariAppFlows -and $AkariAppFlows.Contains("$script:Cat")))) { Show-AkariSteps }
+}
+
+# forgets the apps read and the view built on it (a Run changed what is on this PC): both again next time. A flow
+# switch keeps them (Clear-AkariSteps only unchecks the rows): building the view takes a second or more.
+function Clear-AkariAppsView {
+    $script:AppRows = [ordered]@{}
+    $script:AppsView = $null
+    $script:Appx = $null; $script:AppxJob = $null; $script:AppxGen++
+}
+
+# builds the Apps view once: Store apps and legacy apps from the read, the features in the background
 function Get-AkariAppsView {
     if ($script:AppsView) { return $script:AppsView }
     # one package read: the removable ones, every name (the restore card) and the installed apps' logos
-    $pkgs = @(try { Get-AkariAppxPackages } catch { })
-    $installed = @(try { Get-AkariAppxInstalled $pkgs } catch { })
-    $script:AppLogos = @{}
-    try { $script:AppLogos = Get-AkariAppxLogos @($pkgs | Where-Object { $_.Name -in $installed }) } catch { }
+    if (-not $script:Appx) {
+        Start-AkariAppxRead
+        if (-not $script:Appx) {
+            $wait = New-AkariAppCell ('Reading the apps on this PC' + [char]0x2026) 0 'Mu'
+            $wait.Margin = [Windows.Thickness]::new(2, 4, 0, 0)
+            return $wait
+        }
+    }
+    $installed = @($script:Appx.Installed)
+    $script:AppLogos = if ($script:Appx.Logos) { $script:Appx.Logos } else { @{} }
     $script:AppRows = [ordered]@{}
     $script:AppsPick = $null
     $p = @{}
@@ -507,7 +565,7 @@ function Get-AkariAppsView {
 
     # Install: a card per kind of app, then the Store apps the debloat removed
     $p.InstallTables = [Windows.Controls.StackPanel]::new()
-    $appx = @($pkgs | ForEach-Object { $_.Name })
+    $appx = @($script:Appx.Names)
     foreach ($c in Get-AkariInstallCards $script:Tweaks $appx) {
         $t = New-AkariAppTable $c.Title 'Source' @($c.Items)
         if (-not $c.Items.Count) { [void]$t.Rows.Children.Add((New-AkariAppCell 'Nothing to restore: every app in this list is on this PC.' 0 'Mu' 12)) }
@@ -533,6 +591,8 @@ function Get-AkariAppsView {
 
     $script:AppsParts = $p
     $script:AppsView = $view
+    # it opens on the right tab already (below)
+    $script:AppsTabFresh = $false
     # the features are read when the Remove tab is first shown (Downloads opens on Install and never reads them)
     $script:AppsFeatureRead = $false
     # a view built anew has no Installed marks yet (Show-AkariSteps reads them again when they were asked for)

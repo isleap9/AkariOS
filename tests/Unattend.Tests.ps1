@@ -103,6 +103,7 @@ param($Root, $Usb, $Stick, $Folder)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework
 . "$Root\Core\Unattend.ps1"
+$AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
 foreach ($f in 'Selection', 'Cards', 'Steps', 'UnattendForm', 'Unattend') { . "$Root\UI\$f.ps1" }
 function Add-Log($m) { }
 function Get-AkariUnattendDefaults { @{ UILanguage = 'it-IT'; Locale = 'it-IT'; Keyboard = '00000410'; GeoLocation = '118'; TimeZone = 'W. Europe Standard Time' } }

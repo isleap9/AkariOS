@@ -40,6 +40,25 @@ Describe 'Catalogue (Optimize > Advanced)' {
         # name or description, across Sections, in sidebar order (Optimize, Customize, Advanced, Tools)
         (Get-AkariCatalogueList $all '' 'e' | ForEach-Object { $_.Id }) -join ',' | Should Be 'game,only,sec,check'
     }
+    It 'keeps each page''s own order in the search, not only the page order' {
+        $two = @((T @{ Id = 'z-first'; Section = 'Optimize'; Category = 'Gaming'; Name = 'Zz match' }), (T @{ Id = 'a-second'; Section = 'Optimize'; Category = 'Gaming'; Name = 'Aa match' }))
+        (Get-AkariCatalogueList $two '' 'match' | ForEach-Object { $_.Id }) -join ',' | Should Be 'z-first,a-second'
+        @(Get-AkariCatalogueList $two 'Catalogue:Optimize/Nothing' '').Count | Should Be 0
+    }
+    It 'works the GUI''s Catalogue out once, again only when the loaded list is another one or grows' {
+        $list = [System.Collections.Generic.List[object]]::new()
+        foreach ($t in $all) { $list.Add($t) }
+        $a = Get-AkariCatalogueOf $list
+        [object]::ReferenceEquals($a, (Get-AkariCatalogueOf $list)) | Should Be $true
+        (Find-AkariCatalogueList $a 'Catalogue:Customize/Taskbar' '' | ForEach-Object { $_.Id }) -join ',' | Should Be 'bar,only'
+        (Find-AkariCatalogueList $a '' 'e' | ForEach-Object { $_.Id }) -join ',' | Should Be 'game,only,sec,check'
+        $list.Add((T @{ Id = 'new'; Section = 'Optimize'; Category = 'Gaming' }))
+        $b = Get-AkariCatalogueOf $list
+        [object]::ReferenceEquals($a, $b) | Should Be $false
+        (Find-AkariCatalogueList $b 'Catalogue:Optimize/Gaming' '' | ForEach-Object { $_.Id }) -join ',' | Should Be 'game,new'
+        $other = [System.Collections.Generic.List[object]]::new($list)
+        [object]::ReferenceEquals($b, (Get-AkariCatalogueOf $other)) | Should Be $false
+    }
     It 'shows "Graphics & Hardware" for Hardware' {
         $hw = @($all) + @(T @{ Id = 'mouse'; Section = 'Hardware'; Category = 'Input' })
         (@(Get-AkariCataloguePages $hw) | ForEach-Object { $_.Header }) -join ',' | Should Be 'Optimize,Customize,Graphics & Hardware,Advanced,Tools,Zeta'
@@ -81,6 +100,7 @@ Describe 'Catalogue (Optimize > Advanced)' {
         ($all | Where-Object { $_.Id -eq 'only' }).Guided | Should Be $false
     }
     It 'Guided''s Tweaks step leaves out Tools and Guided = $false Tweaks' {
+        $AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
         foreach ($f in 'Selection', 'Steps') { . "$Root\UI\$f.ps1" }
         $ids = @(Get-AkariStepGroups $all | ForEach-Object { $_.Categories } | ForEach-Object { $_.Ids })
         $ids -contains 'check' | Should Be $false

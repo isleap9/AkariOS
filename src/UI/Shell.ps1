@@ -370,7 +370,7 @@ function Get-AkariSearchHint([string]$Page) {
 
 # Optimize's Sections, Legacy last: @{ Name; Header; Pages = @{ Key; Label; Icon } } (Downloads is a tab of its own)
 function Get-AkariOptimizeSections {
-    foreach ($c in Get-AkariCataloguePages $script:Tweaks) {
+    foreach ($c in (Get-AkariCatalogueOf $script:Tweaks).Pages) {
         [pscustomobject]@{ Name = $c.Section; Header = $c.Header
             Pages = @($c.Pages | ForEach-Object { [pscustomobject]@{ Key = $_.Key; Label = $_.Category; Icon = Get-AkariCategoryIcon $_.Category } }) }
     }
@@ -382,7 +382,7 @@ function Get-AkariOptimizeSections {
 $script:LastOptimize = ''
 function Get-AkariOptimizeTarget {
     if ($script:LastOptimize) { return $script:LastOptimize }
-    $first = @(Get-AkariCataloguePages $script:Tweaks | ForEach-Object { $_.Pages }) | Select-Object -First 1
+    $first = @((Get-AkariCatalogueOf $script:Tweaks).Pages | ForEach-Object { $_.Pages }) | Select-Object -First 1
     if ($first) { $first.Key } else { $AkariLegacyPages[0] }
 }
 
@@ -461,7 +461,8 @@ function Open-AkariPage([string]$Name, [string]$From) {
     if ($Name -eq 'Optimize') { $Name = Get-AkariOptimizeTarget }
     if ($AkariAppFlows.Contains($Name) -and $From -ne $Name) { Set-AkariFlowExit $From }
     $script:Cat = $Name
-    if ($Search.Text) { $Search.Text = '' }
+    # cleared quietly: the page is built once, below
+    if ($Search.Text) { $script:SearchQuiet = $true; try { $Search.Text = '' } finally { $script:SearchQuiet = $false } }
     Show-Page
 }
 
@@ -483,7 +484,17 @@ $Sections.Add_SelectionChanged({
     if ($s -and $s.Pages) { Select-AkariPage $s.Pages[0].Key }
 })
 $RemoveApps.Add_Click({ Select-AkariPage 'Remove apps' })
-$Search.Add_TextChanged({ Show-Page })
+# the search waits for a pause in typing ($AkariSearchDelay ms, 0 = every key; tests set 0: no dispatcher runs there) so
+# a word builds the results once, not once per letter; clearing it shows the page at once
+if ($null -eq $AkariSearchDelay) { $AkariSearchDelay = 250 }
+$script:SearchTimer = [Windows.Threading.DispatcherTimer]::new()
+$script:SearchTimer.Interval = [TimeSpan]::FromMilliseconds([Math]::Max(1, $AkariSearchDelay))
+$script:SearchTimer.Add_Tick({ $script:SearchTimer.Stop(); Show-Page })
+$Search.Add_TextChanged({
+    $script:SearchTimer.Stop()
+    if ($script:SearchQuiet) { return }
+    if ($AkariSearchDelay -le 0 -or -not $Search.Text.Trim()) { Show-Page } else { $script:SearchTimer.Start() }
+})
 
 # narrow window: the top bar needs about 1300 px with the tab icons and the search box, about 980 with neither,
 # and 880 without the wordmark too. Under 1320 px the search is an icon button that opens the box and the tabs show
@@ -564,14 +575,23 @@ $script:StatsJob = $null; $script:StatsFresh = $false
 function Start-AkariHomeStats {
     if ($script:StatsJob -or $script:StatsFresh) { return }
     $script:StatsFresh = $true
-    Set-AkariHomeStats @{ Tweaks = @(Get-AkariCatalogueTweaks $script:Tweaks).Count }
+    $cat = @((Get-AkariCatalogueOf $script:Tweaks).Tweaks)
+    Set-AkariHomeStats @{ Tweaks = $cat.Count }
     $q = { param($s) "'" + ([string]$s -replace "'", "''") + "'" }
-    $shared = [hashtable]::Synchronized(@{})
-    # the job loads the tweaks itself (a script block must not cross runspaces); its log stays quiet
+    # the files the job needs, not the whole loader again (a script block must not cross runspaces): the Groups, and the
+    # Tweaks Export saves (= the Catalogue's Toggles and Choices outside Tools, Get-AkariExportTweaks)
+    $shared = [hashtable]::Synchronized(@{
+        Groups  = @($script:Groups | ForEach-Object { $_.Source } | Select-Object -Unique)
+        Sources = @($cat | Where-Object { $_.Kind -in 'Toggle', 'Choice' -and $_.Section -ne 'Tools' } | ForEach-Object { $_.Source })
+    })
+    # its log stays quiet, and it runs below normal priority: a minute of reads that must not slow the window
     $code = @"
-`$loaded = Get-AkariTweaks $(& $q "$Root\Tweaks")
-try { `$AkariShared.Apps = @(Get-AkariAppxInstalled | Where-Object { `$e = Resolve-AkariEntry `$loaded.Groups "appx/`$_"; `$e -and -not `$e.Keep }).Count } catch { }
-try { `$AkariShared.Applied = @(Get-AkariExportItems @(`$loaded.Tweaks)).Count } catch { }
+[Threading.Thread]::CurrentThread.Priority = 'BelowNormal'
+`$root = $(& $q "$Root\Tweaks")
+`$groups = @(foreach (`$s in `$AkariShared.Groups) { try { Import-AkariTweakFile -Path `$s -TweaksRoot `$root } catch { } })
+try { `$AkariShared.Apps = @(Get-AkariAppxInstalled | Where-Object { `$e = Resolve-AkariEntry `$groups "appx/`$_"; `$e -and -not `$e.Keep }).Count } catch { }
+`$tweaks = @(foreach (`$s in `$AkariShared.Sources) { try { Import-AkariTweakFile -Path `$s -TweaksRoot `$root } catch { } })
+try { `$AkariShared.Applied = @(Get-AkariExportItems `$tweaks).Count } catch { }
 "@
     $job = Start-AkariJob $code ([System.Collections.Concurrent.ConcurrentQueue[string]]::new()) "$Root\Core" $shared
     $script:StatsJob = $job

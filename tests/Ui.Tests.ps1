@@ -634,6 +634,9 @@ $script:Groups = @(); $script:RowCache = @{}; $script:Cat = 'Home'; $script:Busy
 $script:Queue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
 $loaded = @{ Problems = @() }
 function Get-AkariAppxInstalled { @() }; function Start-AkariFeatureRead { }
+# the search shows its results on every key (no dispatcher runs here to fire the typing pause)
+$AkariSearchDelay = 0
+$AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
 foreach ($f in 'Motion', 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows', 'CataloguePage', 'ServicesPage', 'TasksPage', 'About', 'UnattendForm', 'Unattend', 'IsoBuilder', 'ImportExport') { . "$Root\UI\$f.ps1" }
 $timer.Stop()
 # the Catalogue reads its States in a job: recorded, never run (no real job, no Safe Mode read)
@@ -669,6 +672,11 @@ Select-AkariPage 'Advanced'; "advanced=$(Rows)"
 SetTab 'Downloads'; "downloads=$script:Cat|$script:FlowExit|$(TabOn)|$($SubNav.Visibility)"
 Click $StepBack; "dlBack=$script:Cat|$(TabOn)|$(ChipOn)"
 $Search.Text = 'theme'; "search=$(Rows)|$($SearchHint.Text)"; $Search.Text = ''
+# in the window the search waits for a pause in typing (its timer, which no dispatcher fires here); clearing acts at once
+$AkariSearchDelay = 250; $before = Rows
+$Search.Text = 'BIOS'; "searchWait=$((Rows) -eq $before)|$($script:SearchTimer.IsEnabled)|$before"
+$Search.Text = ''; "searchCleared=$((Rows) -eq $before)|$($script:SearchTimer.IsEnabled)"
+$AkariSearchDelay = 0
 # the Optimize tab comes back to the Optimize page seen last
 SetTab 'Home'; SetTab 'Optimize'; "optimizeAgain=$script:Cat|$(TabOn)"
 SetTab 'Install AkariOS'; "install=$script:Cat|$(TabOn)|$($SubNav.Visibility)|$($SearchHint.Text)"
@@ -852,6 +860,10 @@ $Sections.SelectedItem = $Sections.Items[2]
         $out.dlBack | Should Be 'Windows|Optimize|Windows'
     }
     It 'search lists legacy matches only' { $out.search | Should Be 'Dark theme|Search Legacy' }
+    It 'search waits for a pause in typing, and clearing it shows the page at once' {
+        $out.searchWait | Should Be 'True|True|Dark theme'
+        $out.searchCleared | Should Be 'True|False'
+    }
     It 'the Optimize tab comes back to the Optimize page seen last' { $out.optimizeAgain | Should Be 'Windows|Optimize' }
     It 'the Install AkariOS tab opens its chooser, whose Back goes Home' {
         $out.install | Should Be 'Install AkariOS|Install AkariOS|Collapsed|Filter this step'

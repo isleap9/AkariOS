@@ -74,6 +74,7 @@ Describe 'Get-AkariRestorePoint' {
 Describe 'Restore point choice' {
     $Root = Join-Path (Split-Path $PSScriptRoot) 'src'
     foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
+    $AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
     foreach ($f in 'Selection', 'Steps') { . "$Root\UI\$f.ps1" }
     # no System Restore read and no dialog: both stubbed
     $state = @{ Point = $null; Answer = $false; Asked = 0 }
