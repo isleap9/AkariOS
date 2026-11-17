@@ -145,7 +145,7 @@ function New-AkariAboutButton([string]$Text, [string]$Url) {
 
 function Open-AkariLogFolder { $f = Split-Path $AkariLogFile; if (Test-Path $f) { Start-Process explorer.exe $f } }
 
-# a title bar menu row: a Lucide icon (in the row's text colour) and a label; no $Click = greyed out, "coming in a
+# a title bar menu row: an icon (in the row's text colour) and a label; no $Click = greyed out, "coming in a
 # later version"
 function New-AkariMenuItem([string]$Header, [string]$Icon, [scriptblock]$Click) {
     $it = [Windows.Controls.MenuItem]::new()
@@ -157,7 +157,7 @@ function New-AkariMenuItem([string]$Header, [string]$Icon, [scriptblock]$Click) 
     $p.Data = $window.FindResource("Ic.$Icon")
     $bd = [Windows.Data.Binding]::new('Foreground')
     $bd.Source = $it
-    [void][Windows.Data.BindingOperations]::SetBinding($p, [Windows.Shapes.Shape]::StrokeProperty, $bd)
+    [void][Windows.Data.BindingOperations]::SetBinding($p, [Windows.Shapes.Shape]::FillProperty, $bd)
     $it.Icon = $ic
     if ($Click) { $it.Add_Click($Click) }
     else {

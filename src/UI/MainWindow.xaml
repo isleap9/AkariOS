@@ -16,14 +16,10 @@
   <Window.Resources>
     <!-- Brushes come from UI\Theme.Dark.xaml or UI\Theme.Light.xaml, merged in by Set-AkariTheme (UI\Shell.ps1):
          every colour here is a DynamicResource so a theme switch repaints the window. -->
-    <!-- a Lucide icon (UI\Icons.xaml, Ic.<name>) in a 24x24 Canvas inside a Viewbox: stroke 2, round caps and joins,
-         the colour of the button or control it sits in (the caption buttons' hover colours carry over) -->
+    <!-- a Fluent icon (UI\Icons.xaml, Ic.<name>) in a 20x20 Canvas inside a Viewbox: filled, in the colour of the
+         button or control it sits in (the caption buttons' hover colours carry over) -->
     <Style x:Key="Ic" TargetType="Path">
-      <Setter Property="StrokeThickness" Value="2"/>
-      <Setter Property="StrokeStartLineCap" Value="Round"/>
-      <Setter Property="StrokeEndLineCap" Value="Round"/>
-      <Setter Property="StrokeLineJoin" Value="Round"/>
-      <Setter Property="Stroke" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Control}}"/>
+      <Setter Property="Fill" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Control}}"/>
     </Style>
 
     <!-- Keyboard focus: a 2 px Focus ring 3 px outside the control. FocusRing for pills (buttons, switches, text
@@ -797,28 +793,28 @@
           </TextBlock.Style>
         </TextBlock>
         <Viewbox Width="16" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="14,0,0,1" IsHitTestVisible="False">
-          <Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Stroke="{DynamicResource Mu}" Data="{DynamicResource Ic.search}"/></Canvas>
+          <Canvas Width="20" Height="20"><Path Style="{StaticResource Ic}" Fill="{DynamicResource Mu}" Data="{DynamicResource Ic.search}"/></Canvas>
         </Viewbox>
       </Grid>
       <Button x:Name="SearchBtn" Grid.Column="2" Style="{StaticResource Ghost}" Width="36" Height="36" Margin="12,0,8,0"
               VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Search (Ctrl+K)" WindowChrome.IsHitTestVisibleInChrome="True">
-        <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.search}"/></Canvas></Viewbox>
+        <Viewbox Width="18" Height="18"><Canvas Width="20" Height="20"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.search}"/></Canvas></Viewbox>
       </Button>
 
     <!-- Caption buttons, drawn like Windows 11's: the options menu (UI\About.ps1), minimize, maximize / restore,
          close (red on hover). -->
     <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
       <Button x:Name="MenuBtn" Style="{StaticResource Cap}" ToolTip="Options">
-        <Viewbox Width="16" Height="16"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.menu}"/></Canvas></Viewbox>
+        <Viewbox Width="16" Height="16"><Canvas Width="20" Height="20"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.menu}"/></Canvas></Viewbox>
       </Button>
       <Button x:Name="CapMin" Style="{StaticResource Cap}" ToolTip="Minimize">
-        <Viewbox Width="14" Height="14"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.minus}"/></Canvas></Viewbox>
+        <Viewbox Width="14" Height="14"><Canvas Width="20" Height="20"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.minus}"/></Canvas></Viewbox>
       </Button>
       <Button x:Name="CapMax" Style="{StaticResource Cap}" ToolTip="Maximize">
-        <Viewbox Width="12" Height="12"><Canvas Width="24" Height="24"><Path x:Name="CapMaxGlyph" Style="{StaticResource Ic}" Data="{DynamicResource Ic.square}"/></Canvas></Viewbox>
+        <Viewbox Width="12" Height="12"><Canvas Width="20" Height="20"><Path x:Name="CapMaxGlyph" Style="{StaticResource Ic}" Data="{DynamicResource Ic.square}"/></Canvas></Viewbox>
       </Button>
       <Button x:Name="CapClose" Style="{StaticResource CapX}" ToolTip="Close">
-        <Viewbox Width="14" Height="14"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.x}"/></Canvas></Viewbox>
+        <Viewbox Width="14" Height="14"><Canvas Width="20" Height="20"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.x}"/></Canvas></Viewbox>
       </Button>
     </StackPanel>
     </Grid>
@@ -838,8 +834,8 @@
           <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
         <Viewbox Width="40" Height="40" VerticalAlignment="Center" Margin="0,0,16,0">
-          <Canvas Width="24" Height="24">
-            <Path x:Name="HeaderIcon" Style="{StaticResource Ic}" Stroke="{DynamicResource Acc}"/>
+          <Canvas Width="20" Height="20">
+            <Path x:Name="HeaderIcon" Style="{StaticResource Ic}" Fill="{DynamicResource Acc}"/>
           </Canvas>
         </Viewbox>
         <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -855,7 +851,7 @@
         <Button x:Name="RemoveApps" DockPanel.Dock="Right" Style="{StaticResource Btn}" VerticalAlignment="Top" Margin="12,0,0,0"
                 ToolTip="Store apps, optional features, Windows features and legacy apps to remove">
           <StackPanel Orientation="Horizontal">
-            <Viewbox Width="16" Height="16" Margin="0,0,8,0"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.trash-2}"/></Canvas></Viewbox>
+            <Viewbox Width="16" Height="16" Margin="0,0,8,0"><Canvas Width="20" Height="20"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.trash-2}"/></Canvas></Viewbox>
             <TextBlock Text="Remove apps"/>
           </StackPanel>
         </Button>
@@ -903,7 +899,7 @@
                       BorderBrush="{DynamicResource Bd}" Background="{DynamicResource S1}">
                 <DockPanel>
                   <Viewbox DockPanel.Dock="Left" Width="18" Height="18" VerticalAlignment="Center" Margin="0,0,12,0">
-                    <Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Stroke="{DynamicResource Ok}" Data="{DynamicResource Ic.download}"/></Canvas>
+                    <Canvas Width="20" Height="20"><Path Style="{StaticResource Ic}" Fill="{DynamicResource Ok}" Data="{DynamicResource Ic.download}"/></Canvas>
                   </Viewbox>
                   <Button x:Name="UpdateOpen" DockPanel.Dock="Right" Style="{StaticResource Btn}" Content="See what's new" Margin="12,0,0,0"/>
                   <TextBlock x:Name="UpdateText" VerticalAlignment="Center" TextWrapping="Wrap"/>
@@ -919,7 +915,7 @@
                 <WrapPanel Margin="0,24,0,0">
                   <Button x:Name="HeroOneClick" Style="{StaticResource BtnP}" Margin="0,0,12,8" ToolTip="The full AkariOS setup in one go, with restarts handled for you">
                     <StackPanel Orientation="Horizontal">
-                      <Viewbox Width="16" Height="16" Margin="0,0,8,0"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Stroke="{DynamicResource AccT}" Data="{DynamicResource Ic.zap}"/></Canvas></Viewbox>
+                      <Viewbox Width="16" Height="16" Margin="0,0,8,0"><Canvas Width="20" Height="20"><Path Style="{StaticResource Ic}" Fill="{DynamicResource AccT}" Data="{DynamicResource Ic.zap}"/></Canvas></Viewbox>
                       <TextBlock Text="One-click setup"/>
                     </StackPanel>
                   </Button>

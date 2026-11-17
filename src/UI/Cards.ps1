@@ -3,7 +3,7 @@
 # Risk, restart and an unread State; the tooltip carries the description. Cards make no Core calls; UI\Steps.ps1 wires
 # their events to the Selection. Styles come from UI\Controls.xaml.
 
-# Category icons (Lucide names, UI\Icons.xaml); a Category not listed here gets 'settings'
+# Category icons (Ic.<name> keys, UI\Icons.xaml); a Category not listed here gets 'settings'
 $AkariCategoryGlyphs = @{
     Gaming = 'gamepad-2'; Performance = 'gauge'; Tuning = 'sliders-vertical'; Privacy = 'lock'
     Check = 'activity'; Refresh = 'refresh-cw'; Setup = 'wrench'; Graphics = 'monitor'
@@ -18,20 +18,18 @@ $AkariCategoryGlyphs = @{
 # a Category's icon name
 function Get-AkariCategoryIcon([string]$Category) { if ($AkariCategoryGlyphs.ContainsKey($Category)) { $AkariCategoryGlyphs[$Category] } else { 'settings' } }
 
-# a Lucide icon (UI\Icons.xaml, Ic.<name>, built by build\Icons.ps1): its 24x24 path, stroked 2 with round caps and
-# joins in $Brush, scaled to $Size by a Viewbox (the stroke scales with it, as Lucide's does). $Brush 'Inherit': the
-# text colour of the button or menu item it sits in (a selected nav button, a disabled menu row)
+# a Fluent icon (UI\Icons.xaml, Ic.<name>, built by build\Icons.ps1; '<name>.Filled' for a filled one): its 20x20
+# path, filled in $Brush, scaled to $Size by a Viewbox. $Brush 'Inherit': the text colour of the button or menu item
+# it sits in (a selected nav button, a disabled menu row)
 function New-AkariIcon([string]$Name, [double]$Size = 16, [string]$Brush = 'Tx') {
     $p = [Windows.Shapes.Path]::new()
     $p.SetResourceReference([Windows.Shapes.Path]::DataProperty, "Ic.$Name")
     if ($Brush -eq 'Inherit') {
         $bd = [Windows.Data.Binding]::new('Foreground')
         $bd.RelativeSource = [Windows.Data.RelativeSource]::new([Windows.Data.RelativeSourceMode]::FindAncestor, [Windows.Controls.Control], 1)
-        [void][Windows.Data.BindingOperations]::SetBinding($p, [Windows.Shapes.Shape]::StrokeProperty, $bd)
-    } else { $p.SetResourceReference([Windows.Shapes.Shape]::StrokeProperty, $Brush) }
-    $p.StrokeThickness = 2
-    $p.StrokeStartLineCap = 'Round'; $p.StrokeEndLineCap = 'Round'; $p.StrokeLineJoin = 'Round'
-    $c = [Windows.Controls.Canvas]::new(); $c.Width = 24; $c.Height = 24
+        [void][Windows.Data.BindingOperations]::SetBinding($p, [Windows.Shapes.Shape]::FillProperty, $bd)
+    } else { $p.SetResourceReference([Windows.Shapes.Shape]::FillProperty, $Brush) }
+    $c = [Windows.Controls.Canvas]::new(); $c.Width = 20; $c.Height = 20
     [void]$c.Children.Add($p)
     $v = [Windows.Controls.Viewbox]::new(); $v.Width = $Size; $v.Height = $Size
     $v.Child = $c
@@ -39,7 +37,7 @@ function New-AkariIcon([string]$Name, [double]$Size = 16, [string]$Brush = 'Tx')
     $v
 }
 
-# points an icon at another Lucide icon: one from New-AkariIcon, or a Path in XAML (the page header's, CapMaxGlyph)
+# points an icon at another icon: one from New-AkariIcon, or a Path in XAML (the page header's, CapMaxGlyph)
 function Set-AkariIcon($Icon, [string]$Name) {
     $p = if ($Icon -is [Windows.Shapes.Path]) { $Icon } else { $Icon.Child.Children[0] }
     $p.SetResourceReference([Windows.Shapes.Path]::DataProperty, "Ic.$Name")

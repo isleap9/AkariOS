@@ -1,4 +1,4 @@
-﻿$Root = Join-Path (Split-Path $PSScriptRoot) 'src'
+$Root = Join-Path (Split-Path $PSScriptRoot) 'src'
 
 Describe 'Get-AkariStepGroups' {
     foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
@@ -449,10 +449,10 @@ Describe 'App icons' {
         Get-AkariAppIconFile @{ Id = 'install-test' } $null $dir | Should Be "$dir\install-test.png"
     }
     It 'finds a black-or-white logo''s mask' { Get-AkariAppIconFile @{ Id = 'install-black' } @{} $dir | Should Be "$dir\install-black.mono.png" }
-    It 'else none (the row shows a Lucide icon)' { Get-AkariAppIconFile @{ Id = 'install-other'; Package = 'Akari.Other' } @{} $dir | Should Be $null }
+    It 'else none (the row shows a Fluent icon)' { Get-AkariAppIconFile @{ Id = 'install-other'; Package = 'Akari.Other' } @{} $dir | Should Be $null }
 
     # build\AppIcons.ps1 makes them: run it after adding an app. More Clock Tool, the braille driver and six of
-    # winutil's apps (lazygit, fnm, JPEGView, K-Lite, Policy Plus, PuTTY) have no usable logo: they keep the Lucide icon.
+    # winutil's apps (lazygit, fnm, JPEGView, K-Lite, Policy Plus, PuTTY) have no usable logo: they keep the Fluent icon.
     It 'has a bundled icon for every app to install, legacy app and Store app to restore' {
         $none = 'install-more-clock-tool', 'remove-brlapi', 'install-lazygit', 'install-fnm', 'install-jpegview', 'install-k-lite-codecs', 'install-policy-plus', 'install-putty'
         $ids = @(Get-ChildItem "$Root\Tweaks\Apps\Install\*.ps1", "$Root\Tweaks\Apps\Remove\*.ps1" | ForEach-Object {
@@ -485,7 +485,7 @@ Describe 'Test-AkariWhiteLogo' {
 Describe 'Risk marks' {
     foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
     . "$Root\UI\Apps.ps1"
-    It 'are Lucide icons that are in Icons.xaml' {
+    It 'are Fluent icons that are in Icons.xaml' {
         $xaml = Get-Content "$Root\UI\Icons.xaml" -Raw
         foreach ($d in $AkariAppDots.Values) { $xaml.Contains("x:Key=`"Ic.$($d.Icon)`"") | Should Be $true }
     }

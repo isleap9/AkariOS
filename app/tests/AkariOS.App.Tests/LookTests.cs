@@ -76,6 +76,24 @@ public sealed class LookTests : IDisposable
         Assert.True(list[4].Contains("Switch"));
     });
 
+    [Fact]
+    public void Icons_are_filled_fluent_paths_in_a_20_box() => OnSta(() =>
+    {
+        var host = new System.Windows.Controls.Border();
+        foreach (var d in AkariXaml.SharedResources("Dark", false)) host.Resources.MergedDictionaries.Add(d);
+        host.Resources["Tx"] = Brushes.Red;
+        var i = Icons.Make("zap", 20);
+        host.Child = i;
+        var c = (System.Windows.Controls.Canvas)i.Child;
+        var p = (System.Windows.Shapes.Path)c.Children[0];
+        Assert.Equal((20d, 20d), (i.Width, c.Width));
+        Assert.Same(Brushes.Red, p.Fill);
+        Assert.Null(p.Stroke);
+        Assert.Same(host.FindResource("Ic.zap"), p.Data);
+        Icons.Set(i, "house.Filled");
+        Assert.Same(host.FindResource("Ic.house.Filled"), p.Data);
+    });
+
     [Theory]
     [InlineData("Dark", null, "Dark")]
     [InlineData("Light", 0, "Light")]

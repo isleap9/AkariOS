@@ -35,7 +35,7 @@ public static class OptionsMenu
         var ic = Icons.Make(icon, 16);
         var p = (System.Windows.Shapes.Path)((Canvas)ic.Child).Children[0];
         if (Application.Current?.TryFindResource($"Ic.{icon}") is System.Windows.Media.Geometry g) p.Data = g;
-        p.SetBinding(Shape.StrokeProperty, new Binding("Foreground") { Source = it });
+        p.SetBinding(Shape.FillProperty, new Binding("Foreground") { Source = it });
         it.Icon = ic;
         if (click != null) it.Click += (_, _) => click(it);
         else

@@ -11,14 +11,14 @@ $script:OnlyInstalled = $true
 $script:AppTab = 'Remove'
 # the last quick select, applied again to the feature rows that arrive after it
 $script:AppsPick = $null
-# mark per Risk (a Lucide icon): Safe = recommended to remove, Caution = optional, Advanced = not recommended
+# mark per Risk (a Fluent icon): Safe = recommended to remove, Caution = optional, Advanced = not recommended
 $AkariAppDots = @{
     Safe     = @{ Icon = 'circle-check'; Brush = 'Ok'; Label = 'Recommended' }
     Caution  = @{ Icon = 'circle-minus'; Brush = 'Warn'; Label = 'Optional' }
     Advanced = @{ Icon = 'triangle-alert'; Brush = 'Bad'; Label = 'Not recommended' }
 }
 
-# a Risk mark: its 14 px Lucide icon in its colour, the label as tooltip
+# a Risk mark: its 14 px Fluent icon in its colour, the label as tooltip
 function New-AkariRiskMark([string]$Risk) {
     $d = $AkariAppDots[$Risk]
     if (-not $d) { $d = $AkariAppDots['Caution'] }
@@ -121,7 +121,7 @@ function New-AkariAppCell([string]$Text, [int]$Col, [string]$Brush = 'Tx', [doub
 }
 
 # ---- app icons, all without a background: an installed Store app's own logo (read once by Get-AkariAppsView into
-# $script:AppLogos), else the bundled Assets\Apps\<package or id>.png (build\AppIcons.ps1), else a Lucide icon.
+# $script:AppLogos), else the bundled Assets\Apps\<package or id>.png (build\AppIcons.ps1), else a Fluent icon.
 # A black-or-white logo is drawn in the theme's text colour: bundled ones are saved as <key>.mono.png (a mask), a
 # Store logo that is white only (made for a dark Start menu) is found by Test-AkariWhiteLogo.
 
@@ -161,7 +161,7 @@ function Test-AkariWhiteLogo([Windows.Media.Imaging.BitmapSource]$Image) {
     $n -gt 0 -and $white / $n -ge 0.9
 }
 
-# the 20 px icon of a row: the image (a mask in the text colour when it is black-or-white), or a muted Lucide icon
+# the 20 px icon of a row: the image (a mask in the text colour when it is black-or-white), or a muted Fluent icon
 # (an optional or Windows feature: settings-2, else app-window)
 function New-AkariAppIcon($Tweak) {
     $file = Get-AkariAppIconFile $Tweak $script:AppLogos (Join-Path $Root 'Assets\Apps')

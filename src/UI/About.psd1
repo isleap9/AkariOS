@@ -16,7 +16,7 @@
         @{ Name = 'winget'; Text = 'App installs'; Url = 'https://github.com/microsoft/winget-cli' }
         @{ Name = 'NVIDIA Profile Inspector'; Text = 'NVIDIA driver profiles (Orbmu2k)'; Url = 'https://github.com/Orbmu2k/nvidiaProfileInspector' }
         @{ Name = 'Display Driver Uninstaller'; Text = 'Clean graphics driver removal (Wagnardsoft)'; Url = 'https://www.wagnardsoft.com/display-driver-uninstaller-ddu' }
-        @{ Name = 'Lucide'; Text = 'The icons (ISC License)'; Url = 'https://lucide.dev' }
+        @{ Name = 'Fluent System Icons'; Text = 'The icons (Microsoft, MIT License)'; Url = 'https://github.com/microsoft/fluentui-system-icons' }
     )
     FullCredits = 'https://github.com/isleap9/AkariOS/blob/main/CREDITS.md'
     License = @{ Text = 'MIT License · © 2026 isleap9'; Url = 'https://github.com/isleap9/AkariOS/blob/main/LICENSE' }

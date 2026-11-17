@@ -62,27 +62,27 @@
           </TextBlock.Style>
         </TextBlock>
         <Viewbox Width="16" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="14,0,0,1" IsHitTestVisible="False">
-          <Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Stroke="{DynamicResource Mu}" Data="{DynamicResource Ic.search}"/></Canvas>
+          <Canvas Width="20" Height="20"><Path Style="{StaticResource Ic}" Fill="{DynamicResource Mu}" Data="{DynamicResource Ic.search}"/></Canvas>
         </Viewbox>
       </Grid>
       <Button x:Name="SearchBtn" Grid.Column="2" Style="{StaticResource Ghost}" Width="36" Height="36" Margin="12,0,8,0"
               VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Search (Ctrl+K)" WindowChrome.IsHitTestVisibleInChrome="True">
-        <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.search}"/></Canvas></Viewbox>
+        <Viewbox Width="18" Height="18"><Canvas Width="20" Height="20"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.search}"/></Canvas></Viewbox>
       </Button>
       <!-- caption buttons, drawn like Windows 11's: the options menu, minimize, maximize / restore, close -->
       <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top"
                   WindowChrome.IsHitTestVisibleInChrome="True">
         <Button x:Name="MenuBtn" Style="{StaticResource Cap}" ToolTip="Options">
-          <Viewbox Width="16" Height="16"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.menu}"/></Canvas></Viewbox>
+          <Viewbox Width="16" Height="16"><Canvas Width="20" Height="20"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.menu}"/></Canvas></Viewbox>
         </Button>
         <Button x:Name="CapMin" Style="{StaticResource Cap}" ToolTip="Minimize">
-          <Viewbox Width="14" Height="14"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.minus}"/></Canvas></Viewbox>
+          <Viewbox Width="14" Height="14"><Canvas Width="20" Height="20"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.minus}"/></Canvas></Viewbox>
         </Button>
         <Button x:Name="CapMax" Style="{StaticResource Cap}" ToolTip="Maximize">
-          <Viewbox Width="12" Height="12"><Canvas Width="24" Height="24"><Path x:Name="CapMaxGlyph" Style="{StaticResource Ic}" Data="{DynamicResource Ic.square}"/></Canvas></Viewbox>
+          <Viewbox Width="12" Height="12"><Canvas Width="20" Height="20"><Path x:Name="CapMaxGlyph" Style="{StaticResource Ic}" Data="{DynamicResource Ic.square}"/></Canvas></Viewbox>
         </Button>
         <Button x:Name="CapClose" Style="{StaticResource CapX}" ToolTip="Close">
-          <Viewbox Width="14" Height="14"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.x}"/></Canvas></Viewbox>
+          <Viewbox Width="14" Height="14"><Canvas Width="20" Height="20"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.x}"/></Canvas></Viewbox>
         </Button>
       </StackPanel>
     </Grid>
@@ -112,8 +112,8 @@
           <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
         <Viewbox Width="40" Height="40" VerticalAlignment="Center" Margin="0,0,16,0">
-          <Canvas Width="24" Height="24">
-            <Path x:Name="HeaderIcon" Style="{StaticResource Ic}" Stroke="{DynamicResource Acc}"/>
+          <Canvas Width="20" Height="20">
+            <Path x:Name="HeaderIcon" Style="{StaticResource Ic}" Fill="{DynamicResource Acc}"/>
           </Canvas>
         </Viewbox>
         <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -130,7 +130,7 @@
         <Button x:Name="RemoveApps" DockPanel.Dock="Right" Style="{StaticResource Btn}" VerticalAlignment="Top" Margin="12,0,0,0"
                 ToolTip="Store apps, optional features, Windows features and legacy apps to remove">
           <StackPanel Orientation="Horizontal">
-            <Viewbox Width="16" Height="16" Margin="0,0,8,0"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.trash-2}"/></Canvas></Viewbox>
+            <Viewbox Width="16" Height="16" Margin="0,0,8,0"><Canvas Width="20" Height="20"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.trash-2}"/></Canvas></Viewbox>
             <TextBlock Text="Remove apps"/>
           </StackPanel>
         </Button>

@@ -10,7 +10,7 @@ using AkariOS.Core.Tweaks;
 namespace AkariOS.App.Tests;
 
 /// <summary>The app icons built into the exe (src/Assets/Apps as WPF resources): every app has one, they load, a
-/// black-or-white one is a mask in the text colour, anything else falls back to a Lucide icon.</summary>
+/// black-or-white one is a mask in the text colour, anything else falls back to a Fluent icon.</summary>
 public sealed class AppIconsTests
 {
     private static readonly Lazy<LoadResult> Loaded = new(() =>

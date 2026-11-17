@@ -1,11 +1,11 @@
-﻿# Shell: window chrome, theme (Set-AkariTheme), Mica, caption buttons, top bar (tabs, Optimize's sub-header), search, page switching, status bar,
+# Shell: window chrome, theme (Set-AkariTheme), Mica, caption buttons, top bar (tabs, Optimize's sub-header), search, page switching, status bar,
 # the background job and the timer that drains the log queue. Dot-sourced by Akari.ps1 after UI\Steps.ps1.
 
 # ---- window
 $window = Get-AkariXaml "$Root\UI\MainWindow.xaml"
 # WinUI-style controls for Install AkariOS (switch, combobox, setting card, ...)
 $window.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Controls.xaml"))
-# the Lucide icons (Ic.<name> geometries, built by build\Icons.ps1)
+# the Fluent icons (Ic.<name> geometries, built by build\Icons.ps1)
 $window.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Icons.xaml"))
 foreach ($n in 'Tabs', 'Search', 'SearchBox', 'SearchBtn', 'SearchHint', 'SubNav', 'Sections', 'Chips', 'RemoveApps', 'Heading', 'Rows', 'Page', 'Logo', 'HomePanel',
                'Shell', 'Body', 'Main', 'PageScroll', 'TopBar', 'HomeTiles', 'HeaderIcon', 'HeaderSub', 'StatusDot', 'StatusRing', 'StatusText', 'StatusBar', 'StatusFill', 'StatusLoop',
@@ -110,7 +110,7 @@ function Set-AkariTheme([string]$Theme = 'System', [switch]$Save) {
 Set-AkariTheme (Get-AkariThemeSetting)
 Initialize-AkariSteps
 
-# every page: its icon (a Lucide name, UI\Icons.xaml) and the subtitle under the page title. The tabs open Home,
+# every page: its icon (a Fluent name, UI\Icons.xaml) and the subtitle under the page title. The tabs open Home,
 # Install AkariOS, Optimize (its sub-header: the Catalogue's pages and the Legacy ones, $AkariLegacyPages), Downloads
 # Unattend Generator and ISO Builder; About is in the options menu.
 $Pages = [ordered]@{

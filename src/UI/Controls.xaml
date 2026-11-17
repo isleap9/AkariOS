@@ -275,9 +275,8 @@
               <Border x:Name="On" CornerRadius="6" BorderThickness="2" BorderBrush="{DynamicResource Acc}" Background="{DynamicResource Acc}" Opacity="0"/>
               <Viewbox x:Name="Tick" Width="14" Height="14" Opacity="0" HorizontalAlignment="Center" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
                 <Viewbox.RenderTransform><ScaleTransform ScaleX="0.6" ScaleY="0.6"/></Viewbox.RenderTransform>
-                <Canvas Width="24" Height="24">
-                  <Path Data="{DynamicResource Ic.check}" Stroke="{DynamicResource AccT}" StrokeThickness="3"
-                        StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                <Canvas Width="20" Height="20">
+                  <Path Data="{DynamicResource Ic.check.Filled}" Fill="{DynamicResource AccT}"/>
                 </Canvas>
               </Viewbox>
             </Grid>
@@ -507,9 +506,8 @@
                     <Border x:Name="Open" CornerRadius="18" BorderThickness="1" BorderBrush="{DynamicResource Acc}" Background="{DynamicResource CtlP}" Opacity="0"/>
                     <Viewbox x:Name="Chev" Width="16" Height="16" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,14,0" RenderTransformOrigin="0.5,0.5">
                       <Viewbox.RenderTransform><RotateTransform/></Viewbox.RenderTransform>
-                      <Canvas Width="24" Height="24">
-                        <Path Data="{DynamicResource Ic.chevron-down}" Stroke="{DynamicResource Mu}" StrokeThickness="2"
-                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                      <Canvas Width="20" Height="20">
+                        <Path Data="{DynamicResource Ic.chevron-down}" Fill="{DynamicResource Mu}"/>
                       </Canvas>
                     </Viewbox>
                   </Grid>
@@ -794,11 +792,9 @@
               <ContentPresenter VerticalAlignment="Top"/>
               <Viewbox x:Name="Arrow" Width="20" Height="20" HorizontalAlignment="Right" VerticalAlignment="Bottom">
                 <Viewbox.RenderTransform><TranslateTransform/></Viewbox.RenderTransform>
-                <Canvas Width="24" Height="24">
-                  <Path Data="{DynamicResource Ic.arrow-right}" Stroke="{DynamicResource Mu}" StrokeThickness="2"
-                        StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
-                  <Path x:Name="ArrowHot" Data="{DynamicResource Ic.arrow-right}" Stroke="{DynamicResource AccText}" StrokeThickness="2"
-                        StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Opacity="0"/>
+                <Canvas Width="20" Height="20">
+                  <Path Data="{DynamicResource Ic.arrow-right}" Fill="{DynamicResource Mu}"/>
+                  <Path x:Name="ArrowHot" Data="{DynamicResource Ic.arrow-right}" Fill="{DynamicResource AccText}" Opacity="0"/>
                 </Canvas>
               </Viewbox>
             </Grid>

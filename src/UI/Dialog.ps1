@@ -3,7 +3,7 @@
 # Enter), the first closes like Esc. Falls back to the native box if the dialog can't open.
 # Dot-sourced by Akari.ps1 before the other UI files; called only once the window is up.
 
-# each Icon: a Lucide icon (UI\Icons.xaml), its colour and its blob's
+# each Icon: a Fluent icon (UI\Icons.xaml), its colour and its blob's
 $AkariDialogIcons = @{
     Info = @{ Glyph = 'info'; Brush = 'AccText'; Fill = 'AccSoft' }
     Question = @{ Glyph = 'circle-help'; Brush = 'AccText'; Fill = 'AccSoft' }
@@ -24,7 +24,7 @@ function New-AkariDialog([string]$Message, [string]$Title = 'AkariOS', [string[]
     if ($i) {
         $p = $d.FindName('DlgIconPath')
         $p.SetResourceReference([Windows.Shapes.Path]::DataProperty, "Ic.$($i.Glyph)")
-        $p.SetResourceReference([Windows.Shapes.Shape]::StrokeProperty, $i.Brush)
+        $p.SetResourceReference([Windows.Shapes.Shape]::FillProperty, $i.Brush)
         $ic.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, $i.Fill)
         $ic.Tag = $i.Glyph
     }

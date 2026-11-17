@@ -8,7 +8,7 @@ using AkariOS.Core;
 
 namespace AkariOS.App.Shell;
 
-/// <summary>A dialog's icon (a Lucide name), its colour and its blob's fill: Info, Question, Warning, Error, None.</summary>
+/// <summary>A dialog's icon (a Fluent name), its colour and its blob's fill: Info, Question, Warning, Error, None.</summary>
 public sealed record DialogIcon(string Glyph, string Brush, string Fill)
 {
     public static IReadOnlyDictionary<string, DialogIcon> All { get; } = new Dictionary<string, DialogIcon>
@@ -53,7 +53,7 @@ public sealed class Dialogs(Func<ResourceDictionary> resources, IAkariLog log)
         {
             var p = (Path)d.FindName("DlgIconPath");
             p.SetResourceReference(Path.DataProperty, $"Ic.{i.Glyph}");
-            p.SetResourceReference(Shape.StrokeProperty, i.Brush);
+            p.SetResourceReference(Shape.FillProperty, i.Brush);
             blob.SetResourceReference(Border.BackgroundProperty, i.Fill);
             blob.Tag = i.Glyph;
         }

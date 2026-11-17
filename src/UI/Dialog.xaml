@@ -22,8 +22,8 @@
         <Border x:Name="DlgIcon" Width="40" Height="40" CornerRadius="12" Margin="0,0,14,0" VerticalAlignment="Center"
                 Background="{DynamicResource AccSoft}">
           <Viewbox Width="22" Height="22">
-            <Canvas Width="24" Height="24">
-              <Path x:Name="DlgIconPath" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+            <Canvas Width="20" Height="20">
+              <Path x:Name="DlgIconPath"/>
             </Canvas>
           </Viewbox>
         </Border>
