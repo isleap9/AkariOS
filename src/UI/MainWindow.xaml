@@ -7,10 +7,10 @@
   <!-- The shell, a WinUI 3 window (plan docs/plans/2026-11-19-winui-3.md, the prototype docs/design/akarios-prototype.html):
        a 48 px title bar, a left NavigationView on Mica, the pages on the content layer, toasts at the bottom right, the
        dialog's smoke. The frame is extended over the whole window (GlassFrameThickness -1) so Windows draws Mica behind
-       it; the window draws its own caption buttons. -->
+       it; Windows draws the caption buttons (minimize, maximize, close) itself, in a hole Body leaves for them. -->
   <WindowChrome.WindowChrome>
     <WindowChrome CaptionHeight="48" GlassFrameThickness="-1" ResizeBorderThickness="6"
-                  UseAeroCaptionButtons="False" CornerRadius="0"/>
+                  UseAeroCaptionButtons="True" CornerRadius="0"/>
   </WindowChrome.WindowChrome>
 
   <Window.Resources>
@@ -248,63 +248,6 @@
       </Setter>
     </Style>
 
-    <!-- Caption button (46 x 32, Windows 11's): Sub on hover, fades only. -->
-    <Style x:Key="Cap" TargetType="Button">
-      <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
-      <Setter Property="Width" Value="46"/>
-      <Setter Property="Height" Value="32"/>
-      <Setter Property="Focusable" Value="False"/>
-      <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
-      <Setter Property="Template">
-        <Setter.Value>
-          <ControlTemplate TargetType="Button">
-            <Grid Background="Transparent">
-              <Border x:Name="H" Background="{DynamicResource Sub}" Opacity="0"/>
-              <Border x:Name="P" Background="{DynamicResource SubP}" Opacity="0"/>
-              <ContentPresenter x:Name="C" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            </Grid>
-            <ControlTemplate.Triggers>
-              <Trigger Property="IsMouseOver" Value="True">
-                <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
-                <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
-              </Trigger>
-              <Trigger Property="IsPressed" Value="True">
-                <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
-                <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
-              </Trigger>
-            </ControlTemplate.Triggers>
-          </ControlTemplate>
-        </Setter.Value>
-      </Setter>
-    </Style>
-
-    <!-- Close: CloseH on hover with a CloseT glyph. -->
-    <Style x:Key="CapX" TargetType="Button" BasedOn="{StaticResource Cap}">
-      <Setter Property="Template">
-        <Setter.Value>
-          <ControlTemplate TargetType="Button">
-            <Grid Background="Transparent">
-              <Border x:Name="H" Background="{DynamicResource CloseH}" Opacity="0"/>
-              <Border x:Name="P" Background="{DynamicResource CloseP}" Opacity="0"/>
-              <ContentPresenter x:Name="C" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            </Grid>
-            <ControlTemplate.Triggers>
-              <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource CloseT}"/>
-                <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
-                <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
-              </Trigger>
-              <Trigger Property="IsPressed" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource CloseT}"/>
-                <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
-                <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
-              </Trigger>
-            </ControlTemplate.Triggers>
-          </ControlTemplate>
-        </Setter.Value>
-      </Setter>
-    </Style>
-
     <!-- Text box (WinUI, .input): 32 px, 4 px corners, Ctl fill, CtlBd stroke, a 1 px Line bottom edge; CtlH on hover; with keyboard focus InFocus and a 2 px Acc bottom edge. -->
     <Style x:Key="Flat" TargetType="TextBox">
       <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
@@ -416,7 +359,7 @@
     <Border x:Name="Body" Grid.RowSpan="2" Grid.ColumnSpan="2" Background="{DynamicResource Bg}"/>
 
     <!-- Title bar, 48 px (the window's drag region; its buttons stay clickable): Back (Alt+Left, disabled with no
-         history), the pane toggle, the 16 px logo, "AkariOS" and the version in Caption, the caption buttons. -->
+         history), the pane toggle, the 16 px logo, "AkariOS" and the version in Caption; Windows' own caption buttons at the right. -->
     <Grid x:Name="TopBar" Grid.ColumnSpan="2">
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
         <Button x:Name="BackBtn" Style="{StaticResource Ghost}" Width="40" Height="36" Padding="0" Margin="4,0,0,0" IsEnabled="False"
@@ -431,18 +374,6 @@
         <Image x:Name="Logo" Width="16" Height="16" Margin="6,0,12,0" RenderOptions.BitmapScalingMode="HighQuality"/>
         <TextBlock x:Name="TitleText" Text="AkariOS" FontFamily="{DynamicResource FontSmall}" FontSize="12" VerticalAlignment="Center"/>
         <TextBlock x:Name="AppVersionText" Margin="8,0,0,0" FontFamily="{DynamicResource FontSmall}" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource Ter}"/>
-      </StackPanel>
-      <!-- caption buttons, drawn like Windows 11's: minimize, maximize / restore, close (red on hover) -->
-      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
-        <Button x:Name="CapMin" Style="{StaticResource Cap}" ToolTip="Minimize">
-          <Viewbox Width="10" Height="10"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.minus}"/></Viewbox>
-        </Button>
-        <Button x:Name="CapMax" Style="{StaticResource Cap}" ToolTip="Maximize">
-          <Viewbox Width="10" Height="10"><Path x:Name="CapMaxGlyph" Style="{StaticResource Ic}" Data="{DynamicResource Ic.square}"/></Viewbox>
-        </Button>
-        <Button x:Name="CapClose" Style="{StaticResource CapX}" ToolTip="Close">
-          <Viewbox Width="10" Height="10"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.x}"/></Viewbox>
-        </Button>
       </StackPanel>
     </Grid>
 

@@ -61,7 +61,7 @@ Describe 'UI files' {
 
     It 'Controls.xaml parses and defines every style still used' {
         $s = "Add-Type -AssemblyName PresentationFramework; . '$Root\UI\Motion.ps1'; `$d = Get-AkariXaml '$Root\UI\Controls.xaml'; " +
-             "`$w = Get-AkariXaml '$Root\UI\MainWindow.xaml'; `$miss = @('$($AkariStyles -join "','")', 'Btn', 'BtnP', 'Ghost', 'Link', 'Flat', 'Cap', 'CapX' | Where-Object { -not `$d.Contains(`$_) -and -not `$w.Resources.Contains(`$_) }); " +
+             "`$w = Get-AkariXaml '$Root\UI\MainWindow.xaml'; `$miss = @('$($AkariStyles -join "','")', 'Btn', 'BtnP', 'Ghost', 'Link', 'Flat' | Where-Object { -not `$d.Contains(`$_) -and -not `$w.Resources.Contains(`$_) }); " +
              "if (`$miss) { 'missing: ' + (`$miss -join ', ') } else { 'ok' }"
         Test-XamlInChild $s | Should Be 'ok'
     }
@@ -161,7 +161,7 @@ Describe 'Icons (UI\Icons.xaml, Fluent System Icons)' {
             foreach ($m in [regex]::Matches($src, '(?s)\$AkariUaSectionIcons = @\((.*?)\)')) { foreach ($v in [regex]::Matches($m.Groups[1].Value, "'([a-z0-9-]+)'")) { $used.Add($v.Groups[1].Value) } }
         }
         # the patterns catch every kind of use (guard), then each name must be an icon
-        foreach ($n in 'copy', 'square', 'external-link', 'usb', 'file-input', 'triangle-alert', 'house', 'gamepad-2', 'wand', 'broom', 'globe') { "$n $($used -contains $n)" | Should Be "$n True" }
+        foreach ($n in 'external-link', 'usb', 'file-input', 'triangle-alert', 'house', 'gamepad-2', 'wand', 'broom', 'globe') { "$n $($used -contains $n)" | Should Be "$n True" }
         $miss = @($used | Sort-Object -Unique | Where-Object { "Ic.$_" -notin $have -and $_ -notmatch '^(Bad|Warn|Mu|Ter|Tx|Acc|AccText|AccT|Ok|Inherit)$' })
         ($miss -join ', ') | Should Be ''
     }

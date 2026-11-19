@@ -78,6 +78,7 @@ Write-AkariBanner "AkariOS $AkariVersion is launching..."
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Xaml
 Add-Type -MemberDefinition @'
 [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int val, int size);
+[DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr hwnd, int attr, [Out] int[] val, int size);
 [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr hwnd, int index);
 [DllImport("user32.dll")] public static extern int SetWindowLong(IntPtr hwnd, int index, int value);
 '@ -Name Dwm -Namespace Akari

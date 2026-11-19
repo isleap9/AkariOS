@@ -33,7 +33,7 @@ $window = Get-AkariXaml "$Root\UI\MainWindow.xaml"
 # the WinUI controls and the fonts (UI\Controls.xaml), the Fluent icons (Ic.<name>, built by build\Icons.ps1)
 $window.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Controls.xaml"))
 $window.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Icons.xaml"))
-foreach ($n in 'Shell', 'Body', 'TopBar', 'BackBtn', 'PaneBtn', 'Logo', 'TitleText', 'AppVersionText', 'CapMin', 'CapMax', 'CapMaxGlyph', 'CapClose',
+foreach ($n in 'Shell', 'Body', 'TopBar', 'BackBtn', 'PaneBtn', 'Logo', 'TitleText', 'AppVersionText',
                'Nav', 'SearchBox', 'Search', 'SearchHint', 'SearchKey', 'NavFoot', 'NavList', 'NavLayer', 'NavPill', 'Layer', 'PageScroll', 'Page',
                'PageHeader', 'Crumbs', 'Heading', 'CatBars', 'StepsPanel', 'StepBody', 'HomePanel', 'Rows', 'StepFooter', 'StepBack', 'StepNext',
                'StepLabel', 'StepBar', 'StepFill', 'Toasts', 'BusyToast', 'BusyLogo', 'StatusText', 'StatusBar', 'StatusFill', 'StatusLoop',
@@ -67,6 +67,26 @@ function Update-AkariFrame {
     $Body.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, $(if ($script:Mica) { 'Tint' } else { 'Bg' }))
     $h = [Windows.Interop.WindowInteropHelper]::new($window).Handle
     if ($h -ne [IntPtr]::Zero) { $v = [int]($script:Theme -eq 'Dark'); [void][Akari.Dwm]::DwmSetWindowAttribute($h, 20, [ref]$v, 4) }
+}
+
+# Windows draws the caption buttons (WindowChrome's UseAeroCaptionButtons) on the frame under the window's content:
+# Body leaves a hole where they are (DWMWA_CAPTION_BUTTON_BOUNDS, attribute 5, in device pixels from the window's
+# corner), so they show through on Mica (Windows 11) or the frame (Windows 10). No bounds = no hole.
+function Update-AkariCaptionHole {
+    $Body.Clip = $null
+    try {
+        $h = [Windows.Interop.WindowInteropHelper]::new($window).Handle
+        if ($h -eq [IntPtr]::Zero) { return }
+        $r = [int[]]::new(4)
+        if ([Akari.Dwm]::DwmGetWindowAttribute($h, 5, $r, 16) -ne 0 -or $r[2] -le $r[0]) { return }
+        $src = [Windows.Interop.HwndSource]::FromHwnd($h)
+        $m = $src.CompositionTarget.TransformFromDevice
+        $a = $window.TranslatePoint($m.Transform([Windows.Point]::new($r[0], $r[1])), $Body)
+        $b = $window.TranslatePoint($m.Transform([Windows.Point]::new($r[2], $r[3])), $Body)
+        $all = [Windows.Media.RectangleGeometry]::new([Windows.Rect]::new(0, 0, $Body.ActualWidth, $Body.ActualHeight))
+        $hole = [Windows.Media.RectangleGeometry]::new([Windows.Rect]::new($a, $b))
+        $Body.Clip = [Windows.Media.CombinedGeometry]::new('Exclude', $all, $hole)
+    } catch { Write-ErrLog "Caption buttons: $_" }
 }
 
 # the logo for the theme: Assets\AkariLogo-dark.png (white A) or AkariLogo-light.png (black A), each read once;
@@ -186,8 +206,6 @@ if (Test-Path $logoPath) {
 }
 $window.Add_SourceInitialized({
     $h = [Windows.Interop.WindowInteropHelper]::new($window).Handle
-    # no system menu: windows stops drawing its own caption buttons under ours
-    [void][Akari.Dwm]::SetWindowLong($h, -16, ([Akari.Dwm]::GetWindowLong($h, -16) -band (-bnot 0x80000)))
     # mica behind the whole window on windows 11; windows 10 keeps the solid body
     $build = [Environment]::OSVersion.Version.Build
     if ($build -ge 22000) {
@@ -204,6 +222,7 @@ $window.Add_SourceInitialized({
         if ($r -eq 0) { $script:Mica = $true }
     }
     Update-AkariFrame
+    Update-AkariCaptionHole
     # follow Windows: its app mode (WM_SETTINGCHANGE "ImmersiveColorSet", Theme = System) and its accent colour
     # (WM_DWMCOLORIZATIONCOLORCHANGED, 0x320, Accent = Windows)
     try {
@@ -221,13 +240,10 @@ $window.Add_SourceInitialized({
 $window.Add_StateChanged({
     $max = ($window.WindowState -eq 'Maximized')
     $Shell.Margin = if ($max) { [Windows.Thickness]::new(8) } else { [Windows.Thickness]::new(0) }
-    # maximize button shows the restore glyph while maximized
-    Set-AkariIcon $CapMaxGlyph $(if ($max) { 'copy' } else { 'square' })
-    $CapMax.ToolTip = if ($max) { 'Restore' } else { 'Maximize' }
+    $window.Dispatcher.BeginInvoke([Action] { Update-AkariCaptionHole }, 'Loaded') | Out-Null
 })
-$CapMin.Add_Click({ [Windows.SystemCommands]::MinimizeWindow($window) })
-$CapMax.Add_Click({ if ($window.WindowState -eq 'Maximized') { [Windows.SystemCommands]::RestoreWindow($window) } else { [Windows.SystemCommands]::MaximizeWindow($window) } })
-$CapClose.Add_Click({ $window.Close() })
+$window.Add_SizeChanged({ Update-AkariCaptionHole })
+$window.Add_DpiChanged({ Update-AkariCaptionHole })
 
 # the live log is the console window next to Akari (no log panel in the window); akari.log keeps a copy
 function Add-Log([string]$m) {

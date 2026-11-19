@@ -38,7 +38,7 @@ function New-AkariIcon([string]$Name, [double]$Size = 16, [string]$Brush = 'Tx')
     $v
 }
 
-# points an icon at another Fluent icon: one from New-AkariIcon, or a Path in XAML (CapMaxGlyph)
+# points an icon at another Fluent icon: one from New-AkariIcon, or a Path in XAML
 function Set-AkariIcon($Icon, [string]$Name) {
     $p = if ($Icon -is [Windows.Shapes.Path]) { $Icon } else { $Icon.Child }
     $p.SetResourceReference([Windows.Shapes.Path]::DataProperty, "Ic.$Name")
