@@ -104,7 +104,10 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework
 . "$Root\Core\Unattend.ps1"
 $AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
-foreach ($f in 'Selection', 'Cards', 'Steps', 'UnattendForm', 'Unattend') { . "$Root\UI\$f.ps1" }
+$AkariLogFile = "$env:TEMP\akari-unattend-test\akari.log"
+$env:AKARI_MOTION = 'off'; . "$Root\UI\Motion.ps1"
+foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps', 'Pages', 'UnattendForm', 'Unattend') { . "$Root\UI\$f.ps1" }
+. "$Root\..\tests\ShellStub.ps1"
 function Add-Log($m) { }
 function Get-AkariUnattendDefaults { @{ UILanguage = 'it-IT'; Locale = 'it-IT'; Keyboard = '00000410'; GeoLocation = '118'; TimeZone = 'W. Europe Standard Time' } }
 function Get-AkariSetupDrives { [pscustomobject]@{ Root = "$Stick\"; Label = 'STICK'; Setup = $false }; [pscustomobject]@{ Root = "$Usb\"; Label = 'WIN11'; Setup = $true } }
@@ -125,14 +128,12 @@ function Canon([string]$Xml) {
 function Pick($field, $value) { @($script:UaBindings | Where-Object { $_.Field -eq $field })[0].Options[$value].IsChecked = $true }
 function Box($field) { @($script:UaBindings | Where-Object { $_.Field -eq $field })[0].Control }
 $res = [Windows.Controls.StackPanel]::new()
-. "$Root\UI\Motion.ps1"
+$res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Theme.Dark.xaml"))
 $res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Controls.xaml"))
-$StepDots = [Windows.Controls.StackPanel]::new(); $StepBody = [Windows.Controls.StackPanel]::new()
+$res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Icons.xaml"))
 [void]$res.Children.Add($StepBody)
-$StepBack = [Windows.Controls.Button]::new(); $StepNext = [Windows.Controls.Button]::new()
-$Heading = [Windows.Controls.TextBlock]::new(); $HeaderSub = [Windows.Controls.TextBlock]::new()
 Show-AkariUnattend
-"page=$($Heading.Text)|$($StepNext.Visibility)|$($StepBack.Visibility)|$($script:UaBindings.Count -gt 100)"
+"page=$($Heading.Text)|$($script:UaSections.Count -eq $script:UnattendSpec.Sections.Count)|$($script:UaSections[0].Desc.Text)|$($script:UaBindings.Count -gt 100)"
 $f = Get-AkariUaFormFields
 "start=$($f.LanguageMode)|$($f.UILanguage)|$($f.Keyboard)|$($f.TimeZone)|$($f.AccountName0)|$($f.PEMode)|$($f.ContainsKey('PartitionMode'))|$($f.ContainsKey('Locale2'))"
 "samples=$($f.ContainsKey('PEScript'))|$((Box 'DiskpartScript').Text.Split("`n")[0].Trim())"
@@ -186,7 +187,7 @@ $script:UnattendView = $null
     }
 
     It 'runs without errors' { $out['error'] | Should BeNullOrEmpty }
-    It 'opens full window with Back only, his sections built' { $out.page | Should Be 'Unattend Generator|Collapsed|Visible|True' }
+        $out.page | Should Be 'Install USB|True|Default|True'
     It 'starts from the defaults and this PC; hidden branches are left out' {
         $out.start | Should Be 'Unattended|it-IT|00000410|W. Europe Standard Time|Admin|Default|False|False'
         $out.samples | Should Be 'False|SELECT DISK=0'

@@ -1,73 +1,117 @@
-# Akari's dialogs (UI\Dialog.xaml), instead of the white [Windows.MessageBox]: a dark card over the dimmed window
-# (ModalOverlay), after Win11Debloat's message box. Buttons say what they do; the last one is the main action (white,
-# Enter), the first closes like Esc. Falls back to the native box if the dialog can't open.
-# Dot-sourced by Akari.ps1 before the other UI files; called only once the window is up.
+# Akari's dialogs (UI\Dialog.xaml), WinUI's ContentDialog instead of the white [Windows.MessageBox]: a 448 px card over
+# a 30 % black smoke that covers the window. Buttons say what they do; the last one given is the main action (the
+# accent button, shown first, Enter, focused), the first one given cancels (shown last, Esc, a click on the smoke).
+# Lines of the text that start with "- " become a list of consequences. Falls back to the native box if the dialog
+# can't open. Dot-sourced by Akari.ps1 before the other UI files; called only once the window is up.
 
-# each Icon: a Fluent icon (UI\Icons.xaml), its colour and its blob's
+# kept for the callers' -Icon (the native box's image when the dialog can't open); a ContentDialog shows no icon
 $AkariDialogIcons = @{
-    Info = @{ Glyph = 'info'; Brush = 'AccText'; Fill = 'AccSoft' }
-    Question = @{ Glyph = 'circle-help'; Brush = 'AccText'; Fill = 'AccSoft' }
-    Warning = @{ Glyph = 'triangle-alert'; Brush = 'Warn'; Fill = 'WarnSoft' }
-    Error = @{ Glyph = 'circle-x'; Brush = 'Bad'; Fill = 'AccSoft' }
+    Info = @{ Glyph = 'info' }; Question = @{ Glyph = 'circle-help' }; Warning = @{ Glyph = 'triangle-alert' }; Error = @{ Glyph = 'error-circle' }
 }
 
-# builds the dialog without showing it: its window, Tag.Result = the pressed button's text ($null = closed with Esc)
+# the dialog's text as blocks: paragraphs, and "- " lines as a bulleted list in Mu (the prototype's <ul>). Pure.
+# Returns @(@{ Kind = 'Text' | 'Item'; Text })
+function Get-AkariDialogBlocks([string]$Message) {
+    foreach ($l in ($Message -split "`r?`n")) {
+        if ($l -match ('^\s*[-' + [char]0x2022 + ']\s+(.*)$')) { @{ Kind = 'Item'; Text = $Matches[1] } }
+        elseif ($l.Trim()) { @{ Kind = 'Text'; Text = $l.Trim() } }
+    }
+}
+
+# the buttons in the order the footer shows them: the main action (the last given) first, the cancel one (the first
+# given) last, the rest between. Pure.
+function Get-AkariDialogOrder([string[]]$Buttons) {
+    if ($Buttons.Count -le 1) { return , $Buttons }
+    $mid = if ($Buttons.Count -gt 2) { $Buttons[1..($Buttons.Count - 2)] } else { @() }
+    , (@($Buttons[-1]) + @($mid) + @($Buttons[0]))
+}
+
+# builds the dialog without showing it: its window, Tag.Result = the pressed button's text ($null = cancelled)
 function New-AkariDialog([string]$Message, [string]$Title = 'AkariOS', [string[]]$Buttons = @('OK'), [string]$Icon = 'Info', [switch]$TextBox) {
     $d = Get-AkariXaml "$Root\UI\Dialog.xaml"
     # the main window's brushes and button styles
     if ($window) { $d.Resources.MergedDictionaries.Add($window.Resources) }
-    $d.Tag = @{ Result = $null }
+    $d.Tag = @{ Result = $null; Cancel = $Buttons[0]; Closing = $false }
     $d.FindName('DlgTitle').Text = $Title
-    $d.FindName('DlgText').Text = $Message
-    $ic = $d.FindName('DlgIcon')
-    $i = $AkariDialogIcons[$Icon]
-    if ($i) {
-        $p = $d.FindName('DlgIconPath')
-        $p.SetResourceReference([Windows.Shapes.Path]::DataProperty, "Ic.$($i.Glyph)")
-        $p.SetResourceReference([Windows.Shapes.Shape]::FillProperty, $i.Brush)
-        $ic.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, $i.Fill)
-        $ic.Tag = $i.Glyph
+    $text = $d.FindName('DlgText')
+    foreach ($b in Get-AkariDialogBlocks $Message) {
+        $t = [Windows.Controls.TextBlock]::new()
+        $t.TextWrapping = 'Wrap'; $t.LineHeight = 20
+        if ($b.Kind -eq 'Item') {
+            $t.Text = [string][char]0x2022 + '  ' + $b.Text
+            $t.Margin = [Windows.Thickness]::new(8, 8, 0, 0)
+            $t.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, 'Mu')
+        } else {
+            $t.Text = $b.Text
+            if ($text.Children.Count) { $t.Margin = [Windows.Thickness]::new(0, 8, 0, 0) }
+        }
+        [void]$text.Children.Add($t)
     }
-    else { $ic.Visibility = 'Collapsed' }
     if ($TextBox) { $d.FindName('DlgInput').Visibility = 'Visible' }
     $bar = $d.FindName('DlgButtons')
-    for ($n = 0; $n -lt $Buttons.Count; $n++) {
+    $order = Get-AkariDialogOrder $Buttons
+    foreach ($name in $order) {
         $b = [Windows.Controls.Button]::new()
-        # the main action crimson (BtnP), the others ghost: the secondary pill with no fill or stroke until hover
-        $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, $(if ($n -eq $Buttons.Count - 1) { 'BtnP' } else { 'Btn' }))
-        if ($n -lt $Buttons.Count - 1) { $b.Background = [Windows.Media.Brushes]::Transparent; $b.BorderBrush = [Windows.Media.Brushes]::Transparent }
-        $b.Content = $Buttons[$n]
-        $b.Tag = $Buttons[$n]
-        $b.MinWidth = 88
-        $b.Margin = [Windows.Thickness]::new($(if ($n) { 8 } else { 0 }), 0, 0, 0)
-        $b.IsDefault = ($n -eq $Buttons.Count - 1)
-        $b.IsCancel = ($n -eq 0)
-        $b.Add_Click({
-            param($s, $e)
-            $w = [Windows.Window]::GetWindow($s)
-            $w.Tag.Result = [string]$s.Tag
-            $w.Close()
-        })
+        $main = ($name -eq $Buttons[-1])
+        $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, $(if ($main) { 'BtnP' } else { 'Btn' }))
+        $b.MinWidth = 0
+        $b.Content = $name
+        $b.Tag = $name
+        $b.Margin = [Windows.Thickness]::new($(if ($bar.Children.Count) { 4 } else { 0 }), 0, $(if ($bar.Children.Count -lt $order.Count - 1) { 4 } else { 0 }), 0)
+        $b.IsDefault = $main
+        $b.Add_Click({ param($s, $e) Close-AkariDialog ([Windows.Window]::GetWindow($s)) ([string]$s.Tag) })
         [void]$bar.Children.Add($b)
     }
-    # Esc on a one-button message closes it too (IsCancel above); the title drags the dialog
-    $d.FindName('DlgTitle').Add_MouseLeftButtonDown({ param($s, $e) try { [Windows.Window]::GetWindow($s).DragMove() } catch { } })
-    $d.Add_ContentRendered({ param($s, $e) $t = $s.FindName('DlgInput'); if ($t.Visibility -eq 'Visible') { [void]$t.Focus() } })
+    # Esc gives the first button (as its own click would; not IsCancel, which would close at once, unanimated)
+    $d.Add_PreviewKeyDown({ param($s, $e) if ($e.Key -eq 'Escape') { $e.Handled = $true; Close-AkariDialog $s $s.Tag.Cancel } })
+    # a click on the smoke cancels; the accent action (or the text box) has focus once shown
+    $d.FindName('DlgSmoke').Add_MouseLeftButtonDown({ param($s, $e) $w = [Windows.Window]::GetWindow($s); Close-AkariDialog $w $null })
+    $d.Add_ContentRendered({
+        param($s, $e)
+        $t = $s.FindName('DlgInput')
+        if ($t.Visibility -eq 'Visible') { [void]$t.Focus() } else { $f = $s.FindName('DlgButtons').Children[0]; if ($f) { [void]$f.Focus() } }
+    })
     $d
 }
 
-# shows a built dialog over the dimmed window and waits; returns the pressed button's text, or $null
+# closes a dialog with $Result: the card scales to 1.05 and fades out and the smoke fades, over Motion.Base on the exit
+# curve (the prototype's dlgOut), then the window closes. Motion off = at once.
+function Close-AkariDialog($Dialog, $Result) {
+    if (-not $Dialog -or $Dialog.Tag.Closing) { return }
+    $Dialog.Tag.Closing = $true
+    $Dialog.Tag.Result = $Result
+    if (-not $script:AkariMotionOn -or -not $Dialog.IsVisible) { $Dialog.Close(); return }
+    $card = $Dialog.FindName('DlgCard')
+    Start-AkariMotion $card Scale 1 1.05 -Speed Base -Easing Exit
+    Start-AkariMotion $card Fade 1 0 -Speed Base -Easing Exit
+    Start-AkariMotion $Dialog.FindName('DlgSmoke') Fade 1 0 -Speed Base
+    $tm = [Windows.Threading.DispatcherTimer]::new()
+    $tm.Interval = $AkariMotion['Motion.Base'].TimeSpan
+    $tm.Tag = $Dialog
+    $tm.Add_Tick({ param($s, $e) $s.Stop(); try { $s.Tag.Close() } catch { } })
+    $tm.Start()
+}
+
+# shows a built dialog over the main window and waits; returns the pressed button's text, or $null. The smoke fades
+# in over Motion.Base; the card scales from 1.05 and fades in over Motion.Slow (the prototype's dlgIn).
 function Invoke-AkariDialog($Dialog) {
-    $overlay = if ($window) { $window.FindName('ModalOverlay') } else { $null }
-    if ($window -and $window.IsVisible) { $Dialog.Owner = $window } else { $Dialog.WindowStartupLocation = 'CenterScreen' }
-    # the dim fades in and out; the card pops in (fades and grows from 0.96) once the dialog has loaded
-    if ($overlay) { Show-AkariElement $overlay $null 'Fast' }
-    $Dialog.Add_Loaded({ param($s, $e) Start-AkariMotion $s.Content Pop -Speed Slow })
-    try { [void]$Dialog.ShowDialog() } finally { if ($overlay) { Hide-AkariElement $overlay } }
+    if ($window -and $window.IsVisible) {
+        $Dialog.Owner = $window
+        if ($window.WindowState -eq 'Maximized') { $Dialog.WindowState = 'Maximized' }
+        else { $Dialog.Left = $window.Left; $Dialog.Top = $window.Top; $Dialog.Width = $window.ActualWidth; $Dialog.Height = $window.ActualHeight; $Dialog.WindowStartupLocation = 'Manual' }
+    } else { $Dialog.WindowStartupLocation = 'CenterScreen'; $Dialog.SizeToContent = 'WidthAndHeight'; $Dialog.FindName('DlgSmoke').Visibility = 'Collapsed' }
+
+    $Dialog.Add_Loaded({
+        param($s, $e)
+        Start-AkariMotion ($s.FindName('DlgSmoke')) Fade 0 1 -Speed Base
+        Start-AkariMotion ($s.FindName('DlgCard')) Scale 1.05 1 -Speed Slow
+        Start-AkariMotion ($s.FindName('DlgCard')) Fade 0 1 -Speed Slow
+    })
+    [void]$Dialog.ShowDialog()
     $Dialog.Tag.Result
 }
 
-# a dialog; returns the pressed button's text, or $null (closed). The native box stands in if it can't open.
+# a dialog; returns the pressed button's text, or $null (cancelled). The native box stands in if it can't open.
 function Show-AkariDialog([string]$Message, [string]$Title = 'AkariOS', [string[]]$Buttons = @('OK'), [string]$Icon = 'Info') {
     try { return Invoke-AkariDialog (New-AkariDialog $Message $Title $Buttons $Icon) }
     catch {

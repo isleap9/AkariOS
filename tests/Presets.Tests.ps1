@@ -123,15 +123,16 @@ $script:Tweaks = @(
         Registry = @{ Path = $Key; Name = 'H'; Type = 'DWord'; Value = 1; Default = $null } } 'x' $false
 ) + @($fx.Tweaks | Where-Object { $_.Group })
 $AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
-foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps') { . "$Root\UI\$f.ps1" }
+$AkariLogFile = "$env:TEMP\akari-quick-test\akari.log"
+$env:AKARI_MOTION = 'off'; . "$Root\UI\Motion.ps1"
+foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps', 'Pages') { . "$Root\UI\$f.ps1" }
+. "$Root\..\tests\ShellStub.ps1"
+function Get-AkariAppxPackages { @() }
 function Get-AkariAppxInstalled { @('Akari.Test.One', 'Akari.Test.Two') }; function Start-AkariFeatureRead { }; function Add-Log($m) { }
 $res = [Windows.Controls.StackPanel]::new()
 . "$Root\UI\Motion.ps1"
 $res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Controls.xaml"))
 $res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Icons.xaml"))
-$StepDots = [Windows.Controls.StackPanel]::new(); $StepBody = [Windows.Controls.StackPanel]::new()
-$StepBack = [Windows.Controls.Button]::new(); $StepNext = [Windows.Controls.Button]::new(); $Search = [Windows.Controls.TextBox]::new()
-$StepFooter = [Windows.Controls.Border]::new()
 $script:Mode = 'Guided'; $script:Step = 1
 [void](Get-AkariTweaksView)
 # a pick of the user's that the preset must replace
@@ -196,7 +197,7 @@ Complete-AkariTweakStates $old
         $out.afterClear | Should Be 'good-group/Akari.Test.One'
     }
     It 'reads the States and apps in the background: the grid says Reading until they are in' {
-        $out.waitView | Should Be 'TextBlock|True'
+        $out.waitView | Should Be 'StackPanel|True'
         # Actions have no State to read
         $out.stateItems | Should Be 'tog,opt,ch'
     }

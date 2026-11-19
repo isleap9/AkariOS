@@ -35,11 +35,11 @@ public static class HomePage
         var root = new StackPanel();
         root.Children.Add(UpdateBar(s, root));
         var hero = new StackPanel { Margin = new Thickness(8, 12, 8, 36) };
-        var over = Parts.Title($"AKARIOS {AkariInfo.Version}", 12, font: "FontSmall");
+        var over = Parts.Title($"AKARIOS {AkariInfo.Version}", 11);
         over.SetResourceReference(TextBlock.ForegroundProperty, "AccText");
         over.Margin = new Thickness(0, 0, 0, 12);
         hero.Children.Add(over);
-        hero.Children.Add(Parts.Title("Windows, tuned for games.", 40, FontWeights.SemiBold));
+        hero.Children.Add(Parts.Title("Windows, tuned for games.", 40, FontWeights.Bold));
         var lead = Parts.Text("Remove the bloat, apply the tweaks that matter and keep a way back: every change can be reverted to the Windows default.", 16, "Mu");
         lead.MaxWidth = 620;
         lead.HorizontalAlignment = HorizontalAlignment.Left;
@@ -75,7 +75,7 @@ public static class HomePage
                 stats.Children.Add(rule);
             }
             var sp = new StackPanel();
-            var n = Parts.Title("—", 28, FontWeights.SemiBold);
+            var n = Parts.Title("—", 28, FontWeights.Bold);
             sp.Children.Add(n);
             sp.Children.Add(Parts.Text(label, 13, "Mu"));
             stats.Children.Add(sp);
@@ -84,7 +84,7 @@ public static class HomePage
         hero.Children.Add(stats);
         root.Children.Add(hero);
 
-        var more = Parts.Title("MORE TOOLS", 12, font: "FontSmall");
+        var more = Parts.Title("MORE TOOLS", 11);
         more.SetResourceReference(TextBlock.ForegroundProperty, "Mu");
         more.Margin = new Thickness(8, 0, 0, 12);
         root.Children.Add(more);

@@ -24,7 +24,6 @@ public static partial class WindowFrame
     public static string BodyBrush(bool mica, string theme) => mica && theme == "Dark" ? "Tint" : "Bg";
 
     private const int WmSettingChange = 0x001A;
-    private const int WmColorizationChanged = 0x0320; // WM_DWMCOLORIZATIONCOLORCHANGED
 
     /// <summary>
     /// Hooks a window: the frame once it has a handle, again on every theme change, and Windows' own theme changes.
@@ -52,12 +51,10 @@ public static partial class WindowFrame
                 mica = DwmSetWindowAttribute(h, attribute, ref value, 4) == 0;
             }
             Paint();
-            // Windows' app mode while the setting is System, and its accent always
             HwndSource.FromHwnd(h)!.AddHook((IntPtr _, int msg, IntPtr _, IntPtr lParam, ref bool _) =>
             {
-                var colors = msg == WmSettingChange && lParam != IntPtr.Zero && Marshal.PtrToStringUni(lParam) == "ImmersiveColorSet";
-                if (colors && theme.Setting == "System") theme.Apply("System");
-                else if (colors || msg == WmColorizationChanged) theme.ApplyAccent();
+                if (msg == WmSettingChange && theme.Setting == "System" && lParam != IntPtr.Zero && Marshal.PtrToStringUni(lParam) == "ImmersiveColorSet")
+                    theme.Apply("System");
                 return IntPtr.Zero;
             });
         };

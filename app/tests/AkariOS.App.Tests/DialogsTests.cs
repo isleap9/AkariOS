@@ -14,6 +14,7 @@ public sealed class DialogsTests
     {
         var r = new ResourceDictionary();
         foreach (var d in AkariXaml.SharedResources("Dark", false)) r.MergedDictionaries.Add(d);
+        Assets.AddFonts(r);
         return r;
     }
 

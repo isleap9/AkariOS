@@ -145,12 +145,9 @@ function Get-AkariServiceBar {
     $all.Switch.Add_Click({ param($s, $a) $script:SvcAll = ($s.IsChecked -eq $true); Show-Page })
     [Windows.Controls.DockPanel]::SetDock($all.Panel, 'Right')
     [void]$bar.Children.Add($all.Panel)
-    $seg = [Windows.Controls.ComboBox]::new()
+    $seg = [Windows.Controls.ComboBox]::new(); $seg.MinWidth = 180
     $seg.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Combo')
     $seg.Margin = [Windows.Thickness]::new(0, 0, 16, 0)
-    $seg.MinWidth = 160
-    $seg.VerticalAlignment = 'Center'
-    $seg.ToolTip = 'Show only these services'
     foreach ($f in $AkariServiceFilters) {
         $it = [Windows.Controls.ComboBoxItem]::new()
         $it.Content = $(if ($f -eq 'Changed') { 'Not default' } else { $f }); $it.Tag = $f
@@ -171,7 +168,7 @@ function Get-AkariServiceBar {
 # adds the services list to the page (the Catalogue page calls it, $Query = the search)
 function Show-AkariServiceList([string]$Query) {
     $b = Get-AkariServiceBar
-    [void]$Rows.Children.Add($b.Bar)
+    if ($b.Bar.Parent) { $b.Bar.Parent.Children.Remove($b.Bar) }; [void]$Rows.Children.Add($b.Bar)
     if ($null -eq $script:SvcList) {
         $b.Count.Text = 'Reading the services' + [char]0x2026
         Start-AkariServiceRead
@@ -193,7 +190,7 @@ function Show-AkariServiceList([string]$Query) {
         $e = $script:SvcRows[$s.Name]
         if (-not $e) { $e = New-AkariServiceRow $s; $script:SvcRows[$s.Name] = $e }
         elseif (-not $e.Busy) { $e.Svc = $s }
-        [void]$Rows.Children.Add($e.Card)
+        if ($e.Card.Parent) { $e.Card.Parent.Children.Remove($e.Card) }; [void]$Rows.Children.Add($e.Card)
         Set-AkariServiceRow $e
     }
     if (-not $view.Count) { [void]$Rows.Children.Add((New-AkariText 'No service matches.' 13 'Mu')) }

@@ -388,7 +388,7 @@ public sealed class AppsStep(AppServices s, IDictionary<string, Pending> sel, Ac
         return t;
     }
 
-    /// <summary>New-AkariRiskMark: the Risk's 14 px Fluent icon in its colour, the label as tooltip.</summary>
+    /// <summary>New-AkariRiskMark: the Risk's 14 px Lucide icon in its colour, the label as tooltip.</summary>
     public static FrameworkElement RiskMark(Risk risk)
     {
         var d = Dots.TryGetValue(risk, out var x) ? x : Dots[Risk.Caution];

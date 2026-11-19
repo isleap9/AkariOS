@@ -1,9 +1,9 @@
-# Apps: the Guided Apps step, after Win11Debloat's App Removal page, with two tabs over one table look.
-# Remove: FR33THY Ultimate's "bloatware" in four sections, every item checkable: Store apps (every removable package
-# on this PC, Win11Debloat's names and recommendation dots), Optional features, Windows features (both read in the
-# background) and legacy apps (OneDrive, Remote Desktop...). The AkariOS pick is exactly what FR33THY
-# removes: everything but its keep-list. Install: the app installs (Tweaks\Apps\Install), from winget where possible.
-# Rows write into the Selection; nothing runs until Review & Apply. Needs UI\Selection.ps1 and Core\Appx.ps1.
+# Apps: the apps pages (plan docs/plans/2026-11-19-winui-3.md, the prototype's Guided Apps step, Downloads and
+# Remove apps). Remove: FR33THY Ultimate's "bloatware" in four lists under a SelectorBar, every item checkable: Store
+# apps (every removable package on this PC, Win11Debloat's names and risk levels), Optional features, Windows features
+# (both read in the background) and legacy apps (OneDrive, Remote Desktop...). The AkariOS pick is exactly what FR33THY
+# removes: everything but its keep-list. Install: the app installs (Tweaks\Apps\Install), from winget where possible,
+# as cards (Guided: tickable; Downloads: an Install button each). Needs UI\Selection.ps1, UI\Cards.ps1, Core\Appx.ps1.
 
 $script:AppRows = [ordered]@{}
 $script:AppsView = $null
@@ -11,22 +11,11 @@ $script:OnlyInstalled = $true
 $script:AppTab = 'Remove'
 # the last quick select, applied again to the feature rows that arrive after it
 $script:AppsPick = $null
-# mark per Risk (a Fluent icon): Safe = recommended to remove, Caution = optional, Advanced = not recommended
+# each Risk's meaning (a Caution / Advanced badge on the row, New-AkariRiskMark): Safe = recommended to remove
 $AkariAppDots = @{
     Safe     = @{ Icon = 'circle-check'; Brush = 'Ok'; Label = 'Recommended' }
     Caution  = @{ Icon = 'circle-minus'; Brush = 'Warn'; Label = 'Optional' }
     Advanced = @{ Icon = 'triangle-alert'; Brush = 'Bad'; Label = 'Not recommended' }
-}
-
-# a Risk mark: its 14 px Fluent icon in its colour, the label as tooltip
-function New-AkariRiskMark([string]$Risk) {
-    $d = $AkariAppDots[$Risk]
-    if (-not $d) { $d = $AkariAppDots['Caution'] }
-    $m = New-AkariIcon $d.Icon 14 $d.Brush
-    $m.ToolTip = $d.Label
-    $m.HorizontalAlignment = 'Left'
-    $m.VerticalAlignment = 'Center'
-    $m
 }
 
 # Store apps: every AppxRemove Entry from the data file, plus each installed package the file doesn't list (built as
@@ -121,7 +110,7 @@ function New-AkariAppCell([string]$Text, [int]$Col, [string]$Brush = 'Tx', [doub
 }
 
 # ---- app icons, all without a background: an installed Store app's own logo (read once by Get-AkariAppsView into
-# $script:AppLogos), else the bundled Assets\Apps\<package or id>.png (build\AppIcons.ps1), else a Fluent icon.
+# $script:AppLogos), else the bundled Assets\Apps\<package or id>.png (build\AppIcons.ps1), else the box icon on a Sub square.
 # A black-or-white logo is drawn in the theme's text colour: bundled ones are saved as <key>.mono.png (a mask), a
 # Store logo that is white only (made for a dark Start menu) is found by Test-AkariWhiteLogo.
 
@@ -161,17 +150,18 @@ function Test-AkariWhiteLogo([Windows.Media.Imaging.BitmapSource]$Image) {
     $n -gt 0 -and $white / $n -ge 0.9
 }
 
-# the 20 px icon of a row: the image (a mask in the text colour when it is black-or-white), or a muted Fluent icon
-# (an optional or Windows feature: settings-2, else app-window)
-function New-AkariAppIcon($Tweak) {
+# a row's icon ($Size px): the image (a mask in the text colour when it is black-or-white), or the box placeholder
+# (an optional or Windows feature: settings, else box)
+function New-AkariAppIcon($Tweak, [double]$Size = 28) {
     $file = Get-AkariAppIconFile $Tweak $script:AppLogos (Join-Path $Root 'Assets\Apps')
     $icon = $null
     if ($file) {
         try {
-            $bi = Get-AkariBitmap $file 40
+            $bi = Get-AkariBitmap $file ([int]($Size * 2))
             $mono = $file -like '*.mono.png'
             if (-not $mono -and $Tweak.Package -and $script:AppLogos[$Tweak.Package] -eq $file) { $mono = Test-AkariWhiteLogo $bi }
             if ($mono) {
+                # a black-or-white logo in the theme's text colour (the prototype's .mono-ic, inverted in light)
                 $icon = [Windows.Shapes.Rectangle]::new()
                 $icon.SetResourceReference([Windows.Shapes.Shape]::FillProperty, 'Tx')
                 $icon.OpacityMask = [Windows.Media.ImageBrush]::new($bi)
@@ -180,81 +170,214 @@ function New-AkariAppIcon($Tweak) {
                 $icon.Source = $bi
                 [Windows.Media.RenderOptions]::SetBitmapScalingMode($icon, 'HighQuality')
             }
-            $icon.Width = 20; $icon.Height = 20
+            $icon.Width = $Size; $icon.Height = $Size
         } catch { $icon = $null }
     }
     if (-not $icon) {
-        $kind = if ($Tweak.Group -in 'capability', 'feature') { 'settings-2' } else { 'app-window' }
-        $icon = New-AkariIcon $kind 18 'Mu'
+        # no logo: the prototype's .ph, a box icon on a Sub square
+        $icon = [Windows.Controls.Border]::new()
+        $icon.Width = $Size; $icon.Height = $Size
+        $icon.CornerRadius = [Windows.CornerRadius]::new($(if ($Size -lt 40) { 6 } else { 8 }))
+        $icon.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, 'Sub')
+        $kind = if ($Tweak.Group -in 'capability', 'feature') { 'settings' } else { 'box' }
+        $g = New-AkariIcon $kind ([Math]::Round($Size / 2)) 'Mu'
+        $g.HorizontalAlignment = 'Center'; $g.VerticalAlignment = 'Center'
+        $icon.Child = $g
     }
     $icon.HorizontalAlignment = 'Left'
     $icon.VerticalAlignment = 'Center'
-    [Windows.Controls.Grid]::SetColumn($icon, 2)
     $icon
 }
 
-# the table's columns: checkbox | Risk mark | icon | name | description | App ID or source
-function New-AkariAppGrid {
-    $g = [Windows.Controls.Grid]::new()
-    foreach ($w in 32, 22, 30, 240, 0, 260) {
-        $c = [Windows.Controls.ColumnDefinition]::new()
-        $c.Width = if ($w) { [Windows.GridLength]::new($w) } else { [Windows.GridLength]::new(1, 'Star') }
-        [void]$g.ColumnDefinitions.Add($c)
-    }
-    $g
-}
-
-# one table row: @{ Tweak; Installed; Row; Control; Muted; Mark; Caution }. A removal has a Risk mark; an install
-# has its "Installed on this PC" mark and, when Caution, its Get-AkariInstallMark.
+# a removal row (the prototype's .lrow): a check box, the 28 px icon, the name over its Caption description, the Risk
+# badge (Caution / Advanced) and the source in Ter; tinted AccSoft while checked. One entry:
+# @{ Tweak; Installed; Row; Control; Muted; Mark; Caution }. An install row (Guided's grid) is New-AkariAppCard.
 function New-AkariAppRow($Item) {
     $t = $Item.Tweak
+    if ($t.Category -ne 'Remove') { return New-AkariAppCard $Item 'Check' }
     $e = @{ Tweak = $t; Installed = $Item.Installed; Muted = $false }
-    $g = New-AkariAppGrid
-    $g.Margin = [Windows.Thickness]::new(0, 3, 0, 3)
-    $g.Tag = $t.Id
+    $b = [Windows.Controls.Border]::new()
+    $b.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, 'S1')
+    $b.SetResourceReference([Windows.Controls.Border]::BorderBrushProperty, 'Bd')
+    $b.BorderThickness = [Windows.Thickness]::new(1)
+    $b.CornerRadius = [Windows.CornerRadius]::new(4)
+    $b.MinHeight = 60
+    $b.Padding = [Windows.Thickness]::new(16, 8, 16, 8)
+    $b.Margin = [Windows.Thickness]::new(0, 0, 0, 4)
+    $b.Tag = $t.Id
+    $dp = [Windows.Controls.DockPanel]::new()
     $cb = [Windows.Controls.CheckBox]::new()
     $cb.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Check')
     $cb.Tag = $t.Id
     $cb.VerticalAlignment = 'Center'
-    [void]$g.Children.Add($cb)
-    if ($t.Category -eq 'Remove') {
-        $dot = New-AkariRiskMark $t.Risk
-        [Windows.Controls.Grid]::SetColumn($dot, 1)
-        [void]$g.Children.Add($dot)
-    } else {
-        # an install: the "on this PC" mark, shown by Show installed (Set-AkariAppsInstalled)
-        $e.Mark = New-AkariGlyph 'circle-check' 'Ok' 'Installed on this PC'
-        $e.Mark.Margin = [Windows.Thickness]::new(0)
-        $e.Mark.HorizontalAlignment = 'Left'
-        $e.Mark.Visibility = 'Collapsed'
-        [Windows.Controls.Grid]::SetColumn($e.Mark, 1)
-        [void]$g.Children.Add($e.Mark)
-        # a Caution install: its mark in the same column, hidden while the app shows as installed
-        if ($m = Get-AkariInstallMark $t) {
-            $e.Caution = New-AkariIcon $m.Icon 14 $m.Brush
-            $e.Caution.ToolTip = $m.Tip
-            $e.Caution.HorizontalAlignment = 'Left'
-            $e.Caution.VerticalAlignment = 'Center'
-            [Windows.Controls.Grid]::SetColumn($e.Caution, 1)
-            [void]$g.Children.Add($e.Caution)
+    $cb.Margin = [Windows.Thickness]::new(0, 0, 12, 0)
+    [Windows.Controls.DockPanel]::SetDock($cb, 'Left'); [void]$dp.Children.Add($cb)
+    $icon = New-AkariAppIcon $t 28
+    $icon.Margin = [Windows.Thickness]::new(0, 0, 12, 0)
+    [Windows.Controls.DockPanel]::SetDock($icon, 'Left'); [void]$dp.Children.Add($icon)
+    $end = [Windows.Controls.StackPanel]::new(); $end.Orientation = 'Horizontal'; $end.VerticalAlignment = 'Center'
+    $end.Margin = [Windows.Thickness]::new(12, 0, 0, 0)
+    $mark = New-AkariRiskMark $t.Risk
+    if ($mark) { [void]$end.Children.Add($mark) }
+    $src = New-AkariText (Get-AkariAppSource $t) 12 'Ter'
+    $src.TextWrapping = 'NoWrap'; $src.TextTrimming = 'CharacterEllipsis'; $src.MaxWidth = 220; $src.VerticalAlignment = 'Center'
+    $src.ToolTip = if ($Item.Installed) { $src.Text } else { "$($src.Text) (not on this PC)" }
+    [void]$end.Children.Add($src)
+    [Windows.Controls.DockPanel]::SetDock($end, 'Right'); [void]$dp.Children.Add($end)
+    $txt = [Windows.Controls.StackPanel]::new(); $txt.VerticalAlignment = 'Center'
+    $name = New-AkariText $t.Name 14
+    if ($t.Keep) { $name.ToolTip = 'Kept by the AkariOS pick (FR33THY''s keep-list)' }
+    [void]$txt.Children.Add($name)
+    [void]$txt.Children.Add((New-AkariText $(if ($t.Description) { $t.Description } else { 'Not in Akari''s list: found on this PC' }) 12 'Mu'))
+    [void]$dp.Children.Add($txt)
+    if (-not $Item.Installed) { $txt.Opacity = 0.6; $icon.Opacity = 0.6 }
+    $b.Child = $dp
+    $cb.Add_Click({ param($s, $a) Step-AkariAppCheck ([string]$s.Tag) })
+    $e.Row = $b; $e.Control = $cb
+    $e
+}
+
+# a removal's Risk as the prototype shows it: a Caution or Advanced badge; Safe (recommended) has none
+function New-AkariRiskMark([string]$Risk) {
+    if ($Risk -notin 'Caution', 'Advanced') { return $null }
+    $m = New-AkariBadge $Risk
+    $m.Margin = [Windows.Thickness]::new(0, 0, 12, 0)
+    $m.ToolTip = $AkariAppDots[$Risk].Label
+    $m
+}
+
+# Downloads' categories (the prototype's SelectorBar), each an AppType list. An app's category: the first whose types
+# hold its AppType, else Tools; a removed Store app's is "Microsoft Store" (under All). Pure.
+$AkariDownloadCategories = [ordered]@{
+    Gaming        = @('Game launchers', 'Gaming & hardware')
+    Browsers      = @('Browsers')
+    Communication = @('Communication')
+    Media         = @('Media')
+    Tools         = @('Utilities', 'System tools', 'Documents', 'Network & remote', 'Home server & streaming')
+    Development   = @('Runtimes', 'Dev tools', 'Languages & SDKs')
+}
+# the Store apps the debloat removed: under All only, labelled as the Store's
+$AkariDownloadRestore = 'Microsoft Store'
+function Get-AkariDownloadCategory($Tweak) {
+    if ("$($Tweak.AppType)" -eq $AkariRestoreType) { return $AkariDownloadRestore }
+    foreach ($k in $AkariDownloadCategories.Keys) { if ("$($Tweak.AppType)" -in $AkariDownloadCategories[$k]) { return $k } }
+    'Tools'
+}
+
+# an app card (the prototype's .app): the 40 px icon, the name and its category, then on the right a check box
+# ($Mode Check: Guided's Install) or the install action ($Mode Action: Downloads; Set-AkariAppCardState). A Caution
+# install has its badge's warning icon next to the name. One entry: @{ Tweak; Installed; Row; Control; Act; Mark; Caution }
+function New-AkariAppCard($Item, [string]$Mode = 'Check') {
+    $t = $Item.Tweak
+    $e = @{ Tweak = $t; Installed = $Item.Installed; Muted = $false; State = '' }
+    $b = [Windows.Controls.Border]::new()
+    $b.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, 'S1')
+    $b.SetResourceReference([Windows.Controls.Border]::BorderBrushProperty, 'Bd')
+    $b.BorderThickness = [Windows.Thickness]::new(1)
+    $b.CornerRadius = [Windows.CornerRadius]::new(8)
+    $b.Padding = [Windows.Thickness]::new(14)
+    $b.Margin = [Windows.Thickness]::new(4)
+    $b.Tag = $t.Id
+    $dp = [Windows.Controls.DockPanel]::new()
+    $icon = New-AkariAppIcon $t 40
+    $icon.Margin = [Windows.Thickness]::new(0, 0, 12, 0)
+    [Windows.Controls.DockPanel]::SetDock($icon, 'Left'); [void]$dp.Children.Add($icon)
+    $act = [Windows.Controls.Grid]::new()
+    $act.Width = 92; $act.VerticalAlignment = 'Center'
+    [Windows.Controls.DockPanel]::SetDock($act, 'Right'); [void]$dp.Children.Add($act)
+    $txt = [Windows.Controls.StackPanel]::new(); $txt.VerticalAlignment = 'Center'
+    # the name wraps (.app .n b); a Caution install's warning icon follows it
+    $nm = New-AkariText $t.Name 14
+    if ($m = Get-AkariInstallMark $t) {
+        $e.Caution = New-AkariIcon 'triangle-alert.Filled' 12 $m.Brush
+        $e.Caution.Margin = [Windows.Thickness]::new(6, 0, 0, -1); $e.Caution.ToolTip = $m.Tip
+        [void]$nm.Inlines.Add([Windows.Documents.InlineUIContainer]::new($e.Caution))
+    }
+    [void]$txt.Children.Add($nm)
+    $cat = New-AkariText (Get-AkariDownloadCategory $t) 12 'Mu'
+    [void]$txt.Children.Add($cat)
+    [void]$dp.Children.Add($txt)
+    $b.Child = $dp
+    $b.ToolTip = "$($t.Description)`n$(Get-AkariAppSource $t)".Trim()
+    [Windows.Controls.ToolTipService]::SetInitialShowDelay($b, 600)
+    if ($Mode -eq 'Check') {
+        $cb = [Windows.Controls.CheckBox]::new()
+        $cb.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Check')
+        $cb.Tag = $t.Id
+        $cb.HorizontalAlignment = 'Right'
+        $cb.Add_Click({ param($s, $a) Step-AkariAppCheck ([string]$s.Tag) })
+        [void]$act.Children.Add($cb)
+        $e.Control = $cb
+        # the whole card ticks its box (the prototype's role="checkbox")
+        $b.Add_MouseLeftButtonUp({ param($s, $a) if ($a.OriginalSource -is [Windows.Controls.Primitives.ToggleButton]) { return }; $x = $script:AppRows[[string]$s.Tag]; if ($x) { $x.Control.IsChecked = -not $x.Control.IsChecked; Step-AkariAppCheck ([string]$s.Tag) } })
+        # "Installed on this PC" (Set-AkariAppsInstalled) shows as the category line
+        $e.Mark = $cat
+    }
+    $e.Row = $b; $e.Act = $act
+    $e
+}
+
+# a Downloads card's action ($State): '' = the Install button, Waiting / Installing = the ring, Installed = the green
+# mark that pops in from 80 % (Motion.Slow), Failed = a red mark with the reason as its tooltip and Install again
+function Set-AkariAppCardState($e, [string]$State, [string]$Why = '') {
+    $e.State = $State
+    $a = $e.Act
+    $a.Children.Clear()
+    $sp = [Windows.Controls.StackPanel]::new(); $sp.Orientation = 'Horizontal'; $sp.HorizontalAlignment = 'Right'; $sp.VerticalAlignment = 'Center'
+    switch ($State) {
+        { $_ -in 'Waiting', 'Installing' } {
+            [void]$sp.Children.Add((New-AkariRing 16))
+            $l = New-AkariText $State 12 'Mu'; $l.Margin = [Windows.Thickness]::new(8, 0, 0, 0); $l.TextWrapping = 'NoWrap'
+            [void]$sp.Children.Add($l)
+        }
+        'Installed' {
+            $i = New-AkariIcon 'circle-check.Filled' 16 'Ok'; $i.Margin = [Windows.Thickness]::new(0, 0, 6, 0)
+            [void]$sp.Children.Add($i)
+            $l = New-AkariText 'Installed' 12 'Ok'; $l.TextWrapping = 'NoWrap'
+            [void]$sp.Children.Add($l)
+            if ($e.Tweak.Winget -and -not $e.Tweak.RemoveWith) {
+                # winutil W4's Uninstall, one app at a time: right-click
+                $m = [Windows.Controls.ContextMenu]::new()
+                $u = [Windows.Controls.MenuItem]::new(); $u.Header = 'Uninstall'; $u.Tag = $e.Tweak.Id
+                $u.Icon = New-AkariIcon 'trash-2' 16 'Inherit'
+                $u.Add_Click({ param($s, $x) Start-AkariUninstall @(Find-AkariTweak ([string]$s.Tag)) })
+                [void]$m.Items.Add($u)
+                $e.Row.ContextMenu = $m
+            }
+            if ($e.Popped) { Start-AkariMotion $sp Pop 0.8 1 -Speed Slow }
+        }
+        'Failed' {
+            $i = New-AkariIcon 'error-circle.Filled' 16 'Bad'; $i.Margin = [Windows.Thickness]::new(0, 0, 6, 0)
+            [void]$sp.Children.Add($i)
+            $l = New-AkariText 'Failed' 12 'Bad'; $l.TextWrapping = 'NoWrap'
+            [void]$sp.Children.Add($l)
+            $sp.ToolTip = $Why
+            $sp.Cursor = 'Hand'; $sp.Tag = $e.Tweak.Id
+            $sp.Add_MouseLeftButtonUp({ param($s, $x) Add-AkariInstall ([string]$s.Tag) })
+        }
+        default {
+            $btn = [Windows.Controls.Button]::new()
+            $btn.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Btn')
+            $c = [Windows.Controls.StackPanel]::new(); $c.Orientation = 'Horizontal'
+            $i = New-AkariIcon 'download' 16 'Inherit'; $i.Margin = [Windows.Thickness]::new(0, 0, 8, 0)
+            [void]$c.Children.Add($i); [void]$c.Children.Add((New-AkariText 'Install' 14 'Tx'))
+            $btn.Content = $c
+            $btn.Tag = $e.Tweak.Id
+            $btn.Add_Click({ param($s, $x) Add-AkariInstall ([string]$s.Tag) })
+            [void]$sp.Children.Add($btn)
+            $e.Row.ContextMenu = $null
         }
     }
-    $icon = New-AkariAppIcon $t
-    $name = New-AkariAppCell $t.Name 3
-    if ($t.Keep) { $name.ToolTip = 'Kept by the AkariOS pick (FR33THY''s keep-list)' }
-    if (-not $Item.Installed) { $name.Opacity = 0.6; $icon.Opacity = 0.6 }
-    [void]$g.Children.Add($icon)
-    [void]$g.Children.Add($name)
-    $desc = New-AkariAppCell $(if ($t.Description) { $t.Description } else { 'Not in Akari''s list: found on this PC' }) 4 'Mu'
-    $desc.ToolTip = $desc.Text
-    [void]$g.Children.Add($desc)
-    $src = Get-AkariAppSource $t
-    $pkg = New-AkariAppCell $src 5 'Ter' 12
-    $pkg.ToolTip = if ($Item.Installed) { $src } else { "$src (not on this PC)" }
-    [void]$g.Children.Add($pkg)
-    $cb.Add_Click({ param($s, $a) Step-AkariAppCheck ([string]$s.Tag) })
-    $e.Row = $g; $e.Control = $cb
-    $e
+    [void]$a.Children.Add($sp)
+}
+
+# a grid of cards that fills its width: min 220 px a column, 8 px apart (the prototype's .grid)
+function New-AkariCardGrid {
+    $g = [Windows.Controls.Primitives.UniformGrid]::new()
+    $g.Columns = 3
+    $g.Margin = [Windows.Thickness]::new(-4)
+    $g.Add_SizeChanged({ param($s, $a) $n = [Math]::Max(1, [Math]::Floor(($a.NewSize.Width + 8) / 228)); if ($s.Columns -ne $n) { $s.Columns = $n } })
+    $g
 }
 
 # a row was checked or unchecked: checked = Remove or Install (an Advanced item asks first), unchecked = no change
@@ -265,17 +388,25 @@ function Step-AkariAppCheck([string]$Id) {
     $q = Get-AkariConfirmText $e.Tweak $next
     if ($q -and -not (Confirm-AkariDialog $q 'Continue')) { Set-AkariAppChecked $e $false; return }
     Set-AkariPending $script:Sel $e.Tweak 'Unknown' $next
+    Set-AkariAppRowLook $e
     Update-AkariAppsStatus
+}
+
+# a checked removal row is tinted AccSoft (.lrow.sel)
+function Set-AkariAppRowLook($e) {
+    if (-not (Test-AkariRemoveRow $e)) { return }
+    $e.Row.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, $(if ($e.Control.IsChecked) { 'AccSoft' } else { 'S1' }))
 }
 
 function Set-AkariAppChecked($e, [bool]$On) {
     $e.Muted = $true
     try { $e.Control.IsChecked = $On } finally { $e.Muted = $false }
     Set-AkariPending $script:Sel $e.Tweak 'Unknown' $(if ($On) { 'Optimized' } else { 'None' })
+    Set-AkariAppRowLook $e
 }
 
-# quick select on the Remove tab: checks the removals on this PC that $Pick says yes to and unchecks every other one,
-# in all four sections (no confirmation: the user picked a set, and Review lists every item before anything runs).
+# quick select on the Remove lists: checks the removals on this PC that $Pick says yes to and unchecks every other one,
+# in all four lists (no confirmation: the user picked a set, and Review lists every item before anything runs).
 # Remembered, so the features read later get the same pick.
 function Select-AkariApps([scriptblock]$Pick, $Rows = $null) {
     if ($null -eq $Rows) { $script:AppsPick = $Pick; $Rows = @($script:AppRows.Values | Where-Object { Test-AkariRemoveRow $_ }) }
@@ -288,28 +419,32 @@ function Clear-AkariInstalls {
     Update-AkariAppsStatus
 }
 
-# Show installed (Downloads): the installs with these ids get their "Installed on this PC" mark, the others lose it;
-# a Caution mark gives way to it
+# the installs with these ids are on this PC: Guided's cards say so under their name; Downloads' cards show Installed
 function Set-AkariAppsInstalled([string[]]$Ids) {
+    $script:InstalledIds = @($Ids)
     foreach ($e in @($script:AppRows.Values | Where-Object { $_.Mark })) {
         $on = $e.Tweak.Id -in $Ids
-        $e.Mark.Visibility = if ($on) { 'Visible' } else { 'Collapsed' }
-        if ($e.Caution) { $e.Caution.Visibility = if ($on) { 'Collapsed' } else { 'Visible' } }
+        $e.Mark.Text = if ($on) { 'Installed on this PC' } else { Get-AkariDownloadCategory $e.Tweak }
+        $e.Mark.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, $(if ($on) { 'Ok' } else { 'Mu' }))
+    }
+    foreach ($e in @($script:DlCards.Values)) {
+        if ($e.State -in 'Waiting', 'Installing') { continue }
+        Set-AkariAppCardState $e $(if ($e.Tweak.Id -in $Ids) { 'Installed' } else { '' })
     }
 }
 
+# the command bar's count and Remove button (the prototype's "n selected", "Remove (n)", disabled at 0)
 function Update-AkariAppsStatus {
     if (-not $script:AppsStatus) { return }
     $on = @($script:AppRows.Values | Where-Object { $_.Control.IsChecked })
     $rm = @($on | Where-Object { Test-AkariRemoveRow $_ }).Count
-    $in = $on.Count - $rm
-    $script:AppsStatus.Text = "$rm to remove, $in to install"
-    if ($script:AppsParts -and $script:AppsParts.Uninstall) { $script:AppsParts.Uninstall.IsEnabled = ($in -gt 0) }
-    # Downloads shows the count on its Next button ("Review (n)")
+    $script:AppsStatus.Text = "$rm selected"
+    $p = $script:AppsParts
+    if ($p -and $p.RemoveGo) { $p.RemoveGo.IsEnabled = ($rm -gt 0 -and -not $script:Busy); $p.RemoveGoText.Text = 'Remove' + $(if ($rm) { " ($rm)" } else { '' }) }
     if ($StepNext) { Update-AkariStepFooter }
 }
 
-# header search and "Only installed": hide the rows that don't match
+# search and "Only installed": hide the rows that don't match
 function Set-AkariAppsFilter([string]$q) {
     foreach ($e in $script:AppRows.Values) {
         $hit = (-not $q) -or ("$($e.Tweak.Name) $($e.Tweak.Description) $(Get-AkariAppSource $e.Tweak)" -like "*$q*")
@@ -318,50 +453,38 @@ function Set-AkariAppsFilter([string]$q) {
     }
 }
 
-function New-AkariAppsButton([string]$Text, [string]$Tip, [scriptblock]$Click) {
+# a command bar button (.btn, or .btn.sub with -Subtle) with an optional icon
+function New-AkariAppsButton([string]$Text, [string]$Tip, [scriptblock]$Click, [string]$Icon = '', [switch]$Subtle) {
     $b = [Windows.Controls.Button]::new()
-    $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Btn')
-    $b.Content = $Text
+    $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, $(if ($Subtle) { 'Ghost' } else { 'Btn' }))
+    if ($Icon) {
+        $c = [Windows.Controls.StackPanel]::new(); $c.Orientation = 'Horizontal'
+        $i = New-AkariIcon $Icon 16 'Inherit'; $i.Margin = [Windows.Thickness]::new(0, 0, 8, 0)
+        [void]$c.Children.Add($i); $t = [Windows.Controls.TextBlock]::new(); $t.Text = $Text; [void]$c.Children.Add($t)
+        $b.Content = $c
+    } else { $b.Content = $Text }
     $b.ToolTip = $Tip
     $b.Margin = [Windows.Thickness]::new(0, 0, 8, 0)
     if ($Click) { $b.Add_Click($Click) }
     $b
 }
 
-# a table card: title, column headers, rows (registered in $script:AppRows). Returns @{ Card; Rows (panel); Title }
+# one of the Remove lists: its rows (registered in $script:AppRows). Returns @{ Card; Rows (panel); Title; Name }
 function New-AkariAppTable([string]$Title, [string]$Last, $Items) {
-    $table = [Windows.Controls.Border]::new()
-    $table.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'CategoryCard')
-    $sp = [Windows.Controls.StackPanel]::new()
-    $tt = New-AkariAppCell $Title 0 'Tx' 20
-    $tt.FontWeight = 'SemiBold'
-    Set-AkariFont $tt 'Display'
-    $tt.Margin = [Windows.Thickness]::new(0, 0, 0, 8)
-    [void]$sp.Children.Add($tt)
-    $head = New-AkariAppGrid
-    $head.Margin = [Windows.Thickness]::new(0, 0, 0, 6)
-    foreach ($h in @(@('Name', 3), @('Description', 4), @($Last, 5))) {
-        $c = New-AkariAppCell $h[0] $h[1] 'Mu' 12
-        $c.FontWeight = 'SemiBold'
-        [void]$head.Children.Add($c)
-    }
-    [void]$sp.Children.Add($head)
     $rows = [Windows.Controls.StackPanel]::new()
-    [void]$sp.Children.Add($rows)
-    $table.Child = $sp
-    $t = @{ Card = $table; Rows = $rows; Title = $tt; Name = $Title }
+    $t = @{ Card = $rows; Rows = $rows; Title = [Windows.Controls.TextBlock]::new(); Name = $Title }
     Add-AkariAppRows $t $Items
     $t
 }
 
-# adds rows to a table card and puts the count in its title
+# adds rows to a list and keeps its count ($Table.Title: "Name (n)", read by the tests)
 function Add-AkariAppRows($Table, $Items) {
     foreach ($item in $Items) {
         $e = New-AkariAppRow $item
         $script:AppRows[$item.Tweak.Id] = $e
         [void]$Table.Rows.Children.Add($e.Row)
     }
-    $n = @($Table.Rows.Children | Where-Object { $_ -is [Windows.Controls.Grid] }).Count
+    $n = @($Table.Rows.Children | Where-Object { $_ -is [Windows.Controls.Border] }).Count
     $Table.Title.Text = "$($Table.Name) ($n)"
 }
 
@@ -390,47 +513,46 @@ function Start-AkariFeatureRead {
     $timer.Start()
 }
 
-# the background read is done: fill the two feature tables (and apply the last quick select to them)
+# the background read is done: fill the two feature lists (and apply the last quick select to them)
 function Complete-AkariFeatureRead([string[]]$Capabilities, [string[]]$Features, [bool]$Failed = $false) {
     $p = $script:AppsParts
     foreach ($x in @(@($p.CapTable, 'CapabilityRemove', $Capabilities), @($p.FeatTable, 'FeatureDisable', $Features))) {
         $x[0].Rows.Children.Clear()
         $items = @(Get-AkariFoundList $script:Groups $x[1] $x[2])
-        if ($Failed) { [void]$x[0].Rows.Children.Add((New-AkariAppCell 'Could not be read. Open the Apps step again to retry.' 0 'Bad' 12)) }
+        if ($Failed) { [void]$x[0].Rows.Children.Add((New-AkariText 'Could not be read. Open this page again to retry.' 12 'Bad')) }
         Add-AkariAppRows $x[0] $items
         if ($script:AppsPick) {
             $ids = @($items | ForEach-Object { $_.Tweak.Id })
             Select-AkariApps $script:AppsPick @($script:AppRows.Values | Where-Object { $_.Tweak.Id -in $ids })
         }
     }
-    Set-AkariAppsFilter $(if ($Search) { $Search.Text.Trim() } else { '' })
+    Set-AkariAppsFilter ''
     Update-AkariAppsStatus
 }
 
-# shows one tab: its toolbar and tables, the other's hidden; the active tab button is the accent one
-function Show-AkariAppsTab([string]$Tab) {
-    $script:AppTab = $Tab
+# the Remove lists' SelectorBar picked $Name: that list alone, sliding in from the right (24 px, Motion.Slow)
+$AkariRemoveLists = 'Store apps', 'Optional features', 'Windows features', 'Legacy apps'
+function Show-AkariRemoveList([string]$Name) {
     $p = $script:AppsParts
-    foreach ($k in 'Remove', 'Install') {
-        $on = ($k -eq $Tab)
-        $p["${k}Bar"].Visibility = if ($on) { 'Visible' } else { 'Collapsed' }
-        $p["${k}Tables"].Visibility = $p["${k}Bar"].Visibility
-        $p["${k}Tab"].SetResourceReference([Windows.FrameworkElement]::StyleProperty, $(if ($on) { 'Accent' } else { 'Btn' }))
-    }
-    $p.Legend.Visibility = if ($Tab -eq 'Remove') { 'Visible' } else { 'Collapsed' }
-    # the feature lists take seconds to read: only once the Remove tab is shown (never for Downloads)
-    if ($Tab -eq 'Remove' -and -not $script:AppsFeatureRead) { $script:AppsFeatureRead = $true; Start-AkariFeatureRead }
+    if (-not $p) { return }
+    $script:RemoveList = $Name
+    $map = @{ 'Store apps' = $p.StoreTable; 'Optional features' = $p.CapTable; 'Windows features' = $p.FeatTable; 'Legacy apps' = $p.LegacyTable }
+    foreach ($k in $map.Keys) { $map[$k].Card.Visibility = if ($k -eq $Name) { 'Visible' } else { 'Collapsed' } }
+    Start-AkariMotion $map[$Name].Card Fade 0 1 -Speed Slow
+    Start-AkariMotion $map[$Name].Card Slide 24 0 -Speed Slow
 }
 
-# an apps flow shows one tab alone, without the Remove / Install tab buttons: Downloads 'Install', Remove apps
-# 'Remove' (without Quick select: a preset holds Tweaks this flow never shows). '' = Guided, both tabs.
+# kept for the callers of the old tabs: the removal lists show in Guided and on Remove apps
+function Show-AkariAppsTab([string]$Tab) { $script:AppTab = $Tab }
+
+# the apps view for Guided ('': Remove, then Install as tickable cards, Quick select) or Remove apps ('Remove': the
+# lists alone, with the accent Remove (n))
 function Set-AkariAppsOnly([string]$Tab) {
     $p = $script:AppsParts
-    $p.Tabs.Visibility = if ($Tab) { 'Collapsed' } else { 'Visible' }
-    if ($p.QuickSelect) { $p.QuickSelect.Visibility = if ($Tab) { 'Collapsed' } else { 'Visible' } }
-    # Downloads' own buttons (winutil W4): not on Guided's Install tab, whose picks wait for Review & Apply
-    foreach ($b in $p.UpdateAll, $p.Uninstall, $p.ShowInstalled) { $b.Visibility = if ($Tab -eq 'Install') { 'Visible' } else { 'Collapsed' } }
-    if ($Tab) { Show-AkariAppsTab $Tab }
+    $guided = -not $Tab
+    foreach ($x in $p.InstallHead, $p.InstallTables, $p.RemoveHead, $p.SeeAll) { if ($x) { $x.Visibility = if ($guided) { 'Visible' } else { 'Collapsed' } } }
+    if ($p.QuickSelect) { $p.QuickSelect.Visibility = if ($guided) { 'Visible' } else { 'Collapsed' } }
+    $p.RemoveGo.Visibility = if ($guided) { 'Collapsed' } else { 'Visible' }
 }
 
 # ---- the Store packages: one read in the background (Start-AkariAppxRead), the view built when it is in
@@ -471,35 +593,40 @@ function Start-AkariAppxRead {
     $tm.Start()
 }
 
-# the packages are in: the apps step is built if it is showing, and a Quick select that waited is picked
+# the packages are in: the apps page is built again if it is showing, and a Quick select that waited is picked
 function Complete-AkariAppxRead($Job) {
     if ($script:AppxJob -eq $Job) { $script:AppxJob = $null }
     if ($Job.Gen -ne $script:AppxGen) { return }
     $r = $Job.Shared.Result
     $script:Appx = if ($r) { $r } else { @{ Names = @(); Installed = @(); Logos = @{} } }
     if (Get-Command Resume-AkariQuickSelect -ErrorAction SilentlyContinue) { Resume-AkariQuickSelect }
-    if ($script:Step -eq 0 -and $script:Mode -ne 'Choose' -and ($script:Cat -eq 'Install AkariOS' -or ($AkariAppFlows -and $AkariAppFlows.Contains("$script:Cat")))) { Show-AkariSteps }
+    if (($script:Cat -eq 'Install AkariOS' -and $script:Mode -eq 'Guided' -and $script:Step -eq 0) -or $script:Cat -in 'Remove apps', 'Downloads') { Show-Page }
 }
 
-# forgets the apps read and the view built on it (a Run changed what is on this PC): both again next time. A flow
-# switch keeps them (Clear-AkariSteps only unchecks the rows): building the view takes a second or more.
+# forgets the apps read and the views built on it (a Run changed what is on this PC): both again next time
 function Clear-AkariAppsView {
     $script:AppRows = [ordered]@{}
     $script:AppsView = $null
+    $script:DlView = $null; $script:DlCards = [ordered]@{}
     $script:Appx = $null; $script:AppxJob = $null; $script:AppxGen++
 }
 
-# builds the Apps view once: Store apps and legacy apps from the read, the features in the background
+# "Reading the apps on this PC..." with a ring, until the read is in
+function New-AkariReading([string]$Text) {
+    $sp = [Windows.Controls.StackPanel]::new(); $sp.Orientation = 'Horizontal'; $sp.Margin = [Windows.Thickness]::new(2, 4, 0, 0)
+    [void]$sp.Children.Add((New-AkariRing 16))
+    $t = New-AkariText $Text 14 'Mu'; $t.Margin = [Windows.Thickness]::new(8, 0, 0, 0)
+    [void]$sp.Children.Add($t)
+    $sp
+}
+
+# builds the apps view once (Guided's Apps step, Remove apps): the Remove lists under a SelectorBar and a command bar,
+# then (Guided) the installs as tickable cards. The features are read in the background.
 function Get-AkariAppsView {
     if ($script:AppsView) { return $script:AppsView }
-    # one package read: the removable ones, every name (the restore card) and the installed apps' logos
     if (-not $script:Appx) {
         Start-AkariAppxRead
-        if (-not $script:Appx) {
-            $wait = New-AkariAppCell ('Reading the apps on this PC' + [char]0x2026) 0 'Mu'
-            $wait.Margin = [Windows.Thickness]::new(2, 4, 0, 0)
-            return $wait
-        }
+        if (-not $script:Appx) { return New-AkariReading ('Reading the apps on this PC' + [char]0x2026) }
     }
     $installed = @($script:Appx.Installed)
     $script:AppLogos = if ($script:Appx.Logos) { $script:Appx.Logos } else { @{} }
@@ -508,96 +635,248 @@ function Get-AkariAppsView {
     $p = @{}
     $view = [Windows.Controls.StackPanel]::new()
 
-    # tabs
-    $tabs = [Windows.Controls.StackPanel]::new()
-    $tabs.Orientation = 'Horizontal'
-    $tabs.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
-    $p.RemoveTab = New-AkariAppsButton 'Remove' 'Store apps, optional features, Windows features and legacy apps to remove' { Show-AkariAppsTab 'Remove' }
-    $p.InstallTab = New-AkariAppsButton 'Install' 'Apps to install, from winget where possible' { Show-AkariAppsTab 'Install' }
-    [void]$tabs.Children.Add($p.RemoveTab); [void]$tabs.Children.Add($p.InstallTab)
-    [void]$view.Children.Add($tabs)
-    $p.Tabs = $tabs
-
-    # Remove toolbar: quick select (W11D recommended, FR33THY all removable), clear, only installed
-    $p.RemoveBar = [Windows.Controls.StackPanel]::new()
-    $p.RemoveBar.Orientation = 'Horizontal'
-    $p.RemoveBar.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
-    # Quick select (UI\Steps.ps1): a whole preset, Apps and Tweaks
-    if (Get-Command New-AkariQuickSelect -ErrorAction SilentlyContinue) { $p.QuickSelect = New-AkariQuickSelect; [void]$p.RemoveBar.Children.Add($p.QuickSelect) }
-    [void]$p.RemoveBar.Children.Add((New-AkariAppsButton 'Select recommended' 'Win11Debloat''s pick: what is on this PC and marked Recommended' { Select-AkariApps { param($t) $t.Risk -eq 'Safe' } }))
-    [void]$p.RemoveBar.Children.Add((New-AkariAppsButton 'AkariOS' 'The AkariOS debloat (FR33THY''s): every Store app, optional feature, Windows feature and legacy app on this PC except its keep-list' { Select-AkariApps { param($t) -not $t.Keep } }))
-    [void]$p.RemoveBar.Children.Add((New-AkariAppsButton 'Clear selection' 'Uncheck everything to remove' { Select-AkariApps { param($t) $false } }))
+    $p.RemoveHead = New-AkariSection 'Remove' -First
+    [void]$view.Children.Add($p.RemoveHead)
+    $script:RemoveList = 'Store apps'
+    $p.Selector = New-AkariSelectorBar $AkariRemoveLists 'Store apps' { param($v) Show-AkariRemoveList $v }
+    [void]$view.Children.Add($p.Selector.Bar)
+    # the command bar (.cmdbar): Quick select (Guided), Select recommended, AkariOS, Clear, Only installed, then the
+    # count and the accent Remove (n) (Remove apps)
+    $bar = [Windows.Controls.DockPanel]::new()
+    $bar.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
+    $right = [Windows.Controls.StackPanel]::new(); $right.Orientation = 'Horizontal'
+    $script:AppsStatus = New-AkariText '0 selected' 12 'Mu'
+    $script:AppsStatus.VerticalAlignment = 'Center'; $script:AppsStatus.Margin = [Windows.Thickness]::new(0, 0, 12, 0)
+    [void]$right.Children.Add($script:AppsStatus)
+    $p.RemoveGo = [Windows.Controls.Button]::new()
+    $p.RemoveGo.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Accent')
+    $c = [Windows.Controls.StackPanel]::new(); $c.Orientation = 'Horizontal'
+    $i = New-AkariIcon 'trash-2' 16 'AccT'; $i.Margin = [Windows.Thickness]::new(0, 0, 8, 0)
+    $p.RemoveGoText = [Windows.Controls.TextBlock]::new(); $p.RemoveGoText.Text = 'Remove'
+    [void]$c.Children.Add($i); [void]$c.Children.Add($p.RemoveGoText)
+    $p.RemoveGo.Content = $c
+    $p.RemoveGo.IsEnabled = $false
+    $p.RemoveGo.Add_Click({ Start-AkariRemoveApps })
+    [void]$right.Children.Add($p.RemoveGo)
+    [Windows.Controls.DockPanel]::SetDock($right, 'Right'); [void]$bar.Children.Add($right)
+    $left = [Windows.Controls.WrapPanel]::new()
+    if (Get-Command New-AkariQuickSelect -ErrorAction SilentlyContinue) { $p.QuickSelect = New-AkariQuickSelect; [void]$left.Children.Add($p.QuickSelect) }
+    [void]$left.Children.Add((New-AkariAppsButton 'Select recommended' 'Win11Debloat''s pick: what is on this PC and marked Recommended' { Select-AkariApps { param($t) $t.Risk -eq 'Safe' } } 'check'))
+    [void]$left.Children.Add((New-AkariAppsButton 'AkariOS' 'The AkariOS debloat (FR33THY''s): every Store app, optional feature, Windows feature and legacy app on this PC except its keep-list' { Select-AkariApps { param($t) -not $t.Keep } }))
+    [void]$left.Children.Add((New-AkariAppsButton 'Clear' 'Uncheck everything to remove' { Select-AkariApps { param($t) $false } } -Subtle))
     $only = [Windows.Controls.CheckBox]::new()
     $only.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Check')
     $only.Content = 'Only installed'
     $only.IsChecked = $script:OnlyInstalled
     $only.VerticalAlignment = 'Center'
     $only.Margin = [Windows.Thickness]::new(8, 0, 0, 0)
-    $only.Add_Click({ param($s, $a) $script:OnlyInstalled = [bool]$s.IsChecked; Set-AkariAppsFilter $(if ($Search) { $Search.Text.Trim() } else { '' }) })
-    [void]$p.RemoveBar.Children.Add($only)
-    [void]$view.Children.Add($p.RemoveBar)
+    $only.Add_Click({ param($s, $a) $script:OnlyInstalled = [bool]$s.IsChecked; Set-AkariAppsFilter '' })
+    [void]$left.Children.Add($only)
+    [void]$bar.Children.Add($left)
+    $p.RemoveBar = $bar
+    [void]$view.Children.Add($bar)
 
-    # Install toolbar
-    $p.InstallBar = [Windows.Controls.StackPanel]::new()
-    $p.InstallBar.Orientation = 'Horizontal'
-    $p.InstallBar.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
-    [void]$p.InstallBar.Children.Add((New-AkariAppsButton 'Clear selection' 'Uncheck every app to install' { Clear-AkariInstalls }))
-    # Downloads only (after Chris Titus Tech's winutil, MIT: Upgrade all, Uninstall selected, Get Installed); they act
-    # right away, in a job (UI\Steps.ps1)
-    $p.Uninstall = New-AkariAppsButton 'Uninstall selected' 'Uninstall the checked apps with winget, after asking' { Start-AkariUninstall }
-    $p.UpdateAll = New-AkariAppsButton 'Update all apps' 'Update every app winget knows a newer version of' { Start-AkariUpdateApps }
-    $p.ShowInstalled = New-AkariAppsButton 'Show installed' 'Mark the apps of this list that are on this PC' { Start-AkariInstalledRead }
-    foreach ($b in $p.Uninstall, $p.UpdateAll, $p.ShowInstalled) { [void]$p.InstallBar.Children.Add($b) }
-    [void]$view.Children.Add($p.InstallBar)
-
-    # Remove: four sections; the two feature ones say "Reading..." until the background read is done
-    $p.RemoveTables = [Windows.Controls.StackPanel]::new()
+    # the four lists, one shown at a time; the two feature ones say "Reading..." until the background read is done
+    $p.RemoveTables = [Windows.Controls.Grid]::new()
     $p.StoreTable = New-AkariAppTable 'Store apps' 'App ID' @(Get-AkariAppList $script:Tweaks $script:Groups $installed)
     $p.CapTable = New-AkariAppTable 'Optional features' 'Capability' @()
     $p.FeatTable = New-AkariAppTable 'Windows features' 'Feature' @()
     $p.LegacyTable = New-AkariAppTable 'Legacy apps' 'Id' @(Get-AkariLegacyRemoveList $script:Tweaks)
     foreach ($t in $p.CapTable, $p.FeatTable) {
-        [void]$t.Rows.Children.Add((New-AkariAppCell 'Reading what is on this PC...' 0 'Mu' 12))
+        [void]$t.Rows.Children.Add((New-AkariReading ('Reading what is on this PC' + [char]0x2026)))
         $t.Title.Text = "$($t.Name) (reading...)"
     }
-    foreach ($t in $p.StoreTable, $p.CapTable, $p.FeatTable, $p.LegacyTable) { [void]$p.RemoveTables.Children.Add($t.Card) }
+    foreach ($t in $p.StoreTable, $p.CapTable, $p.FeatTable, $p.LegacyTable) {
+        $t.Card.Visibility = if ($t -eq $p.StoreTable) { 'Visible' } else { 'Collapsed' }
+        [void]$p.RemoveTables.Children.Add($t.Card)
+    }
     [void]$view.Children.Add($p.RemoveTables)
+    $p.SeeAll = [Windows.Controls.Button]::new()
+    $p.SeeAll.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Link')
+    $p.SeeAll.Content = 'Remove apps lists the same apps and features, and removes them right away'
+    $p.SeeAll.Margin = [Windows.Thickness]::new(1, 8, 0, 0)
+    $p.SeeAll.HorizontalAlignment = 'Left'
+    $p.SeeAll.Add_Click({ Select-AkariPage 'Remove apps' })
+    [void]$view.Children.Add($p.SeeAll)
 
-    # Install: a card per kind of app, then the Store apps the debloat removed
-    $p.InstallTables = [Windows.Controls.StackPanel]::new()
+    # Guided: the installs as tickable cards, then the Store apps the debloat removed
+    $p.InstallHead = New-AkariSection 'Install'
+    [void]$view.Children.Add($p.InstallHead)
+    $p.InstallTables = New-AkariCardGrid
     $appx = @($script:Appx.Names)
     foreach ($c in Get-AkariInstallCards $script:Tweaks $appx) {
-        $t = New-AkariAppTable $c.Title 'Source' @($c.Items)
-        if (-not $c.Items.Count) { [void]$t.Rows.Children.Add((New-AkariAppCell 'Nothing to restore: every app in this list is on this PC.' 0 'Mu' 12)) }
-        [void]$p.InstallTables.Children.Add($t.Card)
+        foreach ($item in $c.Items) {
+            $e = New-AkariAppCard $item 'Check'
+            $script:AppRows[$item.Tweak.Id] = $e
+            [void]$p.InstallTables.Children.Add($e.Row)
+        }
     }
     [void]$view.Children.Add($p.InstallTables)
 
-    # status and legend
-    $foot = [Windows.Controls.DockPanel]::new()
-    $p.Legend = [Windows.Controls.StackPanel]::new()
-    $p.Legend.Orientation = 'Horizontal'
-    [Windows.Controls.DockPanel]::SetDock($p.Legend, 'Right')
-    foreach ($k in 'Safe', 'Caution', 'Advanced') {
-        $dc = New-AkariRiskMark $k
-        $dc.Margin = [Windows.Thickness]::new(16, 0, 6, 0)
-        [void]$p.Legend.Children.Add($dc)
-        [void]$p.Legend.Children.Add((New-AkariAppCell $AkariAppDots[$k].Label 0 'Mu' 12))
-    }
-    [void]$foot.Children.Add($p.Legend)
-    $script:AppsStatus = New-AkariAppCell '' 0 'Mu' 12
-    [void]$foot.Children.Add($script:AppsStatus)
-    [void]$view.Children.Add($foot)
-
     $script:AppsParts = $p
     $script:AppsView = $view
-    # it opens on the right tab already (below)
     $script:AppsTabFresh = $false
-    # the features are read when the Remove tab is first shown (Downloads opens on Install and never reads them)
-    $script:AppsFeatureRead = $false
-    # a view built anew has no Installed marks yet (Show-AkariSteps reads them again when they were asked for)
     $script:AppsNew = $true
-    Show-AkariAppsTab $(if ($AkariAppFlows -and $AkariAppFlows.Contains("$script:Mode")) { $AkariAppFlows["$script:Mode"].Tab } else { $script:AppTab })
+    # the feature lists take seconds: read once the view is built
+    Start-AkariFeatureRead
+    Set-AkariAppsFilter ''
     Update-AkariAppsStatus
     $view
+}
+
+# ---- Remove apps (its own page): the lists alone, Remove (n) asks, then removes them one by one: each row collapses
+# and slides out as the job gets to it (Update-AkariRemoveProgress), with the progress toast
+
+function Show-AkariRemoveApps {
+    Set-AkariHeader @('Remove apps')
+    [void]$StepBody.Children.Add((New-AkariLead 'Store apps, optional features, Windows features and legacy apps. Safe ones are picked by "Select recommended"; Caution and Advanced ones say why.'))
+    [void]$StepBody.Children.Add((Get-AkariAppsView))
+    if ($script:AppsView) { Set-AkariAppsOnly 'Remove'; Update-AkariAppsStatus }
+}
+
+function Start-AkariRemoveApps {
+    $rows = @($script:AppRows.Values | Where-Object { (Test-AkariRemoveRow $_) -and $_.Control.IsChecked })
+    $n = $rows.Count
+    if (-not $n -or $script:Busy) { return }
+    $names = @($rows | Select-Object -First 6 | ForEach-Object { $_.Tweak.Name }) -join ', '
+    if ($n -gt 6) { $names += " and $($n - 6) more" }
+    if (-not (Confirm-AkariDialog "$names.`nStore apps can be reinstalled from the Microsoft Store or Downloads." 'Remove' 'Cancel' 'Warning' "Remove $n app$(if ($n -ne 1) { 's' })?")) { return }
+    $script:RemovingRows = $rows
+    $script:RemovedCount = 0
+    Start-AkariApply @(Get-AkariPlanItems $script:Sel) "Removing $n app$(if ($n -ne 1) { 's' })" -Restore 'Remove apps' -Kind 'Remove'
+}
+
+# the job got to item $Done: the rows before it collapse (height, padding and opacity to 0, 24 px to the right)
+function Update-AkariRemoveProgress($Shared) {
+    if (-not $script:RemovingRows -or -not $Shared -or -not $Shared.Total) { return }
+    while ($script:RemovedCount -lt [int]$Shared.Done -and $script:RemovedCount -lt $script:RemovingRows.Count) {
+        $r = $script:RemovingRows[$script:RemovedCount].Row
+        Start-AkariMotion $r Slide 0 24 -Speed Slow
+        Set-AkariSize $r Height 0 Slow -Fade
+        $r.Margin = [Windows.Thickness]::new(0)
+        $script:RemovedCount++
+    }
+}
+
+# ---- Downloads (its own page): a SelectorBar of categories and a search box in a command bar, a grid of app cards whose
+# Install acts right away (queued one at a time: Add-AkariInstall), no restore point (winutil W4)
+$script:DlView = $null; $script:DlCards = [ordered]@{}; $script:DlFilter = 'All'; $script:DlQuery = ''; $script:InstallQueue = [Collections.Generic.List[string]]::new()
+
+function Get-AkariDownloadsView {
+    if ($script:DlView) { return $script:DlView }
+    if (-not $script:Appx) {
+        Start-AkariAppxRead
+        if (-not $script:Appx) { return New-AkariReading ('Reading the apps on this PC' + [char]0x2026) }
+    }
+    $script:AppLogos = if ($script:Appx.Logos) { $script:Appx.Logos } else { @{} }
+    $view = [Windows.Controls.StackPanel]::new()
+    $bar = [Windows.Controls.DockPanel]::new()
+    $bar.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
+    $right = [Windows.Controls.StackPanel]::new(); $right.Orientation = 'Horizontal'; $right.VerticalAlignment = 'Top'
+    $sb = [Windows.Controls.Grid]::new(); $sb.Width = 220
+    $q = [Windows.Controls.TextBox]::new()
+    $q.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Flat')
+    $q.Padding = [Windows.Thickness]::new(10, 5, 32, 6)
+    $hint = New-AkariText 'Search apps' 14 'Ter'
+    $hint.IsHitTestVisible = $false; $hint.Margin = [Windows.Thickness]::new(12, 0, 0, 1); $hint.VerticalAlignment = 'Center'
+    $ic = New-AkariIcon 'search' 14 'Mu'; $ic.HorizontalAlignment = 'Right'; $ic.Margin = [Windows.Thickness]::new(0, 0, 10, 0); $ic.IsHitTestVisible = $false
+    [void]$sb.Children.Add($q); [void]$sb.Children.Add($hint); [void]$sb.Children.Add($ic)
+    $q.Tag = $hint
+    $q.Add_TextChanged({ param($s, $a) $s.Tag.Visibility = if ($s.Text) { 'Collapsed' } else { 'Visible' }; $script:DlQuery = $s.Text.Trim(); Set-AkariDownloadsFilter $false })
+    [void]$right.Children.Add($sb)
+    [Windows.Controls.DockPanel]::SetDock($right, 'Right'); [void]$bar.Children.Add($right)
+    $cats = @('All') + @($AkariDownloadCategories.Keys)
+    $sel = New-AkariSelectorBar $cats $script:DlFilter { param($v) $script:DlFilter = $v; Set-AkariDownloadsFilter $true }
+    $sel.Bar.Margin = [Windows.Thickness]::new(0)
+    [void]$bar.Children.Add($sel.Bar)
+    [void]$view.Children.Add($bar)
+    $grid = New-AkariCardGrid
+    $script:DlCards = [ordered]@{}
+    # by category, in the SelectorBar's order (Gaming first), then the Store apps to restore
+    $order = @($AkariDownloadCategories.Keys) + $AkariDownloadRestore
+    $items = @(Get-AkariInstallCards $script:Tweaks @($script:Appx.Names) | ForEach-Object { $_.Items }) | Sort-Object { [array]::IndexOf($order, (Get-AkariDownloadCategory $_.Tweak)) }, { $_.Tweak.Name }
+    foreach ($c in @(@{ Items = $items })) {
+        foreach ($item in $c.Items) {
+            $e = New-AkariAppCard $item 'Action'
+            Set-AkariAppCardState $e $(if ($script:InstalledIds -and $item.Tweak.Id -in $script:InstalledIds) { 'Installed' } elseif ($item.Tweak.Id -in $script:InstallQueue) { 'Waiting' } else { '' })
+            $script:DlCards[$item.Tweak.Id] = $e
+            [void]$grid.Children.Add($e.Row)
+        }
+    }
+    [void]$view.Children.Add($grid)
+    $script:DlEmpty = New-AkariEmpty 'search' '' ''
+    [void]$view.Children.Add($script:DlEmpty)
+    $script:DlGrid = $grid
+    $script:DlView = $view
+    Set-AkariDownloadsFilter $false
+    $view
+}
+
+# the cards of the category and search: switching category fades the grid out and rises it back in (12 px, Motion.Slow)
+function Set-AkariDownloadsFilter([bool]$Animate) {
+    $n = 0
+    foreach ($e in $script:DlCards.Values) {
+        $hit = ($script:DlFilter -eq 'All' -or (Get-AkariDownloadCategory $e.Tweak) -eq $script:DlFilter) -and
+               (-not $script:DlQuery -or "$($e.Tweak.Name)" -like "*$($script:DlQuery)*")
+        $e.Row.Visibility = if ($hit) { 'Visible' } else { 'Collapsed' }
+        if ($hit) { $n++ }
+    }
+    $script:DlEmpty.Visibility = if ($n) { 'Collapsed' } else { 'Visible' }
+    if (-not $n) { $script:DlEmpty.Tag.Text = "No apps match `"$($script:DlQuery)`"" }
+    if ($Animate) { Start-AkariMotion $script:DlGrid Fade 0 1 -Speed Slow; Start-AkariMotion $script:DlGrid Rise 12 0 -Speed Slow }
+}
+
+function Show-AkariDownloads {
+    Set-AkariHeader @('Downloads')
+    $n = @(Get-AkariInstallList $script:Tweaks).Count
+    # the lead, and Update all apps (winutil W4) on its right
+    $dp = [Windows.Controls.DockPanel]::new(); $dp.Margin = [Windows.Thickness]::new(0, -12, 0, 20)
+    $up = New-AkariAppsButton 'Update all apps' 'Update every app winget knows a newer version of' { Start-AkariUpdateApps } 'arrow-clockwise' -Subtle
+    $up.Margin = [Windows.Thickness]::new(16, -6, 0, 0); $up.VerticalAlignment = 'Top'
+    [Windows.Controls.DockPanel]::SetDock($up, 'Right'); [void]$dp.Children.Add($up)
+    $lead = New-AkariLead "Apps, game launchers, runtimes and tools, installed from winget where possible. $n in the catalogue."
+    $lead.Margin = [Windows.Thickness]::new(0)
+    [void]$dp.Children.Add($lead)
+    [void]$StepBody.Children.Add($dp)
+    [void]$StepBody.Children.Add((Get-AkariDownloadsView))
+    # which apps are on this PC: read once a session, in a job that leaves the page usable
+    if ($script:DlView -and -not $script:ShowInstalled) { Start-AkariInstalledRead }
+}
+
+# Install on a card: queued, then installed one at a time (a Run of that one item, no restore point)
+function Add-AkariInstall([string]$Id) {
+    if ($Id -in $script:InstallQueue) { return }
+    $script:InstallQueue.Add($Id)
+    $e = $script:DlCards[$Id]
+    if ($e) { Set-AkariAppCardState $e 'Waiting' }
+    Start-AkariInstallNext
+}
+
+function Start-AkariInstallNext {
+    if ($script:Busy -or -not $script:InstallQueue.Count -or $script:Installing) { return }
+    $id = $script:InstallQueue[0]
+    $t = Find-AkariTweak $id
+    $e = $script:DlCards[$id]
+    if (-not $t) { $script:InstallQueue.RemoveAt(0); Start-AkariInstallNext; return }
+    if ($e) { Set-AkariAppCardState $e 'Installing' }
+    $script:Installing = $id
+    Start-AkariApply @(@{ Id = $id; Mode = 'Apply' }) "Installing $($t.Name)" -Kind 'Install'
+}
+
+# an install ended: its card says how, the next one starts
+function Complete-AkariInstall($Shared) {
+    $id = $script:Installing
+    $script:Installing = $null
+    if ($id -and $script:InstallQueue.Count -and $script:InstallQueue[0] -eq $id) { $script:InstallQueue.RemoveAt(0) }
+    $o = @($Shared.Outcomes | Where-Object { $_.Id -eq $id })[0]
+    $e = $script:DlCards[$id]
+    $t = Find-AkariTweak $id
+    if ($o -and $o.Outcome -in 'Applied', 'Already') {
+        if ($e) { $e.Popped = $true; Set-AkariAppCardState $e 'Installed'; $e.Popped = $false }
+        $script:InstalledIds = @($script:InstalledIds) + $id
+        Add-AkariActivity "Installed $($t.Name)" 'Downloads' 1 'download'
+    } elseif ($e) {
+        Set-AkariAppCardState $e 'Failed' $(if ($o) { $o.Message } else { 'The install did not run.' })
+        Show-AkariToast "$($t.Name) was not installed" $(if ($o -and $o.Message) { $o.Message } else { 'Open the log for details.' })
+    }
 }

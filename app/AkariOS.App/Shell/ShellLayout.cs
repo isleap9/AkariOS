@@ -3,7 +3,7 @@ using AkariOS.Core.Tweaks;
 
 namespace AkariOS.App.Shell;
 
-/// <summary>A page's header: its Fluent icon and the line under its title.</summary>
+/// <summary>A page's header: its Lucide icon and the line under its title.</summary>
 public sealed record PageInfo(string Glyph, string Sub);
 
 /// <summary>The shell's rules (src/UI/Shell.ps1), pure: tabs, widths, which tab a page is on, the search hint.</summary>

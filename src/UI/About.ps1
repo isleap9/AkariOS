@@ -1,31 +1,100 @@
-# About & Updates: the version and the update check (Core\Update.ps1); credits, links and license come next.
-# Full window, Back goes Home. The check runs in the background on every launch: an update found while the user is
-# still on Home asks right away ("Update now / Later"); either way the Home bar shows it until Akari closes.
-# Dot-sourced by Akari.ps1 after UI\Rows.ps1.
+# Settings (plan docs/plans/2026-11-19-winui-3.md decision 6, the prototype's PAGES.settings), in place of the title
+# bar's options menu and the About page: Appearance (App theme, Accent colour, Animation effects), Settings files
+# (Import, Export), Recovery (System Restore, Logs) and About (the version and the update check, the links, the
+# credits from UI\About.psd1). The update check runs in the background on every launch: an update found while the user
+# is still on Home asks right away ("Update now / Later"); Home shows it in an InfoBar until it is dismissed.
+# Dot-sourced by Akari.ps1 after UI\CataloguePage.ps1.
 
 $script:UpdateStatus = $null
 $script:UpdateChecking = $false
+# Settings › About's data: links, credits, license (UI\About.psd1)
+$script:AboutData = Import-PowerShellDataFile "$Root\UI\About.psd1"
 
-$UpdateOpen.Add_Click({ Select-AkariPage 'About' })
-# the status bar's "AkariOS <version>" opens About
-$AppVersion.Add_Click({ Select-AkariPage 'About' })
+function Open-AkariLogFolder { $f = Split-Path $AkariLogFile; if (Test-Path $f) { Start-Process explorer.exe $f } }
 
-function Show-AkariAbout {
-    $StepDots.Children.Clear()
-    Set-AkariStepHeader 'About' $Pages['About'].Sub
-    $StepBack.Visibility = 'Visible'
-    $StepNext.Visibility = 'Collapsed'
+# a text link (Link style: AccText, underlined on hover) that opens $Url in the browser
+function New-AkariLink([string]$Text, [string]$Url) {
+    $b = [Windows.Controls.Button]::new()
+    $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Link')
+    $b.Content = $Text
+    $b.Tag = $Url
+    $b.ToolTip = $Url
+    $b.HorizontalAlignment = 'Left'
+    if ($Url) { $b.Add_Click({ param($s, $e) Start-Process ([string]$s.Tag) }) }
+    $b
+}
+
+$AkariThemeLabels = [ordered]@{ Light = 'Light'; Dark = 'Dark'; System = 'Use system setting' }
+$AkariAccentLabels = [ordered]@{ Akari = 'Akari crimson'; Windows = 'Windows accent' }
+
+function Show-AkariSettings {
+    Set-AkariHeader @('Settings')
     $p = @{}
-    $card = [Windows.Controls.Border]::new()
-    $card.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
-    $sp = [Windows.Controls.StackPanel]::new()
-    $p.Version = New-AkariText "AkariOS $AkariVersion" 20
-    $p.Version.FontWeight = 'SemiBold'
-    Set-AkariFont $p.Version 'Display'
-    $p.Status = New-AkariText '' 13 'Mu'
-    $p.Status.Margin = [Windows.Thickness]::new(0, 4, 0, 12)
-    $bar = [Windows.Controls.StackPanel]::new()
-    $bar.Orientation = 'Horizontal'
+    [void]$StepBody.Children.Add((New-AkariSection 'Appearance' -First))
+    # App theme: an expander with Light / Dark / Use system setting radios (a quick cross-fade on switch)
+    $ex = New-AkariExpander 'sun-moon' 'App theme' 'Select which app theme to display' $true
+    $radios = [Windows.Controls.StackPanel]::new()
+    $radios.Margin = [Windows.Thickness]::new(0, 4, 0, 4)
+    foreach ($k in $AkariThemeLabels.Keys) {
+        $r = [Windows.Controls.RadioButton]::new()
+        $r.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Radio')
+        $r.GroupName = 'theme'; $r.Content = $AkariThemeLabels[$k]; $r.Tag = $k
+        $r.IsChecked = ($k -eq $script:ThemeSetting)
+        $r.Add_Checked({ param($s, $e) if ([string]$s.Tag -ne $script:ThemeSetting) { Switch-AkariTheme ([string]$s.Tag) } })
+        [void]$radios.Children.Add($r)
+    }
+    [void]$ex.Body.Children.Add((New-AkariExpanderRow $radios))
+    $p.Theme = $radios
+    [void]$StepBody.Children.Add($ex.Card)
+    # Accent colour, Animation effects
+    $acc = [Windows.Controls.ComboBox]::new()
+    $acc.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Combo')
+    $acc.MinWidth = 200
+    foreach ($k in $AkariAccentLabels.Keys) { $it = [Windows.Controls.ComboBoxItem]::new(); $it.Content = $AkariAccentLabels[$k]; $it.Tag = $k; [void]$acc.Items.Add($it); if ($k -eq (Get-AkariAccentSetting)) { $acc.SelectedItem = $it } }
+    $acc.Add_SelectionChanged({ param($s, $e) if ($s.SelectedItem) { Save-AkariSetting 'Accent' ([string]$s.SelectedItem.Tag); Set-AkariTheme $script:ThemeSetting } })
+    $p.Accent = $acc
+    $c1 = New-AkariSettingsCard 'palette' 'Accent colour' 'Akari crimson, or your Windows accent' $acc
+    $anim = [Windows.Controls.Primitives.ToggleButton]::new()
+    $anim.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Switch')
+    $anim.IsChecked = ([string](Read-AkariSettings).Animations -ne 'Off')
+    $anim.Add_Click({
+        param($s, $e)
+        $on = ($s.IsChecked -eq $true)
+        Save-AkariSetting 'Animations' $(if ($on) { 'On' } else { 'Off' })
+        # code-driven motion follows at once; the controls' own transitions with the next launch
+        $script:AkariMotionOn = $on -and (Test-AkariMotionOn)
+    })
+    $p.Animations = $anim
+    $c2 = New-AkariSettingsCard 'sparkle' 'Animation effects' 'Follows Windows; turn it off here for AkariOS only' $anim
+    $st = [Windows.Controls.StackPanel]::new(); $st.Margin = [Windows.Thickness]::new(0, 0, 0, 0)
+    [void]$st.Children.Add($c1.Card); [void]$st.Children.Add($c2.Card)
+    [void]$StepBody.Children.Add($st)
+    # Settings files
+    [void]$StepBody.Children.Add((New-AkariSection 'Settings files'))
+    $st = [Windows.Controls.StackPanel]::new()
+    foreach ($x in @(
+        @('file-input', 'Import settings', 'Load choices you saved on another PC into Guided', { Start-AkariImport }),
+        @('file-output', 'Export settings', 'Save your current choices to a file', { Start-AkariExport }))) {
+        $c = New-AkariSettingsCard $x[0] $x[1] $x[2] (New-AkariIcon 'chevron-right' 12 'Mu') 'CardButton'
+        $c.Card.Add_Click($x[3])
+        [void]$st.Children.Add($c.Card)
+    }
+    [void]$StepBody.Children.Add($st)
+    # Recovery
+    [void]$StepBody.Children.Add((New-AkariSection 'Recovery'))
+    $st = [Windows.Controls.StackPanel]::new()
+    foreach ($x in @(
+        @('arrow-reset', 'System Restore', "Open Windows' restore points", { Start-Process "$env:SystemRoot\System32\rstrui.exe" }),
+        @('document', 'Logs', 'Open the folder with akari.log', { Open-AkariLogFolder }))) {
+        $c = New-AkariSettingsCard $x[0] $x[1] $x[2] (New-AkariIcon 'external-link' 12 'Mu') 'CardButton'
+        $c.Card.Add_Click($x[3])
+        [void]$st.Children.Add($c.Card)
+    }
+    [void]$StepBody.Children.Add($st)
+    # About: the version, the update check, then the links and the credits
+    [void]$StepBody.Children.Add((New-AkariSection 'About'))
+    $d = $script:AboutData
+    $p.Status = [Windows.Controls.StackPanel]::new(); $p.Status.Orientation = 'Horizontal'; $p.Status.VerticalAlignment = 'Center'; $p.Status.Margin = [Windows.Thickness]::new(0, 0, 12, 0)
     $p.Update = [Windows.Controls.Button]::new()
     $p.Update.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Accent')
     $p.Update.Content = 'Update now'
@@ -34,207 +103,64 @@ function Show-AkariAbout {
     $p.Check = [Windows.Controls.Button]::new()
     $p.Check.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Btn')
     $p.Check.Content = 'Check for updates'
-    $p.Check.Margin = [Windows.Thickness]::new(0, 0, 8, 0)
+    $p.Check.Margin = [Windows.Thickness]::new(0, 0, 4, 0)
     $p.Check.Add_Click({ Start-AkariUpdateCheck $true })
-    $p.GitHub = [Windows.Controls.Button]::new()
-    $p.GitHub.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Btn')
-    $p.GitHub.Content = 'Open on GitHub'
-    $p.GitHub.Add_Click({
-        $u = if ($script:UpdateStatus -and $script:UpdateStatus.Release.PageUrl) { $script:UpdateStatus.Release.PageUrl } else { "https://github.com/$AkariRepo/releases" }
-        Start-Process $u
-    })
-    foreach ($b in $p.Update, $p.Check, $p.GitHub) { [void]$bar.Children.Add($b) }
-    # the release notes, as plain text
-    $p.NotesHead = New-AkariText "What's new" 14
-    $p.NotesHead.FontWeight = 'SemiBold'
-    Set-AkariFont $p.NotesHead 'Display'
-    $p.NotesHead.Margin = [Windows.Thickness]::new(0, 16, 0, 6)
-    $p.Notes = New-AkariText '' 13 'Mu'
-    foreach ($x in $p.Version, $p.Status, $bar, $p.NotesHead, $p.Notes) { [void]$sp.Children.Add($x) }
-    $card.Child = $sp
-    $d = $script:AboutData
-    # links: a button each (hidden until it has a URL), then the log folder (for whoever is helping)
-    $links = New-AkariAboutCard 'Links'
+    $ex = New-AkariExpander 'info' "AkariOS $AkariVersion" ([string]$d.License.Text) $false @($p.Status, $p.Update, $p.Check)
+    $p.Version = $ex.Title
+    # the links: GitHub, Report a bug, Discord (hidden while their Url is empty), View license, Full credits
     $p.Links = [Windows.Controls.WrapPanel]::new()
-    foreach ($l in $d.Links) {
-        $b = New-AkariAboutButton $l.Name $l.Url
+    $p.Links.Margin = [Windows.Thickness]::new(0, 6, 0, 4)
+    foreach ($l in @($d.Links) + @(@{ Name = 'View license'; Url = $d.License.Url }, @{ Name = 'Full credits'; Url = $d.FullCredits })) {
+        $b = New-AkariLink $l.Name $l.Url
+        $b.Margin = [Windows.Thickness]::new(0, 0, 16, 0)
         $b.Visibility = if ($l.Url) { 'Visible' } else { 'Collapsed' }
         [void]$p.Links.Children.Add($b)
     }
-    $log = New-AkariAboutButton 'Open log folder' ''
-    $log.Add_Click({ Open-AkariLogFolder })
-    [void]$p.Links.Children.Add($log)
-    [void]$links.Body.Children.Add($p.Links)
-    # credits: the name (a link to the project), what it gave AkariOS
-    $credits = New-AkariAboutCard 'Credits'
-    $p.Credits = [Windows.Controls.StackPanel]::new()
+    [void]$ex.Body.Children.Add((New-AkariExpanderRow $p.Links))
+    # what's new, when the check found a release
+    $p.Notes = New-AkariText '' 12 'Mu'
+    $nh = [Windows.Controls.StackPanel]::new()
+    [void]$nh.Children.Add((New-AkariText "What's new" 14 'Tx' 'SemiBold'))
+    [void]$nh.Children.Add($p.Notes)
+    $p.NotesRow = New-AkariExpanderRow $nh
+    [void]$ex.Body.Children.Add($p.NotesRow)
+    # the credits: the name (a link), what it gave AkariOS
+    $p.Credits = [Collections.Generic.List[object]]::new()
     foreach ($c in $d.Credits) {
-        $row = [Windows.Controls.Grid]::new()
-        $row.Margin = [Windows.Thickness]::new(0, 0, 0, 6)
-        foreach ($w in 220, -1) {
-            $cd = [Windows.Controls.ColumnDefinition]::new()
-            $cd.Width = if ($w -eq -1) { [Windows.GridLength]::new(1, 'Star') } else { [Windows.GridLength]::new($w) }
-            [void]$row.ColumnDefinitions.Add($cd)
-        }
-        $n = New-AkariLink $c.Name $c.Url
-        $n.FontWeight = 'SemiBold'; $n.VerticalAlignment = 'Center'
-        $t = New-AkariText $c.Text 13 'Mu'
-        $t.VerticalAlignment = 'Center'
-        [Windows.Controls.Grid]::SetColumn($t, 1)
-        foreach ($x in $n, $t) { [void]$row.Children.Add($x) }
-        [void]$p.Credits.Children.Add($row)
+        $t = [Windows.Controls.StackPanel]::new()
+        [void]$t.Children.Add((New-AkariLink $c.Name $c.Url))
+        [void]$t.Children.Add((New-AkariText $c.Text 12 'Mu'))
+        $row = New-AkariExpanderRow $t
+        $p.Credits.Add($row)
+        [void]$ex.Body.Children.Add($row)
     }
-    [void]$credits.Body.Children.Add($p.Credits)
-    $full = New-AkariAboutButton 'Full credits' $d.FullCredits
-    $full.HorizontalAlignment = 'Left'
-    $full.Margin = [Windows.Thickness]::new(0, 6, 0, 0)
-    [void]$credits.Body.Children.Add($full)
-    # license: one line, "View license" right after it
-    $lic = New-AkariAboutCard 'License'
-    $lp = [Windows.Controls.StackPanel]::new()
-    $lp.Orientation = 'Horizontal'
-    $p.License = New-AkariText $d.License.Text 13 'Mu'
-    $p.License.VerticalAlignment = 'Center'
-    $view = New-AkariAboutButton 'View license' $d.License.Url
-    $view.Margin = [Windows.Thickness]::new(12, 0, 0, 0)
-    [void]$lp.Children.Add($p.License); [void]$lp.Children.Add($view)
-    [void]$lic.Body.Children.Add($lp)
+    $p.License = $ex.Desc
+    [void]$StepBody.Children.Add($ex.Card)
     $script:AboutParts = $p
     Update-AkariAboutUpdate
-    $StepBody.Children.Clear()
-    $card.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
-    # one readable column on the left: a grid column that fills the page up to 800 px, so every card has the same width
-    $p.Column = [Windows.Controls.Grid]::new()
-    $cd = [Windows.Controls.ColumnDefinition]::new()
-    $cd.Width = [Windows.GridLength]::new(1, 'Star')
-    $cd.MaxWidth = 800
-    [void]$p.Column.ColumnDefinitions.Add($cd)
-    $stack = [Windows.Controls.StackPanel]::new()
-    foreach ($x in $card, $links.Card, $credits.Card, $lic.Card) { [void]$stack.Children.Add($x) }
-    [void]$p.Column.Children.Add($stack)
-    [void]$StepBody.Children.Add($p.Column)
 }
 
-# the About page's data: links, credits, license (UI\About.psd1)
-$script:AboutData = Import-PowerShellDataFile "$Root\UI\About.psd1"
-
-# an About card with a title: @{ Card; Body }
-function New-AkariAboutCard([string]$Title) {
-    $c = [Windows.Controls.Border]::new()
-    $c.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
-    $c.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
-    $sp = [Windows.Controls.StackPanel]::new()
-    $h = New-AkariText $Title 20
-    $h.FontWeight = 'SemiBold'
-    Set-AkariFont $h 'Display'
-    $h.Margin = [Windows.Thickness]::new(0, 0, 0, 10)
-    [void]$sp.Children.Add($h)
-    $c.Child = $sp
-    @{ Card = $c; Body = $sp }
-}
-
-# a button that opens $Url in the browser (no Url: the caller adds its own click)
-function New-AkariAboutButton([string]$Text, [string]$Url) {
-    $b = [Windows.Controls.Button]::new()
-    $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Btn')
-    $b.Content = $Text
-    $b.Margin = [Windows.Thickness]::new(0, 0, 8, 0)
-    if ($Url) { $b.Tag = $Url; $b.Add_Click({ param($s, $e) Start-Process ([string]$s.Tag) }) }
-    $b
-}
-
-function Open-AkariLogFolder { $f = Split-Path $AkariLogFile; if (Test-Path $f) { Start-Process explorer.exe $f } }
-
-# a title bar menu row: an icon (in the row's text colour) and a label; no $Click = greyed out, "coming in a
-# later version"
-function New-AkariMenuItem([string]$Header, [string]$Icon, [scriptblock]$Click) {
-    $it = [Windows.Controls.MenuItem]::new()
-    $it.Header = $Header
-    # the menu opens in a popup, outside the window's tree, where the icon found neither its shape nor its colour:
-    # both are set here, from the window's resources and from the row
-    $ic = New-AkariIcon $Icon 16
-    $p = $ic.Child.Children[0]
-    $p.Data = $window.FindResource("Ic.$Icon")
-    $bd = [Windows.Data.Binding]::new('Foreground')
-    $bd.Source = $it
-    [void][Windows.Data.BindingOperations]::SetBinding($p, [Windows.Shapes.Shape]::FillProperty, $bd)
-    $it.Icon = $ic
-    if ($Click) { $it.Add_Click($Click) }
-    else {
-        $it.IsEnabled = $false
-        $it.ToolTip = 'Coming in a later version'
-        [Windows.Controls.ToolTipService]::SetShowOnDisabled($it, $true)
-    }
-    $it
-}
-
-# the title bar's options menu (after Win11Debloat's): settings files (M5), System Restore, the theme, then the About links,
-# the log folder and About
-# (links with no Url are left out, as on About)
-$MainMenu = [Windows.Controls.ContextMenu]::new()
-# 220 px wide plus the 12 px shadow margin on each side (MainWindow.xaml), so it can be right-aligned when it opens
-$MainMenu.Width = 244
-$MenuBtn.ContextMenu = $MainMenu
-$items = [Collections.Generic.List[object]]::new()
-$items.Add((New-AkariMenuItem 'Import settings' 'file-input' { Start-AkariImport }))
-$items.Add((New-AkariMenuItem 'Export settings' 'file-output' { Start-AkariExport }))
-$items.Add((New-AkariMenuItem 'System Restore' 'history' { Start-Process "$env:SystemRoot\System32\rstrui.exe" }))
-# Theme: Follow Windows -> Dark -> Light -> ..., applied at once and kept in settings.json (Set-AkariTheme, UI\Shell.ps1)
-$AkariThemeLabels = @{ System = 'Theme: Follow Windows'; Dark = 'Theme: Dark'; Light = 'Theme: Light' }
-$items.Add((New-AkariMenuItem $AkariThemeLabels[$script:ThemeSetting] 'sun-moon' {
-    param($s, $e)
-    $next = $AkariThemes[([array]::IndexOf($AkariThemes, $script:ThemeSetting) + 1) % $AkariThemes.Count]
-    Set-AkariTheme $next -Save
-    $s.Header = $AkariThemeLabels[$next]
-}))
-$items.Add([Windows.Controls.Separator]::new())
-$glyphs = @{ 'GitHub' = 'github'; 'Report a bug' = 'bug'; 'Discord' = 'message-circle' }
-foreach ($l in @($script:AboutData.Links | Where-Object { $_.Url })) {
-    $g = if ($glyphs[$l.Name]) { $glyphs[$l.Name] } else { 'external-link' }
-    $it = New-AkariMenuItem $l.Name $g { param($s, $e) Start-Process ([string]$s.Tag) }
-    $it.Tag = $l.Url
-    $items.Add($it)
-}
-$items.Add((New-AkariMenuItem 'Logs' 'folder-open' { Open-AkariLogFolder }))
-$items.Add((New-AkariMenuItem 'About' 'info' { Select-AkariPage 'About' }))
-foreach ($it in $items) { [void]$MainMenu.Items.Add($it) }
-# opens under the caption buttons, its right edge 4 px in from the window's
-$MenuBtn.Add_Click({
-    $caps = $MenuBtn.Parent
-    $MainMenu.PlacementTarget = $caps
-    $MainMenu.Placement = 'Bottom'
-    $MainMenu.HorizontalOffset = $caps.ActualWidth - $MainMenu.Width + 12 - 4
-    $MainMenu.VerticalOffset = -12 + 4
-    $MainMenu.IsOpen = $true
-})
-
-# a text link that opens $Url in the browser (white, underlined on hover)
-function New-AkariLink([string]$Text, [string]$Url) {
-    $tb = New-AkariText '' 13
-    $h = [Windows.Documents.Hyperlink]::new([Windows.Documents.Run]::new($Text))
-    $h.NavigateUri = [Uri]$Url
-    $h.ToolTip = $Url
-    $h.SetResourceReference([Windows.Documents.TextElement]::ForegroundProperty, 'Tx')
-    $h.TextDecorations = $null
-    $h.Add_MouseEnter({ param($s, $e) $s.TextDecorations = [Windows.TextDecorations]::Underline })
-    $h.Add_MouseLeave({ param($s, $e) $s.TextDecorations = $null })
-    $h.Add_RequestNavigate({ param($s, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true })
-    [void]$tb.Inlines.Add($h)
-    $tb
-}
-
-# the About page's update part, from the last check
+# Settings › About's update part, from the last check: "Checking..." with a ring, then the result
 function Update-AkariAboutUpdate {
     $p = $script:AboutParts
     if (-not $p) { return }
     $s = $script:UpdateStatus
-    $p.Status.Text = if ($script:UpdateChecking) { 'Checking for updates' + [char]0x2026 } elseif ($s) { $s.Message } else { 'Not checked yet.' }
+    $p.Status.Children.Clear()
+    if ($script:UpdateChecking) {
+        [void]$p.Status.Children.Add((New-AkariRing 16))
+        $t = New-AkariText ('Checking' + [char]0x2026) 12 'Mu'; $t.Margin = [Windows.Thickness]::new(8, 0, 0, 0)
+        [void]$p.Status.Children.Add($t)
+    } else {
+        $msg = if ($s) { $s.Message } else { 'Not checked yet' }
+        $t = New-AkariText $msg 12 $(if ($s -and $s.Kind -eq 'Available') { 'AccText' } elseif ($s -and $s.Kind -eq 'Error') { 'Bad' } else { 'Mu' })
+        $t.MaxWidth = 280; $t.TextTrimming = 'CharacterEllipsis'; $t.TextWrapping = 'NoWrap'; $t.ToolTip = $msg
+        [void]$p.Status.Children.Add($t)
+    }
     $p.Check.IsEnabled = -not $script:UpdateChecking
     $p.Update.Visibility = if ($s -and $s.Kind -eq 'Available') { 'Visible' } else { 'Collapsed' }
     $notes = if ($s -and $s.Kind -in 'Available', 'Blocked', 'Latest' -and $s.Release.Notes) { ConvertTo-AkariNotesText $s.Release.Notes } else { '' }
     $p.Notes.Text = $notes
-    $p.Notes.Visibility = if ($notes) { 'Visible' } else { 'Collapsed' }
-    $p.NotesHead.Visibility = $p.Notes.Visibility
+    $p.NotesRow.Visibility = if ($notes) { 'Visible' } else { 'Collapsed' }
 }
 
 # reads the latest release in a background runspace; $Manual = the Check button (the launch check only logs failures)
@@ -263,16 +189,15 @@ function Start-AkariUpdateCheck([bool]$Manual) {
     $t.Start()
 }
 
-# the check is done: remember it, show it on Home and About, and on launch ask while the user is still on Home
+# the check is done: remember it, show it on Home (its InfoBar) and in Settings, and on launch ask while the user is
+# still on Home
 function Complete-AkariUpdateCheck($Release, [bool]$Manual) {
     $script:UpdateChecking = $false
     $s = Get-AkariUpdateStatus $AkariVersion $Release $AkariInstallDir ([bool]($script:Busy -or $script:Job))
     $script:UpdateStatus = $s
     Add-Log "Update check: $($s.Message)"
-    $found = $s.Kind -in 'Available', 'Blocked'
-    $UpdateText.Text = $s.Message
-    if ($found) { Show-AkariElement $UpdateBar } else { $UpdateBar.Visibility = 'Collapsed' }
-    if ($script:Cat -eq 'About') { Update-AkariAboutUpdate }
+    if ($script:Cat -eq 'Settings') { Update-AkariAboutUpdate }
+    if ($script:Cat -eq 'Home' -and $s.Kind -in 'Available', 'Blocked' -and -not $script:UpdateDismissed) { $script:PageMotionKey = ''; Show-Page }
     if (-not $Manual -and $s.Kind -eq 'Available' -and $script:Cat -eq 'Home' -and -not $Search.Text) { Show-AkariUpdatePrompt $s }
 }
 

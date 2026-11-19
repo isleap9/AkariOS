@@ -1,4 +1,4 @@
-﻿# The About page's links, credits and license (UI\About.ps1). CREDITS.md keeps the full per-Tweak list.
+﻿# Settings › About's links, credits and license (UI\About.ps1). CREDITS.md keeps the full per-Tweak list.
 # A link with an empty Url is hidden until it gets one. Saved as UTF-8 with BOM (PowerShell 5.1 reads · and © right).
 @{
     Links = @(

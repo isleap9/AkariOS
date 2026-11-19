@@ -18,12 +18,12 @@ public static class Parts
         return t;
     }
 
-    /// <summary>A heading in FontDisplay (Segoe UI Variable Display); font: another font key.</summary>
-    public static TextBlock Title(string text, double size = 20, FontWeight? weight = null, string font = "FontDisplay")
+    /// <summary>A heading in Unbounded (Display).</summary>
+    public static TextBlock Title(string text, double size = 20, FontWeight? weight = null)
     {
         var t = Text(text, size);
         t.FontWeight = weight ?? FontWeights.SemiBold;
-        t.SetResourceReference(TextElement.FontFamilyProperty, font);
+        t.SetResourceReference(TextElement.FontFamilyProperty, "FontDisplay");
         return t;
     }
 
@@ -60,7 +60,7 @@ public static class Parts
         return tb;
     }
 
-    /// <summary>A poster card (New-AkariModeCard): blob, title, text; Hot = the recommended one (an accent border).</summary>
+    /// <summary>A poster card (New-AkariModeCard): blob, title, text; Hot = the recommended one (crimson border, glow).</summary>
     public static Button ModeCard(string icon, string title, string text, bool enabled = true, bool hot = false)
     {
         var b = new Button { IsEnabled = enabled };
@@ -79,7 +79,7 @@ public static class Parts
         return b;
     }
 
-    /// <summary>A badge (New-AkariBadge): AkariOS (accent tint), Caution (amber outline), Advanced (amber fill).</summary>
+    /// <summary>A badge (New-AkariBadge): AkariOS (crimson tint), Caution (amber outline), Advanced (amber fill).</summary>
     public static Border Badge(string kind)
     {
         var (fg, bg, bd) = kind switch

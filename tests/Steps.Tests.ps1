@@ -1,4 +1,4 @@
-$Root = Join-Path (Split-Path $PSScriptRoot) 'src'
+﻿$Root = Join-Path (Split-Path $PSScriptRoot) 'src'
 
 Describe 'Get-AkariStepGroups' {
     foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
@@ -63,6 +63,7 @@ param($Root, $Key)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework
 $AkariStatePath = "$env:TEMP\akari-steps-test-state.json"
+$AkariLogFile = "$env:TEMP\akari-steps-test\akari.log"
 foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner') { . "$Root\Core\$f.ps1" }
 $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
 New-Item $Key -Force | Out-Null; New-ItemProperty $Key -Name 'O' -Value 0 -PropertyType DWord | Out-Null
@@ -78,49 +79,47 @@ $script:Tweaks = @(
     ConvertTo-AkariTweak @{ Id = 'leg'; Name = 'Leg'; Description = 'D'; Section = 'Windows'; Category = ''; Risk = 'Safe'; Apply = { }; Revert = { } } 'x' $true
 )
 $AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
-foreach ($f in 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps') { . "$Root\UI\$f.ps1" }
+$env:AKARI_MOTION = 'off'; . "$Root\UI\Motion.ps1"
+foreach ($f in 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Pages') { . "$Root\UI\$f.ps1" }
+. "$Root\..\tests\ShellStub.ps1"
 # no real AppX read in tests: no app installed, no data-list Group
-function Get-AkariAppxInstalled { @() }; function Start-AkariFeatureRead { }; $script:Groups = @()
+function Get-AkariAppxInstalled { @() }; function Get-AkariAppxPackages { @() }; function Start-AkariFeatureRead { }; $script:Groups = @()
 $res = [Windows.Controls.StackPanel]::new()
-. "$Root\UI\Motion.ps1"
+$res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Theme.Dark.xaml"))
 $res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Controls.xaml"))
 $res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Icons.xaml"))
-$StepDots = [Windows.Controls.StackPanel]::new(); $StepBody = [Windows.Controls.StackPanel]::new()
-[void]$res.Children.Add($StepDots); [void]$res.Children.Add($StepBody)
-$StepBack = [Windows.Controls.Button]::new(); $StepNext = [Windows.Controls.Button]::new()
-$Search = [Windows.Controls.TextBox]::new()
-$StepFooter = [Windows.Controls.Border]::new()
-$Heading = [Windows.Controls.TextBlock]::new(); $HeaderSub = [Windows.Controls.TextBlock]::new()
-Show-AkariSteps
-"chooser=$($StepBody.Children[0].Children.Count)"; "oneClick=$($StepBody.Children[0].Children[0].IsEnabled)"; "chooserFooter=$($StepFooter.Visibility)"; "chooserNext=$($StepNext.Visibility)"
+[void]$res.Children.Add($StepBody)
+function Click($b) { $b.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent)) }
+$script:Cat = 'Install AkariOS'; Show-Page
+$tiles = $StepBody.Children[1]
+"chooser=$($tiles.Children.Count)|$($Heading.Text)|$($StepFooter.Visibility)|$($tiles.Children[0].BorderBrush -eq $res.FindResource('Acc'))"
+"chooserParts=$(($StepBody.Children | ForEach-Object { $_.GetType().Name }) -join ',')|$($StepBody.Children[4].Tag)"
 # One-click: declined, then accepted (Start-Process and the window are stubs: nothing is launched)
-$Root = 'X:\Akari'
+$realRoot = $Root; $Root = 'X:\Akari'
 function Test-Path($p) { $true }
 function Write-ErrLog($m) { }
 function Start-Process { $script:newWindow = $true }
+function Get-AkariRestoreChoice { $false }
 $window = [pscustomobject]@{}; $window | Add-Member ScriptMethod Close { $script:closed = $true }
 function Confirm-AkariOneClick { $false }
-$StepBody.Children[0].Children[0].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
+Click $tiles.Children[0]
 "declinedLaunch=$([bool]$script:OneClickPath)"
 function Confirm-AkariOneClick { $true }
-$StepBody.Children[0].Children[0].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
+Click $tiles.Children[0]
 "launched=$script:OneClickPath"; "closed=$script:closed"; "newWindow=$([bool]$script:newWindow)"
-Remove-Item Function:\Test-Path
-function Select-AkariPage($n) { $script:went = $n }
+Remove-Item Function:\Test-Path; $Root = $realRoot
 Initialize-AkariSteps
-$StepBack.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
-"backTo=$script:went"
-$script:Cat = 'Install AkariOS'; Show-AkariSteps
-$StepBody.Children[0].Children[1].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent))
-"mode=$script:Mode"; "s0next=$($StepNext.Content)"; "s0back=$($StepBack.Visibility)"; "guidedFooter=$($StepFooter.Visibility)"
-$script:Step = 1; Show-AkariSteps
-"s1next=$($StepNext.Content)"; "s1enabled=$($StepNext.IsEnabled)"; "rows=$($script:TweakRows.Count)"; "cards=$($script:TweakCards.Count)"
-"heading=$($Heading.Text)"; "dots=$($StepDots.Children.Count)"
-"stepper=$(($StepDots.Children | ForEach-Object { $c = $_.Children[$_.Children.Count - 2]; "$($_.Tag):$(if ($c.Child -is [Windows.Controls.TextBlock]) { $c.Child.Text } else { 'check' }):$($_.Children[$_.Children.Count - 1].Text)" }) -join '|')"
+Click $tiles.Children[1]
+"mode=$script:Mode|$script:Step|$($StepFooter.Visibility)|$($StepNext.Content)|$($StepBack.Content)|$($StepLabel.Text -replace '[^ -~]', '.')|$(@($Crumbs.Children | ForEach-Object { $_.Text }) -join '>')>$($Heading.Text)"
+Click $StepNext
+"s1=$script:Step|$($StepNext.Content)|$($StepNext.IsEnabled)|$($script:TweakRows.Count)|$($script:TweakCards.Count)|$($StepLabel.Text -replace '[^ -~]', '.')|$($StepBack.Content)"
+$hdr = $StepBody.Children[0]
+"stepper=$(@($hdr.Children | Where-Object { $_ -is [Windows.Controls.StackPanel] } | ForEach-Object { $c = $_.Children[0]; "$($_.Tag):$(if ($c.Child -is [Windows.Controls.TextBlock]) { $c.Child.Text } else { 'check' }):$($_.Children[1].Text)" }) -join '|')"
 "legStart=$($script:TweakRows['leg'].Control.IsChecked)"; "optStart=$($script:TweakRows['opt'].Control.IsChecked)"
+"counts=$(($script:TweakCards | ForEach-Object { $_.Count.Text }) -join ',')"
 $script:TweakRows['tog'].Control.IsChecked = $true; Step-AkariCheck 'tog'
 $script:TweakRows['opt'].Control.IsChecked = $false; Step-AkariCheck 'opt'
-"s1after=$($StepNext.Content)"
+"s1after=$($script:Sel.Count)|$(($script:TweakCards | ForEach-Object { $_.Count.Text }) -join ',')"
 Set-AkariChoiceTarget 'ch' 0x28
 # Show current state off: every row unchecked, the Selection emptied
 $script:UseState = $false; Reset-AkariTweakRows
@@ -130,14 +129,18 @@ $script:UseState = $true; Reset-AkariTweakRows
 $script:TweakRows['tog'].Control.IsChecked = $true; Step-AkariCheck 'tog'
 $script:TweakRows['opt'].Control.IsChecked = $false; Step-AkariCheck 'opt'
 Set-AkariChoiceTarget 'ch' 0x28
-$Search.Text = 'Ch'; Set-AkariTweaksFilter 'Ch'
+Set-AkariTweaksFilter 'Ch'
 "togHidden=$($script:TweakRows['tog'].Row.Visibility)"; "togCardHidden=$($script:TweakRows['tog'].Card.Visibility)"
 Set-AkariTweaksFilter ''
-$script:Step = 2; Show-AkariSteps
-"review=$($StepBody.Children.Count)"
+Click $StepNext
+"review=$script:Step|$(($StepBody.Children | ForEach-Object { $_.GetType().Name }) -join ',')|$($StepNext.Content)|$($StepLabel.Text -replace '[^ -~]', '.')"
+"sums=$(($StepBody.Children[1].Children | ForEach-Object { $_.Child.Children[0].Text }) -join ',')"
 "plan=$((Get-AkariPlanItems $script:Sel | ForEach-Object { $_.Id + ':' + $_.Mode }) -join ',')"
-$script:Step = 1; Show-AkariSteps
-"reattached=$($StepBody.Children.Count)"
+Click $StepBack
+"reattached=$script:Step|$($StepBody.Children.Count)"
+# Back in the title bar walks the steps (the history), Cancel on Apps goes back to the chooser
+Click $StepBack; Click $StepBack
+"cancel=$script:Mode|$($StepFooter.Visibility)|$($script:History.Count -gt 0)"
 "untouched=$($null -eq (Get-AkariRegValue $Key 'T'))"; "optUntouched=$(Get-AkariRegValue $Key 'O')"
 '@
     $k = "HKCU:\Software\AkariTest\$([guid]::NewGuid())"
@@ -149,11 +152,9 @@ $script:Step = 1; Show-AkariSteps
     } finally { Remove-Item $k -Recurse -Force -ErrorAction SilentlyContinue }
 
     It 'runs without errors' { $out['error'] | Should BeNullOrEmpty }
-    It 'opens on the One-click / Guided chooser with only Back' {
-        $out.chooser | Should Be '2'
-        $out.oneClick | Should Be 'True'
-        $out.chooserFooter | Should Be 'Visible'
-        $out.chooserNext | Should Be 'Collapsed'
+    It 'opens on the chooser: One-click (recommended) and Guided tiles, the five phases, the warning; no footer' {
+        $out.chooser | Should Be '2|Install AkariOS|Collapsed|True'
+        $out.chooserParts | Should Be 'TextBlock,UniformGrid,TextBlock,Border,Border|Warn'
     }
     It 'One-click asks first; No launches nothing' { $out.declinedLaunch | Should Be 'False' }
     It 'One-click runs in Akari''s own console, no new window' { $out.newWindow | Should Be 'False' }
@@ -161,43 +162,35 @@ $script:Step = 1; Show-AkariSteps
         $out.launched | Should Match 'Presets\\AkariOS\.json'
         $out.closed | Should Be 'True'
     }
-    It 'Back on the chooser goes Home' { $out.backTo | Should Be 'Home' }
-    It 'Guided starts on Apps, with Back to the chooser' {
-        $out.mode | Should Be 'Guided'
-        $out.s0next | Should Be 'Next'
-        $out.s0back | Should Be 'Visible'
-        $out.guidedFooter | Should Be 'Visible'
+    It 'Guided starts on Apps: the footer slides up with Step 1 of 3, Cancel and Next, a breadcrumb' {
+        $out.mode | Should Be 'Guided|0|Visible|Next|Cancel|Step 1 of 3 . Apps|Install AkariOS>Guided'
     }
-    It 'shows a row per Tweak in a card per Category, and disables Review at 0 changes' {
-        $out.rows | Should Be '4'
-        $out.cards | Should Be '3'
-        $out.s1next | Should Be 'Review (0)'
-        $out.s1enabled | Should Be 'False'
-    }
-    It 'names the step in the page header; the footer stepper numbers the steps, Apps done, Tweaks current' {
-        $out.heading | Should Be 'Tweaks'
-        $out.dots | Should Be '3'
+    It 'Tweaks: a row per Tweak in an expander per Category, the step header numbers the steps, Apps done' {
+        $out.s1 | Should Be '1|Next|True|4|3|Step 2 of 3 . Tweaks|Back'
         $out.stepper | Should Be 'Done:check:Apps|Current:2:Tweaks|:3:Review & Apply'
     }
-    It 'starts an Optimized Tweak checked and an unread one unchecked' {
+    It 'starts an Optimized Tweak checked and an unread one unchecked; each expander says how many are picked' {
         $out.optStart | Should Be 'True'
         $out.legStart | Should Be 'False'
+        $out.counts | Should Be '0 of 2,0 of 1,0 of 1'
+        $out.s1after | Should Be '2|2 of 2,0 of 1,0 of 1'
     }
-    It 'counts checking one box and unchecking an Optimized one' { $out.s1after | Should Be 'Review (2)' }
     It 'Show current state off starts every row unchecked and empties the Selection' {
         $out.plainOpt | Should Be 'False'
         $out.plainSel | Should Be '0'
         $out.backOpt | Should Be 'True'
     }
-    It 'filters rows by search and hides emptied cards' {
+    It 'filters rows by search and hides emptied expanders' {
         $out.togHidden | Should Be 'Collapsed'
         $out.togCardHidden | Should Be 'Collapsed'
     }
-    It 'reviews the changes and plans them in order: Apply, Revert, Choice' {
-        $out.review | Should Be '3'
+    It 'Review: three summary cards and the changes, Apply n changes; planned in order: Apply, Revert, Choice' {
+        $out.review | Should Be '2|StackPanel,UniformGrid,Border,Border,Border|Apply 3 changes|Step 3 of 3 . Review & Apply'
+        $out.sums | Should Be '0,0,3'
         $out.plan | Should Be 'tog:Apply,opt:Revert,ch:Apply'
     }
-    It 'shows the cached Tweaks view again after Review' { $out.reattached | Should Be '1' }
+    It 'shows the cached Tweaks view again after Review' { $out.reattached | Should Be '1|2' }
+    It 'Cancel on Apps goes back to the chooser' { $out.cancel | Should Be 'Choose|Collapsed|True' }
     It 'changes nothing while choosing' {
         $out.untouched | Should Be 'True'
         $out.optUntouched | Should Be '0'
@@ -267,23 +260,26 @@ param($Root)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework
 $AkariStatePath = "$env:TEMP\akari-apply-test-state.json"
+$AkariLogFile = "$env:TEMP\akari-apply-test\akari.log"
 foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner') { . "$Root\Core\$f.ps1" }
 $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
 $fake = ConvertTo-AkariTweak @{ Id = 'zz-fake-id'; Name = 'Fake'; Description = 'D'; Section = 'Optimize'; Category = 'Gaming'; Risk = 'Safe'; Apply = { }; Revert = { } } 'x' $false
 $script:Tweaks = @($fake)
 $AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
-foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps') { . "$Root\UI\$f.ps1" }
+$env:AKARI_MOTION = 'off'; . "$Root\UI\Motion.ps1"
+foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps', 'Pages') { . "$Root\UI\$f.ps1" }
+. "$Root\..\tests\ShellStub.ps1"
 # no real AppX read in tests: no app installed, no data-list Group
-function Get-AkariAppxInstalled { @() }; function Start-AkariFeatureRead { }; $script:Groups = @()
+function Get-AkariAppxInstalled { @() }; function Get-AkariAppxPackages { @() }; function Start-AkariFeatureRead { }; $script:Groups = @()
 $script:Busy = $false; $script:Queue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
 function Set-Busy($b, $l) { $script:Busy = $b }
 function Add-Log($m) { }
 $res = [Windows.Controls.StackPanel]::new()
-. "$Root\UI\Motion.ps1"
+$res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Theme.Dark.xaml"))
 $res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Controls.xaml"))
-$StepDots = [Windows.Controls.StackPanel]::new(); $StepBody = [Windows.Controls.StackPanel]::new()
-[void]$res.Children.Add($StepDots); [void]$res.Children.Add($StepBody)
-$StepBack = [Windows.Controls.Button]::new(); $StepNext = [Windows.Controls.Button]::new(); $Search = [Windows.Controls.TextBox]::new()
+$res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Icons.xaml"))
+[void]$res.Children.Add($StepBody)
+$script:Cat = 'Install AkariOS'
 
 # restore point failed and the user says No: nothing runs, Review stays
 function Confirm-AkariNoRestore($m) { $script:asked = $m; $false }
@@ -292,27 +288,29 @@ $script:Mode = 'Guided'; $script:Step = 2
 Complete-AkariApply ([hashtable]::Synchronized(@{ Restore = [pscustomobject]@{ Ok = $false; Message = 'protection off' } }))
 "asked=$script:asked"; "stayed=$script:Step"; "restoreDone=$script:RestoreDone"
 
-# the real job, restore point skipped, plan = one fake id
+# the real job, restore point skipped, plan = one fake id: the run page shows its row
 $script:RestoreDone = $true
 Start-AkariApply
 "busy=$script:Busy"; "kind=$($script:Job.Kind)"
+"run=$script:Step|$script:Running|$($Heading.Text)|$(@($script:RunItems).Count)|$($script:RunItems[0].Name)|$($script:RunItems[0].Status.Children[-1].Text)"
+Update-AkariRunPage @{ Total = 1; Done = 0; Step = 'Fake' }
+"working=$($script:RunItems[0].State)|$($script:RunLabel.Text -replace '[^ -~]', '.')"
 "ended=$($script:Job.Handle.AsyncWaitHandle.WaitOne(60000))"
 $script:Job.Ps.EndInvoke($script:Job.Handle); $script:Job.Ps.Dispose(); $script:Job.Rs.Dispose()
 Complete-AkariApply $script:Job.Shared
-"step=$script:Step"; "outcome=$($script:Outcomes[0].Outcome)"; "msg=$($script:Outcomes[0].Message)"
-Show-AkariSteps
-"resultCards=$($StepBody.Children.Count)"; "next=$($StepNext.Content)"
-function Select-AkariPage($n) { $script:went = $n }
+"step=$script:Step"; "outcome=$($script:Outcomes[0].Outcome)"; "msg=$($script:Outcomes[0].Message)"; "toast=$($script:Toasts[-1][0])"
+Show-Page
+"result=$($Heading.Text)|$($StepBody.Children[0].Tag)|$($StepBody.Children.Count)|$($StepBody.Children[$StepBody.Children.Count - 1].Children[0].Content)"
 Reset-AkariSteps
 "afterDone=$script:went,$script:Mode,$script:Step"; "selCount=$($script:Sel.Count)"; "appsCache=$($null -eq $script:AppsView)"
-# Last used: only a Guided Run saves it (Remove apps and Downloads leave it alone)
-function Save-AkariLastUsed($plan) { $script:saved += ,$script:Mode }
+# Last used: only a Guided Run saves it (Remove apps leaves it alone)
+function Save-AkariLastUsed($plan) { $script:saved += , $script:Mode }
 $script:saved = @()
-foreach ($m in 'Downloads', 'Remove apps', 'Guided') {
-    $script:Mode = $m
-    Complete-AkariApply ([hashtable]::Synchronized(@{ Plan = @(@{ Id = 'zz-fake-id'; Mode = 'Apply' }); Outcomes = @([pscustomobject]@{ Id = 'zz-fake-id'; Outcome = 'Applied' }) }))
-}
+$script:Mode = 'Guided'
+Complete-AkariApply ([hashtable]::Synchronized(@{ Plan = @(@{ Id = 'zz-fake-id'; Mode = 'Apply' }); Outcomes = @([pscustomobject]@{ Id = 'zz-fake-id'; Outcome = 'Applied' }) })) 'Remove'
+Complete-AkariApply ([hashtable]::Synchronized(@{ Plan = @(@{ Id = 'zz-fake-id'; Mode = 'Apply' }); Outcomes = @([pscustomobject]@{ Id = 'zz-fake-id'; Outcome = 'Applied' }) }))
 "lastUsed=$($script:saved -join ',')"
+"activity=$(($script:Activity | ForEach-Object { $_[0] }) -join ',')"
 '@
     $out = @{}
     & powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root 2>&1 | ForEach-Object {
@@ -325,24 +323,29 @@ foreach ($m in 'Downloads', 'Remove apps', 'Guided') {
         $out.stayed | Should Be '2'
         $out.restoreDone | Should Be 'False'
     }
-    It 'starts one Apply job' {
+    It 'starts one Apply job and shows the run page, a row per change, Waiting then Working' {
         $out.busy | Should Be 'True'
         $out.kind | Should Be 'Apply'
+        $out.run | Should Be '3|True|Applying|1|Fake|Waiting'
+        $out.working | Should Be 'run|Fake.'
         $out.ended | Should Be 'True'
     }
-    It 'shows the Outcomes from the job' {
+    It 'shows the result: the InfoBar, the cards, what needs attention, Done' {
         $out.step | Should Be '3'
         $out.outcome | Should Be 'Failed'
         $out.msg | Should Be 'Unknown tweak id'
-        $out.resultCards | Should Be '2'
-        $out.next | Should Be 'Done'
+        $out.toast | Should Be 'All done'
+        $out.result | Should Be 'Done|Ok|5|Done'
     }
     It 'Done clears the Selection and goes back Home, with Install AkariOS back on its chooser' {
         $out.afterDone | Should Be 'Home,Choose,0'
         $out.selCount | Should Be '0'
         $out.appsCache | Should Be 'True'
     }
-    It 'saves Last used for a Guided Run only' { $out.lastUsed | Should Be 'Guided' }
+    It 'saves Last used for a Guided Run only, and records each Run in Recent activity' {
+        $out.lastUsed | Should Be 'Guided'
+        $out.activity | Should Be 'Guided run,Removed 1 app,Guided run'
+    }
 }
 
 Describe 'Get-AkariFlowStep' {
@@ -353,18 +356,10 @@ Describe 'Get-AkariFlowStep' {
     It 'walks Guided through Apps, Tweaks, Review' {
         Get-AkariFlowStep 'Guided' 0 1 | Should Be 1
         Get-AkariFlowStep 'Guided' 1 1 | Should Be 2
+        Get-AkariFlowStep 'Guided' 2 1 | Should BeNullOrEmpty
         Get-AkariFlowStep 'Guided' 0 -1 | Should BeNullOrEmpty
     }
-    It 'walks Downloads from the apps straight to Review' {
-        Get-AkariFlowStep 'Downloads' 0 1 | Should Be 2
-        Get-AkariFlowStep 'Downloads' 2 -1 | Should Be 0
-        Get-AkariFlowStep 'Downloads' 0 -1 | Should BeNullOrEmpty
-    }
-    It 'walks Remove apps from the apps straight to Review' {
-        Get-AkariFlowStep 'Remove apps' 0 1 | Should Be 2
-        Get-AkariFlowStep 'Remove apps' 2 -1 | Should Be 0
-        Get-AkariFlowStep 'Remove apps' 0 -1 | Should BeNullOrEmpty
-    }
+    It 'has no apps flows: Downloads and Remove apps are pages of their own' { @($AkariFlows.Keys) -join ',' | Should Be 'Guided' }
 }
 
 Describe 'Optimize Legacy pages' {
@@ -386,15 +381,6 @@ Describe 'Optimize Legacy pages' {
     }
     It 'searches legacy tweaks only' {
         (Get-AkariLegacyList $list 'Check' 'theme' | ForEach-Object { $_.Id }) -join ',' | Should Be 'dark'
-    }
-    It 'Downloads exits to the Legacy page it was opened from, else Home' {
-        Set-AkariFlowExit 'Graphics'; $script:FlowExit | Should Be 'Graphics'
-        Set-AkariFlowExit 'Home'; $script:FlowExit | Should Be 'Home'
-        Set-AkariFlowExit 'Optimize'; $script:FlowExit | Should Be 'Home'
-    }
-    It 'an apps flow opened from a Catalogue page exits back to that page' {
-        Set-AkariFlowExit 'Catalogue:Tools/Check'; $script:FlowExit | Should Be 'Catalogue:Tools/Check'
-        Set-AkariFlowExit 'Remove apps'; $script:FlowExit | Should Be 'Home'
     }
 }
 
@@ -449,10 +435,10 @@ Describe 'App icons' {
         Get-AkariAppIconFile @{ Id = 'install-test' } $null $dir | Should Be "$dir\install-test.png"
     }
     It 'finds a black-or-white logo''s mask' { Get-AkariAppIconFile @{ Id = 'install-black' } @{} $dir | Should Be "$dir\install-black.mono.png" }
-    It 'else none (the row shows a Fluent icon)' { Get-AkariAppIconFile @{ Id = 'install-other'; Package = 'Akari.Other' } @{} $dir | Should Be $null }
+    It 'else none (the row shows the box placeholder)' { Get-AkariAppIconFile @{ Id = 'install-other'; Package = 'Akari.Other' } @{} $dir | Should Be $null }
 
     # build\AppIcons.ps1 makes them: run it after adding an app. More Clock Tool, the braille driver and six of
-    # winutil's apps (lazygit, fnm, JPEGView, K-Lite, Policy Plus, PuTTY) have no usable logo: they keep the Fluent icon.
+    # winutil's apps (lazygit, fnm, JPEGView, K-Lite, Policy Plus, PuTTY) have no usable logo: they keep the box placeholder.
     It 'has a bundled icon for every app to install, legacy app and Store app to restore' {
         $none = 'install-more-clock-tool', 'remove-brlapi', 'install-lazygit', 'install-fnm', 'install-jpegview', 'install-k-lite-codecs', 'install-policy-plus', 'install-putty'
         $ids = @(Get-ChildItem "$Root\Tweaks\Apps\Install\*.ps1", "$Root\Tweaks\Apps\Remove\*.ps1" | ForEach-Object {
@@ -485,9 +471,8 @@ Describe 'Test-AkariWhiteLogo' {
 Describe 'Risk marks' {
     foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
     . "$Root\UI\Apps.ps1"
-    It 'are Fluent icons that are in Icons.xaml' {
-        $xaml = Get-Content "$Root\UI\Icons.xaml" -Raw
-        foreach ($d in $AkariAppDots.Values) { $xaml.Contains("x:Key=`"Ic.$($d.Icon)`"") | Should Be $true }
+    It 'are badges for Caution and Advanced, none for Safe (recommended), each with its meaning' {
+        foreach ($k in 'Safe', 'Caution', 'Advanced') { $AkariAppDots[$k].Label | Should Not BeNullOrEmpty }
     }
 }
 
@@ -514,12 +499,13 @@ Describe 'Get-AkariAppList' {
     }
 }
 
-Describe 'Apps step (in memory, no window, fake packages)' {
+Describe 'Apps pages (in memory, no window, fake packages)' {
     $probe = "$TestDrive\apps.ps1"
     Set-Content $probe -Value @'
 param($Root)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework
+$AkariLogFile = "$env:TEMP\akari-apps-test\akari.log"
 foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner') { . "$Root\Core\$f.ps1" }
 $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
 $g = ConvertTo-AkariTweak @{ Id = 'appx'; Kind = 'Group'; Name = 'G'; Section = 'Apps'; Category = 'Remove'; Risk = 'Caution'; EntryKind = 'AppxRemove' } 'x' $false
@@ -533,144 +519,118 @@ $script:Tweaks = @(
     New-AkariEntry $g @{ Name = 'Akari.Test.Opt'; Display = 'Optional app'; Description = 'D'; Risk = 'Caution' }
     New-AkariEntry $g @{ Name = 'Akari.Test.Kept'; Display = 'Kept app'; Description = 'D'; Risk = 'Advanced'; Keep = $true }
     New-AkariEntry $g @{ Name = 'Akari.Test.Gone'; Display = 'Gone app'; Description = 'D'; Risk = 'Safe' }
-    ConvertTo-AkariTweak @{ Id = 'inst'; Name = 'Inst app'; Description = 'D'; Section = 'Apps'; Category = 'Install'; Kind = 'Action'; Button = 'Install'; Risk = 'Safe'; Winget = 'Akari.Test.Inst'; Apply = { } } 'x' $false
-    ConvertTo-AkariTweak @{ Id = 'instc'; Name = 'Paid app'; Description = 'D'; Section = 'Apps'; Category = 'Install'; Kind = 'Action'; Button = 'Install'; Risk = 'Caution'; Winget = 'Akari.Test.Paid'; Apply = { } } 'x' $false
+    ConvertTo-AkariTweak @{ Id = 'inst'; Name = 'Inst app'; Description = 'D'; Section = 'Apps'; Category = 'Install'; Kind = 'Action'; Button = 'Install'; Risk = 'Safe'; AppType = 'Game launchers'; Winget = 'Akari.Test.Inst'; Apply = { } } 'x' $false
+    ConvertTo-AkariTweak @{ Id = 'instc'; Name = 'Paid app'; Description = 'D'; Section = 'Apps'; Category = 'Install'; Kind = 'Action'; Button = 'Install'; Risk = 'Caution'; AppType = 'Utilities'; Winget = 'Akari.Test.Paid'; Apply = { } } 'x' $false
     ConvertTo-AkariTweak @{ Id = 'tools-update-apps'; Name = 'Update all apps'; Description = 'D'; Section = 'Tools'; Category = 'Setup'; Kind = 'Action'; Risk = 'Safe'; Confirm = 'Update every app?'; Apply = { } } 'x' $false
 )
 $AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
-foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps') { . "$Root\UI\$f.ps1" }
+$env:AKARI_MOTION = 'off'; . "$Root\UI\Motion.ps1"
+foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps', 'Pages') { . "$Root\UI\$f.ps1" }
+. "$Root\..\tests\ShellStub.ps1"
 # the fake PC has three of the listed apps and one the list doesn't know
+function Get-AkariAppxPackages { @() }
 function Get-AkariAppxInstalled { @('Akari.Test.Safe', 'Akari.Test.Opt', 'Akari.Test.Kept', 'Akari.Test.Extra') }
 # no real feature read: the probe hands fake names to Complete-AkariFeatureRead itself, later
 function Start-AkariFeatureRead { }
-$res = [Windows.Controls.StackPanel]::new()
-. "$Root\UI\Motion.ps1"
-$res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Controls.xaml"))
-$StepDots = [Windows.Controls.StackPanel]::new(); $StepBody = [Windows.Controls.StackPanel]::new()
-[void]$res.Children.Add($StepBody)
-$StepBack = [Windows.Controls.Button]::new(); $StepNext = [Windows.Controls.Button]::new(); $Search = [Windows.Controls.TextBox]::new()
-$StepFooter = [Windows.Controls.Border]::new()
-$script:Mode = 'Guided'; $script:Step = 0; Show-AkariSteps
-"rows=$($script:AppRows.Count)"
-"visible=$(@($script:AppRows.Values | Where-Object { $_.Row.Visibility -eq 'Visible' }).Count)"
-Select-AkariApps { param($t) $t.Risk -eq 'Safe' }
-"recommended=$((Get-AkariPlanItems $script:Sel | ForEach-Object { $_.Id }) -join ',')"
-Select-AkariApps { param($t) -not $t.Keep }
-"removable=$((Get-AkariPlanItems $script:Sel | ForEach-Object { $_.Id } | Sort-Object) -join ',')"
-"status=$($script:AppsStatus.Text)"
-Select-AkariApps { param($t) $false }
-"cleared=$($script:Sel.Count)"
-# a Caution app needs no confirmation (an Advanced one shows a MessageBox: checked on the VM, not here)
-$e =$script:AppRows['appx/Akari.Test.Opt']; $e.Control.IsChecked = $true; Step-AkariAppCheck 'appx/Akari.Test.Opt'
-"review=$((Get-AkariReviewItems $script:Sel | ForEach-Object { $_.Name + ':' + $_.To }) -join ',')"
-$script:OnlyInstalled = $false; Set-AkariAppsFilter ''
-"allVisible=$(@($script:AppRows.Values | Where-Object { $_.Row.Visibility -eq 'Visible' }).Count)"
-Set-AkariAppsFilter 'Optional'
-"searched=$(@($script:AppRows.Values | Where-Object { $_.Row.Visibility -eq 'Visible' }).Count)"
-# Install tab: its own table, an install is reviewed as Install
-Show-AkariAppsTab 'Install'
-"installTab=$($script:AppsParts.RemoveTables.Visibility),$($script:AppsParts.InstallTables.Visibility),$($script:AppsParts.Legend.Visibility)"
-"source=$(Get-AkariAppSource $script:AppRows['inst'].Tweak)"
-"caution=$($script:AppRows['instc'].Caution.Visibility),$($script:AppRows['instc'].Caution.ToolTip),$($null -eq $script:AppRows['inst'].Caution)"
-$e = $script:AppRows['inst']; $e.Control.IsChecked = $true; Step-AkariAppCheck 'inst'
-"installReview=$((Get-AkariReviewItems $script:Sel | Where-Object { $_.Id -eq 'inst' } | ForEach-Object { $_.Name + ':' + $_.To }))"
-"bothStatus=$($script:AppsStatus.Text)"
-Clear-AkariInstalls
-"afterClear=$($script:AppsStatus.Text)"
-# app picks survive the Tweaks step: building it, and its Clear selection, only touch the Tweak rows
-Select-AkariApps { param($t) $t.Risk -eq 'Safe' }
-$script:Step = 1; Show-AkariSteps
-"keptAfterTweaks=$((Get-AkariPlanItems $script:Sel | ForEach-Object { $_.Id }) -join ',')"
-Reset-AkariTweakRows
-"keptAfterClear=$((Get-AkariPlanItems $script:Sel | ForEach-Object { $_.Id }) -join ',')"
-# the features arrive after the AkariOS pick: they get the same pick, the keep-list stays unchecked
-"readingTitle=$($script:AppsParts.CapTable.Title.Text)"
-Select-AkariApps { param($t) -not $t.Keep }
-Complete-AkariFeatureRead @('App.StepsRecorder~~~~0.0.1.0', 'WMIC~~~~') @('WorkFolders-Client')
-"titles=$($script:AppsParts.CapTable.Title.Text),$($script:AppsParts.FeatTable.Title.Text)"
-"capName=$($script:AppRows['capability/App.StepsRecorder~~~~0.0.1.0'].Tweak.Name)"
-"wmic=$($script:AppRows['capability/WMIC~~~~'].Tweak.Keep),$($script:AppRows['capability/WMIC~~~~'].Tweak.Risk)"
-"lateSel=$((Get-AkariPlanItems $script:Sel | Where-Object { $_.Id -notlike 'appx/*' } | ForEach-Object { $_.Id } | Sort-Object) -join ',')"
-# Downloads (Home tile): a fresh start, the Install cards alone, then Review; Back at the start goes Home
-function Select-AkariPage($n) { $script:went = $n }
-Enter-AkariFlow 'Downloads'
-"dlStart=$script:Mode,$script:Step,$($script:Sel.Count)"
-Show-AkariSteps
-"dlParts=$($script:AppsParts.Tabs.Visibility),$($script:AppsParts.RemoveTables.Visibility),$($script:AppsParts.InstallTables.Visibility)"
-"dlDots=$($StepDots.Children.Count)"; "dlNext=$($StepNext.Content),$($StepNext.IsEnabled)"
-$e = $script:AppRows['inst']; $e.Control.IsChecked = $true; Step-AkariAppCheck 'inst'
-"dlPicked=$($StepNext.Content),$($StepNext.IsEnabled)"
-Step-AkariForward; "dlReview=$script:Step"
-Step-AkariBack; "dlBack=$script:Step"
-Step-AkariBack; "dlHome=$script:went"
-Enter-AkariFlow 'Install AkariOS'; "guidedAgain=$script:Mode,$($script:Sel.Count)"
-# Downloads opened from a Legacy page: Back at the start and Done lead back to that page
-Set-AkariFlowExit 'Windows'; Enter-AkariFlow 'Downloads'; Show-AkariSteps
-Step-AkariBack; "dlLegacyBack=$script:went"
-$script:Step = 3; Reset-AkariSteps; "dlLegacyDone=$script:went,$script:Mode"
-Set-AkariFlowExit 'Home'; Enter-AkariFlow 'Downloads'; $script:Step = 3; Reset-AkariSteps; "dlHomeDone=$script:went"
-# Remove apps (the Catalogue sidebar): the Remove tables alone, no Quick select, then Review & Remove
-$Heading = [Windows.Controls.TextBlock]::new(); $HeaderSub = [Windows.Controls.TextBlock]::new()
-function Set-AkariStepHeader($t, $s) { $script:hdr = "$t|$s" }
-Set-AkariFlowExit 'Catalogue:Tools/Check'; Enter-AkariFlow 'Remove apps'
-"rmStart=$script:Mode,$script:Step,$($script:Sel.Count)"
-Show-AkariSteps
-"rmParts=$($script:AppsParts.Tabs.Visibility),$($script:AppsParts.RemoveTables.Visibility),$($script:AppsParts.InstallTables.Visibility),$($script:AppsParts.QuickSelect.Visibility)"
-"rmHeader=$script:hdr"; "rmDots=$($StepDots.Children.Count)"; "rmNext=$($StepNext.Content),$($StepNext.IsEnabled)"
-$e = $script:AppRows['appx/Akari.Test.Opt']; $e.Control.IsChecked = $true; Step-AkariAppCheck 'appx/Akari.Test.Opt'
-"rmPicked=$($StepNext.Content),$($StepNext.IsEnabled)"
-Step-AkariForward; "rmReview=$script:Step,$script:hdr"
-Step-AkariBack; Step-AkariBack; "rmBack=$script:went"
-$script:Step = 3; Reset-AkariSteps; "rmDone=$script:went,$script:Mode"
-# Downloads after Remove apps starts afresh, its tabs and Quick select as before
-Enter-AkariFlow 'Remove apps'; Show-AkariSteps; Enter-AkariFlow 'Downloads'; Show-AkariSteps
-"dlAfterRm=$script:Mode,$($script:AppsParts.RemoveTables.Visibility),$($script:AppsParts.InstallTables.Visibility)"
-Enter-AkariFlow 'Install AkariOS'; $script:Mode = 'Guided'; Show-AkariSteps
-"guidedParts=$($script:AppsParts.Tabs.Visibility),$($script:AppsParts.QuickSelect.Visibility)"
-# winutil W4: Downloads' own toolbar (Update all apps, Uninstall selected, Show installed); no job really starts
-"w4Guided=$($script:AppsParts.UpdateAll.Visibility),$($script:AppsParts.Uninstall.Visibility),$($script:AppsParts.ShowInstalled.Visibility)"
 $script:Busy = $false; $script:Queue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
 function Set-Busy($b, $l) { $script:Busy = $b }
 function Add-Log($m) { }
 function Start-AkariJob($code, $q, $dir, $shared) { @{ Shared = $shared; Code = $code } }
-function Confirm-AkariDialog { $script:asked = $args[0]; $script:answer }
-Enter-AkariFlow 'Downloads'; Show-AkariSteps
-"w4Bar=$($script:AppsParts.UpdateAll.Visibility),$($script:AppsParts.Uninstall.Visibility),$($script:AppsParts.ShowInstalled.Visibility),$($script:AppsParts.Uninstall.IsEnabled)"
-"w4MarkStart=$($script:AppRows['inst'].Mark.Visibility)"
+function Confirm-AkariDialog { $script:asked = $args[0]; $script:askedTitle = $args[4]; $script:answer }
+$res = [Windows.Controls.StackPanel]::new()
+$res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Theme.Dark.xaml"))
+$res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Controls.xaml"))
+$res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Icons.xaml"))
+[void]$res.Children.Add($StepBody)
+$script:Cat = 'Install AkariOS'; $script:Mode = 'Guided'; $script:Step = 0; Show-Page
+$p = $script:AppsParts
+"rows=$($script:AppRows.Count)"
+"visible=$(@($script:AppRows.Values | Where-Object { $_.Row.Visibility -eq 'Visible' }).Count)"
+"guidedParts=$($p.RemoveHead.Visibility),$($p.InstallHead.Visibility),$($p.QuickSelect.Visibility),$($p.RemoveGo.Visibility),$(($p.Selector.Items.Children | ForEach-Object { $_.Tag }) -join '/')"
+Select-AkariApps { param($t) $t.Risk -eq 'Safe' }
+"recommended=$((Get-AkariPlanItems $script:Sel | ForEach-Object { $_.Id }) -join ',')|$($script:AppRows['appx/Akari.Test.Safe'].Row.Background -eq $res.FindResource('AccSoft'))"
+Select-AkariApps { param($t) -not $t.Keep }
+"removable=$((Get-AkariPlanItems $script:Sel | ForEach-Object { $_.Id } | Sort-Object) -join ',')|$($script:AppsStatus.Text)"
+Select-AkariApps { param($t) $false }
+"cleared=$($script:Sel.Count)"
+$e = $script:AppRows['appx/Akari.Test.Opt']; $e.Control.IsChecked = $true; Step-AkariAppCheck 'appx/Akari.Test.Opt'
+"review=$((Get-AkariReviewItems $script:Sel | ForEach-Object { $_.Name + ':' + $_.To }) -join ',')"
+"badges=$($e.Row.Child.Children[2].Children[0].Tag)|$($null -eq $script:AppRows['appx/Akari.Test.Safe'].Row.Child.Children[2].Children[0].Tag)"
+$script:OnlyInstalled = $false; Set-AkariAppsFilter ''
+"allVisible=$(@($script:AppRows.Values | Where-Object { $_.Row.Visibility -eq 'Visible' }).Count)"
+Set-AkariAppsFilter 'Optional'
+"searched=$(@($script:AppRows.Values | Where-Object { $_.Row.Visibility -eq 'Visible' }).Count)"
+Set-AkariAppsFilter ''
+# the Remove lists: one at a time under the SelectorBar
+Show-AkariRemoveList 'Optional features'
+"lists=$($p.StoreTable.Card.Visibility),$($p.CapTable.Card.Visibility)"
+Show-AkariRemoveList 'Store apps'
+# the installs: tickable cards, a Caution one with its warning, reviewed as Install
+"source=$(Get-AkariAppSource $script:AppRows['inst'].Tweak)"
+"caution=$($script:AppRows['instc'].Caution.ToolTip),$($null -eq $script:AppRows['inst'].Caution)|$(Get-AkariDownloadCategory $script:AppRows['inst'].Tweak),$(Get-AkariDownloadCategory $script:AppRows['instc'].Tweak)"
 $e = $script:AppRows['inst']; $e.Control.IsChecked = $true; Step-AkariAppCheck 'inst'
-"w4Picked=$($script:AppsParts.Uninstall.IsEnabled)"
-$script:answer = $false; Start-AkariUninstall
-"w4Cancel=$($null -eq $script:Job),$($script:asked -replace "`n", '|')"
-$script:answer = $true; Start-AkariUninstall
-"w4Job=$($script:Job.Kind),$($script:Job.Shared.Ids -join ','),$script:Busy"
-$script:Busy = $false
+"installReview=$((Get-AkariReviewItems $script:Sel | Where-Object { $_.Id -eq 'inst' } | ForEach-Object { $_.Name + ':' + $_.To }))"
+Clear-AkariInstalls
+"afterClear=$((Get-AkariPlanItems $script:Sel | ForEach-Object { $_.Id }) -join ',')"
+# app picks survive the Tweaks step: building it, and its Clear selection, only touch the Tweak rows
+Select-AkariApps { param($t) $t.Risk -eq 'Safe' }
+$script:Step = 1; Show-Page
+"keptAfterTweaks=$((Get-AkariPlanItems $script:Sel | ForEach-Object { $_.Id }) -join ',')"
+Reset-AkariTweakRows
+"keptAfterClear=$((Get-AkariPlanItems $script:Sel | ForEach-Object { $_.Id }) -join ',')"
+# the features arrive after the AkariOS pick: they get the same pick, the keep-list stays unchecked
+"readingTitle=$($p.CapTable.Title.Text)"
+Select-AkariApps { param($t) -not $t.Keep }
+Complete-AkariFeatureRead @('App.StepsRecorder~~~~0.0.1.0', 'WMIC~~~~') @('WorkFolders-Client')
+"titles=$($p.CapTable.Title.Text),$($p.FeatTable.Title.Text)"
+"capName=$($script:AppRows['capability/App.StepsRecorder~~~~0.0.1.0'].Tweak.Name)"
+"wmic=$($script:AppRows['capability/WMIC~~~~'].Tweak.Keep),$($script:AppRows['capability/WMIC~~~~'].Tweak.Risk)"
+"lateSel=$((Get-AkariPlanItems $script:Sel | Where-Object { $_.Id -notlike 'appx/*' } | ForEach-Object { $_.Id } | Sort-Object) -join ',')"
+Clear-AkariSteps
+# Remove apps, a page of its own: the lists alone, Remove (n) asks, then removes in one job
+$script:Cat = 'Remove apps'; Show-Page
+"rmPage=$($Heading.Text)|$($p.InstallTables.Visibility),$($p.QuickSelect.Visibility),$($p.RemoveGo.Visibility),$($p.RemoveGo.IsEnabled)"
+$e = $script:AppRows['appx/Akari.Test.Opt']; $e.Control.IsChecked = $true; Step-AkariAppCheck 'appx/Akari.Test.Opt'
+"rmPicked=$($p.RemoveGo.IsEnabled),$($p.RemoveGoText.Text),$($script:AppsStatus.Text)"
+function Get-AkariRestoreChoice { $false }
+$script:answer = $false; Start-AkariRemoveApps
+"rmCancel=$($null -eq $script:Job)|$script:askedTitle|$($script:asked -replace "`n", '/')"
+$script:answer = $true; Start-AkariRemoveApps
+"rmJob=$($script:Job.Kind),$($script:Job.Shared.Plan[0].Id),$($script:Job.Label)"
+# the job got to the first item: its row collapses
+Update-AkariRemoveProgress @{ Total = 1; Done = 1 }
+"rmGone=$script:RemovedCount|$($e.Row.Height)"
+$script:Busy = $false; $script:Job = $null
+Complete-AkariApply ([hashtable]::Synchronized(@{ Plan = @(@{ Id = 'appx/Akari.Test.Opt'; Mode = 'Apply' }); Outcomes = @([pscustomobject]@{ Id = 'appx/Akari.Test.Opt'; Outcome = 'Applied' }) })) 'Remove'
+"rmDone=$($script:Toasts[-1][0])|$($script:Sel.Count)|$($null -eq $script:AppsView)"
+# Downloads, a page of its own: the cards by category, Install queued one at a time, the installed ones marked
+$script:Cat = 'Downloads'; Show-Page
+"dlPage=$($Heading.Text)|$(@($script:DlCards.Keys) -join ',')|$($script:Job.Kind)"
+"dlStart=$($script:DlCards['inst'].Act.Children[0].Children[0].GetType().Name)"
+$script:Busy = $false; $script:Job = $null
+Complete-AkariInstalledRead ([hashtable]::Synchronized(@{ Ids = @('inst') }))
+"dlMarked=$($script:DlCards['inst'].State)|$($script:DlCards['instc'].State)"
+$script:DlFilter = 'Gaming'; Set-AkariDownloadsFilter $false
+"dlGaming=$($script:DlCards['inst'].Row.Visibility),$($script:DlCards['instc'].Row.Visibility)"
+$script:DlFilter = 'All'; $script:DlQuery = 'zz'; Set-AkariDownloadsFilter $false
+"dlNone=$($script:DlEmpty.Visibility)|$($script:DlEmpty.Tag.Text)"
+$script:DlQuery = ''; Set-AkariDownloadsFilter $false
+Add-AkariInstall 'instc'
+"dlInstalling=$($script:DlCards['instc'].State)|$($script:Job.Kind)|$($script:Job.Shared.Plan[0].Id)|$($script:Job.Shared.SkipRestore)"
+$script:Busy = $false; $script:Job = $null
+Complete-AkariInstall ([hashtable]::Synchronized(@{ Outcomes = @([pscustomobject]@{ Id = 'instc'; Outcome = 'Applied' }) }))
+"dlInstalled=$($script:DlCards['instc'].State)|$($script:Activity[-1][0])|$($script:InstallQueue.Count)"
+# Uninstall (an installed card's menu): asked with the names, one job, the card back to Install
+$script:answer = $true; Start-AkariUninstall @($script:DlCards['inst'].Tweak)
+"unJob=$($script:Job.Kind),$($script:Job.Shared.Ids -join ','),$($script:asked -replace "`n", '|')"
+$script:Busy = $false; $script:Job = $null
 Complete-AkariUninstall ([hashtable]::Synchronized(@{ Outcomes = @([pscustomobject]@{ Id = 'inst'; Outcome = 'Reverted'; Reboot = $false; Message = '' }) }))
-Show-AkariSteps
-"w4Result=$script:Step,$($StepBody.Children[0].Text),$($StepBody.Children[1].Child.Children[2].Children[1].Text)"
-Reset-AkariSteps
-# Show installed: read in a job, the rows marked; shown again by itself the next time Downloads is built
-Enter-AkariFlow 'Downloads'; Show-AkariSteps
-$script:Job = $null; Start-AkariInstalledRead
-"w4Read=$($script:Job.Kind)"; $script:Busy = $false
-Complete-AkariInstalledRead ([hashtable]::Synchronized(@{ Ids = @('inst', 'instc') }))
-"w4Mark=$($script:AppRows['inst'].Mark.Visibility),$($script:AppRows['instc'].Mark.Visibility),$($script:AppRows['instc'].Caution.Visibility)"
-Complete-AkariInstalledRead ([hashtable]::Synchronized(@{ Ids = @() }))
-"w4Unmark=$($script:AppRows['inst'].Mark.Visibility),$($script:AppRows['instc'].Caution.Visibility)"
-# a flow switch keeps the view and its marks; a Run's end (Complete-AkariApply / -Uninstall) drops it, so Downloads is
-# built anew and reads them again
-$view = $script:AppsView
-$script:AppRows['inst'].Control.IsChecked = $true; Step-AkariAppCheck 'inst'
-Enter-AkariFlow 'Remove apps'; Show-AkariSteps; $script:Job = $null
-Enter-AkariFlow 'Downloads'; Show-AkariSteps
-"w4Kept=$([object]::ReferenceEquals($view, $script:AppsView))|$($null -eq $script:Job)|$($script:AppRows['inst'].Control.IsChecked)|$($script:Sel.Count)|$($script:AppsParts.InstallBar.Visibility)"
-$script:Step = 3; Clear-AkariAppsView; Reset-AkariSteps; $script:Job = $null
-Enter-AkariFlow 'Downloads'; Show-AkariSteps
-"w4ReadAgain=$($script:Job.Kind)"; $script:Busy = $false
-# Update all apps: the Tools Tweak, asked with its own Confirm, one Apply job without a restore point
-$script:Job = $null; $script:answer = $false; Start-AkariUpdateApps
-"w4UpCancel=$($null -eq $script:Job),$script:asked"
+"unDone=$($script:DlCards['inst'].State)|$($script:Toasts[-1][1])"
+# Update all apps: the Tools Tweak, asked with its own Confirm, one job without a restore point
+$script:answer = $false; Start-AkariUpdateApps
+"upCancel=$($null -eq $script:Job),$script:asked"
 $script:answer = $true; Start-AkariUpdateApps
-"w4Up=$($script:Job.Kind),$($script:Job.Shared.Plan[0].Id),$($script:Job.Shared.Plan[0].Mode),$($script:Job.Shared.SkipRestore)"
+"up=$($script:Job.Shared.Plan[0].Id),$($script:Job.Shared.Plan[0].Mode),$($script:Job.Shared.SkipRestore)"
 '@
     $out = @{}
     & powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root 2>&1 | ForEach-Object {
@@ -678,29 +638,28 @@ $script:answer = $true; Start-AkariUpdateApps
     }
 
     It 'runs without errors' { $out['error'] | Should BeNullOrEmpty }
-    It 'lists the data file apps and the unknown installed one; Only installed hides the missing one' {
+    It 'Guided''s Apps step: the Remove lists under a SelectorBar with Quick select, then the installs; Only installed hides the missing app' {
         $out.rows | Should Be '7'
         $out.visible | Should Be '6'
+        $out.guidedParts | Should Be 'Visible,Visible,Visible,Collapsed,Store apps/Optional features/Windows features/Legacy apps'
     }
-    It 'Select recommended checks the installed Safe apps (Win11Debloat)' { $out.recommended | Should Be 'appx/Akari.Test.Safe' }
-    It 'AkariOS checks every installed app but the keep-list (FR33THY)' {
-        $out.removable | Should Be 'appx/Akari.Test.Extra,appx/Akari.Test.Opt,appx/Akari.Test.Safe'
-        $out.status | Should Be '3 to remove, 0 to install'
+    It 'Select recommended checks the installed Safe apps (Win11Debloat), their rows tinted' { $out.recommended | Should Be 'appx/Akari.Test.Safe|True' }
+    It 'AkariOS checks every installed app but the keep-list (FR33THY)' { $out.removable | Should Be 'appx/Akari.Test.Extra,appx/Akari.Test.Opt,appx/Akari.Test.Safe|3 selected' }
+    It 'Clear empties the Selection' { $out.cleared | Should Be '0' }
+    It 'a checked app is reviewed as Remove; a Caution app has its badge, a Safe one none' {
+        $out.review | Should Be 'Optional app:Remove'
+        $out.badges | Should Be 'Caution|True'
     }
-    It 'Clear selection empties the Selection' { $out.cleared | Should Be '0' }
-    It 'a checked app is reviewed as Remove' { $out.review | Should Be 'Optional app:Remove' }
     It 'filters by Only installed and by search' {
         $out.allVisible | Should Be '7'
         $out.searched | Should Be '1'
     }
-    It 'Install tab: its own table, no legend, the winget id as source, reviewed as Install' {
-        $out.installTab | Should Be 'Collapsed,Visible,Collapsed'
+    It 'shows one Remove list at a time' { $out.lists | Should Be 'Collapsed,Visible' }
+    It 'installs: tickable cards, the winget id as source, a Caution one marked, reviewed as Install' {
         $out.source | Should Be 'winget: Akari.Test.Inst'
-        # winutil W5: a Caution install shows its mark; a Safe one has none
-        $out.caution | Should Be 'Visible,Check before installing: paid, or adds a driver or service,True'
+        $out.caution | Should Be 'Check before installing: paid, or adds a driver or service,True|Gaming,Tools'
         $out.installReview | Should Be 'Inst app:Install'
-        $out.bothStatus | Should Be '1 to remove, 1 to install'
-        $out.afterClear | Should Be '1 to remove, 0 to install'
+        $out.afterClear | Should Be 'appx/Akari.Test.Opt'
     }
     It 'keeps the app picks when the Tweaks step is built and when its selection is cleared' {
         $out.keptAfterTweaks | Should Be 'appx/Akari.Test.Safe'
@@ -712,66 +671,39 @@ $script:answer = $true; Start-AkariUpdateApps
         $out.capName | Should Be 'Steps Recorder'
         $out.wmic | Should Be 'True,Advanced'
     }
-    It 'Downloads starts afresh and shows the Install cards alone, two steps' {
-        $out.dlStart | Should Be 'Downloads,0,0'
-        $out.dlParts | Should Be 'Collapsed,Collapsed,Visible'
-        $out.dlDots | Should Be '2'
-        $out.dlNext | Should Be 'Review (0),False'
-        $out.dlPicked | Should Be 'Review (1),True'
-    }
-    It 'Downloads goes from the apps straight to Review, and Back at the start goes Home' {
-        $out.dlReview | Should Be '2'
-        $out.dlBack | Should Be '0'
-        $out.dlHome | Should Be 'Home'
-    }
-    It 'Install AkariOS after Downloads starts afresh on its chooser' { $out.guidedAgain | Should Be 'Choose,0' }
-    It 'Downloads opened from Legacy goes back there on Back and Done; from Home, Home' {
-        $out.dlLegacyBack | Should Be 'Windows'
-        $out.dlLegacyDone | Should Be 'Windows,Choose'
-        $out.dlHomeDone | Should Be 'Home'
-    }
-    It 'Remove apps starts afresh and shows the Remove tables alone, without Quick select, two steps' {
-        $out.rmStart | Should Be 'Remove apps,0,0'
-        $out.rmParts | Should Be 'Collapsed,Visible,Collapsed,Collapsed'
-        $out.rmHeader | Should Be 'Remove apps|Store apps, optional features, Windows features and legacy apps to remove'
-        $out.rmDots | Should Be '2'
-        $out.rmNext | Should Be 'Review (0),False'
-        $out.rmPicked | Should Be 'Review (1),True'
-    }
-    It 'Remove apps reviews as Review & Remove, and Back and Done lead to the Catalogue page it came from' {
-        $out.rmReview | Should Be '2,Review & Remove|These apps and features are removed in one go'
-        $out.rmBack | Should Be 'Catalogue:Tools/Check'
-        $out.rmDone | Should Be 'Catalogue:Tools/Check,Choose'
-    }
-    It 'Downloads after Remove apps starts afresh on the Install cards; Guided keeps both tabs and Quick select' {
-        $out.dlAfterRm | Should Be 'Downloads,Collapsed,Visible'
-        $out.guidedParts | Should Be 'Visible,Visible'
-    }
-    It 'shows Update all apps, Uninstall selected and Show installed on Downloads only' {
-        $out.w4Guided | Should Be 'Collapsed,Collapsed,Collapsed'
-        $out.w4Bar | Should Be 'Visible,Visible,Visible,False'
-        $out.w4Picked | Should Be 'True'
-    }
-    It 'Uninstall selected asks with the names; Cancel starts nothing, Uninstall one job for the checked apps' {
-        $out.w4Cancel | Should Be 'True,Uninstall these apps?||- Inst app'
-        $out.w4Job | Should Be 'Uninstall,inst,True'
-    }
-    It 'shows the uninstall on the result step, in its own words' { $out.w4Result | Should Be '3,1 uninstalled,Uninstalled' }
-    It 'Show installed marks the rows on this PC, and reads again when Downloads is built anew' {
-        $out.w4MarkStart | Should Be 'Collapsed'
-        $out.w4Read | Should Be 'AppsInstalled'
-        $out.w4Mark | Should Be 'Visible,Visible,Collapsed'
-        $out.w4Unmark | Should Be 'Collapsed,Visible'
-        $out.w4ReadAgain | Should Be 'AppsInstalled'
-    }
-    It 'keeps the apps view across a flow switch, its picks unchecked; a Run''s end builds it anew' {
-        $out.w4Kept | Should Be 'True|True|False|0|Visible'
-    }
-    It 'Update all apps asks with the Tweak''s Confirm, then runs it as one Apply job with no restore point' {
-        $out.w4UpCancel | Should Be 'True,Update every app?'
-        $out.w4Up | Should Be 'Apply,tools-update-apps,Apply,True'
-    }
     It 'gives the features that arrive late the last quick select (FR33THY: all but the keep-list)' {
         $out.lateSel | Should Be 'capability/App.StepsRecorder~~~~0.0.1.0,feature/WorkFolders-Client'
     }
+    It 'Remove apps: the lists alone, the accent Remove (n), disabled at 0' {
+        $out.rmPage | Should Be 'Remove apps|Collapsed,Collapsed,Visible,False'
+        $out.rmPicked | Should Be 'True,Remove (1),1 selected'
+    }
+    It 'Remove asks with the names; Cancel starts nothing, Remove one job; each row collapses as the job gets to it' {
+        $out.rmCancel | Should Be 'True|Remove 1 app?|Optional app./Store apps can be reinstalled from the Microsoft Store or Downloads.'
+        $out.rmJob | Should Be 'Remove,appx/Akari.Test.Opt,Removing 1 app'
+        $out.rmGone | Should Be '1|0'
+        $out.rmDone | Should Be 'Removed|0|True'
+    }
+    It 'Downloads: a card per install, Install at first, then Installed for what is on this PC' {
+        $out.dlPage | Should Be 'Downloads|inst,instc|AppsInstalled'
+        $out.dlStart | Should Be 'Button'
+        $out.dlMarked | Should Be 'Installed|'
+    }
+    It 'Downloads filters by category and search, with an empty state' {
+        $out.dlGaming | Should Be 'Visible,Collapsed'
+        $out.dlNone | Should Be 'Visible|No apps match "zz"'
+    }
+    It 'Install runs one job with no restore point, then the card says Installed' {
+        $out.dlInstalling | Should Be 'Installing|Install|instc|True'
+        $out.dlInstalled | Should Be 'Installed|Installed Paid app|0'
+    }
+    It 'Uninstall asks with the name, runs one job, and the card goes back to Install' {
+        $out.unJob | Should Be 'Uninstall,inst,Uninstall these apps?||- Inst app'
+        $out.unDone | Should Be '|1 uninstalled'
+    }
+    It 'Update all apps asks with the Tweak''s Confirm, then runs it with no restore point' {
+        $out.upCancel | Should Be 'True,Update every app?'
+        $out.up | Should Be 'tools-update-apps,Apply,True'
+    }
 }
+

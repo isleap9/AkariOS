@@ -1,4 +1,4 @@
-# Catalogue page (Optimize › Advanced, ADR 0005): setting cards whose controls act right away. Pages, search and the
+# Catalogue pages (Optimize's sections, ADR 0005; the prototype's section pages): Settings cards whose controls act right away. Pages, search and the
 # waiting list come from UI\Catalogue.ps1. States are read in the background when a page opens; changes queue and run
 # one at a time in the background job; Safe Mode changes wait in a bar for one restart; Explorer and PC restarts are
 # collected in a bar. Dot-sourced by Akari.ps1 after UI\Rows.ps1.
@@ -16,12 +16,9 @@ $script:CatReboot = [Collections.Generic.HashSet[string]]::new()
 # ---- cards
 
 function New-AkariCatalogueCard($t) {
-    $e = @{ Tweak = $t; State = 'Unknown'; Current = $null; Busy = ''; Error = ''; Muted = $false }
-    $card = [Windows.Controls.Border]::new()
-    $card.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
-    $card.Tag = $t.Id
-    $dp = [Windows.Controls.DockPanel]::new()
-    # the control, right
+    $e = @{ Tweak = $t; State = 'Unknown'; Current = $null; Busy = ''; Error = ''; Muted = $false; Done = $false }
+    # the control (the prototype's control()): a ToggleSwitch for a Toggle, a ComboBox with "Recommended" and "Windows
+    # default" beside those options for a Choice, Run / Open for an Action
     switch ($t.Kind) {
         'Toggle' {
             $ctl = [Windows.Controls.Primitives.ToggleButton]::new()
@@ -31,13 +28,15 @@ function New-AkariCatalogueCard($t) {
         'Choice' {
             $ctl = [Windows.Controls.ComboBox]::new()
             $ctl.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Combo')
-            $ctl.Width = 220
+            $ctl.MinWidth = 200
             $def = Resolve-AkariDefault $t.Default
             foreach ($c in $t.Choices) {
                 $it = [Windows.Controls.ComboBoxItem]::new()
                 $label = if ($c.Label) { $c.Label } else { "$($c.Value)" }
-                if (Test-AkariRegMatch $c.Value $t.Recommended) { $label += ' (Recommended)' }
-                elseif (Test-AkariRegMatch $c.Value $def) { $label += ' (Windows default)' }
+                # the drop-down says Recommended / Windows default on the right of the row (the ComboItem template shows
+                # the item's Uid there); the closed box shows the value alone
+                if (Test-AkariRegMatch $c.Value $t.Recommended) { $it.Uid = 'Recommended' }
+                elseif (Test-AkariRegMatch $c.Value $def) { $it.Uid = 'Windows default' }
                 $it.Content = $label
                 $it.Tag = $c.Value
                 [void]$ctl.Items.Add($it)
@@ -57,57 +56,56 @@ function New-AkariCatalogueCard($t) {
             $ctl = [Windows.Controls.Button]::new()
             $ctl.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Btn')
             $ctl.Content = $t.Button
-            $ctl.MinWidth = 96
+            $ctl.MinWidth = 80
             $ctl.Add_Click({ param($s, $a) Invoke-AkariCatalogueChange ([string]$s.Tag) 'Apply' $null })
         }
     }
     $ctl.Tag = $t.Id
     $ctl.VerticalAlignment = 'Center'
-    $ctl.Margin = [Windows.Thickness]::new(16, 0, 0, 0)
-    [Windows.Controls.DockPanel]::SetDock($ctl, 'Right')
-    [void]$dp.Children.Add($ctl)
-    # the restart / Safe Mode marks, left of the control
-    $marks = [Windows.Controls.StackPanel]::new()
-    $marks.Orientation = 'Horizontal'
-    $marks.VerticalAlignment = 'Center'
-    [Windows.Controls.DockPanel]::SetDock($marks, 'Right')
-    if ($t.Reboot) { [void]$marks.Children.Add((New-AkariGlyph 'rotate-ccw' 'Mu' 'Restart required')) }
-    if ($t.SafeMode) { [void]$marks.Children.Add((New-AkariGlyph 'shield' 'Mu' 'Runs in Safe Mode: Akari restarts into it and back')) }
-    [void]$dp.Children.Add($marks)
-    # the TweakRow: name, then the id (mono) with the AkariOS and Risk badges, the description, the State line
-    $text = [Windows.Controls.StackPanel]::new()
-    $text.VerticalAlignment = 'Center'
-    $name = [Windows.Controls.TextBlock]::new()
-    [void]$name.Inlines.Add([Windows.Documents.Run]::new($t.Name))
-    $name.FontSize = 14
-    $name.FontWeight = 'SemiBold'
-    $name.TextWrapping = 'Wrap'
-    [void]$text.Children.Add($name)
-    $meta = [Windows.Controls.WrapPanel]::new()
-    $meta.Margin = [Windows.Thickness]::new(0, 4, 0, 0)
-    $id = New-AkariText $t.Id 12 'Ter'
-    Set-AkariFont $id 'Mono'
-    $id.Margin = [Windows.Thickness]::new(0, 0, 10, 0)
-    $id.VerticalAlignment = 'Center'
-    [void]$meta.Children.Add($id)
-    if ($t.AkariOS) { [void]$meta.Children.Add((New-AkariBadge 'AkariOS')) }
-    if ($t.Risk -in 'Caution', 'Advanced') { [void]$meta.Children.Add((New-AkariBadge $t.Risk)) }
-    [void]$text.Children.Add($meta)
-    if ($t.Description) {
-        $d = New-AkariText $t.Description 13 'Mu'
-        $d.Margin = [Windows.Thickness]::new(0, 6, 0, 0)
-        [void]$text.Children.Add($d)
-    }
+    # the end of the card: AkariOS and Risk badges, the restart / Safe Mode marks, then the control (or its ring)
+    $act = [Windows.Controls.Grid]::new(); $act.VerticalAlignment = 'Center'
+    [void]$act.Children.Add($ctl)
+    $ring = [Windows.Controls.StackPanel]::new(); $ring.Orientation = 'Horizontal'; $ring.Visibility = 'Collapsed'; $ring.HorizontalAlignment = 'Right'
+    [void]$ring.Children.Add((New-AkariRing 16))
+    $rt = New-AkariText 'Running' 12 'Mu'; $rt.Margin = [Windows.Thickness]::new(8, 0, 0, 0); $rt.VerticalAlignment = 'Center'
+    [void]$ring.Children.Add($rt)
+    [void]$act.Children.Add($ring)
+    $card = New-AkariSettingsCard (Get-AkariCategoryIcon $t.Category) $t.Name '' @((New-AkariBadges $t), (New-AkariMarks $t), $act)
+    $card.Card.Tag = $t.Id
+    # the description, with the Tweak's id after it in Cascadia Mono, Ter
+    $d = $card.Desc
+    $d.Visibility = 'Visible'
+    $d.Text = ''
+    if ($t.Description) { [void]$d.Inlines.Add([Windows.Documents.Run]::new("$($t.Description) ")) }
+    $id = [Windows.Documents.Run]::new($t.Id)
+    $id.SetResourceReference([Windows.Documents.TextElement]::FontFamilyProperty, 'FontMono')
+    $id.SetResourceReference([Windows.Documents.TextElement]::ForegroundProperty, 'Ter')
+    [void]$d.Inlines.Add($id)
+    # the State line: reading, waiting, running, failed, waiting for Safe Mode (empty at rest)
     $e.StateText = New-AkariText '' 12 'Ter'
     $e.StateText.Margin = [Windows.Thickness]::new(0, 4, 0, 0)
-    [void]$text.Children.Add($e.StateText)
-    [void]$dp.Children.Add($text)
-    $card.Child = $dp
-    $e.Card = $card; $e.Control = $ctl
+    [void]$card.Text.Children.Add($e.StateText)
+    $e.Card = $card.Card; $e.Control = $ctl; $e.Ring = $ring; $e.Name = $card.Title
     $e
 }
 
-# the card's State line and control after a change of State, Busy, Error or the waiting list
+# a card's name and description with $Query highlighted (the prototype's <mark>: AccText, SemiBold), or plain
+function Set-AkariCardHighlight($e, [string]$Query) {
+    $tb = $e.Name
+    $tb.Inlines.Clear()
+    $name = [string]$e.Tweak.Name
+    if (-not $Query) { [void]$tb.Inlines.Add([Windows.Documents.Run]::new($name)); return }
+    $parts = [regex]::Split($name, '(' + [regex]::Escape($Query) + ')', 'IgnoreCase')
+    foreach ($p in $parts) {
+        if (-not $p) { continue }
+        $r = [Windows.Documents.Run]::new($p)
+        if ($p -ieq $Query) { $r.FontWeight = 'SemiBold'; $r.SetResourceReference([Windows.Documents.TextElement]::ForegroundProperty, 'AccText') }
+        [void]$tb.Inlines.Add($r)
+    }
+}
+
+# the card's State line and control after a change of State, Busy, Error or the waiting list. An Action shows its
+# ring while it runs, then Done (the prototype's runAction)
 function Set-AkariCatalogueCard($e) {
     $t = $e.Tweak
     $pending = $script:SafePending.ContainsKey($t.Id)
@@ -116,10 +114,23 @@ function Set-AkariCatalogueCard($e) {
         $e.StateText.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, 'Bad')
     } else {
         $e.StateText.Text = Get-AkariCatalogueStateText $t $e.State $e.Busy $pending
+        # at rest the switch or combobox says it all: only Custom / Unknown, and the busy states, keep a line
+        if (-not $e.Busy -and -not $pending -and $e.State -in 'Optimized', 'Default') { $e.StateText.Text = '' }
         $e.StateText.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, $(if ($pending) { 'Warn' } else { 'Ter' }))
     }
     $e.StateText.Visibility = if ($e.StateText.Text) { 'Visible' } else { 'Collapsed' }
     $e.Control.IsEnabled = -not $e.Busy
+    $running = ($e.Busy -eq 'Running' -and $t.Kind -eq 'Action')
+    $e.Ring.Visibility = if ($running) { 'Visible' } else { 'Collapsed' }
+    $e.Control.Visibility = if ($running) { 'Hidden' } else { 'Visible' }
+    if ($t.Kind -eq 'Action') {
+        if ($e.Done -and -not $e.Busy) {
+            $c = [Windows.Controls.StackPanel]::new(); $c.Orientation = 'Horizontal'
+            $i = New-AkariIcon 'circle-check.Filled' 16 'Ok'; $i.Margin = [Windows.Thickness]::new(0, 0, 6, 0)
+            [void]$c.Children.Add($i); [void]$c.Children.Add((New-AkariText 'Done' 14 'Ok'))
+            $e.Control.Content = $c
+        } else { $e.Control.Content = $t.Button }
+    }
     $e.Muted = $true
     try {
         switch ($t.Kind) {
@@ -141,80 +152,170 @@ function Set-AkariCatalogueCard($e) {
     } finally { $e.Muted = $false }
 }
 
+# a cached card into $Panel, taken out of the page it was on first (Home's Quick settings, Optimize's Tools)
+function Add-AkariCard($Panel, $e) {
+    if ($e.Card.Parent) { $e.Card.Parent.Children.Remove($e.Card) }
+    [void]$Panel.Children.Add($e.Card)
+}
+
 function Get-AkariCatalogueCard($t) {
     if (-not $script:CatCards.ContainsKey($t.Id)) { $script:CatCards[$t.Id] = New-AkariCatalogueCard $t }
     $script:CatCards[$t.Id]
 }
 
-# ---- the page
+# ---- the pages: a section ('Catalogue:<Section>': a SelectorBar of its categories, then a header and the cards of
+# each), a category ('Catalogue:<Section>/<Category>': its section, scrolled to it), or the search results
+
+# the section and category of a Catalogue page key. Pure.
+function Split-AkariCatalogueKey([string]$Key) {
+    $rest = $Key.Substring($AkariCataloguePrefix.Length)
+    $sec, $cat = $rest.Split('/', 2)
+    @{ Section = $sec; Category = $cat }
+}
+
+# four Settings-card-sized placeholders that shimmer while a section's States load (.sk)
+function New-AkariSkeletons {
+    $sp = [Windows.Controls.StackPanel]::new()
+    for ($i = 0; $i -lt 4; $i++) {
+        $b = [Windows.Controls.Border]::new()
+        $b.Height = 68; $b.Margin = [Windows.Thickness]::new(0, 0, 0, 4)
+        $b.CornerRadius = [Windows.CornerRadius]::new(4); $b.BorderThickness = [Windows.Thickness]::new(1)
+        $b.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, 'S1')
+        $b.SetResourceReference([Windows.Controls.Border]::BorderBrushProperty, 'Bd')
+        $b.ClipToBounds = $true
+        # the shimmer: a Sub band, faded at both ends by its mask, sliding across once every 1.2 s (a busy loop)
+        $r = [Windows.Shapes.Rectangle]::new()
+        $r.SetResourceReference([Windows.Shapes.Shape]::FillProperty, 'Sub')
+        $m = [Windows.Media.LinearGradientBrush]::new()
+        $m.StartPoint = [Windows.Point]::new(0, 0); $m.EndPoint = [Windows.Point]::new(1, 0)
+        foreach ($s in @(@(0, 0), @(0.5, 255), @(1, 0))) { [void]$m.GradientStops.Add([Windows.Media.GradientStop]::new([Windows.Media.Color]::FromArgb([byte]$s[1], 0, 0, 0), $s[0])) }
+        $r.OpacityMask = $m
+        $tt = [Windows.Media.TranslateTransform]::new()
+        $r.RenderTransform = $tt
+        $b.Child = $r
+        $b.Add_SizeChanged({
+            param($s, $a)
+            Start-AkariLoop $s.Child.RenderTransform ([Windows.Media.TranslateTransform]::XProperty) (-$a.NewSize.Width) $a.NewSize.Width 1.2
+        })
+        [void]$sp.Children.Add($b)
+    }
+    $sp
+}
+
+# the sections whose States were read once this session: their page opens with cards, not skeletons
+$script:SectionsRead = @{}
 
 function Show-AkariCataloguePage([string]$Query) {
     $StepsPanel.Visibility = 'Collapsed'; $StepFooter.Visibility = 'Collapsed'; $HomePanel.Visibility = 'Collapsed'
     $Rows.Children.Clear()
-    # Services, Scheduled tasks: the page's Tweaks, then its list, which the search filters ($AkariCatalogueLists)
-    $extra = $AkariCatalogueLists[$script:Cat]
-    # typing in the search shows the page again: its Tweaks' States are read only when it opens
-    $again = ($script:CatShown -eq $script:Cat)
+    $cat = Get-AkariCatalogueOf $script:Tweaks
+    if ($Query) { Show-AkariSearchResults $Query; return }
+    $k = Split-AkariCatalogueKey $script:Cat
+    $sec = $k.Section
     $script:CatShown = $script:Cat
-    $filter = ''
-    if ($extra) { $filter = $Query; $Query = '' }
-    if ($Query) {
-        $Heading.Text = 'Search'
-        # [char]0x203A: the file has no BOM, so no non-ASCII text in its strings
-        $HeaderSub.Text = "Results for `"$Query`" in Optimize $([char]0x203A) Advanced"
-        Set-AkariIcon $HeaderIcon 'search'
-    } else {
-        $sec, $cat = $script:Cat.Substring($AkariCataloguePrefix.Length).Split('/', 2)
-        $header = if ($AkariCatalogueHeaders.ContainsKey($sec)) { $AkariCatalogueHeaders[$sec] } else { $sec }
-        $Heading.Text = $cat
-        $HeaderSub.Text = "$header. Each change applies right away."
-        Set-AkariIcon $HeaderIcon (Get-AkariCategoryIcon $cat)
+    Set-AkariHeader @(@('Optimize', 'Optimize'), $(if ($AkariCatalogueHeaders.ContainsKey($sec)) { $AkariCatalogueHeaders[$sec] } else { $sec }))
+    $page = @($cat.Pages | Where-Object { $_.Section -eq $sec })[0]
+    $cats = @($page.Pages | ForEach-Object { $_.Category })
+    if (-not $cats.Count) { [void]$Rows.Children.Add((New-AkariEmpty 'search' 'Nothing here yet' '')); return }
+    $first = if ($k.Category) { $k.Category } else { $cats[0] }
+    $script:CatSelector = New-AkariSelectorBar $cats $first { param($v) Move-AkariToCategory $v }
+    [void]$Rows.Children.Add($script:CatSelector.Bar)
+    $body = [Windows.Controls.StackPanel]::new()
+    $script:CatHeads = [ordered]@{}
+    $all = @()
+    foreach ($c in $cats) {
+        $h = New-AkariSection $c -First:($c -eq $cats[0])
+        $script:CatHeads[$c] = $h
+        [void]$body.Children.Add($h)
+        $list = @(Find-AkariCatalogueList $cat "$AkariCataloguePrefix$sec/$c" '')
+        foreach ($t in $list) { $e = Get-AkariCatalogueCard $t; Set-AkariCardHighlight $e ''; Add-AkariCard $body $e; Set-AkariCatalogueCard $e }
+        $all += $list
+        # Services, Scheduled tasks: the category's Tweaks, then its list ($AkariCatalogueLists)
+        $extra = $AkariCatalogueLists["$AkariCataloguePrefix$sec/$c"]
+        if ($extra) {
+            $hold = $Rows
+            $Rows = $body
+            try { & $extra.Show '' } finally { $Rows = $hold }
+        }
     }
-    $list = @(Find-AkariCatalogueList (Get-AkariCatalogueOf $script:Tweaks) $script:Cat $Query)
-    if ($extra) {
-        foreach ($t in $list) { $e = Get-AkariCatalogueCard $t; [void]$Rows.Children.Add($e.Card); Set-AkariCatalogueCard $e }
-        if (-not $again) { Start-AkariCatalogueStates $list }
-        & $extra.Show $filter
+    [void]$Rows.Children.Add($body)
+    # the States: skeletons until the first ones arrive (the first time this session), then the cards come in
+    if (-not $script:SectionsRead[$sec] -and @($all | Where-Object { $_.Kind -ne 'Action' }).Count) {
+        $script:Skeletons = New-AkariSkeletons
+        [void]$Rows.Children.Add($script:Skeletons)
+        $body.Visibility = 'Collapsed'
+        $script:SectionBody = $body
+        $script:SectionLoading = $sec
+    } else { $script:SectionLoading = '' }
+    if ($script:PageMoved -or -not $script:SectionsRead[$sec]) { Start-AkariCatalogueStates $all }
+    Update-AkariCatalogueBars
+    if ($k.Category -and $k.Category -ne $cats[0]) {
+        [void]$window.Dispatcher.BeginInvoke([Windows.Threading.DispatcherPriority]::Loaded, [Action[object]]{ param($c) Move-AkariToCategory $c $false }, $k.Category)
+    }
+}
+
+# the first States of the section are in: the skeletons give way to the cards, which come in (Start-AkariPageEntrance)
+function Show-AkariSectionBody {
+    if (-not $script:SectionLoading) { return }
+    $script:SectionsRead[$script:SectionLoading] = $true
+    $script:SectionLoading = ''
+    if ($script:Skeletons -and $script:Skeletons.Parent) { $script:Skeletons.Parent.Children.Remove($script:Skeletons) }
+    $script:SectionBody.Visibility = 'Visible'
+    Start-AkariPageEntrance @($script:SectionBody.Children)
+}
+
+# the SelectorBar picked a category: the page scrolls to its header (16 px under the top)
+function Move-AkariToCategory([string]$Category, [bool]$Smooth = $true) {
+    $h = $script:CatHeads[$Category]
+    if (-not $h -or -not $h.IsVisible) { return }
+    $p = $h.TranslatePoint([Windows.Point]::new(0, 0), $PageScroll)
+    $script:CatScrolling = $true
+    $to = [Math]::Max(0, $PageScroll.VerticalOffset + $p.Y - 16)
+    if ($Smooth) { Start-AkariScrollTo $PageScroll $to } else { $PageScroll.ScrollToVerticalOffset($to) }
+    if ($script:CatSelector) { Set-AkariSelectorValue $script:CatSelector $Category }
+}
+
+# scrolling moves the SelectorBar's selection: the last category whose header is within 80 px of the top
+function Update-AkariCategoryFromScroll {
+    if (-not $script:CatSelector -or -not $script:CatHeads -or $script:Cat -notlike "$AkariCataloguePrefix*") { return }
+    $cur = @($script:CatHeads.Keys)[0]
+    if ($PageScroll.VerticalOffset -ge 8) {
+        foreach ($c in $script:CatHeads.Keys) {
+            $h = $script:CatHeads[$c]
+            if (-not $h.IsVisible) { continue }
+            if ($h.TranslatePoint([Windows.Point]::new(0, 0), $PageScroll).Y -le 80) { $cur = $c }
+        }
+    }
+    Set-AkariSelectorValue $script:CatSelector $cur
+}
+
+# the search results page: every match, grouped by Section › Category, each name with the match highlighted; no match =
+# an empty state with examples
+function Show-AkariSearchResults([string]$Query) {
+    $script:CatShown = ''
+    $script:CatSelector = $null; $script:CatHeads = $null
+    Set-AkariHeader @("Results for `"$Query`"")
+    $list = @(Find-AkariCatalogueList (Get-AkariCatalogueOf $script:Tweaks) $AkariCatalogueSearch $Query)
+    if (-not $list.Count) {
+        [void]$Rows.Children.Add((New-AkariEmpty 'search' "No Tweaks match `"$Query`"" 'Try another word, like "Defender", "DNS" or "Game Bar".'))
         Update-AkariCatalogueBars
         return
     }
-    # toolbar: how many, and read the States again
-    $bar = [Windows.Controls.DockPanel]::new()
-    $bar.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
-    $refresh = [Windows.Controls.Button]::new()
-    $refresh.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Btn')
-    $refresh.Content = 'Refresh'
-    $refresh.ToolTip = 'Read the current state of these tweaks again'
-    $refresh.Add_Click({ Start-AkariCatalogueStates @(Find-AkariCatalogueList (Get-AkariCatalogueOf $script:Tweaks) $script:Cat $Search.Text.Trim()) })
-    [Windows.Controls.DockPanel]::SetDock($refresh, 'Right')
-    [void]$bar.Children.Add($refresh)
-    $count = New-AkariText "$($list.Count) tweak$(if ($list.Count -ne 1) { 's' })" 13 'Mu'
-    $count.VerticalAlignment = 'Center'
-    [void]$bar.Children.Add($count)
-    [void]$Rows.Children.Add($bar)
+    [void]$Rows.Children.Add((New-AkariLead "$($list.Count) Tweak$(if ($list.Count -ne 1) { 's' })"))
     $last = ''
     foreach ($t in $list) {
-        # search results: a heading per Section › Category
-        if ($Query -and "$($t.Section)/$($t.Category)" -ne $last) {
+        if ("$($t.Section)/$($t.Category)" -ne $last) {
             $last = "$($t.Section)/$($t.Category)"
             $hs = if ($AkariCatalogueHeaders.ContainsKey($t.Section)) { $AkariCatalogueHeaders[$t.Section] } else { $t.Section }
-            $h = New-AkariText "$hs $([char]0x203A) $($t.Category)" 14
-            $h.FontWeight = 'SemiBold'
-            Set-AkariFont $h 'Display'
-            $h.Margin = [Windows.Thickness]::new(2, 12, 0, 6)
-            [void]$Rows.Children.Add($h)
+            [void]$Rows.Children.Add((New-AkariSection "$hs $([char]0x203A) $($t.Category)" -First:($Rows.Children.Count -eq 1)))
         }
         $e = Get-AkariCatalogueCard $t
-        [void]$Rows.Children.Add($e.Card)
+        Set-AkariCardHighlight $e $Query
+        Add-AkariCard $Rows $e
         Set-AkariCatalogueCard $e
-    }
-    if (-not $list.Count) {
-        [void]$Rows.Children.Add((New-AkariText $(if ($Query) { 'No tweak matches.' } else { 'Nothing here yet.' }) 13 'Mu'))
     }
     Start-AkariCatalogueStates $list
     Update-AkariCatalogueBars
-    # a new page: its first cards come in one after another (Show-Page decides it is new)
-    if ($script:PageMoved) { Start-AkariStagger $Rows.Children }
 }
 
 # ---- States, read in the background
@@ -268,6 +369,7 @@ function Set-AkariCatalogueStates([hashtable]$States) {
         $e.Busy = ''
         Set-AkariCatalogueCard $e
     }
+    if ($States.Count) { Show-AkariSectionBody }
 }
 
 # ---- changes: right away, one at a time
@@ -284,6 +386,17 @@ function Invoke-AkariCatalogueChange([string]$Id, [string]$Mode, $Value) {
     }
     $e.Error = ''
     if ($t.SafeMode -and -not (Test-AkariSafeMode)) {
+        # the prototype's: "Restart and apply" now, Later (it waits in the Safe Mode bar), or Cancel
+        if ($Mode -eq 'Apply' -and -not $script:SafePending.ContainsKey($Id)) {
+            $r = Show-AkariDialog ([string]$t.Description) "$($t.Name)?" @('Cancel', 'Later', 'Restart and apply') 'Question'
+            if ($r -notin 'Later', 'Restart and apply') { Set-AkariCatalogueCard $e; return }
+            Set-AkariSafePending $script:SafePending $t $e.State $Mode $Value $e.Current
+            Set-AkariCatalogueCard $e
+            Update-AkariCatalogueBars
+            if ($r -eq 'Restart and apply') { Start-AkariCatalogueSafeRun }
+            else { Show-AkariToast 'Waiting for Safe Mode' "`"$($t.Name)`" applies the next time Akari restarts into Safe Mode." }
+            return
+        }
         Set-AkariSafePending $script:SafePending $t $e.State $Mode $Value $e.Current
         Set-AkariCatalogueCard $e
         Update-AkariCatalogueBars
@@ -341,6 +454,8 @@ function Complete-AkariCatalogueJob($Job) {
             elseif ($o.Outcome -in 'Applied', 'Reverted') {
                 if ($e.Tweak.Explorer) { [void]$script:CatExplorer.Add($s.Id) }
                 if ($e.Tweak.Reboot) { [void]$script:CatReboot.Add($s.Id) }
+                if ($e.Tweak.Kind -eq 'Action') { $e.Done = $true }
+                Add-AkariActivity "$(if ($o.Outcome -eq 'Applied') { 'Applied' } else { 'Reverted' }) `"$($e.Tweak.Name)`"" 'Optimize' 1 (Get-AkariCategoryIcon $e.Tweak.Category)
             }
             Set-AkariCatalogueCard $e
         }
@@ -352,61 +467,33 @@ function Complete-AkariCatalogueJob($Job) {
     Update-AkariCatalogueBars
 }
 
-# ---- the bars: Safe Mode changes, restarts
+# ---- the InfoBars at the top of Optimize's pages: Restart required (Restart now, Restart Explorer), changes waiting
+# for Safe Mode (Restart into Safe Mode); each opens and closes by animating its height (ADR 0008)
 
-function New-AkariCatalogueBar([string]$Glyph, [string]$Brush) {
-    $b = [Windows.Controls.Border]::new()
-    $b.BorderThickness = [Windows.Thickness]::new(0, 1, 0, 0)
-    $b.SetResourceReference([Windows.Controls.Border]::BorderBrushProperty, 'Bd')
-    $b.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, 'S1')
-    $b.Padding = [Windows.Thickness]::new(24, 10, 24, 10)
-    $dp = [Windows.Controls.DockPanel]::new()
-    $ic = New-AkariGlyph $Glyph $Brush ''
-    $ic.Width = 18; $ic.Height = 18
-    $ic.Margin = [Windows.Thickness]::new(0, 0, 12, 0)
-    [Windows.Controls.DockPanel]::SetDock($ic, 'Left')
-    $btns = [Windows.Controls.StackPanel]::new()
-    $btns.Orientation = 'Horizontal'
-    [Windows.Controls.DockPanel]::SetDock($btns, 'Right')
-    $text = New-AkariText '' 13
-    $text.VerticalAlignment = 'Center'
-    foreach ($x in $ic, $btns, $text) { [void]$dp.Children.Add($x) }
-    $b.Child = $dp
-    @{ Bar = $b; Text = $text; Buttons = $btns }
-}
+$script:RestartBar = New-AkariInfoBar 'Warn' 'Restart required' '' @(
+    (New-AkariBarButton 'Restart Explorer' { Start-AkariCatalogueExplorer }),
+    (New-AkariBarButton 'Restart now' { Start-AkariCatalogueRestart }))
+$script:RestartBar.Explorer = $script:RestartBar.Actions.Children[0]
+$script:RestartBar.Reboot = $script:RestartBar.Actions.Children[1]
+$script:SafeBar = New-AkariInfoBar 'Warn' '' 'Akari restarts into Safe Mode, applies them and restarts back.' @(
+    (New-AkariBarButton 'Restart into Safe Mode' { Start-AkariCatalogueSafeRun }))
+$script:SafeBar.Apply = $script:SafeBar.Actions.Children[0]
+# the Safe Mode bar's icon is power, not the warning sign
+Set-AkariIcon $script:SafeBar.Bar.Child.Children[0] 'power'
+foreach ($b in $script:RestartBar.Bar, $script:SafeBar.Bar) { $b.Visibility = 'Collapsed'; [void]$CatBars.Children.Add($b) }
 
-function New-AkariBarButton([string]$Text, [scriptblock]$Click, [string]$Style = 'Btn') {
-    $b = [Windows.Controls.Button]::new()
-    $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, $Style)
-    $b.Content = $Text
-    $b.Add_Click($Click)
-    $b
-}
-
-$script:SafeBar = New-AkariCatalogueBar 'shield' 'Warn'
-$script:SafeBar.Apply = New-AkariBarButton 'Restart and apply' { Start-AkariCatalogueSafeRun } 'Accent'
-[void]$script:SafeBar.Buttons.Children.Add($script:SafeBar.Apply)
-$script:RestartBar = New-AkariCatalogueBar 'rotate-ccw' 'Mu'
-$script:RestartBar.Explorer = New-AkariBarButton 'Restart Explorer' { Start-AkariCatalogueExplorer }
-$script:RestartBar.Reboot = New-AkariBarButton 'Restart now' { Start-AkariCatalogueRestart }
-foreach ($x in $script:RestartBar.Explorer, $script:RestartBar.Reboot) { [void]$script:RestartBar.Buttons.Children.Add($x) }
-[void]$CatBars.Children.Add($script:SafeBar.Bar)
-[void]$CatBars.Children.Add($script:RestartBar.Bar)
-
-# shows the bars that have something to say (on the Catalogue's pages only)
+# shows the bars that have something to say (on Optimize's pages only)
 function Update-AkariCatalogueBars {
-    $on = ($script:Cat -like "$AkariCataloguePrefix*")
+    $on = ($script:Cat -like "$AkariCataloguePrefix*" -or $script:Cat -eq 'Optimize')
     $n = $script:SafePending.Count
-    # a bar that appears rises into place (Show-AkariElement)
-    if ($on -and $n) { Show-AkariElement $script:SafeBar.Bar 8 } else { $script:SafeBar.Bar.Visibility = 'Collapsed' }
-    $script:SafeBar.Text.Text = "$n change$(if ($n -ne 1) { 's' }) need$(if ($n -eq 1) { 's' }) Safe Mode: Akari restarts into it, applies them and restarts back."
+    $script:SafeBar.Title.Text = "$n change$(if ($n -ne 1) { 's wait' } else { ' waits' }) for Safe Mode"
+    if ($on -and $n) { Show-AkariInfoBar $script:SafeBar.Bar } else { Hide-AkariInfoBar $script:SafeBar.Bar }
     $lines = @(Get-AkariRestartBarText $script:CatExplorer.Count $script:CatReboot.Count)
-    if ($on -and $lines.Count) { Show-AkariElement $script:RestartBar.Bar 8 } else { $script:RestartBar.Bar.Visibility = 'Collapsed' }
-    $script:RestartBar.Text.Text = $lines -join "`n"
+    $script:RestartBar.Text.Text = $lines -join ' '
+    if ($on -and $lines.Count) { Show-AkariInfoBar $script:RestartBar.Bar } else { Hide-AkariInfoBar $script:RestartBar.Bar }
     $script:RestartBar.Explorer.Visibility = if ($script:CatExplorer.Count) { 'Visible' } else { 'Collapsed' }
     $script:RestartBar.Reboot.Visibility = if ($script:CatReboot.Count) { 'Visible' } else { 'Collapsed' }
-    $script:RestartBar.Reboot.Margin = [Windows.Thickness]::new($(if ($script:CatExplorer.Count) { 8 } else { 0 }), 0, 0, 0)
-    $CatBars.Visibility = if ($on -and ($n -or $lines.Count)) { 'Visible' } else { 'Collapsed' }
+    $CatBars.Visibility = 'Visible'
 }
 
 function Start-AkariCatalogueExplorer {
@@ -466,6 +553,7 @@ function Complete-AkariCatalogueSafeRun($Shared) {
     # the Run restarts the PC into Safe Mode now (Core\Phases.ps1); nothing waits any more
     $script:SafePending.Clear()
     foreach ($e in $script:CatCards.Values) { Set-AkariCatalogueCard $e }
+    Update-AkariCatalogueBars
 }
 
 # closing Akari with Safe Mode changes waiting: apply them (one restart) or discard them

@@ -1,10 +1,9 @@
 # A release: push a tag v<version> that matches $AkariVersion in Core/Version.ps1.
 #   git tag -a v0.1.0 -m "release notes here"   (an annotated tag's message becomes the notes; else GitHub writes them)
 #   git push origin v0.1.0
-# Tests and builds the native app first (AkariOS-Native.exe, app/: a failing test stops the release), then builds
-# AkariOS-<version>.zip (one AkariOS\ folder with what Akari runs from) and Akari.ps1 (build/Bootstrap.ps1 filled in:
-# the one-liner `iwr .../releases/latest/download/Akari.ps1 -useb | iex`) and publishes all three. Both updaters
-# (Core/Update.ps1, app/AkariOS.Core/Update/) read the latest release and check their file against the SHA-256 GitHub
+# Builds AkariOS-<version>.zip (one AkariOS\ folder with what Akari runs from) and Akari.ps1 (build/Bootstrap.ps1 filled in:
+# the one-liner `iwr .../releases/latest/download/Akari.ps1 -useb | iex`) and publishes both (the native app, AkariOS-Native.exe, is
+# left out until batch 7 of the WinUI 3 plan). Both updaters (Core/Update.ps1, app/AkariOS.Core/Update/) read the latest release and check their file against the SHA-256 GitHub
 # reports for it.
 # Windows runner: files get CRLF line endings, like a Windows checkout (.cmd and .reg files need them).
 name: Release
@@ -29,25 +28,12 @@ jobs:
           if ("v$ver" -ne $env:GITHUB_REF_NAME) { throw "Tag $env:GITHUB_REF_NAME does not match `$AkariVersion = '$ver' in src/Core/Version.ps1" }
           "AKARI_VERSION=$ver" >> $env:GITHUB_ENV
 
-      # the native app (app/, ADR 0007) first: a failing build or test stops the release before anything is published
-      - uses: actions/setup-dotnet@v4
-        with:
-          global-json-file: app/global.json
-
-      - name: Test the native app
-        working-directory: app
-        run: dotnet test --solution AkariOS.Native.sln -c Release
-
-      - name: Build AkariOS-Native.exe
+      # The native app (app/, ADR 0007) is left out until it follows the WinUI 3 look (ADR 0008, plan
+      # docs/plans/2026-11-19-winui-3.md batch 7): it does not build against the shared XAML yet. Its test, publish and
+      # AkariOS-Native.exe come back here then.
+      - name: Make the output folder
         shell: pwsh
-        run: |
-          dotnet publish app/AkariOS.App -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o app/publish
-          if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed' }
-          New-Item dist -ItemType Directory -Force | Out-Null
-          Copy-Item app/publish/AkariOS-Native.exe dist/AkariOS-Native.exe
-          # the exe's version is the zip's: both come from src/Core/Version.ps1 (the native updater checks it too)
-          $exe = (Get-Item dist/AkariOS-Native.exe).VersionInfo.ProductVersion
-          if ($exe -ne $env:AKARI_VERSION) { throw "AkariOS-Native.exe is version '$exe', the release is $env:AKARI_VERSION" }
+        run: New-Item dist -ItemType Directory -Force | Out-Null
 
       - name: Build the zip
         shell: pwsh
@@ -78,4 +64,4 @@ jobs:
           # checkout may leave an annotated tag lightweight: fetch it as it is
           git fetch --force origin "refs/tags/${tag}:refs/tags/${tag}"
           $notes = if ((git cat-file -t $tag) -eq 'tag') { '--notes-from-tag' } else { '--generate-notes' }
-          gh release create $tag "dist/AkariOS-$env:AKARI_VERSION.zip" dist/Akari.ps1 dist/AkariOS-Native.exe --title "AkariOS $env:AKARI_VERSION" $notes
+          gh release create $tag "dist/AkariOS-$env:AKARI_VERSION.zip" dist/Akari.ps1 --title "AkariOS $env:AKARI_VERSION" $notes

@@ -1,22 +1,27 @@
-<!-- AkariOS motion tokens (plan docs/plans/2026-10-31-motion-polish.md, values from the Windows 11 style plan
-     docs/plans/2026-11-17-windows-11-style.md): every animation's duration and easing, WinUI's.
+<!-- AkariOS motion tokens (plan docs/plans/2026-11-19-winui-3.md, decision 9; the prototype's --fast / --norm / --slow /
+     --page and --ease / --easeIO): every animation's duration and easing, Fluent's.
      Get-AkariXaml (UI\Motion.ps1) copies these entries into each XAML file's resources before parsing, so styles and
      templates use them through StaticResource (storyboards in templates are frozen: no DynamicResource); with Windows'
-     animation effects off it writes every Duration as 0:0:0. Start-AkariMotion reads the same values.
+     animation effects off it writes every Duration and KeyTime as 0:0:0. Start-AkariMotion reads the same values.
+     A template animates with a SplineDoubleKeyFrame: KeyTime = Motion.<Speed>.T, KeySpline = Motion.Ease (entrances,
+     WinUI's decelerate curve cubic-bezier(0,0,0,1)) or Motion.Exit (exits, cubic-bezier(.55,.55,0,1)).
      Entries use the presentation namespace only (they are pasted into files that declare nothing else). -->
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <!-- hover, press (WinUI's ControlFasterAnimationDuration) -->
+  <!-- hover and press fills, the toggle thumb's size -->
   <Duration x:Key="Motion.Fast">0:0:0.083</Duration>
-  <!-- switches, checks, popups (ControlNormalAnimationDuration) -->
+  <!-- toggles, checks, radios, expanders, the dialog's smoke -->
   <Duration x:Key="Motion.Base">0:0:0.167</Duration>
-  <!-- pages, dialogs -->
+  <!-- flyouts, the nav pane, InfoBars, the dialog, the SelectorBar underline -->
   <Duration x:Key="Motion.Slow">0:0:0.25</Duration>
-  <!-- the delay between cards that appear one after another -->
+  <!-- page entrances, toasts -->
+  <Duration x:Key="Motion.Page">0:0:0.333</Duration>
+  <!-- the delay between a page's children as they come in -->
   <Duration x:Key="Motion.Stagger">0:0:0.03</Duration>
-  <!-- Fluent's decelerate curve, close to cubic-bezier(0, 0, 0, 1): fast out, a long soft landing, no overshoot -->
-  <ExponentialEase x:Key="Motion.Ease" EasingMode="EaseOut" Exponent="7"/>
-  <!-- the native app's views until they move to the Windows 11 style (plan batch 7); the PowerShell UI never uses it
-       (Fluent has no overshoot) -->
-  <BackEase x:Key="Motion.Spring" EasingMode="EaseOut" Amplitude="0.3"/>
+  <KeyTime x:Key="Motion.Fast.T">0:0:0.083</KeyTime>
+  <KeyTime x:Key="Motion.Base.T">0:0:0.167</KeyTime>
+  <KeyTime x:Key="Motion.Slow.T">0:0:0.25</KeyTime>
+  <KeyTime x:Key="Motion.Page.T">0:0:0.333</KeyTime>
+  <KeySpline x:Key="Motion.Ease">0,0 0,1</KeySpline>
+  <KeySpline x:Key="Motion.Exit">0.55,0.55 0,1</KeySpline>
 </ResourceDictionary>

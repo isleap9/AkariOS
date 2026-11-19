@@ -435,7 +435,7 @@ public sealed class InstallPage
         }
         else
         {
-            var t = new TextBlock { Text = $"{number}", FontSize = 12, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            var t = new TextBlock { Text = $"{number}", FontSize = 12, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
             t.SetResourceReference(TextBlock.FontFamilyProperty, "FontDisplay");
             c.Child = t;
         }

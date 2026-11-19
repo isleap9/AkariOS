@@ -1,6 +1,6 @@
 # AkariOS has its own visual identity instead of the Windows Settings look
 
-Superseded by ADR 0008 (2026-11-17): the identity goes, the theme mechanism stays.
+Superseded by ADR 0008 (`0008-winui-3.md`) for the look; its theme mechanism (two brush dictionaries, `DynamicResource` only) stays.
 
 Decided 2026-10-30 (plan `docs/plans/2026-10-30-redesign.md`). The GUI drops the WinUI / Windows 11 Settings look it
 copied (Segoe UI, Segoe Fluent glyphs, a white accent, square-ish cards) for AkariOS's own, from the AkariOS design

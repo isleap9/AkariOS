@@ -36,14 +36,10 @@ public sealed class SettingsFile(string path)
 /// <summary>
 /// The theme (Set-AkariTheme): System, Dark or Light, saved as settings.json's Theme; System follows Windows' app
 /// mode (AppsUseLightTheme, the real user's) and changes with it. Applying swaps Theme.Dark.xaml / Theme.Light.xaml in
-/// the resources: every brush is a DynamicResource, so the window repaints. AccentPalette: the user's Windows accent
-/// (Look/Accent.cs), put into the theme dictionary; null or unreadable = the theme file's default blue.
+/// the resources: every brush is a DynamicResource, so the window repaints.
 /// </summary>
-public sealed class ThemeService(ResourceDictionary resources, SettingsFile settings, Func<int?> appsUseLightTheme, bool motionOn,
-    Func<byte[]?>? accentPalette = null)
+public sealed class ThemeService(ResourceDictionary resources, SettingsFile settings, Func<int?> appsUseLightTheme, bool motionOn)
 {
-    private ResourceDictionary? _dict;
-
     public static readonly IReadOnlyList<string> Settings = ["System", "Dark", "Light"];
 
     /// <summary>System, Dark or Light: what the user picked.</summary>
@@ -69,29 +65,12 @@ public sealed class ThemeService(ResourceDictionary resources, SettingsFile sett
         try { light = appsUseLightTheme(); } catch (Exception) { light = null; }
         var name = Resolve(setting, light);
         var dict = (ResourceDictionary)AkariXaml.Load($"Theme.{name}.xaml", motionOn);
-        // the accent goes in before the dictionary is merged: one repaint
-        PutAccent(dict, name);
-        _dict = dict;
         var merged = resources.MergedDictionaries;
         if (merged.Count > AkariXaml.ThemeIndex) merged[AkariXaml.ThemeIndex] = dict;
         else merged.Add(dict);
         (Setting, Current) = (setting, name);
         if (save) settings.Set("Theme", setting);
         Changed?.Invoke();
-    }
-
-    /// <summary>The accent again (Windows' accent changed): into the current theme dictionary.</summary>
-    public void ApplyAccent()
-    {
-        if (_dict != null) PutAccent(_dict, Current);
-    }
-
-    private void PutAccent(ResourceDictionary dict, string name)
-    {
-        if (accentPalette == null) return;
-        byte[]? palette;
-        try { palette = accentPalette(); } catch (Exception) { palette = null; }
-        Accent.Put(dict, palette, name);
     }
 
     /// <summary>The next one in the options menu's cycle: System, Dark, Light.</summary>

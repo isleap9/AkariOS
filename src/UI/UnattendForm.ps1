@@ -81,6 +81,7 @@ function Add-AkariUaFormItems($Panel, $Items, $Gates) {
                 Set-AkariFont $tb 'Mono'
                 $tb.VerticalScrollBarVisibility = 'Auto'; $tb.HorizontalScrollBarVisibility = 'Auto'
             } elseif ($it.Kind -eq 'Number') { $tb.Width = 140; $tb.HorizontalAlignment = 'Left' }
+            else { $tb.MaxWidth = 320; $tb.Width = 320; $tb.HorizontalAlignment = 'Left' }
             [void]$Panel.Children.Add($tb)
             $script:UaBindings.Add(@{ Field = $it.Input; Kind = 'Input'; Control = $tb; Gates = @($Gates) })
         } elseif ($it.Select) {
@@ -90,6 +91,8 @@ function Add-AkariUaFormItems($Panel, $Items, $Gates) {
             $cb.ItemsSource = Get-AkariUaFormItems $it
             $cb.DisplayMemberPath = 'Value'; $cb.SelectedValuePath = 'Key'
             $cb.IsTextSearchEnabled = $true
+            # the prototype's .field .combo: at most 360 px
+            $cb.Width = 360; $cb.HorizontalAlignment = 'Left'
             [void]$Panel.Children.Add($cb)
             $script:UaBindings.Add(@{ Field = $it.Select; Kind = 'Select'; Control = $cb; Gates = @($Gates) })
         } elseif ($it.Checks) {
@@ -272,22 +275,51 @@ function New-AkariUaFormComponents($Gates) {
     $sp
 }
 
-# builds every section as a card into $Panel
+# the icon of each of his sections on Install USB (the prototype's, in his order)
+$AkariUaSectionIcons = @('globe', 'cpu', 'settings', 'app-window', 'shield', 'monitor', 'globe', 'people', 'lock', 'lock', 'folder', 'layout-grid',
+    'layout-grid', 'layout-grid', 'settings', 'sparkle', 'monitor', 'folder', 'shield', 'app-window', 'wifi', 'check', 'keyboard', 'keyboard',
+    'paint-brush', 'trash-2', 'code', 'shield', 'code')
+
+# builds every section as an expander into $Panel (the first one open); its header says "Default" or "Changed from the
+# default" and follows the form (Update-AkariUaSections)
+$script:UaSections = [Collections.Generic.List[object]]::new()
 function New-AkariUaForm($Panel, $Sections) {
     $script:UaBindings.Clear()
     $script:UaRowGroups.Clear()
+    $script:UaSections.Clear()
+    $i = 0
     foreach ($s in $Sections) {
-        $card = [Windows.Controls.Border]::new()
-        $card.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
-        $card.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
+        $icon = if ($i -lt $AkariUaSectionIcons.Count) { $AkariUaSectionIcons[$i] } else { 'settings' }
+        $ex = New-AkariExpander $icon $s.Title 'Default' ($i -eq 0)
         $sp = [Windows.Controls.StackPanel]::new()
-        $h = New-AkariText $s.Title 20
-        $h.FontWeight = 'SemiBold'; $h.Margin = [Windows.Thickness]::new(0, 0, 0, 8)
-        Set-AkariFont $h 'Display'
-        [void]$sp.Children.Add($h)
+        $from = $script:UaBindings.Count
         Add-AkariUaFormItems $sp $s.Items @()
-        $card.Child = $sp
-        [void]$Panel.Children.Add($card)
+        $row = New-AkariExpanderRow $sp $null 52
+        $row.Padding = [Windows.Thickness]::new(52, 12, 16, 16)
+        [void]$ex.Body.Children.Add($row)
+        $sec = @{ Desc = $ex.Desc; From = $from; To = $script:UaBindings.Count }
+        $script:UaSections.Add($sec)
+        # any change inside it: its header line again
+        $h = [Windows.RoutedEventHandler]{ param($x, $e) Update-AkariUaSections }
+        foreach ($ev in [Windows.Controls.Primitives.ToggleButton]::CheckedEvent, [Windows.Controls.Primitives.ToggleButton]::UncheckedEvent, [Windows.Controls.Primitives.ButtonBase]::ClickEvent) { $row.AddHandler($ev, $h) }
+        $row.AddHandler([Windows.Controls.Primitives.Selector]::SelectionChangedEvent, [Windows.Controls.SelectionChangedEventHandler]{ param($x, $e) Update-AkariUaSections })
+        $row.AddHandler([Windows.Controls.Primitives.TextBoxBase]::TextChangedEvent, [Windows.Controls.TextChangedEventHandler]{ param($x, $e) Update-AkariUaSections })
+        [void]$Panel.Children.Add($ex.Card)
+        $i++
+    }
+}
+
+# each section's header line: "Changed from the default" when one of its fields differs from the start
+function Update-AkariUaSections {
+    if (-not $script:UaStartFields -or $script:UaSyncing) { return }
+    $now = Get-AkariUaFormFields
+    foreach ($s in $script:UaSections) {
+        $changed = $false
+        for ($n = $s.From; $n -lt $s.To -and -not $changed; $n++) {
+            $f = $script:UaBindings[$n].Field
+            if ((@($now[$f]) -join '|') -ne (@($script:UaStartFields[$f]) -join '|')) { $changed = $true }
+        }
+        $s.Desc.Text = if ($changed) { 'Changed from the default' } else { 'Default' }
     }
 }
 

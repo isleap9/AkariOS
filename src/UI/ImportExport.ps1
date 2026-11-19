@@ -67,9 +67,11 @@ function Start-AkariImport {
         if ((Resolve-Path -LiteralPath $path).Path -ne $dest) { Copy-Item -LiteralPath $path -Destination $dest -Force }
     } catch { Add-Log "Warning: the imported file was not copied to the presets ($($_.Exception.Message))" }
     Add-Log "Import: $path"
-    Select-AkariPage 'Install AkariOS'
+    Push-AkariHistory
+    $script:Cat = 'Install AkariOS'; $script:Query = ''
     $script:Mode = 'Guided'
     $script:Step = 1
-    Show-AkariSteps
+    Show-Page
     Set-AkariQuickSelect $p
+    Show-AkariToast "Imported $(Split-Path $path -Leaf)" "$(@($p.Entries).Count) choices loaded into Guided."
 }

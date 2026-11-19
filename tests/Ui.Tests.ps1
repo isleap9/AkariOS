@@ -5,6 +5,21 @@ function Test-XamlInChild([string]$Script) {
     $out = & powershell -NoProfile -STA -ExecutionPolicy Bypass -Command $Script 2>&1
     @($out | ForEach-Object { "$_" }) -join "`n"
 }
+# runs a probe script in a child STA PowerShell, its "key=value" lines as a hashtable ('error' = anything else)
+function Invoke-Probe([string]$Path, [hashtable]$Params = @{}) {
+    $out = @{}
+    $a = @('-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-File', $Path)
+    foreach ($k in $Params.Keys) { $a += "-$k"; $a += $Params[$k] }
+    & powershell @a 2>&1 | ForEach-Object {
+        $l = "$_"; $i = $l.IndexOf('='); if ($i -gt 0 -and $l -notmatch '^\[') { $out[$l.Substring(0, $i)] = $l.Substring($i + 1) } elseif ($l -notmatch '^\[') { $out['error'] += $l }
+    }
+    $out
+}
+
+# the styles the UI files define (Controls.xaml, MainWindow.xaml) and use
+$AkariStyles = 'Switch', 'CatSwitch', 'Check', 'Radio', 'Combo', 'ComboItem', 'SettingCard', 'CategoryCard', 'CardRow', 'Panel', 'CardButton', 'ExpHead',
+    'Accent', 'ModeCard', 'Selector', 'NavItem', 'Crumb'
+$AkariRetired = 'Segmented', 'SegItem', 'Tab', 'Chip', 'ModeCardHot', 'StepNum'
 
 Describe 'UI files' {
     It 'UI scripts and Akari.ps1 have no parse errors' {
@@ -26,6 +41,14 @@ Describe 'UI files' {
         @($bad) -join ', ' | Should Be ''
     }
 
+    It 'UI XAML files are ASCII without a BOM' {
+        $bad = foreach ($f in Get-ChildItem "$Root\UI\*.xaml") {
+            $b = [IO.File]::ReadAllBytes($f.FullName)
+            if (($b.Length -ge 3 -and $b[0] -eq 0xEF) -or @($b | Where-Object { $_ -gt 0x7F }).Count) { $f.Name }
+        }
+        @($bad) -join ', ' | Should Be ''
+    }
+
     It 'MainWindow.xaml parses' {
         $s = "Add-Type -AssemblyName PresentationFramework; . '$Root\UI\Motion.ps1'; [void](Get-AkariXaml '$Root\UI\MainWindow.xaml'); 'ok'"
         Test-XamlInChild $s | Should Be 'ok'
@@ -36,95 +59,64 @@ Describe 'UI files' {
         @($hits).Count | Should Be 0
     }
 
-    It 'has no Home spec cards left' {
-        Test-Path "$Root\UI\Home.ps1" | Should Be $false
-        $hits = Select-String -Path @("$Root\Akari.ps1", "$Root\UI\*.ps1", "$Root\UI\*.xaml") -Pattern 'SpecData|SpecJob|CopySpecs|Get-Specs|Update-Home'
-        @($hits).Count | Should Be 0
-    }
-
-    It 'Controls.xaml parses and defines every style' {
+    It 'Controls.xaml parses and defines every style still used' {
         $s = "Add-Type -AssemblyName PresentationFramework; . '$Root\UI\Motion.ps1'; `$d = Get-AkariXaml '$Root\UI\Controls.xaml'; " +
-             "`$miss = @('Switch', 'Combo', 'ComboItem', 'Segmented', 'SegItem', 'Check', 'SettingCard', 'CategoryCard', 'Accent', 'StepNum', 'ModeCard' | Where-Object { -not `$d.Contains(`$_) }); " +
+             "`$w = Get-AkariXaml '$Root\UI\MainWindow.xaml'; `$miss = @('$($AkariStyles -join "','")', 'Btn', 'BtnP', 'Ghost', 'Link', 'Flat', 'Cap', 'CapX' | Where-Object { -not `$d.Contains(`$_) -and -not `$w.Resources.Contains(`$_) }); " +
              "if (`$miss) { 'missing: ' + (`$miss -join ', ') } else { 'ok' }"
         Test-XamlInChild $s | Should Be 'ok'
     }
 
-    # Windows 11 controls (plan docs/plans/2026-11-17-windows-11-style.md, batch 4)
-    $controlsText = Get-Content "$Root\UI\Controls.xaml" -Raw
-    $windowText = [regex]::Match((Get-Content "$Root\UI\MainWindow.xaml" -Raw), '(?s)<Window\.Resources>.*</Window\.Resources>').Value
-    # each x:Key'd style's text, by key
-    function Get-StyleBlocks([string]$Text) {
-        $h = @{}
-        foreach ($m in [regex]::Matches($Text, '(?s)<Style x:Key="([^"{]+)".*?</Style>')) { $h[$m.Groups[1].Value] = $m.Value }
-        $h
+    It 'every style the code names is defined' {
+        $defined = foreach ($f in "$Root\UI\Controls.xaml", "$Root\UI\MainWindow.xaml") { [regex]::Matches((Get-Content $f -Raw), '<Style x:Key="([^"]+)"') | ForEach-Object { $_.Groups[1].Value } }
+        $used = foreach ($f in Get-ChildItem "$Root\UI\*.ps1") { [regex]::Matches((Get-Content $f.FullName -Raw), "StyleProperty, '([A-Za-z]+)'") | ForEach-Object { $_.Groups[1].Value } }
+        $dyn = foreach ($f in Get-ChildItem "$Root\UI\*.ps1") { [regex]::Matches((Get-Content $f.FullName -Raw), "StyleProperty, \`$\(if \([^)]*\) \{ '([A-Za-z]+)' \} else \{ '([A-Za-z]+)' \}") | ForEach-Object { $_.Groups[1].Value; $_.Groups[2].Value } }
+        $miss = @(@($used) + @($dyn) | Sort-Object -Unique | Where-Object { $_ -notin $defined -and $_ -ne 'Plain' })
+        ($miss -join ', ') | Should Be ''
     }
-    It 'has no CornerRadius above 8 in the shared styles; only the toggle tracks round fully (radios are ellipses)' {
-        $bad = foreach ($src in @(@{ N = 'Controls.xaml'; T = $controlsText }, @{ N = 'MainWindow.xaml'; T = $windowText })) {
-            foreach ($m in [regex]::Matches($src.T, '(?:CornerRadius="|Property="CornerRadius" Value=")([0-9.,]+)"')) {
-                if (@($m.Groups[1].Value -split ',' | Where-Object { [double]$_ -gt 8 }).Count) { "$($src.N): $($m.Value)" }
-            }
-            $styles = Get-StyleBlocks $src.T
-            foreach ($k in $styles.Keys) {
-                foreach ($m in [regex]::Matches($styles[$k], 'RadiusX="([0-9.]+)"')) { if ([double]$m.Groups[1].Value -gt 8 -and $k -notin 'Switch', 'CatSwitch') { "$($src.N) $k RadiusX $($m.Groups[1].Value)" } }
+
+    It 'retires Segmented, SegItem, Tab, Chip, ModeCardHot and StepNum' {
+        $hits = foreach ($k in $AkariRetired) {
+            Select-String -Path "$Root\UI\*.xaml", "$Root\UI\*.ps1" -Pattern "x:Key=`"$k`"|'$k'|StaticResource $k\}|DynamicResource $k\}" | ForEach-Object { "$($_.Filename):$($_.LineNumber) $k" }
+        }
+        @($hits) -join ', ' | Should Be ''
+    }
+
+    # decision 8: 4 px controls and cards, 8 px flyouts, dialogs and tiles; full round for toggles (10) and the focus
+    # rings (their radius + 3 / + 1)
+    It 'has no CornerRadius above 8 but the toggles and the focus rings' {
+        $bad = foreach ($f in "$Root\UI\Controls.xaml", "$Root\UI\MainWindow.xaml", "$Root\UI\Dialog.xaml") {
+            $x = [xml](Get-Content $f -Raw)
+            foreach ($n in $x.SelectNodes('//*[@CornerRadius]')) {
+                $p = $n; $key = ''
+                while ($p -and $p.NodeType -eq 'Element') { if ($p.LocalName -eq 'Style') { $key = $p.GetAttribute('x:Key') }; $p = $p.ParentNode }
+                if ($key -like 'Focus*' -or $n.CornerRadius -like '{*') { continue }
+                $max = ($n.CornerRadius -split ',' | ForEach-Object { [double]$_ } | Measure-Object -Maximum).Maximum
+                if ($max -gt 8 -and -not ($key -in 'Switch' -and $max -eq 10)) { "$(Split-Path $f -Leaf) $key $($n.CornerRadius)" }
             }
         }
-        (@($bad) -join '; ') | Should Be ''
-    }
-    It 'eases without overshoot: no PowerShell style or code uses Motion.Spring' {
-        $hits = Select-String -Path "$Root\UI\*.xaml", "$Root\UI\*.ps1" -Pattern 'Motion\.Spring|-Easing Spring' | Where-Object { $_.Filename -ne 'Motion.xaml' }
-        (@($hits | ForEach-Object { "$($_.Filename):$($_.LineNumber)" }) -join ', ') | Should Be ''
-        (Get-Content "$Root\UI\Motion.xaml" -Raw) | Should Match '<ExponentialEase x:Key="Motion.Ease" EasingMode="EaseOut" Exponent="7"/>'
-    }
-    It 'retires the segmented picker and the hot mode card from the PowerShell code (the native app keeps them for now)' {
-        $hits = Select-String -Path "$Root\UI\*.ps1" -Pattern "'(Segmented|SegItem|ModeCardHot)'"
-        (@($hits | ForEach-Object { "$($_.Filename):$($_.LineNumber)" }) -join ', ') | Should Be ''
-        # only Optimize's Sections row is left, until batch 5's navigation pane
-        @([regex]::Matches((Get-Content "$Root\UI\MainWindow.xaml" -Raw), 'Resource Segmented\}')).Count | Should Be 1
-    }
-    It 'has WinUI metrics: 32 px buttons, combo and text box, a 120 px accent button, 40 x 20 switches, 20 px boxes, 68 px cards' {
-        $c = Get-StyleBlocks $controlsText; $w = Get-StyleBlocks $windowText
-        foreach ($k in 'Btn', 'Flat') { "$k $($w[$k] -match '"MinHeight" Value="32"')" | Should Be "$k True" }
-        "Combo $($c['Combo'] -match '"MinHeight" Value="32"')" | Should Be 'Combo True'
-        "Accent $($c['Accent'] -match '"MinHeight" Value="32"' -and $c['Accent'] -match '"MinWidth" Value="120"')" | Should Be 'Accent True'
-        foreach ($k in 'Switch', 'CatSwitch') { "$k $($c[$k] -match '<Grid Width="40" Height="20"' -and $c[$k] -match 'x:Name="Thumb" Width="12" Height="12"')" | Should Be "$k True" }
-        "Check $($c['Check'] -match 'x:Name="Box" Width="20" Height="20"')" | Should Be 'Check True'
-        "Radio $($c['Radio'] -match '<Grid Width="20" Height="20"')" | Should Be 'Radio True'
-        "Card $($c['SettingCard'] -match '"MinHeight" Value="68"' -and $c['SettingCard'] -match '"Padding" Value="16,12"' -and $c['SettingCard'] -match '"Margin" Value="0,0,0,4"')" | Should Be 'Card True'
-        "Btn edge $($w['Btn'] -match 'CtlBd2')" | Should Be 'Btn edge True'
-    }
-    It 'draws Fluent''s double focus ring: 2 px Focus outside a 1 px FocusIn, on every focus style' {
-        $w = Get-StyleBlocks $windowText
-        foreach ($k in 'FocusRing', 'FocusBox') {
-            "$k $($w[$k] -match 'Margin="-3"[^>]*Stroke="\{DynamicResource Focus\}" StrokeThickness="2"' -and $w[$k] -match 'Margin="-1"[^>]*Stroke="\{DynamicResource FocusIn\}" StrokeThickness="1"')" | Should Be "$k True"
-        }
+        @($bad) -join ', ' | Should Be ''
     }
 }
 
-Describe 'Fonts (ADR 0008: Windows'' own, UI\Controls.xaml)' {
-    $repo = Split-Path $Root
-    $controls = [xml](Get-Content "$Root\UI\Controls.xaml" -Raw)
-    $fonts = @{}; foreach ($f in $controls.ResourceDictionary.FontFamily) { $fonts[$f.Key] = $f.InnerText }
-
-    It 'are Segoe UI Variable (Segoe UI on Windows 10) and Cascadia Mono, defined once in Controls.xaml' {
-        "$($fonts.FontDisplay)|$($fonts.FontText)|$($fonts.FontSmall)|$($fonts.FontMono)" |
-            Should Be 'Segoe UI Variable Display, Segoe UI|Segoe UI Variable Text, Segoe UI|Segoe UI Variable Small, Segoe UI|Cascadia Mono, Consolas'
-        $other = Select-String -Path "$Root\UI\*.xaml", "$Root\UI\*.ps1" -Pattern 'Segoe UI|Consolas|Cascadia' | Where-Object { $_.Filename -ne 'Controls.xaml' -and $_.Line -notmatch '^\s*#' }
-        @($other | ForEach-Object { "$($_.Filename):$($_.LineNumber)" }) -join ', ' | Should Be ''
+Describe 'Type (Segoe UI Variable, decision 3)' {
+    It 'names Windows'' own fonts, Segoe UI and Consolas as the fallbacks' {
+        $x = Get-Content "$Root\UI\Controls.xaml" -Raw
+        $x | Should Match '<FontFamily x:Key="FontDisplay">Segoe UI Variable Display, Segoe UI</FontFamily>'
+        $x | Should Match '<FontFamily x:Key="FontText">Segoe UI Variable Text, Segoe UI</FontFamily>'
+        $x | Should Match '<FontFamily x:Key="FontSmall">Segoe UI Variable Small, Segoe UI</FontFamily>'
+        $x | Should Match '<FontFamily x:Key="FontMono">Cascadia Mono, Consolas</FontFamily>'
     }
-    It 'ship nothing: no fonts folder, no font loader, no font files in the native app' {
+    It 'ships no fonts and no font loader' {
         Test-Path "$Root\Assets\Fonts" | Should Be $false
-        @(Get-ChildItem $repo -Recurse -Include *.ttf, *.otf -File -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notmatch '\\(bin|obj|_ref|graphify-out|\.git)\\' }).Count | Should Be 0
-        @(Select-String -Path "$Root\UI\*.ps1", "$repo\app\AkariOS.App\*.csproj" -Pattern 'Get-AkariFonts|AddFonts|Assets\\Fonts').Count | Should Be 0
+        @(Select-String -Path "$Root\UI\*.ps1" -Pattern 'Get-AkariFonts').Count | Should Be 0
     }
-    It 'leave no Unbounded, Manrope or JetBrains Mono anywhere in src or app' {
-        $files = @(Get-ChildItem $Root, "$repo\app" -Recurse -File -Include *.ps1, *.psd1, *.xaml, *.cs, *.csproj, *.json, *.md |
-            Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' }) + @(Get-Item "$repo\CREDITS.md")
-        $hits = Select-String -Path ($files | ForEach-Object FullName) -Pattern 'Unbounded|Manrope|JetBrains ?Mono' -CaseSensitive
-        @($hits | ForEach-Object { "$($_.Filename):$($_.LineNumber)" }) -join ', ' | Should Be ''
+    It 'leaves no Unbounded, Manrope or JetBrains anywhere in src' {
+        # (JetBrains Toolbox, an app Downloads installs, is not the font)
+        $hits = Get-ChildItem $Root -Recurse -File -Include *.ps1, *.psd1, *.xaml, *.json, *.md, *.txt | Select-String -Pattern 'Unbounded|Manrope|JetBrains Mono|JetBrainsMono' -List
+        @($hits | ForEach-Object { $_.Path.Substring($Root.Length) }) -join ', ' | Should Be ''
     }
-    It 'follow the ramp: body text Normal (400), no Bold or Medium in the UI' {
-        $files = @(Get-ChildItem "$Root\UI\*.ps1", "$Root\UI\*.xaml") + @(Get-ChildItem "$repo\app\AkariOS.App" -Recurse -Include *.cs, *.xaml | Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' })
-        $hits = Select-String -Path ($files | ForEach-Object FullName) -Pattern 'FontWeight="(Bold|Medium)"|FontWeight = ''(Bold|Medium)''|FontWeights\.(Bold|Medium)'
+    It 'uses SemiBold or Normal, never Bold or Medium (the Windows 11 ramp)' {
+        $hits = Select-String -Path "$Root\UI\*.xaml", "$Root\UI\*.ps1" -Pattern "FontWeight=`"(Bold|Medium)`"|FontWeight = '(Bold|Medium)'|'(Bold|Medium)'\)"
         @($hits | ForEach-Object { "$($_.Filename):$($_.LineNumber)" }) -join ', ' | Should Be ''
     }
 }
@@ -136,67 +128,64 @@ Describe 'Icons (UI\Icons.xaml, Fluent System Icons)' {
     $have = @($dict.Keys | ForEach-Object { "$_" })
     . "$Root\UI\Cards.ps1"
 
-    It 'is generated ASCII from Fluent System Icons 1.1.344, one filled geometry per icon inside the 20x20 box' {
+    It 'is generated ASCII from Fluent System Icons 1.1.344, every geometry parsing inside the 20 x 20 box' {
         $text | Should Match 'Generated by build/Icons.ps1 from Fluent System Icons 1.1.344'
         [regex]::IsMatch($text, '[^\x00-\x7F]') | Should Be $false
-        $have.Count | Should BeGreaterThan 60
-        foreach ($k in $have) {
-            $g = $dict[$k]; $b = $g.Bounds
-            "$k $($b.Left -ge -0.5 -and $b.Top -ge -0.5 -and $b.Right -le 20.5 -and $b.Bottom -le 20.5) $($g.FillRule)" | Should Be "$k True Nonzero"
-        }
+        $have.Count | Should BeGreaterThan 90
+        foreach ($k in $have) { $b = $dict[$k].Bounds; "$k $($b.Left -ge -0.5 -and $b.Top -ge -0.5 -and $b.Right -le 20.5 -and $b.Bottom -le 20.5)" | Should Be "$k True" }
     }
-    It 'has the regular icon beside every filled one, and the filled ones the navigation and InfoBars use' {
-        foreach ($k in $have | Where-Object { $_ -like '*.Filled' }) { "$k $($have -contains ($k -replace '\.Filled$'))" | Should Be "$k True" }
-        foreach ($n in 'house', 'zap', 'sliders-horizontal', 'download', 'trash-2', 'usb', 'info', 'triangle-alert', 'circle-x', 'circle-check') { "$n $($have -contains "Ic.$n.Filled")" | Should Be "$n True" }
-    }
-    It 'fills icons, never strokes them (Fluent icons are filled shapes)' {
-        foreach ($f in Get-ChildItem "$Root\UI\*.xaml") {
-            foreach ($m in [regex]::Matches((Get-Content $f.FullName -Raw), '<Path [^>]*Ic\.[^>]*>|<Path [^>]*StaticResource Ic\}[^>]*>')) { "$($f.Name) $($m.Value -match 'Stroke')" | Should Be "$($f.Name) False" }
-        }
-        (Get-Content "$Root\UI\MainWindow.xaml" -Raw) -match '<Style x:Key="Ic" TargetType="Path">\s*<Setter Property="Fill"' | Should Be $true
+    It 'has a filled icon for every nav page, Optimize''s sections and the InfoBar severities' {
+        $want = @('house', 'zap', 'sliders-horizontal', 'download', 'trash-2', 'usb', 'disc-3', 'settings') + @($AkariSectionIcons.Values) + 'info', 'triangle-alert', 'circle-check', 'error-circle'
+        @($want | Where-Object { "Ic.$_.Filled" -notin $have }) -join ', ' | Should Be ''
     }
     It 'has a geometry for every icon the UI names' {
         $used = [Collections.Generic.List[string]]::new()
-        foreach ($v in $AkariCategoryGlyphs.Values) { $used.Add($v) }
+        foreach ($v in @($AkariCategoryGlyphs.Values) + @($AkariSectionIcons.Values)) { $used.Add($v) }
         $used.Add((Get-AkariCategoryIcon 'Nope'))
-        foreach ($f in Get-ChildItem "$Root\UI\*.xaml") { foreach ($m in [regex]::Matches((Get-Content $f.FullName -Raw), 'Ic\.([a-z0-9-]+(?:\.Filled)?)\}')) { $used.Add($m.Groups[1].Value) } }
+        foreach ($f in Get-ChildItem "$Root\UI\*.xaml") { foreach ($m in [regex]::Matches((Get-Content $f.FullName -Raw), 'Ic\.([a-z0-9.-]+)\}')) { $used.Add($m.Groups[1].Value) } }
         $patterns = @(
             "Glyph = '([^']+)'",
-            "(?:New-AkariIcon|New-AkariGlyph|New-AkariModeCard|New-AkariCatalogueBar|Set-AkariIcon\s+\`$\w+)\s+'([^']+)'",
-            "New-AkariMenuItem\s+(?:'[^']*'|\`$\S+)\s+'([^']+)'",
+            "(?:New-AkariIcon|New-AkariGlyph|New-AkariBlob|New-AkariSettingsCard|New-AkariExpander|New-AkariTile|New-AkariEmpty|Set-AkariIcon\s+\S+)\s+'([a-z0-9.-]+)'",
+            "New-AkariAppsButton\s+(?:'[^']*'|""[^""]*"")\s+'[^']*'\s+\{[^\n]*\}\s+'([a-z0-9-]+)'",
+            "@\('([a-z0-9-]+)', '[^']+', '[^']+', \{",
+            "Add-AkariActivity [^\n]* '([a-z0-9-]+)'$",
+            "Icon = '([a-z0-9-]+)'",
             "Set-AkariIcon[^\n]*?\{ '([a-z0-9-]+)' \} else",
-            "Set-AkariIcon[^\n]*else \{ '([a-z0-9-]+)' \}",
-            "\`$g = if [^\n]*else \{ '([a-z0-9-]+)' \}",
-            "'(?:GitHub|Report a bug|Discord)' = '([^']+)'"
+            "Set-AkariIcon[^\n]*else \{ '([a-z0-9-]+)' \}"
         )
         foreach ($f in Get-ChildItem "$Root\UI\*.ps1") {
             $src = Get-Content $f.FullName -Raw
-            foreach ($p in $patterns) { foreach ($m in [regex]::Matches($src, $p)) { $used.Add($m.Groups[1].Value) } }
+            foreach ($p in $patterns) { foreach ($m in [regex]::Matches($src, $p, 'Multiline')) { $used.Add($m.Groups[1].Value) } }
+            # the tables of names: $AkariNav, $AkariUaSectionIcons
+            foreach ($m in [regex]::Matches($src, '\$AkariNav = \[ordered\]@\{([^\n]+)\}')) { foreach ($v in [regex]::Matches($m.Groups[1].Value, "= '([a-z0-9-]+)'")) { $used.Add($v.Groups[1].Value) } }
+            foreach ($m in [regex]::Matches($src, '(?s)\$AkariUaSectionIcons = @\((.*?)\)')) { foreach ($v in [regex]::Matches($m.Groups[1].Value, "'([a-z0-9-]+)'")) { $used.Add($v.Groups[1].Value) } }
         }
         # the patterns catch every kind of use (guard), then each name must be an icon
-        foreach ($n in 'copy', 'square', 'external-link', 'usb', 'file-input', 'triangle-alert', 'house', 'gamepad-2') { "$n $($used -contains $n)" | Should Be "$n True" }
-        $miss = @($used | Sort-Object -Unique | Where-Object { "Ic.$_" -notin $have -and $_ -notmatch '^(Bad|Warn|Mu|Ter|Tx|Acc|Ok|Inherit)$' })
+        foreach ($n in 'copy', 'square', 'external-link', 'usb', 'file-input', 'triangle-alert', 'house', 'gamepad-2', 'wand', 'broom', 'globe') { "$n $($used -contains $n)" | Should Be "$n True" }
+        $miss = @($used | Sort-Object -Unique | Where-Object { "Ic.$_" -notin $have -and $_ -notmatch '^(Bad|Warn|Mu|Ter|Tx|Acc|AccText|AccT|Ok|Inherit)$' })
         ($miss -join ', ') | Should Be ''
     }
-    It 'leaves no Segoe Fluent glyph or Icons font in the UI' {
+    It 'leaves no Segoe Fluent glyph, Icons font or stroked icon in the UI' {
         @(Select-String -Path "$Root\UI\*.ps1", "$Root\UI\*.xaml" -Pattern "0x[Ee][0-9A-Fa-f]{3}\b|&#x[Ee][0-9A-Fa-f]{3};|'Icons'|Resource Icons\}").Count | Should Be 0
+        (Get-Content "$Root\UI\MainWindow.xaml" -Raw) | Should Not Match '<Style x:Key="Ic"[^>]*>\s*<Setter Property="StrokeThickness"'
     }
-    It 'draws an icon: a filled 20x20 path, its geometry once in the resources' {
+    It 'draws an icon: a filled 20 x 20 path in its brush, never stroked; Set-AkariIcon points it at another' {
         $host_ = [Windows.Controls.Border]::new()
         $host_.Resources.MergedDictionaries.Add($dict)
         $host_.Resources['Tx'] = [Windows.Media.Brushes]::Red
-        $i = New-AkariIcon 'zap' 20
+        $i = New-AkariIcon 'zap' 16
         $host_.Child = $i
-        $p = $i.Child.Children[0]
-        "$($i.Width)|$($i.Child.Width)|$($p.StrokeThickness)|$($null -ne $p.Data)|$($p.Fill)|$($p.Stroke)" | Should Be "20|20|1|True|#FFFF0000|"
+        $p = $i.Child
+        "$($i.Width)|$($p.Width)|$($p.Height)|$($null -ne $p.Data)|$($p.Fill)|$($null -eq $p.Stroke)" | Should Be "16|20|20|True|#FFFF0000|True"
         Set-AkariIcon $i 'x'
         "$($i.Tag)|$($p.Data -eq $dict['Ic.x'])" | Should Be 'x|True'
     }
 }
 
 Describe 'Themes (UI\Theme.Dark.xaml, UI\Theme.Light.xaml)' {
-    # brushes (and any Color entry, should one come back)
+    # brushes, and the colours DropShadowEffects need (Shade*)
     $keys = { param($f) $x = ([xml](Get-Content $f -Raw)).ResourceDictionary; @($x.SolidColorBrush) + @($x.Color) | Where-Object { $_ } | ForEach-Object { $_.Key } }
+    $value = { param($f, $k) $x = ([xml](Get-Content $f -Raw)).ResourceDictionary; @(@($x.SolidColorBrush) | Where-Object { $_.Key -eq $k } | ForEach-Object { $_.Color }) + @(@($x.Color) | Where-Object { $_.Key -eq $k } | ForEach-Object { $_.'#text' }) | Select-Object -First 1 }
     $dark = @(& $keys "$Root\UI\Theme.Dark.xaml" | Sort-Object)
     $light = @(& $keys "$Root\UI\Theme.Light.xaml" | Sort-Object)
 
@@ -205,9 +194,23 @@ Describe 'Themes (UI\Theme.Dark.xaml, UI\Theme.Light.xaml)' {
         Test-XamlInChild $s | Should Be 'ok'
     }
 
-    It 'hold the same brush keys' {
-        $dark.Count | Should BeGreaterThan 20
+    It 'hold the same keys, the plan''s added ones included, no Glow or AccC' {
+        $dark.Count | Should BeGreaterThan 40
         ($dark -join ',') | Should Be ($light -join ',')
+        @('S1Alt', 'Div', 'Fly', 'TxDis', 'FocusIn', 'Sub', 'SubP', 'CtlBd2', 'OkSoft', 'BadSoft', 'Info', 'InfoSoft' | Where-Object { $_ -notin $dark }) -join ',' | Should Be ''
+        @('Glow', 'AccC' | Where-Object { $_ -in $dark }) -join ',' | Should Be ''
+    }
+
+    It 'take the plan''s values (Akari crimson the default accent)' {
+        foreach ($c in @(@('Bg', '#202020', '#F3F3F3'), @('Surf', '#4D3A3A3A', '#80FFFFFF'), @('Acc', '#FF6B7D', '#C8102E'), @('AccText', '#FFA3AE', '#9E0C24'),
+                         @('AccSoft', '#1FFF6B7D', '#14C8102E'), @('Ter', '#8BFFFFFF', '#8F000000'), @('Scrim', '#4D000000', '#4D000000'), @('Line', '#8BFFFFFF', '#72000000'))) {
+            "$($c[0]) $(& $value "$Root\UI\Theme.Dark.xaml" $c[0]) $(& $value "$Root\UI\Theme.Light.xaml" $c[0])" | Should Be "$($c[0]) $($c[1]) $($c[2])"
+        }
+    }
+
+    It 'leave no Glow, AccC or accent glow in the UI' {
+        $hits = Select-String -Path "$Root\UI\*.xaml", "$Root\UI\*.ps1" -Pattern "Resource (Glow|AccC)\}|'(Glow|AccC)'"
+        @($hits | ForEach-Object { "$($_.Filename):$($_.LineNumber)" }) -join ', ' | Should Be ''
     }
 
     # every brush a XAML file or a SetResourceReference / FindResource names, minus the styles and fonts the UI defines
@@ -231,46 +234,26 @@ Describe 'Themes (UI\Theme.Dark.xaml, UI\Theme.Light.xaml)' {
         $hits = Select-String -Path "$Root\UI\*.xaml", "$Root\UI\*.ps1" -Pattern "Resource Inv(T)?\}|'Inv(T)?'"
         @($hits).Count | Should Be 0
     }
-
-    # ADR 0008: Windows 11's keys, no glow
-    It 'hold the Windows 11 keys and no Glow / AccC' {
-        foreach ($k in 'S1Alt', 'Div', 'Fly', 'TxDis', 'FocusIn', 'Sub', 'SubP', 'CtlBd2', 'OkSoft', 'BadSoft', 'Info', 'InfoSoft') { "$k $($dark -contains $k)" | Should Be "$k True" }
-        foreach ($k in 'Glow', 'AccC') { "$k $($dark -contains $k)" | Should Be "$k False" }
-        $app = Join-Path (Split-Path $Root) 'app\AkariOS.App'
-        $files = @(Get-ChildItem "$Root\UI" -Include *.ps1, *.xaml -Recurse) + @(Get-ChildItem $app -Include *.cs, *.xaml -Recurse | Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' })
-        $hits = Select-String -Path ($files | ForEach-Object FullName) -Pattern "Resource (Glow|AccC)\}|'(Glow|AccC)'|""(Glow|AccC)""|DropShadowEffect Color="
-        @($hits | ForEach-Object { "$($_.Filename):$($_.LineNumber)" }) -join ', ' | Should Be ''
-    }
 }
 
-Describe 'Accent (Get-AkariAccentColors, UI\Cards.ps1)' {
+Describe 'Accent (Get-AkariAccentColors, decision 2)' {
+    Add-Type -AssemblyName PresentationCore, PresentationFramework
     . "$Root\UI\Cards.ps1"
-    # Windows' default blue: Light3, Light2, Light1, Base, Dark1, Dark2, Dark3, unused (R, G, B, A each)
-    $blue = [byte[]](0x99,0xEB,0xFF,0, 0x4C,0xC2,0xFF,0, 0x00,0x91,0xF8,0, 0x00,0x78,0xD4,0, 0x00,0x67,0xC0,0, 0x00,0x3E,0x92,0, 0x00,0x1A,0x68,0, 0xF7,0x63,0x0C,0)
-    # a green accent
-    $green = [byte[]](0xA9,0xF5,0xA9,0, 0x6C,0xCB,0x5F,0, 0x3F,0xB2,0x3F,0, 0x10,0x89,0x3E,0, 0x0F,0x7B,0x0F,0, 0x0B,0x5A,0x0B,0, 0x05,0x3D,0x05,0, 0,0,0,0)
-    $line = { param($c) ($c.Keys | ForEach-Object { "$_=$($c[$_])" }) -join ' ' }
-
-    It 'maps the palette to the dark brushes: Light2, Light3, black text' {
-        & $line (Get-AkariAccentColors $green 'Dark') | Should Be 'Acc=#FF6CCB5F AccH=#E66CCB5F AccP=#CC6CCB5F AccSoft=#1A6CCB5F AccT=#FF000000 AccText=#FFA9F5A9 Info=#FFA9F5A9'
+    # a green Windows accent: Light3, Light2, Light1, Base, Dark1, Dark2, Dark3, unused (RGBA each)
+    $pal = [byte[]]@(0x9F, 0xF5, 0xB5, 0, 0x6F, 0xD3, 0x8C, 0, 0x3D, 0xB2, 0x63, 0, 0x10, 0x89, 0x3E, 0, 0x0B, 0x6A, 0x2E, 0, 0x07, 0x4C, 0x20, 0, 0x03, 0x2F, 0x13, 0, 0, 0, 0, 0)
+    $fmt = { param($c) '{0:X2}{1:X2}{2:X2}{3:X2}' -f $c[0], $c[1], $c[2], $c[3] }
+    It 'maps the palette for dark: Acc = Light2, AccText = Info = Light3, AccT black, the 90 / 80 / 12 % shades' {
+        $c = Get-AkariAccentColors $pal 'Dark'
+        (@('Acc', 'AccH', 'AccP', 'AccSoft', 'AccText', 'Info', 'AccT') | ForEach-Object { "$_=$(& $fmt $c[$_])" }) -join ' ' |
+            Should Be 'Acc=FF6FD38C AccH=E66FD38C AccP=CC6FD38C AccSoft=1F6FD38C AccText=FF9FF5B5 Info=FF9FF5B5 AccT=FF000000'
     }
-    It 'maps the palette to the light brushes: Dark1, Dark2, white text' {
-        & $line (Get-AkariAccentColors $green 'Light') | Should Be 'Acc=#FF0F7B0F AccH=#E60F7B0F AccP=#CC0F7B0F AccSoft=#1A0F7B0F AccT=#FFFFFFFF AccText=#FF0B5A0B Info=#FF0B5A0B'
+    It 'maps the palette for light: Acc = Dark1, AccText = Info = Dark2, AccT white, AccSoft 8 %' {
+        $c = Get-AkariAccentColors $pal 'Light'
+        (@('Acc', 'AccSoft', 'AccText', 'AccT') | ForEach-Object { "$_=$(& $fmt $c[$_])" }) -join ' ' | Should Be 'Acc=FF0B6A2E AccSoft=140B6A2E AccText=FF074C20 AccT=FFFFFFFF'
     }
-    It 'gives the theme files'' default blue for Windows'' default palette' {
-        foreach ($t in 'Dark', 'Light') {
-            $x = ([xml](Get-Content "$Root\UI\Theme.$t.xaml" -Raw)).ResourceDictionary.SolidColorBrush
-            $c = Get-AkariAccentColors $blue $t
-            foreach ($k in 'Acc', 'AccH', 'AccP', 'AccSoft', 'AccT', 'AccText') {
-                $v = ($x | Where-Object Key -eq $k).Color
-                if ($v.Length -eq 7) { $v = '#FF' + $v.Substring(1) }
-                "$t $k $($c[$k])" | Should Be "$t $k $v"
-            }
-        }
-    }
-    It 'keeps the default blue (no colours) when the palette is missing or short' {
-        $null -eq (Get-AkariAccentColors $null 'Dark') | Should Be $true
-        $null -eq (Get-AkariAccentColors ([byte[]](1, 2, 3)) 'Light') | Should Be $true
+    It 'gives nothing for an unreadable palette (crimson stays)' {
+        Get-AkariAccentColors $null 'Dark' | Should BeNullOrEmpty
+        Get-AkariAccentColors ([byte[]]@(1, 2, 3)) 'Dark' | Should BeNullOrEmpty
     }
 }
 
@@ -279,13 +262,18 @@ Describe 'Motion (UI\Motion.ps1, UI\Motion.xaml)' {
     $motion = Get-Content "$Root\UI\Motion.xaml" -Raw
     $xamlFiles = @(Get-ChildItem "$Root\UI\*.xaml" | Where-Object { $_.Name -notin 'Icons.xaml', 'Motion.xaml' })
 
-    It 'takes the entries between the root tags, every Duration 0:0:0 with motion off' {
+    It 'has Fluent''s durations and curves, every Duration and KeyTime 0:0:0 with motion off, no Spring' {
         $on = Get-AkariMotionEntries $motion $true
-        $on | Should Match 'x:Key="Motion.Fast">0:0:0.083<'
-        $on | Should Not Match '<ResourceDictionary'
+        foreach ($t in @(@('Fast', '0.083'), @('Base', '0.167'), @('Slow', '0.25'), @('Page', '0.333'))) {
+            $on | Should Match ('x:Key="Motion.{0}">0:0:{1}<' -f $t[0], $t[1])
+            $on | Should Match ('x:Key="Motion.{0}.T">0:0:{1}<' -f $t[0], $t[1])
+        }
+        $on | Should Match 'x:Key="Motion.Stagger">0:0:0.03<'
+        $on | Should Match 'x:Key="Motion.Ease">0,0 0,1<'
+        $on | Should Match 'x:Key="Motion.Exit">0.55,0.55 0,1<'
+        $on | Should Not Match 'Spring|<ResourceDictionary'
         $off = Get-AkariMotionEntries $motion $false
-        [regex]::Matches($off, '<Duration\b[^>]*>0:0:0</Duration>').Count | Should Be ([regex]::Matches($on, '<Duration\b').Count)
-        $off | Should Match 'Motion.Ease'
+        [regex]::Matches($off, '<(Duration|KeyTime)\b[^>]*>0:0:0</').Count | Should Be ([regex]::Matches($on, '<(Duration|KeyTime)\b').Count)
     }
     It 'puts the entries first in a root ResourceDictionary or the first X.Resources, else leaves the XAML alone' {
         Add-AkariMotionXaml '<ResourceDictionary a="1"><S/></ResourceDictionary>' '<M/>' | Should Be '<ResourceDictionary a="1"><M/><S/></ResourceDictionary>'
@@ -294,10 +282,9 @@ Describe 'Motion (UI\Motion.ps1, UI\Motion.xaml)' {
     }
     It 'plans each kind: Fade, Rise, Pop, Scale, Slide, Fill' {
         ((Get-AkariMotionPlan Fade) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'Opacity 0>1'
-        ((Get-AkariMotionPlan Rise) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'Opacity 0>1, Y 8>0'
-        ((Get-AkariMotionPlan Pop) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'Opacity 0>1, ScaleX 0.96>1, ScaleY 0.96>1'
-        ((Get-AkariMotionPlan Scale 1 0.97) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'ScaleX 1>0.97, ScaleY 1>0.97'
-        ((Get-AkariMotionPlan Slide $null 40) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'X >40'
+        ((Get-AkariMotionPlan Rise 28) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'Opacity 0>1, Y 28>0'
+        ((Get-AkariMotionPlan Pop 0.8) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'Opacity 0>1, ScaleX 0.8>1, ScaleY 0.8>1'
+        ((Get-AkariMotionPlan Slide 40 0) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'X 40>0'
         ((Get-AkariMotionPlan Fill $null 0.5) | ForEach-Object { "$($_.Property) $($_.From)>$($_.To)" }) -join ', ' | Should Be 'ScaleX >0.5'
         { Get-AkariMotionPlan Wobble } | Should Throw
     }
@@ -306,17 +293,44 @@ Describe 'Motion (UI\Motion.ps1, UI\Motion.xaml)' {
         try { $env:AKARI_MOTION = 'off'; Test-AkariMotionOn | Should Be $false; $env:AKARI_MOTION = 'on'; Test-AkariMotionOn | Should Be $true }
         finally { $env:AKARI_MOTION = $old }
     }
+    It 'staggers a page''s children 30 ms apart, the sixth on with the fifth (the prototype''s .enter)' {
+        (0..7 | ForEach-Object { Get-AkariEntranceDelay $_ }) -join ',' | Should Be '0,30,60,90,120,150,150,150'
+    }
+    It 'eases on cubic-bezier(0,0,0,1): fast first, exact at both ends' {
+        Get-AkariEaseValue 0 | Should Be 0
+        Get-AkariEaseValue 1 | Should Be 1
+        [Math]::Round((Get-AkariEaseValue 0.125), 3) | Should Be 0.5
+    }
+    It 'stretches the nav indicator over both items, then onto the new one (down and up)' {
+        $down = @(Get-AkariPillPath 0 100)
+        "$($down[0].Y) $($down[0].Scale) $($down[-1].Y) $($down[-1].Scale)" | Should Be '0 1 100 1'
+        $max = 0; foreach ($k in $down) { if ($k.Scale -gt $max) { $max = $k.Scale } }
+        $max | Should BeGreaterThan 6.5
+        @($down | Where-Object { $_.Scale -gt 6.5 })[0].Y | Should Be 0
+        $up = @(Get-AkariPillPath 100 0)
+        "$($up[0].Y) $($up[-1].Y)" | Should Be '100 0'
+        # going up, the bottom stays on the old item while it grows: top + height = 116 at the peak
+        $peak = $up[0]; foreach ($k in $up) { if ($k.Scale -gt $peak.Scale) { $peak = $k } }
+        [Math]::Round($peak.Y + 16 * $peak.Scale) | Should Be 116
+    }
 
-    # an animation's Duration is a Motion token; only a busy loop (its Storyboard repeats Forever) keeps its own
-    It 'animations take their Duration from the Motion tokens' {
+    # a template animates with spline key frames on the tokens; only a busy loop (Forever) keeps its own time
+    It 'template animations take their KeyTime and KeySpline from the Motion tokens' {
         $bad = foreach ($f in $xamlFiles) {
             $x = [xml](Get-Content $f.FullName -Raw)
+            foreach ($a in $x.SelectNodes("//*[local-name()='SplineDoubleKeyFrame']")) {
+                $loop = $false; $p = $a.ParentNode
+                while ($p -and $p.NodeType -eq 'Element') { if ($p.LocalName -eq 'Storyboard' -and $p.GetAttribute('RepeatBehavior') -eq 'Forever') { $loop = $true }; $p = $p.ParentNode }
+                if ($loop) { continue }
+                if ($a.KeyTime -notlike '{StaticResource Motion.*.T}' -or $a.KeySpline -notin '{StaticResource Motion.Ease}', '{StaticResource Motion.Exit}') { "$($f.Name): $($a.KeyTime) $($a.KeySpline)" }
+            }
             foreach ($a in $x.SelectNodes("//*[contains(local-name(), 'Animation') and @Duration]")) {
                 if ($a.Duration -like '{StaticResource Motion.*}') { continue }
                 $loop = $false; $p = $a.ParentNode
                 while ($p -and $p.NodeType -eq 'Element') { if ($p.LocalName -eq 'Storyboard' -and $p.GetAttribute('RepeatBehavior') -eq 'Forever') { $loop = $true }; $p = $p.ParentNode }
                 if (-not $loop) { "$($f.Name): $($a.LocalName) $($a.Duration)" }
             }
+            if ((Get-Content $f.FullName -Raw) -match 'EasingFunction=') { "$($f.Name): an EasingFunction" }
         }
         @($bad) -join '; ' | Should Be ''
     }
@@ -333,10 +347,19 @@ Describe 'Motion (UI\Motion.ps1, UI\Motion.xaml)' {
         }
         @($bad) -join '; ' | Should Be ''
     }
-    It 'every UI XAML file is read through Get-AkariXaml, every animation started by Start-AkariMotion' {
+    It 'every UI XAML file is read through Get-AkariXaml, every animation started in Motion.ps1' {
         $ps = @(Get-ChildItem "$Root\UI\*.ps1" | Where-Object Name -ne 'Motion.ps1')
         @($ps | Where-Object { (Get-Content $_.FullName -Raw) -match 'XamlReader\]::Parse\(\(Get-Content' } | ForEach-Object Name) -join ', ' | Should Be ''
         @($ps | Where-Object { (Get-Content $_.FullName -Raw) -match '\.BeginAnimation\(' } | ForEach-Object Name) -join ', ' | Should Be ''
+    }
+    # ADR 0008: only the pane's width, an expander's body and an InfoBar animate a size, through Set-AkariSize
+    It 'animates a size only through Set-AkariSize (the pane, expanders, InfoBars) and the Remove apps rows' {
+        $hits = foreach ($f in Get-ChildItem "$Root\UI\*.ps1" | Where-Object Name -ne 'Motion.ps1') {
+            Select-String -Path $f.FullName -Pattern 'Start-AkariMotion\s+\S+\s+(Width|Height)\b' | ForEach-Object { "$($_.Filename):$($_.LineNumber)" }
+        }
+        @($hits) -join ', ' | Should Be ''
+        $calls = foreach ($f in Get-ChildItem "$Root\UI\*.ps1") { Select-String -Path $f.FullName -Pattern 'Set-AkariSize \$(\S+) (Width|Height)' | ForEach-Object { "$($_.Matches[0].Groups[1].Value) $($_.Matches[0].Groups[2].Value)" } }
+        (@($calls | Sort-Object -Unique) -join ',') | Should Be 'Bar Height,Nav Width,r Height,s.Tag Height,script:NavKids Height'
     }
 
     It 'parses every UI XAML file with motion on and off; Start-AkariMotion animates, or sets the end values' {
@@ -348,15 +371,18 @@ $r = @()
 foreach ($m in 'on', 'off') {
     $env:AKARI_MOTION = $m; . "$Root\UI\Motion.ps1"
     foreach ($f in Get-ChildItem "$Root\UI\*.xaml" | Where-Object Name -ne 'Motion.xaml') { try { [void](Get-AkariXaml $f.FullName) } catch { $r += "$m $($f.Name): $($_.Exception.Message)" } }
-    $r += "$m fast=$($AkariMotion['Motion.Fast'].TimeSpan.TotalMilliseconds)"
-    $b = [Windows.Controls.Border]::new(); Start-AkariMotion $b Rise -Delay ([TimeSpan]::FromMilliseconds(30))
+    $r += "$m fast=$($AkariMotion['Motion.Fast'].TimeSpan.TotalMilliseconds) page=$($AkariMotion['Motion.Page'].TimeSpan.TotalMilliseconds)"
+    $b = [Windows.Controls.Border]::new(); Start-AkariMotion $b Rise 28 -Delay ([TimeSpan]::FromMilliseconds(30))
     $g1 = $b.RenderTransform; Start-AkariMotion $b Slide $null 40
     $r += "$m rise op=$($b.Opacity) y=$($b.RenderTransform.Children[-1].Y) x=$($b.RenderTransform.Children[-1].X) anim=$($b.HasAnimatedProperties) same=$([object]::ReferenceEquals($g1, $b.RenderTransform))"
+    $s = [Windows.Controls.StackPanel]::new(); [void]$s.Children.Add([Windows.Controls.Border]@{ Height = 30 })
+    Set-AkariSize $s Height 0; $h0 = $s.Height; Set-AkariSize $s Height 'Auto'
+    $r += "$m size $h0 $([double]::IsNaN($s.Height))"
 }
 $r -join '|'
 '@
         $out = @(& powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root 2>&1 | ForEach-Object { "$_" }) -join "`n"
-        $out | Should Be 'on fast=83|on rise op=1 y=0 x=40 anim=True same=True|off fast=0|off rise op=1 y=0 x=40 anim=False same=True'
+        $out | Should Be 'on fast=83 page=333|on rise op=1 y=0 x=40 anim=True same=True|on size 0 True|off fast=0 page=0|off rise op=1 y=0 x=40 anim=False same=True|off size 0 True'
     }
 
     # the controls' storyboards run (no window: the dispatcher is pumped) and end on each state's values
@@ -377,32 +403,25 @@ $sw = Add-Control ([Windows.Controls.Primitives.ToggleButton]::new()) 'Switch'; 
 $cs = Add-Control ([Windows.Controls.Primitives.ToggleButton]::new()) 'CatSwitch'; $cs.IsChecked = $true
 $ck = Add-Control ([Windows.Controls.CheckBox]::new()) 'Check'
 $rd = Add-Control ([Windows.Controls.RadioButton]::new()) 'Radio'
-$cb = Add-Control ([Windows.Controls.ComboBox]::new()) 'Combo'; foreach ($i in 'a', 'b') { [void]$cb.Items.Add($i) }; $cb.SelectedIndex = 0
-$sg = Add-Control ([Windows.Controls.ListBox]::new()) 'Segmented'; foreach ($i in 'a', 'b') { [void]$sg.Items.Add([Windows.Controls.ListBoxItem]@{ Content = $i }) }; $sg.SelectedIndex = 0
+$cb = Add-Control ([Windows.Controls.ComboBox]::new()) 'Combo'; foreach ($i in 'a', 'b') { [void]$cb.Items.Add([Windows.Controls.ComboBoxItem]@{ Content = $i; Uid = "note $i" }) }; $cb.SelectedIndex = 0
+$ex = Add-Control ([Windows.Controls.Primitives.ToggleButton]@{ Content = 'Head' }) 'ExpHead'
 $ac = Add-Control ([Windows.Controls.Button]::new()) 'Accent'; $ac.Content = 'Go'
-$mc = Add-Control ([Windows.Controls.Button]::new()) 'ModeCardHot'; $mc.Content = 'x'
-$sn = Add-Control ([Windows.Controls.Border]::new()) 'StepNum'; $sn.Tag = 'Current'
 $h.Measure([Windows.Size]::new(800, 2000)); $h.Arrange([Windows.Rect]::new(0, 0, 800, 2000)); $h.UpdateLayout()
 Wait-Ms 50
-$sw.IsChecked = $true; $ck.IsChecked = $true; $rd.IsChecked = $true; $sg.SelectedIndex = 1; $sn.Tag = 'Done'
+$sw.IsChecked = $true; $ck.IsChecked = $true; $rd.IsChecked = $true; $ex.IsChecked = $true
 Wait-Ms 450
 $th = (Part $sw 'Thumb').RenderTransform.Children
-$r = @("on $($th[4].X) $($th[3].X) $($th[0].ScaleX) $((Part $sw 'On').Opacity) $((Part $sw 'L').Text)")
+$r = @("on $($th[2].X) $((Part $sw 'On').Opacity) $((Part $sw 'ThumbOn').Opacity) $((Part $sw 'L').Text)")
 $sw.IsChecked = $null; Wait-Ms 450
-$r += "null $($th[4].X) $($th[3].X) $($th[0].ScaleX) $((Part $sw 'On').Opacity) $((Part $sw 'L').Text)"
-$r += "cat $((Part $cs 'Thumb').RenderTransform.Children[4].X)"
-$r += "check $((Part $ck 'Tick').Opacity) $((Part $ck 'Tick').RenderTransform.ScaleX)"
-$r += "radio $((Part $rd 'Dot').RenderTransform.ScaleX)"
-$i0 = $sg.ItemContainerGenerator.ContainerFromIndex(0); $i1 = $sg.ItemContainerGenerator.ContainerFromIndex(1)
-# the segmented pill slid over the second segment, at its width; no pick = no pill
-$pill = Part $sg 'Pill'; $at = $i1.TranslatePoint([Windows.Point]::new(0, 0), $pill.Parent)
-$r += "seg $($pill.Visibility) $([Math]::Round($pill.RenderTransform.Children[-1].X - $at.X)) $([Math]::Round($pill.RenderTransform.Children[-1].Y - $at.Y)) $($pill.Width -eq $i1.ActualWidth) $($pill.Height -eq $i1.ActualHeight)"
-$sg.SelectedIndex = -1
-$r += "none $($pill.Visibility)"
-$r += "step $($sn.RenderTransform.ScaleX)"
+$r += "null $($th[2].X) $((Part $sw 'On').Opacity) $((Part $sw 'L').Text)"
+$r += "cat $((Part $cs 'Thumb').RenderTransform.Children[2].X)"
+$r += "check $((Part $ck 'On').Opacity) $((Part $ck 'Tick').StrokeDashOffset)"
+$r += "radio $((Part $rd 'Dot').RenderTransform.Children[0].ScaleX)"
+$r += "exp $((Part $ex 'Chev').RenderTransform.Angle)"
+$r += "acc $($ac.ActualHeight) $($ac.MinWidth)"
 $r -join '|'
 '@
-        $want = 'on 20 0 1 1 On|null 0 10 1 0 Unchanged|cat 20|check 1 1|radio 1|seg Visible 0 0 True True|none Hidden|step 1'
+        $want = 'on 20 1 1 On|null 10 0 Unchanged|cat 20|check 1 0|radio 1|exp 180|acc 32 120'
         foreach ($m in 'on', 'off') {
             $out = @(& powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -Motion $m 2>&1 | ForEach-Object { "$_" }) -join "`n"
             "$m $out" | Should Be "$m $want"
@@ -417,7 +436,7 @@ $r -join '|'
         Get-AkariCountValue 50 10 1 | Should Be 10
     }
 
-    It 'entrances, staggers, shown / hidden bars and counts play once built, and end visible and exact' {
+    It 'entrances, staggers, page entrances, shown / hidden bars and counts play once built, and end visible and exact' {
         $probe = "$TestDrive\entrance.ps1"
         Set-Content $probe -Value @'
 param($Root, $Motion)
@@ -428,9 +447,7 @@ function Wait-Ms($ms) { $fr = [Windows.Threading.DispatcherFrame]::new(); $t = [
     $t.add_Tick({ $t.Stop(); $fr.Continue = $false }.GetNewClosure()); $t.Start(); [Windows.Threading.Dispatcher]::PushFrame($fr) }
 $page = [Windows.Controls.StackPanel]::new()
 $cards = foreach ($i in 1..14) { $b = [Windows.Controls.Border]@{ Height = 10 }; [void]$page.Children.Add($b); $b }
-Start-AkariEntrance $page Rise
-$hidden = $page.Opacity
-Start-AkariStagger $page.Children
+Start-AkariPageEntrance $page.Children
 $waiting = @($cards | Where-Object { $_.Opacity -eq 0 }).Count
 $bar = [Windows.Controls.Border]@{ Visibility = 'Collapsed' }
 Show-AkariElement $bar
@@ -438,7 +455,7 @@ $shown = $bar.Visibility
 $tx = [Windows.Controls.TextBlock]@{ Text = '-' }
 Start-AkariCount $tx 1234
 Wait-Ms 900
-$r = @("page $hidden>$($page.Opacity)", "stagger $waiting>$(@($cards | Where-Object { $_.Opacity -ne 1 }).Count)", "bar $shown")
+$r = @("page $waiting>$(@($cards | Where-Object { $_.Opacity -ne 1 }).Count)", "bar $shown")
 Hide-AkariElement $bar
 $r += "hiding $($bar.IsHitTestVisible)"
 Wait-Ms 400
@@ -447,9 +464,9 @@ $r += "count $($tx.Text)"
 $r -join '|'
 '@
         $out = @(& powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -Motion on 2>&1 | ForEach-Object { "$_" }) -join "`n"
-        $out | Should Be ('page 0>1|stagger 8>0|bar Visible|hiding False|hidden Collapsed 1 True|count ' + ('{0:N0}' -f 1234))
+        $out | Should Be ('page 14>0|bar Visible|hiding False|hidden Collapsed 1 True|count ' + ('{0:N0}' -f 1234))
         $out = @(& powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -Motion off 2>&1 | ForEach-Object { "$_" }) -join "`n"
-        $out | Should Be ('page 1>1|stagger 0>0|bar Visible|hiding True|hidden Collapsed 1 True|count ' + ('{0:N0}' -f 1234))
+        $out | Should Be ('page 0>0|bar Visible|hiding True|hidden Collapsed 1 True|count ' + ('{0:N0}' -f 1234))
     }
 
     It 'scrolls by Windows'' wheel lines per notch inside the page, and glides there' {
@@ -484,12 +501,14 @@ Wait-Ms 700; $sv.UpdateLayout()
 $r = @("page $h $([Math]::Round($sv.VerticalOffset) -eq [Math]::Min($sv.ScrollableHeight, $lines * 16))")
 $r += "inner $(Send-Wheel $inner -120)"
 $r += "touchpad $(Send-Wheel $sv -30)"
+Start-AkariScrollTo $sv 200; Wait-Ms 700; $sv.UpdateLayout()
+$r += "to $([Math]::Round($sv.VerticalOffset))"
 Reset-AkariScroll $sv; $sv.UpdateLayout()
 $r += "top $($sv.VerticalOffset)"
 $r -join '|'
 '@
         $out = @(& powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -Motion on 2>&1 | ForEach-Object { "$_" }) -join "`n"
-        $out | Should Be 'page True True|inner False|touchpad False|top 0'
+        $out | Should Be 'page True True|inner False|touchpad False|to 200|top 0'
     }
 
     It 'a debug run ($env:AKARI_UI_TIMING) logs page builds, the launch and UI-thread stalls; a normal run logs nothing' {
@@ -520,60 +539,27 @@ Wait-Ms 120
         }
     }
 
-    It 'MainWindow.xaml''s styles animate their states too (buttons, tabs, chips, text box, menu row, scroll bar, progress fill)' {
+    It 'MainWindow.xaml''s styles: 32 px buttons, the accent one at least 120, a text box underline that turns Acc on focus' {
         $probe = "$TestDrive\shellstyles.ps1"
         Set-Content $probe -Value @'
-param($Root, $Motion)
+param($Root)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework
-$env:AKARI_MOTION = $Motion; . "$Root\UI\Motion.ps1"
+$env:AKARI_MOTION = 'off'; . "$Root\UI\Motion.ps1"
 $w = Get-AkariXaml "$Root\UI\MainWindow.xaml"
 foreach ($f in 'Theme.Dark', 'Controls', 'Icons') { $w.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\$f.xaml")) }
 $h = [Windows.Controls.StackPanel]::new(); $h.Resources.MergedDictionaries.Add($w.Resources)
-function Wait-Ms($ms) { $fr = [Windows.Threading.DispatcherFrame]::new(); $t = [Windows.Threading.DispatcherTimer]::new(); $t.Interval = [TimeSpan]::FromMilliseconds($ms)
-    $t.add_Tick({ $t.Stop(); $fr.Continue = $false }.GetNewClosure()); $t.Start(); [Windows.Threading.Dispatcher]::PushFrame($fr) }
 function Add-Control($c, $style) { if ($style) { $c.Style = $h.Resources[$style] }; [void]$h.Children.Add($c); $c }
-function Part($c, $n) { $c.Template.FindName($n, $c) }
-foreach ($s in 'Btn', 'BtnP', 'Ghost', 'Cap', 'CapX') { [void](Add-Control ([Windows.Controls.Button]@{ Content = $s }) $s) }
-$tab = Add-Control ([Windows.Controls.RadioButton]@{ Content = 'Tab'; GroupName = 't' }) 'Tab'
-$tab2 = Add-Control ([Windows.Controls.RadioButton]@{ Content = 'Tab2'; GroupName = 't'; IsChecked = $true }) 'Tab'
-$chip = Add-Control ([Windows.Controls.RadioButton]@{ Content = 'Chip' }) 'Chip'
+$b = Add-Control ([Windows.Controls.Button]@{ Content = 'B' }) 'Btn'
+$p = Add-Control ([Windows.Controls.Button]@{ Content = 'P' }) 'BtnP'
 $tb = Add-Control ([Windows.Controls.TextBox]::new()) 'Flat'
-$mi = Add-Control ([Windows.Controls.MenuItem]@{ Header = 'Row' }) $null
-$sv = Add-Control ([Windows.Controls.ScrollViewer]@{ Height = 60; VerticalScrollBarVisibility = 'Visible'; Content = [Windows.Controls.Border]@{ Height = 400 } }) $null
-$fill = Add-Control ([Windows.Shapes.Rectangle]@{ Height = 4; RenderTransformOrigin = [Windows.Point]::new(0, 0.5) }) $null
 $h.Measure([Windows.Size]::new(800, 2000)); $h.Arrange([Windows.Rect]::new(0, 0, 800, 2000)); $h.UpdateLayout()
-Wait-Ms 50
-# the tabs' pill: a row of Tab radio buttons over a Canvas pill, as MainWindow.xaml's top bar
-$row = [Windows.Controls.StackPanel]@{ Orientation = 'Horizontal' }
-$tp = [Windows.Controls.Border]@{ Width = 0; Height = 0; Visibility = 'Hidden' }; $cv = [Windows.Controls.Canvas]::new(); [void]$cv.Children.Add($tp)
-$tg = [Windows.Controls.Grid]::new(); [void]$tg.Children.Add($cv); [void]$tg.Children.Add($row); [void]$h.Children.Add($tg)
-$rt = foreach ($n in 'Home', 'Install AkariOS', 'Optimize') { $b = [Windows.Controls.RadioButton]@{ Content = $n; GroupName = 'row' }; $b.Style = $h.Resources['Tab']; [void]$row.Children.Add($b); $b }
-Enable-AkariPillGroup $row $tp
-$rt[0].IsChecked = $true
-$h.Measure([Windows.Size]::new(800, 2000)); $h.Arrange([Windows.Rect]::new(0, 0, 800, 2000)); $h.UpdateLayout()
-Wait-Ms 50
-$rt[2].IsChecked = $true
-$tab.IsChecked = $true; $chip.IsChecked = $true
-Start-AkariMotion $fill Fill 0 0.5 -Speed Slow
-Wait-Ms 450
-$at = $rt[2].TranslatePoint([Windows.Point]::new(0, 0), $cv)
-$r = @("tabs $($tp.Visibility) $([Math]::Round($tp.RenderTransform.Children[-1].X - $at.X)) $($tp.Width -eq $rt[2].ActualWidth) $($rt[2].Foreground -eq $h.Resources['AccText'])", "chip $((Part $chip 'Base').Visibility) $((Part $chip 'H').Visibility)", "fill $($fill.RenderTransform.Children[-2].ScaleX) $($fill.RenderTransformOrigin)")
-# the row rebuilt (Optimize's chips for another Section), one button checked before any layout: the pill finds it
-$row.Children.Clear()
-$nb = foreach ($n in 'A', 'Bb', 'Ccc') { $b = [Windows.Controls.RadioButton]@{ Content = $n; GroupName = 'row2' }; $b.Style = $h.Resources['Chip']; [void]$row.Children.Add($b); $b }
-$nb[1].IsChecked = $true
-Wait-Ms 300
-$at = $nb[1].TranslatePoint([Windows.Point]::new(0, 0), $cv)
-$r += "rebuilt $($tp.Visibility) $([Math]::Round($tp.RenderTransform.Children[-1].X - $at.X)) $($tp.Width -eq $nb[1].ActualWidth)"
-$r -join '|'
+"btn=$($b.ActualHeight)|$($p.ActualHeight)|$($p.ActualWidth -ge 120)|$($tb.ActualHeight)|$($null -ne $tb.Template.FindName('UnderOn', $tb))|$($tb.Template.FindName('Under', $tb).Height)"
 '@
-        foreach ($m in 'on', 'off') {
-            $out = @(& powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -Motion $m 2>&1 | ForEach-Object { "$_" }) -join "`n"
-            "$m $out" | Should Be "$m tabs Visible 0 True True|chip Hidden Hidden|fill 0.5 0,0.5|rebuilt Visible 0 True"
-        }
+        $o = Invoke-Probe $probe @{ Root = $Root }
+        $o.error | Should BeNullOrEmpty
+        $o.btn | Should Be '32|32|True|32|True|1'
     }
-
 }
 
 Describe 'Get-AkariMasonry' {
@@ -585,27 +571,28 @@ Describe 'Get-AkariMasonry' {
 }
 
 Describe 'Tweak rows' {
-    # builds grid rows in a child STA PowerShell (no window), applies their templates, prints key=value lines
+    # builds Guided's rows in a child STA PowerShell (no window), applies their templates, prints key=value lines
     $probe = "$TestDrive\probe.ps1"
     Set-Content $probe -Value @'
 param($Root)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework
 foreach ($f in 'Registry', 'Loader') { . "$Root\Core\$f.ps1" }
+. "$Root\UI\Motion.ps1"
 . "$Root\UI\Selection.ps1"
 . "$Root\UI\Cards.ps1"
 $host_ = [Windows.Controls.StackPanel]::new()
-. "$Root\UI\Motion.ps1"
 $host_.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Controls.xaml"))
 $host_.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Icons.xaml"))
-function Show($e) { [void]$host_.Children.Add($e.Row); $host_.Measure([Windows.Size]::new(400, 2000)); [void]$e.Control.ApplyTemplate() }
+function Show($e) { [void]$host_.Children.Add($e.Row); $host_.Measure([Windows.Size]::new(600, 2000)); [void]$e.Control.ApplyTemplate() }
 $tog = ConvertTo-AkariTweak @{ Id = 'tog'; Name = 'Tog'; Description = 'D'; Risk = 'Safe'; Reboot = $true } 'x' $false
-$adv = ConvertTo-AkariTweak @{ Id = 'adv'; Name = 'Adv'; Description = 'D'; Risk = 'Advanced' } 'x' $false
+$adv = ConvertTo-AkariTweak @{ Id = 'adv'; Name = 'Adv'; Description = 'D'; Risk = 'Advanced'; SafeMode = $true } 'x' $false
 $act = ConvertTo-AkariTweak @{ Id = 'act'; Name = 'Act'; Description = 'D'; Kind = 'Action'; Risk = 'Safe' } 'x' $false
 $ch = ConvertTo-AkariTweak @{ Id = 'ch'; Name = 'Ch'; Description = 'D'; Kind = 'Choice'; Risk = 'Safe'; Recommended = 0x26; Default = 2; Editable = $true
     Choices = @(@{ Value = 0x26; Label = 'A' }, @{ Value = 0x28; Label = 'B' }, @{ Value = 2; Label = 'C' }) } 'x' $false
 $e = New-AkariTweakRow $tog 'Default'; Show $e
 "togType=$($e.Control.GetType().Name)"; "togGlyphs=$($e.Glyphs.Children.Count)"; "togTip=$($e.Row.ToolTip -replace "`n", '|')"
+"togRow=$($e.Row.Style -eq $host_.FindResource('CardRow'))|$($e.Row.Padding.Left)"
 "togStartState=$(Get-AkariRowStart $e $true)"
 $e = New-AkariTweakRow $tog 'Optimized'; Show $e
 "optStartState=$(Get-AkariRowStart $e $true)"; "optStartPlain=$(Get-AkariRowStart $e $false)"
@@ -613,90 +600,108 @@ Set-AkariRowControl $e 'Optimized'; "setOn=$($e.Control.IsChecked)"
 $e = New-AkariTweakRow $tog 'Unknown'; Show $e
 "unkGlyph=$($e.Glyphs.Children[1].ToolTip)"
 $e = New-AkariTweakRow $adv 'Default'; Show $e
-"advGlyph=$($e.Glyphs.Children[0].ToolTip)"
+"advMarks=$(($e.Glyphs.Children | ForEach-Object { $_.ToolTip }) -join ';')"
+"advBadge=$((New-AkariBadges $adv).Children[0].Tag)"
 $e = New-AkariTweakRow $ch 'Custom' 0x28; Show $e
-"chItems=$($e.Control.Items.Count)"; "chNone=$($e.Control.Items[0].Content)"; "chRec=$($e.Control.Items[1].Content)"; "chDef=$($e.Control.Items[3].Content)"
+"chItems=$($e.Control.Items.Count)"; "chNone=$($e.Control.Items[0].Content)"; "chRec=$($e.Control.Items[1].Content)|$($e.Control.Items[1].Uid)"; "chDef=$($e.Control.Items[3].Content)|$($e.Control.Items[3].Uid)"
 "chStart=$(Get-AkariRowStart $e $true)"; "chStartPlain=$(Get-AkariRowStart $e $false)"
 Set-AkariRowControl $e 0x28; "chValue=$(Get-AkariComboValue $e)"
 Set-AkariRowControl $e 'None'; "chNoChange=$(Get-AkariComboValue $e)"
 $e = New-AkariTweakRow $ch 'Custom' 7; Show $e
 "chUnlisted=$(Get-AkariRowStart $e $true)"
 Set-AkariRowControl $e 7; "chTyped=$($e.Control.Text)"
-# a Choice with up to 4 values that can't be typed: a combobox too (the segmented picker is retired, ADR 0008)
+# a short Choice: a ComboBox too (Segmented is retired)
 $seg = ConvertTo-AkariTweak @{ Id = 'seg'; Name = 'Seg'; Description = 'D'; Kind = 'Choice'; Risk = 'Safe'; Recommended = 1; Default = 0
     Registry = @{ Path = 'HKCU:\x'; Name = 'S'; Type = 'DWord' }; Choices = @(@{ Value = 0; Label = 'Off' }, @{ Value = 1; Label = 'On' }, @{ Value = 2; Label = 'Max' }) } 'x' $false
 $e = New-AkariTweakRow $seg 'Default' 0; Show $e
 Set-AkariRowControl $e 2; $v2 = Get-AkariComboValue $e
-Set-AkariRowControl $e 'None'
-"seg=$($e.Control.GetType().Name)|$($e.Control.Items.Count)|$v2|$(Get-AkariComboValue $e)|$($e.Control.Style -eq $host_.FindResource('Combo'))|$(@($e.Control.Items | ForEach-Object { $_.GetType().Name } | Sort-Object -Unique) -join ',')"
-"chType=$((New-AkariTweakRow $ch 'Default' 0x26).Control.GetType().Name)"
+"seg=$($e.Control.GetType().Name)|$($e.Control.Items.Count)|$v2|$($e.Control.Style -eq $host_.FindResource('Combo'))"
 $e = New-AkariTweakRow $act 'Unknown'; Show $e
 "actType=$($e.Control.GetType().Name)"; "actGlyphs=$($e.Glyphs.Children.Count)"
 $ak = ConvertTo-AkariTweak @{ Id = 'ak'; Name = 'Ak'; Description = 'D'; Risk = 'Safe'; AkariOS = $true } 'x' $false
 $e = New-AkariTweakRow $ak 'Default'; Show $e
-function Shown($tb) { [Windows.Documents.TextRange]::new($tb.ContentStart, $tb.ContentEnd).Text }
-"akName=$(Shown $e.Control.Content)"; "plainName=$(Shown (New-AkariTweakRow $tog 'Default').Control.Content)"
-$c = New-AkariCategoryCard 'Windows' 'app-window' 'Not yet ported'
-"cardHead=$($c.Panel.Children[0].Children.Count)|$($c.Panel.Children[0].Children[1].Tag)|$($null -ne $c.Count)"
-$b = New-AkariBadge 'Advanced'; "badge=$($b.Tag)|$($b.Child.Text)"
+"akBadge=$((New-AkariBadges $ak).Children[0].Tag)"
+$x = New-AkariExpander 'app-window' 'Windows' '3 Tweaks'
+"exp=$($x.Head.GetType().Name)|$($x.Head.IsChecked)|$($x.Body.Height)|$($x.Desc.Text)|$($null -ne $x.Count)"
+$y = New-AkariExpander 'app-window' 'Open' '' $true
+"expOpen=$($y.Head.IsChecked)|$([double]::IsNaN($y.Body.Height))"
+$b = New-AkariBadge 'Caution'; "badge=$($b.Tag)|$($b.CornerRadius.TopLeft)|$($b.Height)"
+$i = New-AkariInfoBar 'Warn' 'T' 'Text' -Close; "info=$($i.Bar.Tag)|$($i.Title.Text)|$($i.Text.Text)|$($null -ne $i.Close)|$($i.Bar.CornerRadius.TopLeft)"
+$s = New-AkariSelectorBar @('A', 'B') 'B' { }; "sel=$($s.Items.Children.Count)|$(@($s.Items.Children | Where-Object { $_.IsChecked })[0].Tag)|$($s.Line.Width)x$($s.Line.Height)"
 '@
-    $out = @{}
-    & powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root 2>&1 | ForEach-Object {
-        $l = "$_"; $i = $l.IndexOf('='); if ($i -gt 0) { $out[$l.Substring(0, $i)] = $l.Substring($i + 1) } else { $out['error'] += $l }
-    }
+    $out = Invoke-Probe $probe @{ Root = $Root }
 
     It 'builds without errors' { $out['error'] | Should BeNullOrEmpty }
-
-    It 'shows a Toggle as a checkbox with a restart glyph and a tooltip' {
+    It 'shows a Toggle as a check box in an expander row (52 px in), with a restart mark and a tooltip' {
         $out.togType | Should Be 'CheckBox'
         $out.togGlyphs | Should Be '1'
         $out.togTip | Should Be 'D|Restart required.|Now: Default.'
+        $out.togRow | Should Be 'True|52'
     }
-
     It 'starts checked only when the State is Optimized and Show current state is on' {
         $out.togStartState | Should Be 'None'
         $out.optStartState | Should Be 'Optimized'
         $out.optStartPlain | Should Be 'None'
         $out.setOn | Should Be 'True'
     }
-
-    It 'marks an unread State and an Advanced Risk with glyphs' {
+    It 'marks an unread State, Safe Mode, and the Risk as a badge' {
         $out.unkGlyph | Should Be 'State unknown'
-        $out.advGlyph | Should Be 'Advanced'
+        $out.advMarks | Should Be 'Runs in Safe Mode: Akari restarts into it and back'
+        $out.advBadge | Should Be 'Advanced'
     }
-
-    It 'lists Choices after No change, with Recommended and Windows default marked' {
+    It 'lists Choices after No change, with Recommended and Windows default noted beside them' {
         $out.chItems | Should Be '4'
         $out.chNone | Should Be 'No change'
-        $out.chRec | Should Be 'A (Recommended)'
-        $out.chDef | Should Be 'C (Windows default)'
+        $out.chRec | Should Be 'A|Recommended'
+        $out.chDef | Should Be 'C|Windows default'
         $out.chStart | Should Be '40'
         $out.chStartPlain | Should Be 'None'
         $out.chValue | Should Be '40'
         $out.chNoChange | Should Be 'None'
     }
-
     It 'starts an unlisted value on No change, and can show it as typed text' {
         $out.chUnlisted | Should Be 'None'
         $out.chTyped | Should Be '7'
     }
-
-    It 'shows every Choice as a combobox, a short one too (WinUI: no segmented picker)' {
-        $out.seg | Should Be 'ComboBox|4|2|None|True|ComboBoxItem'
-        $out.chType | Should Be 'ComboBox'
-    }
-
-    It 'shows an Action as a checkbox with no state glyph' {
+    It 'shows every Choice as a ComboBox' { $out.seg | Should Be 'ComboBox|4|2|True' }
+    It 'shows an Action as a check box with no state mark' {
         $out.actType | Should Be 'CheckBox'
         $out.actGlyphs | Should Be '0'
     }
+    It 'badges a Tweak of the AkariOS setup' { $out.akBadge | Should Be 'AkariOS' }
+    It 'builds an expander: a ToggleButton head, a closed body of height 0, its count' {
+        $out.exp | Should Be 'ToggleButton|False|0|3 Tweaks|True'
+        $out.expOpen | Should Be 'True|True'
+    }
+    It 'builds a badge, an InfoBar and a SelectorBar to the prototype''s metrics' {
+        $out.badge | Should Be 'Caution|4|20'
+        $out.info | Should Be 'Warn|T|Text|True|4'
+        $out.sel | Should Be '2|B|16x3'
+    }
+}
 
-    It 'builds a category card head: count pill, icon blob, note, title' { $out.cardHead | Should Be '4|app-window|True' }
-    It 'builds a Risk badge' { $out.badge | Should Be 'Advanced|Advanced' }
+Describe 'Dialog (UI\Dialog.ps1, a ContentDialog)' {
+    . "$Root\UI\Dialog.ps1"
+    It 'turns "- " lines into a list of consequences' {
+        ((Get-AkariDialogBlocks "Intro`n- one`n`n- two`nEnd") | ForEach-Object { "$($_.Kind):$($_.Text)" }) -join '|' | Should Be 'Text:Intro|Item:one|Item:two|Text:End'
+    }
+    It 'shows the main action first and the cancel one last' {
+        (Get-AkariDialogOrder @('Cancel', 'Later', 'Restart and apply')) -join ',' | Should Be 'Restart and apply,Later,Cancel'
+        (Get-AkariDialogOrder @('Cancel', 'Apply')) -join ',' | Should Be 'Apply,Cancel'
+        (Get-AkariDialogOrder @('OK')) -join ',' | Should Be 'OK'
+    }
+}
 
-    It 'marks a Tweak of the AkariOS setup with (AkariOS) after its name' {
-        $out.akName | Should Be 'Ak (AkariOS)'
-        $out.plainName | Should Be 'Tog'
+Describe 'Pages (UI\Pages.ps1)' {
+    $AkariLogFile = "$TestDrive\akari.log"
+    . "$Root\UI\Pages.ps1"
+    It 'says when an activity happened in words' {
+        $now = [datetime]'2026-11-19 15:00'
+        Get-AkariWhenText $now.AddSeconds(-20) $now | Should Be 'Just now'
+        Get-AkariWhenText $now.AddMinutes(-12) $now | Should Be '12 minutes ago'
+        Get-AkariWhenText ([datetime]'2026-11-19 09:05') $now | Should Be 'Today 09:05'
+        Get-AkariWhenText ([datetime]'2026-11-18 22:00') $now | Should Be 'Yesterday'
+        Get-AkariWhenText ([datetime]'2026-10-02 10:00') $now | Should Be '2 Oct 2026'
     }
 }
 
@@ -712,7 +717,7 @@ $env:AKARI_MOTION = 'off'
 $AkariLogFile = $LogFile
 $AkariPresetDir = Join-Path (Split-Path $LogFile) 'presets'
 foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'Restore', 'Version', 'Update', 'Unattend', 'Presets', 'Iso', 'IsoDownload') { . "$Root\Core\$f.ps1" }
-# the Unattend Generator page reads no drive and no PC setting here
+# the Install USB page reads no drive and no PC setting here
 function Get-AkariSetupDrives { }
 function Get-AkariUnattendDefaults { @{} }
 $AkariInstallDir = $Install
@@ -720,382 +725,253 @@ function L($id, $page, $name) { ConvertTo-AkariTweak @{ Id = $id; Name = $name; 
 $script:Tweaks = [System.Collections.Generic.List[object]]::new()
 foreach ($t in @((L 'dark' 'Windows' 'Dark theme'), (L 'bios' 'Check' 'BIOS check'), (L 'leg-adv' 'Advanced' 'Old advanced'),
     (ConvertTo-AkariTweak @{ Id = 'tuning'; Name = 'Theme tuning'; Description = 'D'; Section = 'Advanced'; Category = 'Tuning'; Risk = 'Safe'; Kind = 'Action'; Button = 'Run'; Apply = { } } 'x' $false),
-    # the Catalogue (Optimize › Advanced): a Toggle that needs Explorer restarted, a Safe Mode Toggle
     (ConvertTo-AkariTweak @{ Id = 'cat-tog'; Name = 'Cat toggle'; Description = 'D'; Section = 'Customize'; Category = 'Taskbar'; Risk = 'Safe'; Explorer = $true; Apply = { }; Revert = { } } 'x' $false),
+    (ConvertTo-AkariTweak @{ Id = 'cat-tog2'; Name = 'Cat other'; Description = 'D'; Section = 'Customize'; Category = 'Start'; Risk = 'Safe'; Apply = { }; Revert = { } } 'x' $false),
     (ConvertTo-AkariTweak @{ Id = 'cat-safe'; Name = 'Cat safe'; Description = 'D'; Section = 'Advanced'; Category = 'Security'; Risk = 'Safe'; SafeMode = $true; Reboot = $true; Apply = { }; Revert = { } } 'x' $false))) { $script:Tweaks.Add($t) }
 $script:Groups = @(); $script:RowCache = @{}; $script:Cat = 'Home'; $script:Busy = $false; $script:Job = $null
 $script:Queue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
 $loaded = @{ Problems = @() }
 function Get-AkariAppxInstalled { @() }; function Start-AkariFeatureRead { }
-# the search shows its results on every key (no dispatcher runs here to fire the typing pause)
-$AkariSearchDelay = 0
 $AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
-foreach ($f in 'Motion', 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Shell', 'Rows', 'CataloguePage', 'ServicesPage', 'TasksPage', 'About', 'UnattendForm', 'Unattend', 'IsoBuilder', 'ImportExport') { . "$Root\UI\$f.ps1" }
+foreach ($f in 'Motion', 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Pages', 'Shell', 'Rows', 'CataloguePage', 'ServicesPage', 'TasksPage', 'About', 'UnattendForm', 'Unattend', 'IsoBuilder', 'ImportExport') { . "$Root\UI\$f.ps1" }
 $timer.Stop()
-# the Catalogue reads its States in a job: recorded, never run (no real job, no Safe Mode read)
 function Test-AkariSafeMode { $false }
+function Get-AkariAppxPackages { @() }
 $script:Jobs = @()
 function Start-AkariJob($Code, $Queue, $CoreDir, $Shared) { $script:Jobs += , @{ Code = $Code; Shared = $Shared }; @{ Handle = [pscustomobject]@{ IsCompleted = $false }; Shared = $Shared } }
-# the launch prompt is a dialog: record it instead
 function Show-AkariUpdatePrompt { $script:Prompted = $true }
 function Click($b) { $b.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent)) }
-function Rows { ($Rows.Children | ForEach-Object { if ($_ -is [Windows.Controls.TextBlock]) { 'msg' } else { $_.Child.Children[0].Children[1].Children[0].Text } }) -join ',' }
-function TabOn { ($Tabs.Children | Where-Object { $_.IsChecked }).Tag }
-function SetTab($n) { ($Tabs.Children | Where-Object { $_.Tag -eq $n }).IsChecked = $true }
-function ChipList { ($Chips.Children | ForEach-Object { $_.Tag }) -join ',' }
-function ChipOn { ($Chips.Children | Where-Object { $_.IsChecked }).Tag }
-"tabs=$(($Tabs.Children | ForEach-Object { $_.Tag }) -join ',')"
-Select-AkariPage 'Home'; "home=$($HomePanel.Visibility)|$(TabOn)|$($SubNav.Visibility)|$($SearchHint.Text)"
-# the hero: no page header, Tweaks counted at once, the other stats read in a job
-"homeStats=$($PageHeader.Visibility)|$($script:Jobs.Count)|$($script:Jobs[-1].Code -match 'Get-AkariExportItems')|$($script:HomeStat.Tweaks.Text)|$([int][char]$script:HomeStat.Applied.Text)"
+function NavOn { ($script:NavItems.Values | Where-Object { $_.Button.IsChecked }).Page }
+function Crumbs { (@($Crumbs.Children | Where-Object { $_ -is [Windows.Controls.Button] } | ForEach-Object { $_.Content }) + $Heading.Text) -join '>' }
+"nav=$(@($script:NavItems.Keys) -join ',')"
+"navFoot=$($NavFoot.Children[1].Tag)|$($Nav.Width)"
+Show-Page; "home=$($HomePanel.Visibility)|$(NavOn)|$($PageHeader.Visibility)|$($BackBtn.IsEnabled)"
+"homeStats=$($script:HomeStat.Tweaks.Text)|$(@($script:Jobs | Where-Object { $_.Code -match 'Get-AkariExportItems' }).Count)|$($script:HomeTiles.Children.Count)"
+"homeHero=$($script:HeroOneClick.Style -eq $window.FindResource('Accent'))|$($script:HomeTiles.Children[0].BorderBrush -eq $window.FindResource('Acc'))"
 Complete-AkariHomeStats @{ Apps = 12; Applied = 34 }; "homeStatsDone=$($script:HomeStat.Apps.Text)|$($script:HomeStat.Applied.Text)"
-Select-AkariPage 'Home'; "homeStatsOnce=$($script:Jobs.Count)"
 $script:Jobs = @()
-Click $HeroChoose; "heroChoose=$script:Cat|$script:Mode|$script:Step|$($PageHeader.Visibility)"
-# the Optimize tile (and tab) opens the Catalogue's first page, its Section and chips in the sub-header
-Click $HomeTiles.Children[0]
-"optimize=$script:Cat|$(TabOn)|$($SubNav.Visibility)|$(($Sections.Items | ForEach-Object { $_.Tag }) -join ',')|$(ChipList)|$(ChipOn)|$($SearchHint.Text)"
-"sectionItems=$(@($Sections.Items | ForEach-Object { $_.GetType().Name } | Sort-Object -Unique) -join ',')"
+Click $script:HeroChoose; "choose=$script:Cat|$script:Mode|$script:Step|$(NavOn)|$($StepFooter.Visibility)|$(Crumbs)|$($StepLabel.Text -replace '[^ -~]', '.')|$($StepBack.Content)|$($BackBtn.IsEnabled)"
+Click $StepNext; "next=$script:Step|$($StepLabel.Text -replace '[^ -~]', '.')"
+Step-AkariHistoryBack; "backStep=$script:Cat|$script:Step"
+Click $StepBack; "cancel=$script:Cat|$script:Mode|$(Crumbs)|$($StepFooter.Visibility)"
+# Optimize: its landing page, its sections opening under it in the nav
+Invoke-AkariNav 'Optimize'; "optimize=$script:Cat|$(NavOn)|$($script:KidsOpen)|$(Crumbs)"
+Invoke-AkariNav 'Optimize'; "kidsToggle=$($script:KidsOpen)"
+Invoke-AkariNav 'Catalogue:Customize'
+"section=$script:Cat|$(NavOn)|$(Crumbs)|$(($script:CatSelector.Items.Children | ForEach-Object { $_.Tag }) -join ',')|$(@($script:CatHeads.Keys) -join ',')"
 $tog = $script:CatCards['cat-tog']
-"catReading=$($tog.StateText.Text -replace '[^ -~]', '.')|$($tog.Control.IsEnabled)|$($script:Jobs.Count)"
-# Legacy: the last Section, its pages as chips (Downloads is a tab)
-$Sections.SelectedItem = $Sections.Items[2]; "legacy=$script:Cat|$(TabOn)|$(ChipList)|$(Rows)"
-Select-AkariPage 'Advanced'; "advanced=$(Rows)"
-($Chips.Children | Where-Object { $_.Tag -eq 'Windows' }).IsChecked = $true; "windows=$(Rows)|$(ChipOn)|$($Sections.SelectedItem.Tag)"
-SetTab 'Downloads'; "downloads=$script:Cat|$script:FlowExit|$(TabOn)|$($SubNav.Visibility)"
-Click $StepBack; "dlBack=$script:Cat|$(TabOn)|$(ChipOn)"
-$Search.Text = 'theme'; "search=$(Rows)|$($SearchHint.Text)"; $Search.Text = ''
-# in the window the search waits for a pause in typing (its timer, which no dispatcher fires here); clearing acts at once
-$AkariSearchDelay = 250; $before = Rows
-$Search.Text = 'BIOS'; "searchWait=$((Rows) -eq $before)|$($script:SearchTimer.IsEnabled)|$before"
-$Search.Text = ''; "searchCleared=$((Rows) -eq $before)|$($script:SearchTimer.IsEnabled)"
-$AkariSearchDelay = 0
-# the Optimize tab comes back to the Optimize page seen last
-SetTab 'Home'; SetTab 'Optimize'; "optimizeAgain=$script:Cat|$(TabOn)"
-SetTab 'Install AkariOS'; "install=$script:Cat|$(TabOn)|$($SubNav.Visibility)|$($SearchHint.Text)"
-Click $StepBack; "installBack=$script:Cat|$(TabOn)"
-Click $HomeTiles.Children[1]; "dlHome=$script:FlowExit"
-# every page is reachable: a tab, a Section's chip, Remove apps, or About in the options menu
-$reach = @($AkariTabs.Keys) + @($script:OptSections | ForEach-Object { $_.Pages | ForEach-Object { $_.Key } }) + 'Remove apps', 'About'
-"unreached=$((@($Pages.Keys) | Where-Object { $_ -notin $reach }) -join ',')"
-Select-AkariPage 'Home'; "aboutLink=$($null -eq $window.FindName('AboutLink'))"; Click $AppVersion; "about=$script:Cat|$($StepsPanel.Visibility)|$(TabOn)|$($HomePanel.Visibility)"
-"aboutVersion=$($script:AboutParts.Version.Text)"
-"aboutLinks=$(($script:AboutParts.Links.Children | Where-Object { $_.Visibility -eq 'Visible' } | ForEach-Object { $_.Content }) -join ',')"
-"aboutCredits=$($script:AboutParts.Credits.Children.Count),$($script:AboutParts.Credits.Children[0].Children[0].Inlines.FirstInline.Inlines.FirstInline.Text)"
-"aboutLicense=$($script:AboutParts.License.Text -replace '[^ -~]', '?')"
-# the window is never shown here (no layout pass): check the column's definition
-$cd = $script:AboutParts.Column.ColumnDefinitions
-$cr = $script:AboutParts.Credits.Children[0]
-"aboutLayout=$($cd.Count),$($cd[0].Width.IsStar),$($cd[0].MaxWidth),$($script:AboutParts.Column.Children[0].Children.Count)"
-"aboutCreditLink=$($cr.Children[0].Inlines.FirstInline.NavigateUri),$(@($script:AboutParts.Credits.Children | ForEach-Object { $_.Children } | Where-Object { $_ -is [Windows.Controls.Button] }).Count)"
-"aboutLicenseLink=$($script:AboutParts.License.Parent.Orientation),$($script:AboutParts.License.Parent.Children[1].Content)"
-"appVersion=$($AppVersionText.Text)"
-Click $StepBack; "aboutBack=$script:Cat"
-# the Unattend Generator tile (third of four): full window, Back leads Home
-"tiles=$(($HomeTiles.Children | ForEach-Object { $_.Content.Children[1].Text }) -join ',')|$($HomeTiles.Columns)"
-Click $HomeTiles.Children[2]; "usbFile=$script:Cat|$($Heading.Text)|$(TabOn)|$($StepNext.Visibility)|$($null -ne $script:UnattendParts.Drive)"
-Click $StepBack; "usbFileBack=$script:Cat"
-# the ISO Builder tile (fourth of five): full window, zISO's ten options, the edition list empty until an ISO is open
-Click $HomeTiles.Children[3]; "isoPage=$script:Cat|$($Heading.Text)|$(TabOn)|$($StepNext.Visibility)|$($script:IsoParts.Options.Count)|$($script:IsoParts.Edition.IsEnabled)"
-Start-AkariIsoBuild; "isoNoEdition=$($script:IsoParts.Error.Text -match 'Open the ISO')"
+"reading=$($tog.StateText.Text -replace '[^ -~]', '.')|$($tog.Control.IsEnabled)|$($null -ne $script:Skeletons.Parent)"
+Set-AkariCatalogueStates @{ 'cat-tog' = @{ State = 'Default'; Current = $null } }
+"read=$($tog.StateText.Text)|$($tog.Control.IsChecked)|$($tog.Control.IsEnabled)|$($null -eq $script:Skeletons.Parent)|$($script:SectionsRead['Customize'])"
+# a change applies right away in the job; a second queues; an Explorer change goes to the restart InfoBar
+function Confirm-AkariDialog { $true }
+function Add-AkariRestoreFirst($Code, $Button) { $Code }
+$tog.Control.IsChecked = $true; Click $tog.Control
+"run=$($tog.StateText.Text -replace '[^ -~]', '.')|$($script:Job.Kind)|$($script:Jobs[-1].Shared.Mode)"
+[void](Get-AkariCatalogueCard ($script:Tweaks | Where-Object { $_.Id -eq 'tuning' }))
+Invoke-AkariCatalogueChange 'tuning' 'Apply' $null; "queued=$($script:CatQueue.Count)"
+$j = $script:Job; $j.Shared.Outcome = [pscustomobject]@{ Outcome = 'Applied'; Message = '' }; $j.Shared.State = 'Optimized'; $script:Job = $null
+Complete-AkariCatalogueJob $j; Start-AkariCatalogueNext
+"done=$($tog.Control.IsChecked)|$($script:RestartBar.Bar.Visibility)|$($script:RestartBar.Explorer.Visibility)|$($script:Job.Shared.Id)"
+$j = $script:Job; $j.Shared.Outcome = [pscustomobject]@{ Outcome = 'Applied'; Message = '' }; $script:Job = $null; Complete-AkariCatalogueJob $j
+"action=$($script:CatCards['tuning'].Done)|$(@(Get-AkariActivity).Count)"
+# a Safe Mode Toggle asks Restart and apply / Later / Cancel; Later waits in the Safe Mode InfoBar
+Invoke-AkariNav 'Catalogue:Advanced'
+$safe = $script:CatCards['cat-safe']
+Set-AkariCatalogueStates @{ 'cat-safe' = @{ State = 'Default'; Current = $null } }
+function Show-AkariDialog { $script:Asked = @($args[2]) -join ','; 'Later' }
+function Show-AkariToast { $script:Toasted = $args[0] }
+$n = $script:Jobs.Count
+$safe.Control.IsChecked = $true; Click $safe.Control
+"safe=$script:Asked|$($script:SafePending['cat-safe'].Mode)|$($safe.StateText.Text)|$($script:SafeBar.Bar.Visibility)|$($script:SafeBar.Title.Text)|$($script:Jobs.Count - $n)|$script:Toasted"
+$safe.Control.IsChecked = $false; Click $safe.Control
+"safeBack=$($script:SafePending.Count)|$($safe.Control.IsChecked)"
+# search: suggestions as you type, Enter = the results page grouped by Section > Category
+"suggest=$((Get-AkariSuggestions 'cat' | ForEach-Object { $_.Id }) -join ',')|$(@(Get-AkariSuggestions 'zzz').Count)"
+Open-AkariSearch 'Cat'
+"search=$script:Cat|$(NavOn)|$($Heading.Text)|$(($Rows.Children | Where-Object { $_ -is [Windows.Controls.TextBlock] -and $_.FontWeight -eq 'SemiBold' } | ForEach-Object { $_.Text -replace '[^ -~]', '>' }) -join ',')"
+"highlight=$((@($script:CatCards['cat-tog'].Name.Inlines) | Where-Object { $_.FontWeight -eq 'SemiBold' } | ForEach-Object { $_.Text }) -join ',')"
+Open-AkariSearch 'zzz'; "searchNone=$($Rows.Children[0].Tag.Text)"
+# the Legacy pages, from the Optimize page: legacy rows only, Optimize selected
+Select-AkariPage 'Check'; "legacy=$script:Cat|$(NavOn)|$(Crumbs)|$($Rows.Children.Count)"
+# Back walks the history
+$h = $script:History.Count; Step-AkariHistoryBack; "back=$script:Cat|$($script:History.Count -eq $h - 1)"
+# the other pages
+Select-AkariPage 'Downloads'; "downloads=$script:Cat|$(NavOn)|$(Crumbs)"
+Select-AkariPage 'Remove apps'; "remove=$script:Cat|$(NavOn)|$($script:AppsParts.RemoveGo.IsEnabled)|$($script:AppsParts.RemoveGo.Visibility)|$(($script:AppsParts.Selector.Items.Children | ForEach-Object { $_.Tag }) -join ',')"
+Select-AkariPage 'Install USB'; "usb=$script:Cat|$(NavOn)|$($script:UaSections.Count -eq $script:UnattendSpec.Sections.Count)|$($script:UaSections[0].Desc.Text)|$($script:UnattendParts.Usb.IsEnabled)|$($script:UnattendParts.DriveName.Text)"
+Select-AkariPage 'Unattend Generator'; "usbOld=$script:Cat"
+# the Catalogue's job above never ends here: free the job slot first
+$script:Job = $null; Set-Busy $false
+Select-AkariPage 'ISO Builder'; "iso=$script:Cat|$(NavOn)|$($script:IsoParts.Options.Count)|$($script:IsoParts.Edition.IsEnabled)"
 $o = $script:IsoParts.Options; $o.DisableUpdates.IsChecked = $true; Update-AkariIsoOptions
 "isoExclusive=$($o.SecurityOnly.IsEnabled)|$($o.DisableVersionUpgrade.IsEnabled)|$($o.DisableUpdates.IsEnabled)|$($o.RemoveAI.IsEnabled)"
 $o.DisableUpdates.IsChecked = $false; Update-AkariIsoOptions; "isoFreed=$($o.SecurityOnly.IsEnabled)"
 Complete-AkariIsoJob @{ Kind = 'IsoOpen'; Shared = @{ Result = @{ Image = 'X:\AkariIso\Media\sources\install.wim'; Editions = @(@{ Index = 1; Name = 'Windows 10 Pro'; Version = '10.0.19045.1'; Supported = $false }, @{ Index = 6; Name = 'Windows 11 Pro'; Version = '10.0.26200.1'; Supported = $true }) } } }
 "isoOpened=$($script:IsoParts.Edition.Items.Count)|$($script:IsoParts.Edition.IsEnabled)|$($script:IsoParts.Edition.SelectedItem.Content)"
 Complete-AkariIsoJob @{ Kind = 'IsoRead'; Shared = @{ Apps = @(@{ Name = 'Microsoft.BingNews'; Package = 'Microsoft.BingNews_1_x64__8wekyb3d8bbwe' }); Capabilities = @(@{ Name = 'App.StepsRecorder~~~~0.0.1.0' }); Features = @(); Packages = @() } }
-"isoLists=$($script:IsoParts.Lists.Apps.Children.Count)|$($script:IsoParts.Lists.Apps.Tag.Head.Text)|$($script:IsoParts.Lists.Features.Tag.Head.Visibility)"
 $script:IsoParts.Lists.Apps.Children[0].IsChecked = $true; $o.RemoveAI.IsChecked = $true
-$realConfirm = ${function:Confirm-AkariDialog}; function Confirm-AkariDialog { $true }
-$script:Jobs = @(); Start-AkariIsoBuild
+$script:Jobs = @(); Start-AkariIsoBuild; "isoErr=$($script:IsoParts.Error.Text)"
 $c = $script:Jobs[-1].Shared.Choices
 "isoBuild=$($script:Job.Kind)|$($c.Index)|$($c.Edition)|$($c.Options -join ',')|$($c.Apps -join ',')|$($c.AkariDir -eq $Root)|$([Text.Encoding]::ASCII.GetString($c.Unattend) -match '<Name>Admin</Name>')"
-${function:Confirm-AkariDialog} = $realConfirm; $script:Job = $null; Set-Busy $false
+$script:Job = $null; Set-Busy $false
 Complete-AkariIsoJob @{ Kind = 'IsoUup'; Shared = @{ Result = @{ Ok = $true; Path = 'D:\Windows11_25H2_Pro_en-us.iso' } } }
 "isoUupDone=$($script:IsoParts.IsoPath.Text)|$($script:IsoParts.SrcFile.IsChecked)"
-Click $StepBack; "isoBack=$script:Cat"
-"title=$($window.FindName('TitleText').Text)"
-$fam = { param($e) "$($e.FontFamily.Source)".Split(',')[0] }
-"fonts=$(& $fam $window)|$(& $fam $Heading)|$($Heading.FontSize)|$(& $fam $window.FindName('TitleText'))|$(& $fam $AppVersionText)"
-"menu=$(($MainMenu.Items | ForEach-Object { if ($_ -is [Windows.Controls.Separator]) { '-' } elseif ($_.IsEnabled) { $_.Header } else { "($($_.Header))" } }) -join ',')"
-# the menu's popup is outside the window's tree: each icon has its shape and its row's colour without a layout
-"winIcon=$($window.Icon.Decoder.GetType().Name)|$(Split-Path ([string]$window.Icon) -Leaf)|$($window.Icon.Decoder.Frames.Count)"
-"menuIcons=$(@($MainMenu.Items | Where-Object { $_ -is [Windows.Controls.MenuItem] } | ForEach-Object { $ip = $_.Icon.Child.Children[0]; ($null -ne $ip.Data) -and ([Windows.Data.BindingOperations]::GetBinding($ip, [Windows.Shapes.Shape]::FillProperty).Source -eq $_) -and ($ip.Fill -eq $_.Foreground) } | Sort-Object -Unique) -join ',')"
-$MainMenu.Items[$MainMenu.Items.Count - 1].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent)); "menuAbout=$script:Cat"
-# themes: the menu row cycles Follow Windows -> Dark -> Light, swaps the one theme dictionary and saves the choice
+# Settings: theme, accent, animations, files, recovery, about
+Select-AkariPage 'Settings'; "settings=$script:Cat|$(NavOn)|$(($StepBody.Children | Where-Object { $_ -is [Windows.Controls.TextBlock] } | ForEach-Object { $_.Text }) -join ',')"
+"themeRadios=$(($script:AboutParts.Theme.Children | ForEach-Object { "$($_.Content)$(if ($_.IsChecked) { '*' })" }) -join ',')|$(($script:AboutParts.Accent.Items | ForEach-Object { $_.Content }) -join ',')|$($script:AboutParts.Animations.IsChecked)"
+"aboutLinks=$(($script:AboutParts.Links.Children | Where-Object { $_.Visibility -eq 'Visible' } | ForEach-Object { $_.Content }) -join ',')|$($script:AboutParts.Credits.Count)|$($script:AboutParts.Version.Text)|$($script:AboutParts.License.Text -replace '[^ -~]', '?')"
+Select-AkariPage 'About'; "about=$script:Cat"
+# themes: one dictionary swapped, saved, the logo with it; the Windows accent replaces crimson
 "themeStart=$script:ThemeSetting,$(@($window.Resources.MergedDictionaries | Where-Object { $_.Contains('Acc') }).Count)"
-$tm = $MainMenu.Items | Where-Object { $_ -is [Windows.Controls.MenuItem] -and "$($_.Header)" -like 'Theme:*' }
-$tm.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent))
-$tm.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent))
-"themeLight=$($tm.Header)|$($window.FindResource('Bg').Color)|$(@($window.Resources.MergedDictionaries | Where-Object { $_.Contains('Acc') }).Count)|$(Get-AkariThemeSetting)|$($Body.Background.Color)"
+Set-AkariTheme 'Light' -Save; "themeLight=$($window.FindResource('Bg').Color)|$(@($window.Resources.MergedDictionaries | Where-Object { $_.Contains('Acc') }).Count)|$(Get-AkariThemeSetting)|$($Body.Background.Color)|$($window.FindResource('Acc').Color)"
 $lightLogo = Split-Path $Logo.Source.UriSource.LocalPath -Leaf
-Set-AkariTheme 'Dark'; "themeDark=$($window.FindResource('Bg').Color)|$(Get-AkariThemeSetting)"
+Set-AkariTheme 'Dark'; "themeDark=$($window.FindResource('Bg').Color)|$(Get-AkariThemeSetting)|$($window.FindResource('Acc').Color)"
 "logo=$lightLogo|$(Split-Path $Logo.Source.UriSource.LocalPath -Leaf)"
 Set-AkariTheme 'Nonsense'; "themeBad=$script:ThemeSetting"
-Set-AkariTheme 'Dark' -Save
-Click $StepBack
-# Import settings (the menu item): a settings file, picked through the stubbed file dialog, opens Guided on its Tweaks step
+function Get-AkariRegValue { [byte[]]@(0x9F, 0xF5, 0xB5, 0, 0x6F, 0xD3, 0x8C, 0, 0x3D, 0xB2, 0x63, 0, 0x10, 0x89, 0x3E, 0, 0x0B, 0x6A, 0x2E, 0, 0x07, 0x4C, 0x20, 0, 0x03, 0x2F, 0x13, 0, 0, 0, 0, 0) }
+Save-AkariSetting 'Accent' 'Windows'; Set-AkariTheme 'Dark'; "accentWindows=$($window.FindResource('Acc').Color)|$($window.FindResource('AccText').Color)"
+Save-AkariSetting 'Accent' 'Akari'; Set-AkariTheme 'Dark'; "accentAkari=$($window.FindResource('Acc').Color)"
+"title=$($TitleText.Text)|$AppVersionText.Text"
+"version=$($AppVersionText.Text -eq $AkariVersion)"
+"winIcon=$($window.Icon.Decoder.GetType().Name)|$(Split-Path ([string]$window.Icon) -Leaf)|$($window.Icon.Decoder.Frames.Count)"
+# the pane collapses to 48 px under 1000 px, and with the pane toggle
+Update-AkariWidth 900; "narrow=$($script:Compact)|$($Nav.Width)|$($script:NavItems['Home'].Button.ToolTip)"
+Update-AkariWidth 1200; "wide=$($script:Compact)|$($Nav.Width)"
+Click $PaneBtn; "toggled=$($script:Compact)|$($script:UserCompact)"; Click $PaneBtn
+# Import settings: a settings file opens Guided on its Tweaks step, a copy kept in the presets
 $importFile = Join-Path (Split-Path $LogFile) 'import.json'
 Set-Content $importFile '{ "Name": "Imported", "Tweaks": [ "cat-tog" ] }'
 function Select-AkariSettingsFile($Save) { $importFile }
-$MainMenu.Items[0].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent))
+Start-AkariImport
 "import=$script:Cat|$script:Mode|$script:Step|$(@($script:Sel.Keys) -join ',')|$(Test-Path (Join-Path $AkariPresetDir 'import.json'))"
-Select-AkariPage 'Home'
+Reset-AkariSteps
+# the update check: an update found on Home asks and shows its InfoBar; away from Home it doesn't ask
 $rel = @{ Ok = $true; Version = [version]'9.0.0'; Notes = "## New`n- **fast**"; PageUrl = 'https://example.test/r'; AssetUrl = 'https://example.test/a.zip'; Digest = 'sha256:x' }
-$script:Prompted = $false; Complete-AkariUpdateCheck $rel $false; "launch=$script:Prompted,$($UpdateBar.Visibility),$($UpdateText.Text)"
+$script:Prompted = $false; Complete-AkariUpdateCheck $rel $false
+"launch=$script:Prompted|$(@($HomePanel.Children | Where-Object { $_.Tag -eq 'Info' }).Count)|$(@($HomePanel.Children | Where-Object { $_.Tag -eq 'Info' })[0].Child.Children[2].Inlines.FirstInline.Text)"
 Select-AkariPage 'Optimize'; $script:Prompted = $false; Complete-AkariUpdateCheck $rel $false; "launchAway=$script:Prompted"
-Select-AkariPage 'About'; "aboutAvail=$($script:AboutParts.Status.Text)|$($script:AboutParts.Update.Visibility)|$($script:AboutParts.Notes.Text -replace "`n", '/' -replace [char]0x2022, '*')"
-Complete-AkariUpdateCheck @{ Ok = $false; Message = 'No releases yet.' } $true; "aboutError=$($script:AboutParts.Status.Text)|$($script:AboutParts.Update.Visibility)"
-Complete-AkariUpdateCheck @{ Ok = $true; Version = [version]$AkariVersion } $false; "latest=$($UpdateBar.Visibility)"
+Select-AkariPage 'Settings'; "aboutAvail=$($script:AboutParts.Update.Visibility)|$($script:AboutParts.NotesRow.Visibility)"
+Complete-AkariUpdateCheck @{ Ok = $false; Message = 'No releases yet.' } $true; "aboutError=$($script:AboutParts.Status.Children[0].Text)|$($script:AboutParts.Update.Visibility)"
 # dialogs: built, never shown (ShowDialog would wait for a click)
-$d = New-AkariDialog 'Body text' 'AkariOS update' @('Later', 'Update now') 'Warning'
+$d = New-AkariDialog "Body text`n- a consequence" 'Restart now?' @('Cancel', 'Restart') 'Warning'
 $bs = @($d.FindName('DlgButtons').Children)
-"dlg=$($d.FindName('DlgTitle').Text)|$($d.FindName('DlgText').Text)|$(($bs | ForEach-Object { $_.Content }) -join ',')|$($bs[1].Style -eq $window.FindResource('BtnP')),$($bs[1].IsDefault),$($bs[0].IsCancel)|$($d.FindName('DlgIcon').Visibility)|$($d.FindName('DlgInput').Visibility)"
-$bs[1].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent)); "dlgClick=$($d.Tag.Result)"
-"dlgPlain=$((New-AkariDialog 'x' 'T' @('OK') 'None').FindName('DlgIcon').Visibility)"
+"dlg=$($d.FindName('DlgTitle').Text)|$($d.FindName('DlgText').Children.Count)|$(($bs | ForEach-Object { $_.Content }) -join ',')|$($bs[0].Style -eq $window.FindResource('BtnP')),$($bs[0].IsDefault),$($d.FindName('DlgCard').Width)|$($d.FindName('DlgInput').Visibility)"
+$bs[0].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent)); "dlgClick=$($d.Tag.Result)"
+${function:Show-AkariDialog} = $null
+. "$Root\UI\Dialog.ps1"
 function Invoke-AkariDialog($Dialog) { $script:Shown = $Dialog; 'Update now' }
 "confirm=$(Confirm-AkariDialog 'q' 'Update now' 'Later'),$(Confirm-AkariDialog 'q' 'Start One-click'),$($script:Shown.FindName('DlgTitle').Text)"
 function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My preset  '; 'Save' }
 "readText=$(Read-AkariText 'A name:' 'Save')|$($null -eq (Read-AkariText 'A name:' 'Keep'))"
-"overlay=$($window.FindName('ModalOverlay').Visibility)"
-# the Catalogue (Optimize › Advanced): no real job, restore point or dialog
-function Confirm-AkariDialog { $true }
-function Add-AkariRestoreFirst($Code, $Button) { $Code }
-Select-AkariPage 'Catalogue:Customize/Taskbar'
-"catFirst=$script:Cat|$($Heading.Text)|$(TabOn)|$(ChipOn)|$($SearchHint.Text)"
-Set-AkariCatalogueStates @{ 'cat-tog' = @{ State = 'Default'; Current = $null } }
-"catRead=$($tog.StateText.Text)|$($tog.Control.IsChecked)|$($tog.Control.IsEnabled)"
-$tog.Control.IsChecked = $true; Click $tog.Control
-"catRun=$($tog.StateText.Text -replace '[^ -~]', '.')|$($script:Job.Kind)|$($script:Jobs[-1].Code -match 'Invoke-AkariTweak')|$($script:Jobs[-1].Shared.Mode)"
-# a second change while the first runs: it queues
-[void](Get-AkariCatalogueCard ($script:Tweaks | Where-Object { $_.Id -eq 'tuning' }))
-Invoke-AkariCatalogueChange 'tuning' 'Apply' $null
-"catQueued=$($script:CatQueue.Count)|$($script:CatCards['tuning'].StateText.Text -replace '[^ -~]', '.')|$($script:Jobs.Count)"
-$j = $script:Job; $j.Shared.Outcome = [pscustomobject]@{ Outcome = 'Applied'; Message = '' }; $j.Shared.State = 'Optimized'; $script:Job = $null
-Complete-AkariCatalogueJob $j; Start-AkariCatalogueNext
-"catDone=$($tog.StateText.Text)|$($tog.Control.IsChecked)|$($script:RestartBar.Bar.Visibility)|$($script:RestartBar.Text.Text)|$($script:RestartBar.Explorer.Visibility)"
-"catNext=$($script:Job.Shared.Id)|$($script:CatQueue.Count)"
-$j = $script:Job; $j.Shared.Outcome = [pscustomobject]@{ Outcome = 'Failed'; Message = 'boom' }; $script:Job = $null; Complete-AkariCatalogueJob $j
-"catFailed=$($script:CatCards['tuning'].StateText.Text)"
-# a Safe Mode Toggle waits in the bar; switched back, it leaves it (the Advanced Section opens its first Category)
-$Sections.SelectedItem = $Sections.Items[1]; "catSection=$script:Cat|$(ChipList)"
-$safe = $script:CatCards['cat-safe']
-Set-AkariCatalogueStates @{ 'cat-safe' = @{ State = 'Default'; Current = $null } }
-$n = $script:Jobs.Count
-$safe.Control.IsChecked = $true; Click $safe.Control
-"catSafe=$($script:SafePending['cat-safe'].Mode)|$($safe.StateText.Text)|$($CatBars.Visibility)|$($script:SafeBar.Bar.Visibility)|$($script:Jobs.Count - $n)"
-$safe.Control.IsChecked = $false; Click $safe.Control
-"catSafeBack=$($script:SafePending.Count)|$($script:SafeBar.Bar.Visibility)|$($safe.Control.IsChecked)"
-# Remove apps (the sub-header button) and the Downloads tab: Back returns to the Catalogue page
-Click $RemoveApps
-"catRemove=$script:Cat|$script:Mode|$script:FlowExit|$(TabOn)|$($SubNav.Visibility)|$($Heading.Text)"
-Click $StepBack; "catRemoveBack=$script:Cat|$(ChipOn)|$($SubNav.Visibility)"
-SetTab 'Downloads'; "catDownloads=$script:Cat|$script:Mode|$script:FlowExit"
-Click $StepBack; "catDownloadsBack=$script:Cat"
-# under 1100 px: the search is an icon button that opens the box, the tabs lose their icons
-Update-AkariWidth 1100; "narrow=$($SearchBox.Visibility)|$($SearchBtn.Visibility)|$($script:TabIcons[0].Visibility)|$($TitleText.Visibility)"
-Click $SearchBtn; "narrowOpen=$($SearchBox.Visibility)|$($SearchBtn.Visibility)"
-Update-AkariWidth 900; "narrowest=$($TitleText.Visibility)|$(($script:TabLabels | ForEach-Object { $_.Text }) -join ',')"
-Update-AkariWidth 1500; "wide=$($SearchBox.Visibility)|$($SearchBtn.Visibility)|$($script:TabIcons[0].Visibility)|$($TitleText.Visibility)"
-# the caption buttons fit at every width from the window's MinWidth up (the tabs give way, never the buttons)
-$fit = @(); $tabsFit = @()
-$window.Content = $null; $hostB = [Windows.Controls.Border]::new(); foreach ($k in $window.Resources.Keys) { $hostB.Resources[$k] = $window.Resources[$k] }
-foreach ($m in $window.Resources.MergedDictionaries) { $hostB.Resources.MergedDictionaries.Add($m) }; $hostB.Child = $Shell
-foreach ($w in $window.MinWidth, 1000, 1100, 1200, 1319, 1320, 1400, 1440) {
-    Update-AkariWidth $w
-    $hostB.Measure([Windows.Size]::new($w, 720)); $hostB.Arrange([Windows.Rect]::new(0, 0, $w, 720)); $hostB.UpdateLayout()
-    $x = $CapClose.TranslatePoint([Windows.Point]::new($CapClose.ActualWidth, 0), $hostB).X
-    $fit += "$w=$([Math]::Abs($x - $w) -lt 1)"
-    # the last tab ends before the search (box or button) starts: no tab is cut off
-    $t = $Tabs.Children[$Tabs.Children.Count - 1]
-    $se = if ($SearchBox.Visibility -eq 'Visible') { $SearchBox } else { $SearchBtn }
-    $tabsFit += "$w=$($t.TranslatePoint([Windows.Point]::new($t.ActualWidth, 0), $hostB).X -le $se.TranslatePoint([Windows.Point]::new(0, 0), $hostB).X)"
-}
-"capsFit=$($fit -join ',')"
-"tabsFit=$($tabsFit -join ',')"
-$hostB.Child = $null; $window.Content = $Shell
-# search: every Catalogue Tweak, a heading per Section › Category
-$Search.Text = 'Cat'
-"catSearch=$($Heading.Text)|$(($Rows.Children | Where-Object { $_ -is [Windows.Controls.TextBlock] } | ForEach-Object { $_.Text -replace '[^ -~]', '>' }) -join ',')|$(@($Rows.Children | Where-Object { $_ -is [Windows.Controls.Border] }).Count)"
-$Search.Text = ''
-# the Legacy Section: its chips again, the Catalogue's bars hidden
-$Sections.SelectedItem = $Sections.Items[2]
-"catLeft=$script:Cat|$(ChipList)|$($CatBars.Visibility)"
 '@
-    $out = @{}
-    & powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -LogFile "$TestDrive\a.log" -Install "$TestDrive\inst" 2>&1 | ForEach-Object {
-        $l = "$_"; $i = $l.IndexOf('='); if ($i -gt 0 -and $l -notmatch '^\[') { $out[$l.Substring(0, $i)] = $l.Substring($i + 1) } elseif ($l -notmatch '^\[') { $out['error'] += $l }
-    }
+
+    $out = Invoke-Probe $probe @{ Root = $Root; LogFile = "$TestDrive\a.log"; Install = "$TestDrive\inst" }
 
     It 'builds without errors' { $out['error'] | Should BeNullOrEmpty }
-    It 'the top bar has six tabs' { $out.tabs | Should Be 'Home,Install AkariOS,Optimize,Downloads,Unattend Generator,ISO Builder' }
-    It 'Home checks its tab, with no sub-header' { $out.home | Should Be 'Visible|Home|Collapsed|Search Legacy' }
-    It 'the Home hero replaces the page header; Tweaks are counted at once, the other stats in one background read' {
-        $out.homeStats | Should Be 'Collapsed|1|True|3|8212'
+    It 'the nav pane: the pages, Optimize''s five sections, Settings at the bottom, 280 px' {
+        $out.nav | Should Be 'Home,Install AkariOS,Optimize,Catalogue:Optimize,Catalogue:Customize,Catalogue:Hardware,Catalogue:Advanced,Catalogue:Tools,Downloads,Remove apps,Install USB,ISO Builder,Settings'
+        $out.navFoot | Should Be 'Settings|280'
+    }
+    It 'Home: no header, its nav item selected, no history yet' { $out.home | Should Be 'Visible|Home|Collapsed|False' }
+    It 'Home: Tweaks counted at once, the other facts in one background read, three tiles, One-click the accent and recommended one' {
+        $out.homeStats | Should Be '4|1|3'
+        $out.homeHero | Should Be 'True|True'
         $out.homeStatsDone | Should Be '12|34'
-        $out.homeStatsOnce | Should Be '1'
     }
-    It 'Choose changes opens Guided on its first step' { $out.heroChoose | Should Be 'Install AkariOS|Guided|0|Visible' }
-    It 'the Optimize tile opens the Catalogue''s first page: the Sections (Legacy last) and its Category chips' {
-        $out.optimize | Should Be 'Catalogue:Customize/Taskbar|Optimize|Visible|Customize,Advanced,Legacy|Catalogue:Customize/Taskbar|Catalogue:Customize/Taskbar|Search Optimize'
+    It 'Choose changes opens Guided on its first step, with the footer and a breadcrumb' {
+        $out.choose | Should Be 'Install AkariOS|Guided|0|Install AkariOS|Visible|Install AkariOS>Guided|Step 1 of 3 . Apps|Cancel|True'
+        $out.next | Should Be '1|Step 2 of 3 . Tweaks'
     }
-    It 'the Section pills are ListBoxItems (a ComboBoxItem in a ListBox ignores clicks)' { $out.sectionItems | Should Be 'ListBoxItem' }
-    It 'reads States in the background: the switch waits for its State' {
-        $out.catReading | Should Be 'Reading.|False|1'
+    It 'Back walks the steps of a flow, Cancel goes back to the chooser' {
+        $out.backStep | Should Be 'Install AkariOS|0'
+        $out.cancel | Should Be 'Install AkariOS|Choose|Install AkariOS|Collapsed'
     }
-    It 'the Legacy Section opens Check, its pages as chips without Downloads, legacy rows only' {
-        $out.legacy | Should Be 'Check|Optimize|Check,Refresh,Setup,Graphics,Windows,Hardware,Advanced|BIOS check'
-        $out.advanced | Should Be 'Old advanced'
-        $out.windows | Should Be 'Dark theme|Windows|Legacy'
+    It 'Optimize opens its landing page with its sections under it; clicked again there, they close' {
+        $out.optimize | Should Be 'Optimize|Optimize|True|Optimize'
+        $out.kidsToggle | Should Be 'False'
     }
-    It 'the Downloads tab opens the flow, and Back returns to the Legacy page' {
-        $out.downloads | Should Be 'Downloads|Windows|Downloads|Collapsed'
-        $out.dlBack | Should Be 'Windows|Optimize|Windows'
+    It 'a section page: its kid selected, a breadcrumb, a SelectorBar of its categories, a header per category' {
+        $out.section | Should Be 'Catalogue:Customize|Catalogue:Customize|Optimize>Customize|Start,Taskbar|Start,Taskbar'
     }
-    It 'search lists legacy matches only' { $out.search | Should Be 'Dark theme|Search Legacy' }
-    It 'search waits for a pause in typing, and clearing it shows the page at once' {
-        $out.searchWait | Should Be 'True|True|Dark theme'
-        $out.searchCleared | Should Be 'True|False'
+    It 'reads States in the background: skeletons and a waiting switch until they arrive' {
+        $out.reading | Should Be 'Reading.|False|True'
+        $out.read | Should Be '|False|True|True|True'
     }
-    It 'the Optimize tab comes back to the Optimize page seen last' { $out.optimizeAgain | Should Be 'Windows|Optimize' }
-    It 'the Install AkariOS tab opens its chooser, whose Back goes Home' {
-        $out.install | Should Be 'Install AkariOS|Install AkariOS|Collapsed|Filter this step'
-        $out.installBack | Should Be 'Home|Home'
+    It 'a switch applies right away in the job; a second change queues; Explorer changes show the restart InfoBar' {
+        $out.run | Should Be 'Applying.|Catalogue|Apply'
+        $out.queued | Should Be '1'
+        $out.done | Should Be 'True|Visible|Visible|tuning'
+        $out.action | Should Be 'True|2'
     }
-    It 'Downloads from Home exits to Home' { $out.dlHome | Should Be 'Home' }
-    It 'every page is reachable from a tab, a chip, Remove apps or the options menu' { $out.unreached | Should BeNullOrEmpty }
-    It 'the status bar version opens About, full window, and Back goes Home; Home has no About link' {
-        $out.aboutLink | Should Be 'True'
-        $out.about | Should Be 'About|Visible||Collapsed'
-        $out.aboutVersion | Should Match '^AkariOS \d+\.\d+\.\d+$'
-        $out.aboutBack | Should Be 'Home'
+    It 'a Safe Mode Tweak asks first; Later waits in the Safe Mode InfoBar; switched back, it leaves it' {
+        $out.safe | Should Be 'Cancel,Later,Restart and apply|Apply|Waiting for Safe Mode|Visible|1 change waits for Safe Mode|0|Waiting for Safe Mode'
+        $out.safeBack | Should Be '0|False'
     }
-    It 'the Unattend Generator tile opens its form full window, and Back goes Home' {
-        $out.tiles | Should Be 'Optimize,Downloads,Unattend Generator,ISO Builder,Import / Export settings|5'
-        $out.usbFile | Should Be 'Unattend Generator|Unattend Generator|Unattend Generator|Collapsed|True'
-        $out.usbFileBack | Should Be 'Home'
+    It 'search: suggestions as you type, the results grouped by Section > Category with the match highlighted' {
+        $out.suggest | Should Be 'cat-tog,cat-tog2,cat-safe|0'
+        $out.search | Should Be 'Search|Optimize|Results for "Cat"|Customize > Start,Customize > Taskbar,Advanced > Security'
+        $out.highlight | Should Be 'Cat'
+        $out.searchNone | Should Be 'No Tweaks match "zzz"'
     }
-
-    It 'the ISO Builder tile opens its page full window with zISO''s options, and Back goes Home' {
-        $out.isoPage | Should Be 'ISO Builder|ISO Builder|ISO Builder|Collapsed|10|False'
-        $out.isoNoEdition | Should Be 'True'
-        $out.isoBack | Should Be 'Home'
+    It 'the Legacy pages open from Optimize, legacy rows only' { $out.legacy | Should Be 'Check|Optimize|Optimize>Check|1' }
+    It 'Back returns to the page before' { $out.back | Should Be 'Search|True' }
+    It 'Downloads, Remove apps, Install USB and the ISO Builder are pages of their own' {
+        $out.downloads | Should Be 'Downloads|Downloads|Downloads'
+        $out.remove | Should Be 'Remove apps|Remove apps|False|Visible|Store apps,Optional features,Windows features,Legacy apps'
+        $out.usb | Should Be 'Install USB|Install USB|True|Default|False|No Windows setup USB found'
+        $out.usbOld | Should Be 'Install USB'
+        $out.iso | Should Be 'ISO Builder|ISO Builder|10|False'
     }
-
-    It 'the ISO Builder greys out the update options Disable all updates rules out, and frees them again' {
+    It 'the ISO Builder greys out what Disable all updates rules out, lists the Windows 11 editions and hands its choices to the build' {
         $out.isoExclusive | Should Be 'False|False|True|True'
         $out.isoFreed | Should Be 'True'
-    }
-
-    It 'the ISO Builder lists only the Windows 11 editions, then the image''s apps and features' {
         $out.isoOpened | Should Be '1|True|Windows 11 Pro (10.0.26200.1)'
-        $out.isoLists | Should Be '1|Store apps (1)|Visible'
-    }
-
-    It 'the ISO Builder hands its choices and a local account answer file to the build job' {
+        $out.isoErr | Should Be ''
         $out.isoBuild | Should Be 'IsoBuild|6|Windows 11 Pro|RemoveAI|Microsoft.BingNews_1_x64__8wekyb3d8bbwe|True|True'
-    }
-
-    It 'a downloaded ISO becomes the source, ready to open' {
         $out.isoUupDone | Should Be 'D:\Windows11_25H2_Pro_en-us.iso|True'
     }
-    It 'About lists the links (a link without a URL is hidden), the credits and the license' {
-        $out.aboutLinks | Should Be 'GitHub,Report a bug,Discord,Open log folder'
-        $out.aboutCredits | Should Match '^\d+,FR33THY Ultimate$'
-        $out.aboutLicense | Should Be 'MIT License ? ? 2026 isleap9'
+    It 'Settings: Appearance, Settings files, Recovery, About, in place of the options menu and the About page' {
+        $out.settings | Should Be 'Settings|Settings|Appearance,Settings files,Recovery,About'
+        $out.themeRadios | Should Be 'Light,Dark,Use system setting*|Akari crimson,Windows accent|True'
+        $out.aboutLinks | Should Match '^GitHub,Report a bug,Discord,View license,Full credits\|10\|AkariOS \d+\.\d+\.\d+\|MIT License'
+        $out.about | Should Be 'Settings'
     }
-    # a lone star column with a MaxWidth fills the page up to 800 px and leaves the rest empty on the right
-    It 'About is one column on the left, at most 800 px wide, holding the four cards' { $out.aboutLayout | Should Be '1,True,800,4' }
-    It 'credit names are links, with no Open buttons; View license sits next to the license text' {
-        $out.aboutCreditLink | Should Be 'https://github.com/FR33THYFR33THY/Ultimate,0'
-        $out.aboutLicenseLink | Should Be 'Horizontal,View license'
+    It 'swaps one theme dictionary, saves the choice and the logo; Akari crimson unless Windows'' accent is picked' {
+        $out.themeStart | Should Be 'System,1'
+        $out.themeLight | Should Be '#FFF3F3F3|1|Light|#FFF3F3F3|#FFC8102E'
+        $out.themeDark | Should Be '#FF202020|Light|#FFFF6B7D'
+        $out.logo | Should Be 'AkariLogo-light.png|AkariLogo-dark.png'
+        $out.themeBad | Should Be 'System'
+        $out.accentWindows | Should Be '#FF6FD38C|#FF9FF5B5'
+        $out.accentAkari | Should Be '#FFFF6B7D'
     }
-    It 'a dialog: title, text, buttons in order with the last one the white main action (Enter), the first Esc' {
-        $out.dlg | Should Be 'AkariOS update|Body text|Later,Update now|True,True,True|Visible|Collapsed'
-        $out.dlgClick | Should Be 'Update now'
-        $out.dlgPlain | Should Be 'Collapsed'
-    }
-    It 'Confirm-AkariDialog is $true only for its main action; Read-AkariText trims, and is $null when cancelled' {
-        $out.confirm | Should Be 'True,False,AkariOS'
-        $out.readText | Should Be 'My preset|True'
-        $out.overlay | Should Be 'Collapsed'
-    }
-    It 'a Catalogue page: its chip checked under the Optimize tab' {
-        $out.catFirst | Should Be 'Catalogue:Customize/Taskbar|Taskbar|Optimize|Catalogue:Customize/Taskbar|Search Optimize'
-    }
-    It 'a State that arrives sets the switch' { $out.catRead | Should Be 'Windows default|False|True' }
-    It 'a switch applies right away in the job; a second change queues; Explorer changes go to the restart bar' {
-        $out.catRun | Should Be 'Applying.|Catalogue|True|Apply'
-        $out.catQueued | Should Be '1|Waiting.|2'
-        $out.catDone | Should Be 'Optimized|True|Visible|Explorer needs a restart to show 1 change.|Visible'
-        $out.catNext | Should Be 'tuning|0'
-        $out.catFailed | Should Be 'Failed: boom'
-    }
-    It 'a Section opens its first Category, with its chips' {
-        $out.catSection | Should Be 'Catalogue:Advanced/Security|Catalogue:Advanced/Security,Catalogue:Advanced/Tuning'
-    }
-    It 'a Safe Mode Tweak waits in the Safe Mode bar instead of running; switched back, it leaves it' {
-        $out.catSafe | Should Be 'Apply|Waiting for Safe Mode|Visible|Visible|0'
-        $out.catSafeBack | Should Be '0|Collapsed|False'
-    }
-    It 'Remove apps (sub-header) and the Downloads tab open their flows, and Back returns to the Catalogue page' {
-        $out.catRemove | Should Be 'Remove apps|Remove apps|Catalogue:Advanced/Security|Optimize|Collapsed|Remove apps'
-        $out.catRemoveBack | Should Be 'Catalogue:Advanced/Security|Catalogue:Advanced/Security|Visible'
-        $out.catDownloads | Should Be 'Downloads|Downloads|Catalogue:Advanced/Security'
-        $out.catDownloadsBack | Should Be 'Catalogue:Advanced/Security'
-    }
-    It 'under 1320 px the search is an icon button that opens the box; tab icons only from 1440; under 1000 no wordmark and short tab labels' {
-        $out.narrow | Should Be 'Collapsed|Visible|Collapsed|Visible'
-        $out.narrowOpen | Should Be 'Visible|Collapsed'
-        $out.narrowest | Should Be 'Collapsed|Home,Install,Optimize,Downloads,Unattend,ISO'
-        $out.wide | Should Be 'Visible|Collapsed|Visible|Visible'
-    }
-    It 'keeps the caption buttons in the window at every width' {
-        $out.capsFit | Should Be '860=True,1000=True,1100=True,1200=True,1319=True,1320=True,1400=True,1440=True'
-    }
-    It 'shows every tab whole at every width' {
-        $out.tabsFit | Should Be '860=True,1000=True,1100=True,1200=True,1319=True,1320=True,1400=True,1440=True'
-    }
-    It 'search lists every Catalogue match under its Section › Category' {
-        $out.catSearch | Should Be 'Search|Customize > Taskbar,Advanced > Security|2'
-    }
-    It 'leaving for Legacy shows its chips and hides the Catalogue''s bars' {
-        $out.catLeft | Should Be 'Check|Check,Refresh,Setup,Graphics,Windows,Hardware,Advanced|Collapsed'
-    }
-    It 'the title bar says AkariOS' { $out.title | Should Be 'AkariOS' }
-    It 'uses Segoe UI Variable Text for text, Display 28 for the page title and the wordmark, Cascadia Mono for the version' {
-        $out.fonts | Should Be 'Segoe UI Variable Text|Segoe UI Variable Display|28|Segoe UI Variable Display|Cascadia Mono'
-    }
-    It 'the options menu: Import / Export settings, System Restore, the About links, Logs, About' {
-        $out.menu | Should Be 'Import settings,Export settings,System Restore,Theme: Follow Windows,-,GitHub,Report a bug,Discord,Logs,About'
-        $out.menuAbout | Should Be 'About'
-    }
-    It 'the window and taskbar icon is AkariLogo.ico, every size in it' {
+    It 'the title bar: AkariOS and the version; the window icon is AkariLogo.ico' {
+        $out.version | Should Be 'True'
         $out.winIcon | Should Be 'IconBitmapDecoder|AkariLogo.ico|9'
     }
-    It 'every options menu row has its icon, in the row colour, with no layout (the menu opens in a popup)' {
-        $out.menuIcons | Should Be 'True'
+    It 'collapses the pane to 48 px under 1000 px (tooltips on its items), and with the pane toggle' {
+        $out.narrow | Should Be 'True|48|Home'
+        $out.wide | Should Be 'False|280'
+        $out.toggled | Should Be 'True|True'
     }
     It 'Import settings opens the file in Guided on the Tweaks step, and keeps a copy in the presets' {
         $out.import | Should Be 'Install AkariOS|Guided|1|cat-tog|True'
     }
-    It 'starts on Follow Windows with one theme dictionary' { $out.themeStart | Should Be 'System,1' }
-    It 'the Theme menu row cycles to Light: swaps the dictionary, repaints the body and saves the choice' {
-        $out.themeLight | Should Be 'Theme: Light|#FFF3F3F3|1|Light|#FFF3F3F3'
+    It 'a launch check that finds an update asks on Home and shows its InfoBar; not once the user left Home' {
+        $out.launch | Should Be 'True|1|AkariOS 9.0.0 is available'
+        $out.launchAway | Should Be 'False'
+        $out.aboutAvail | Should Be 'Visible|Visible'
+        $out.aboutError | Should Be 'No releases yet.|Collapsed'
     }
-    It 'Set-AkariTheme Dark loads the dark brushes without saving' { $out.themeDark | Should Be '#FF202020|Light' }
-    It 'swaps the title bar logo with the theme' { $out.logo | Should Be 'AkariLogo-light.png|AkariLogo-dark.png' }
-    It 'an unknown theme falls back to Follow Windows' { $out.themeBad | Should Be 'System' }
-    It 'the status bar shows the version' { $out.appVersion | Should Match '^AkariOS \d+\.\d+\.\d+$' }
-    It 'a launch check that finds an update asks on Home and shows the Home bar' {
-        $out.launch | Should Match '^True,Visible,AkariOS 9\.0\.0 is available'
+    It 'a dialog: the title, the text and its consequences, the accent action first (Enter), 448 px' {
+        $out.dlg | Should Be 'Restart now?|2|Restart,Cancel|True,True,448|Collapsed'
+        $out.dlgClick | Should Be 'Restart'
     }
-    It 'a launch check does not ask once the user has left Home' { $out.launchAway | Should Be 'False' }
-    It 'About shows the update, its Update button and the notes as text' {
-        $out.aboutAvail | Should Match '^AkariOS 9\.0\.0 is available.*\|Visible\|New/\* fast$'
+    It 'Confirm-AkariDialog is $true only for its main action; Read-AkariText trims, and is $null when cancelled' {
+        $out.confirm | Should Be 'True,False,AkariOS'
+        $out.readText | Should Be 'My preset|True'
     }
-    It 'About shows a failed check and hides Update' { $out.aboutError | Should Be 'No releases yet.|Collapsed' }
-    It 'the Home bar hides when there is nothing to install' { $out.latest | Should Be 'Collapsed' }
 }
 
 Describe 'About data (UI\About.psd1)' {

@@ -69,12 +69,9 @@ function Get-AkariTaskBar {
     $all.Switch.Add_Click({ param($s, $a) $script:TaskAll = ($s.IsChecked -eq $true); Show-Page })
     [Windows.Controls.DockPanel]::SetDock($all.Panel, 'Right')
     [void]$bar.Children.Add($all.Panel)
-    $seg = [Windows.Controls.ComboBox]::new()
+    $seg = [Windows.Controls.ComboBox]::new(); $seg.MinWidth = 180
     $seg.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Combo')
     $seg.Margin = [Windows.Thickness]::new(0, 0, 16, 0)
-    $seg.MinWidth = 160
-    $seg.VerticalAlignment = 'Center'
-    $seg.ToolTip = 'Show only these tasks'
     foreach ($f in $AkariTaskFilters) {
         $it = [Windows.Controls.ComboBoxItem]::new()
         $it.Content = $(if ($f -eq 'Microsoft') { 'Windows' } elseif ($f -eq 'Other') { 'Apps' } else { $f }); $it.Tag = $f
@@ -96,7 +93,7 @@ function Get-AkariTaskBar {
 # adds the task list to the page (the Catalogue page calls it, $Query = the search)
 function Show-AkariTaskList([string]$Query) {
     $b = Get-AkariTaskBar
-    [void]$Rows.Children.Add($b.Bar)
+    if ($b.Bar.Parent) { $b.Bar.Parent.Children.Remove($b.Bar) }; [void]$Rows.Children.Add($b.Bar)
     if ($null -eq $script:TaskList) {
         $b.Count.Text = 'Reading the scheduled tasks' + [char]0x2026
         Start-AkariTaskRead
@@ -117,7 +114,7 @@ function Show-AkariTaskList([string]$Query) {
         $e = $script:TaskRows[$k]
         if (-not $e) { $e = New-AkariTaskRow $t; $script:TaskRows[$k] = $e }
         elseif (-not $e.Busy) { $e.Task = $t }
-        [void]$Rows.Children.Add($e.Card)
+        if ($e.Card.Parent) { $e.Card.Parent.Children.Remove($e.Card) }; [void]$Rows.Children.Add($e.Card)
         Set-AkariTaskRow $e
     }
     if (-not $view.Count) { [void]$Rows.Children.Add((New-AkariText 'No task matches.' 13 'Mu')) }

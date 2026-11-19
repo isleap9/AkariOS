@@ -13,7 +13,7 @@ namespace AkariOS.App.Look;
 /// <summary>
 /// The Apps step's 20 px icons (New-AkariAppIcon), all without a background: an installed Store app's own logo (a file
 /// on the disk, AppPackages.Logos), else the bundled src/Assets/Apps/&lt;package or id&gt;.png or .mono.png (built into
-/// the exe as WPF resources), else a muted Fluent icon. A black-or-white logo (a .mono.png mask, or a Store logo that
+/// the exe as WPF resources), else a muted Lucide icon. A black-or-white logo (a .mono.png mask, or a Store logo that
 /// is white only) is drawn in the theme's text colour.
 /// </summary>
 public static class AppIcons
@@ -40,7 +40,7 @@ public static class AppIcons
     public static string? File(Tweak t, IReadOnlyDictionary<string, string>? logos) =>
         AppLists.IconFile(t, logos, Dir, f => Bundled.Contains(System.IO.Path.GetFileName(f)));
 
-    /// <summary>The Fluent icon of a row without an image: a feature's settings, else an app window.</summary>
+    /// <summary>The Lucide icon of a row without an image: a feature's settings, else an app window.</summary>
     public static string Fallback(Tweak t) => t.Group is "capability" or "feature" ? "settings-2" : "app-window";
 
     /// <summary>The row's icon.</summary>

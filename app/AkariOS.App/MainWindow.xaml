@@ -1,6 +1,6 @@
 <!-- The native shell, laid out as src/UI/MainWindow.xaml (the design system's): a 64 px top bar (the A mark and
      wordmark, the tabs over their sliding pill, the search, the options menu and caption buttons), the page header
-     (icon, Display title, subtitle; none on Home), the page on one rounded surface, and the status bar. The frame is
+     (icon, Unbounded title, subtitle; none on Home), the page on one rounded surface, and the status bar. The frame is
      extended over the whole window (GlassFrameThickness -1) so Windows draws Mica behind it. Bound to ShellViewModel;
      the tabs and the page are built in code (MainWindow.xaml.cs). -->
 <Window x:Class="AkariOS.App.MainWindow"
@@ -8,7 +8,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="AkariOS" Width="1360" Height="800" MinWidth="860" MinHeight="560"
         WindowStartupLocation="CenterScreen" UseLayoutRounding="True" SnapsToDevicePixels="True"
-        FontFamily="{DynamicResource FontText}" FontSize="14" FontWeight="Normal"
+        FontFamily="{DynamicResource FontText}" FontSize="14" FontWeight="Medium"
         Background="Transparent" Foreground="{DynamicResource Tx}">
   <WindowChrome.WindowChrome>
     <WindowChrome CaptionHeight="64" GlassFrameThickness="-1" ResizeBorderThickness="6"
@@ -34,7 +34,7 @@
       </Grid.ColumnDefinitions>
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,24,0">
         <Image x:Name="Logo" Width="24" Height="24" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-        <TextBlock x:Name="TitleText" Text="AkariOS" FontFamily="{DynamicResource FontDisplay}" FontWeight="SemiBold" FontSize="16" VerticalAlignment="Center"/>
+        <TextBlock x:Name="TitleText" Text="AkariOS" FontFamily="{DynamicResource FontDisplay}" FontWeight="Bold" FontSize="16" VerticalAlignment="Center"/>
       </StackPanel>
       <!-- the tabs, over the current tab's tint pill (TabPill: slides to the checked tab, Motion.PillGroup) -->
       <Grid Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Left" ClipToBounds="True">
@@ -62,27 +62,27 @@
           </TextBlock.Style>
         </TextBlock>
         <Viewbox Width="16" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="14,0,0,1" IsHitTestVisible="False">
-          <Canvas Width="20" Height="20"><Path Style="{StaticResource Ic}" Fill="{DynamicResource Mu}" Data="{DynamicResource Ic.search}"/></Canvas>
+          <Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Stroke="{DynamicResource Mu}" Data="{DynamicResource Ic.search}"/></Canvas>
         </Viewbox>
       </Grid>
       <Button x:Name="SearchBtn" Grid.Column="2" Style="{StaticResource Ghost}" Width="36" Height="36" Margin="12,0,8,0"
               VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Search (Ctrl+K)" WindowChrome.IsHitTestVisibleInChrome="True">
-        <Viewbox Width="18" Height="18"><Canvas Width="20" Height="20"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.search}"/></Canvas></Viewbox>
+        <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.search}"/></Canvas></Viewbox>
       </Button>
       <!-- caption buttons, drawn like Windows 11's: the options menu, minimize, maximize / restore, close -->
       <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top"
                   WindowChrome.IsHitTestVisibleInChrome="True">
         <Button x:Name="MenuBtn" Style="{StaticResource Cap}" ToolTip="Options">
-          <Viewbox Width="16" Height="16"><Canvas Width="20" Height="20"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.menu}"/></Canvas></Viewbox>
+          <Viewbox Width="16" Height="16"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.menu}"/></Canvas></Viewbox>
         </Button>
         <Button x:Name="CapMin" Style="{StaticResource Cap}" ToolTip="Minimize">
-          <Viewbox Width="14" Height="14"><Canvas Width="20" Height="20"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.minus}"/></Canvas></Viewbox>
+          <Viewbox Width="14" Height="14"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.minus}"/></Canvas></Viewbox>
         </Button>
         <Button x:Name="CapMax" Style="{StaticResource Cap}" ToolTip="Maximize">
-          <Viewbox Width="12" Height="12"><Canvas Width="20" Height="20"><Path x:Name="CapMaxGlyph" Style="{StaticResource Ic}" Data="{DynamicResource Ic.square}"/></Canvas></Viewbox>
+          <Viewbox Width="12" Height="12"><Canvas Width="24" Height="24"><Path x:Name="CapMaxGlyph" Style="{StaticResource Ic}" Data="{DynamicResource Ic.square}"/></Canvas></Viewbox>
         </Button>
         <Button x:Name="CapClose" Style="{StaticResource CapX}" ToolTip="Close">
-          <Viewbox Width="14" Height="14"><Canvas Width="20" Height="20"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.x}"/></Canvas></Viewbox>
+          <Viewbox Width="14" Height="14"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.x}"/></Canvas></Viewbox>
         </Button>
       </StackPanel>
     </Grid>
@@ -112,12 +112,12 @@
           <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
         <Viewbox Width="40" Height="40" VerticalAlignment="Center" Margin="0,0,16,0">
-          <Canvas Width="20" Height="20">
-            <Path x:Name="HeaderIcon" Style="{StaticResource Ic}" Fill="{DynamicResource Acc}"/>
+          <Canvas Width="24" Height="24">
+            <Path x:Name="HeaderIcon" Style="{StaticResource Ic}" Stroke="{DynamicResource Acc}"/>
           </Canvas>
         </Viewbox>
         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-          <TextBlock Text="{Binding Heading}" FontFamily="{DynamicResource FontDisplay}" FontSize="28" FontWeight="SemiBold"
+          <TextBlock Text="{Binding Heading}" FontFamily="{DynamicResource FontDisplay}" FontSize="32" FontWeight="Bold"
                      TextTrimming="CharacterEllipsis"/>
           <TextBlock Text="{Binding Sub}" Foreground="{DynamicResource Mu}" FontSize="14" Margin="0,2,0,0" TextWrapping="Wrap"/>
         </StackPanel>
@@ -130,7 +130,7 @@
         <Button x:Name="RemoveApps" DockPanel.Dock="Right" Style="{StaticResource Btn}" VerticalAlignment="Top" Margin="12,0,0,0"
                 ToolTip="Store apps, optional features, Windows features and legacy apps to remove">
           <StackPanel Orientation="Horizontal">
-            <Viewbox Width="16" Height="16" Margin="0,0,8,0"><Canvas Width="20" Height="20"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.trash-2}"/></Canvas></Viewbox>
+            <Viewbox Width="16" Height="16" Margin="0,0,8,0"><Canvas Width="24" Height="24"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.trash-2}"/></Canvas></Viewbox>
             <TextBlock Text="Remove apps"/>
           </StackPanel>
         </Button>

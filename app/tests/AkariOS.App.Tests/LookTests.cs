@@ -76,24 +76,6 @@ public sealed class LookTests : IDisposable
         Assert.True(list[4].Contains("Switch"));
     });
 
-    [Fact]
-    public void Icons_are_filled_fluent_paths_in_a_20_box() => OnSta(() =>
-    {
-        var host = new System.Windows.Controls.Border();
-        foreach (var d in AkariXaml.SharedResources("Dark", false)) host.Resources.MergedDictionaries.Add(d);
-        host.Resources["Tx"] = Brushes.Red;
-        var i = Icons.Make("zap", 20);
-        host.Child = i;
-        var c = (System.Windows.Controls.Canvas)i.Child;
-        var p = (System.Windows.Shapes.Path)c.Children[0];
-        Assert.Equal((20d, 20d), (i.Width, c.Width));
-        Assert.Same(Brushes.Red, p.Fill);
-        Assert.Null(p.Stroke);
-        Assert.Same(host.FindResource("Ic.zap"), p.Data);
-        Icons.Set(i, "house.Filled");
-        Assert.Same(host.FindResource("Ic.house.Filled"), p.Data);
-    });
-
     [Theory]
     [InlineData("Dark", null, "Dark")]
     [InlineData("Light", 0, "Light")]
@@ -133,47 +115,6 @@ public sealed class LookTests : IDisposable
         Assert.Equal("System", theme.Setting);
     });
 
-    // a green accent: Light3, Light2, Light1, Base, Dark1, Dark2, Dark3, unused (R, G, B, A each); the same as
-    // tests/Ui.Tests.ps1's Get-AkariAccentColors cases
-    private static readonly byte[] Green =
-        [0xA9, 0xF5, 0xA9, 0, 0x6C, 0xCB, 0x5F, 0, 0x3F, 0xB2, 0x3F, 0, 0x10, 0x89, 0x3E, 0, 0x0F, 0x7B, 0x0F, 0, 0x0B, 0x5A, 0x0B, 0, 0x05, 0x3D, 0x05, 0, 0, 0, 0, 0];
-
-    private static string Line(IReadOnlyDictionary<string, Color>? c) =>
-        string.Join(" ", new[] { "Acc", "AccH", "AccP", "AccSoft", "AccT", "AccText", "Info" }.Select(k => $"{k}={c![k]}"));
-
-    [Fact]
-    public void The_accent_palette_maps_to_the_brushes_as_in_the_PowerShell_app()
-    {
-        Assert.Equal("Acc=#FF6CCB5F AccH=#E66CCB5F AccP=#CC6CCB5F AccSoft=#1A6CCB5F AccT=#FF000000 AccText=#FFA9F5A9 Info=#FFA9F5A9", Line(Accent.Colors(Green, "Dark")));
-        Assert.Equal("Acc=#FF0F7B0F AccH=#E60F7B0F AccP=#CC0F7B0F AccSoft=#1A0F7B0F AccT=#FFFFFFFF AccText=#FF0B5A0B Info=#FF0B5A0B", Line(Accent.Colors(Green, "Light")));
-        Assert.Null(Accent.Colors(null, "Dark"));
-        Assert.Null(Accent.Colors([1, 2, 3], "Light"));
-    }
-
-    [Fact]
-    public void The_theme_takes_the_accent_and_follows_its_changes() => OnSta(() =>
-    {
-        var resources = new ResourceDictionary();
-        foreach (var d in AkariXaml.SharedResources("Dark", false)) resources.MergedDictionaries.Add(d);
-        byte[]? palette = null;
-        var theme = new ThemeService(resources, new SettingsFile(Path.Combine(_dir, "settings.json")), () => 0, false, () => palette);
-        theme.Apply("Dark");
-        var blue = ((SolidColorBrush)resources["Acc"]).Color;
-        Assert.Equal("#FF4CC2FF", blue.ToString());
-
-        palette = Green;
-        theme.ApplyAccent();
-        Assert.Equal("#FF6CCB5F", ((SolidColorBrush)resources["Acc"]).Color.ToString());
-        theme.Apply("Light");
-        Assert.Equal("#FF0F7B0F", ((SolidColorBrush)resources["Acc"]).Color.ToString());
-        Assert.Equal("#FF0B5A0B", ((SolidColorBrush)resources["AccText"]).Color.ToString());
-
-        // an unreadable palette keeps the theme's default blue
-        var broken = new ThemeService(resources, new SettingsFile(Path.Combine(_dir, "settings.json")), () => 0, false, () => throw new IOException());
-        broken.Apply("Dark");
-        Assert.Equal(blue, ((SolidColorBrush)resources["Acc"]).Color);
-    });
-
     [Fact]
     public void Settings_keep_their_other_keys()
     {
@@ -204,25 +145,17 @@ public sealed class LookTests : IDisposable
     public void The_body_brush(bool mica, string theme, string brush) => Assert.Equal(brush, WindowFrame.BodyBrush(mica, theme));
 
     [Fact]
-    public void Logos_are_in_the_exe_and_no_fonts()
+    public void Fonts_and_logos_are_in_the_exe()
     {
         var asm = typeof(Assets).Assembly;
         using var stream = asm.GetManifestResourceStream("AkariOS-Native.g.resources")!;
         using var reader = new ResourceReader(stream);
         var names = reader.Cast<System.Collections.DictionaryEntry>().Select(e => (string)e.Key).ToList();
+        foreach (var f in new[] { "unbounded-bold.ttf", "unbounded-semibold.ttf", "manrope-medium.ttf", "manrope-semibold.ttf", "manrope-bold.ttf", "jetbrainsmono-medium.ttf" })
+            Assert.Contains($"assets/fonts/{f}", names);
         foreach (var l in new[] { "akarilogo-dark.png", "akarilogo-light.png", "akarilogo.ico" })
             Assert.Contains($"assets/{l}", names);
-        Assert.DoesNotContain(names, n => n.StartsWith("assets/fonts/"));
         Assert.Equal(new Uri(Assets.Base + "AkariLogo-light.png"), Assets.LogoFor("Light"));
+        Assert.Equal(["FontDisplay", "FontText", "FontMono"], Assets.FontNames.Keys);
     }
-
-    // ADR 0008: Windows' own fonts, from the shared Controls.xaml
-    [Fact]
-    public void The_fonts_are_segoe_ui_variable_from_the_shared_controls() => OnSta(() =>
-    {
-        var controls = AkariXaml.SharedResources("Dark", false).Last();
-        Assert.Equal(
-            ["Segoe UI Variable Display, Segoe UI", "Segoe UI Variable Text, Segoe UI", "Segoe UI Variable Small, Segoe UI", "Cascadia Mono, Consolas"],
-            new[] { "FontDisplay", "FontText", "FontSmall", "FontMono" }.Select(k => ((FontFamily)controls[k]).Source));
-    });
 }

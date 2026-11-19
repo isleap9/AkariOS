@@ -1,44 +1,56 @@
-# Shell: window chrome, theme (Set-AkariTheme), Mica, caption buttons, top bar (tabs, Optimize's sub-header), search, page switching, status bar,
-# the background job and the timer that drains the log queue. Dot-sourced by Akari.ps1 after UI\Steps.ps1.
+﻿# Shell: the window (plan docs/plans/2026-11-19-winui-3.md decision 5, the prototype docs/design/akarios-prototype.html):
+# chrome and caption buttons, the theme (Set-AkariTheme) and accent (Set-AkariAccent), Mica, the title bar's Back and
+# pane toggle, the NavigationView (pages, Optimize's sections, the stretching indicator, collapse), the search with its
+# suggestions, page switching and history, toasts, the busy toast, the background job and the timer that drains the log
+# queue. Dot-sourced by Akari.ps1 after UI\Pages.ps1.
 
-# ---- window
-$window = Get-AkariXaml "$Root\UI\MainWindow.xaml"
-# WinUI-style controls for Install AkariOS (switch, combobox, setting card, ...)
-$window.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Controls.xaml"))
-# the Fluent icons (Ic.<name> geometries, built by build\Icons.ps1)
-$window.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Icons.xaml"))
-foreach ($n in 'Tabs', 'Search', 'SearchBox', 'SearchBtn', 'SearchHint', 'SubNav', 'Sections', 'Chips', 'RemoveApps', 'Heading', 'Rows', 'Page', 'Logo', 'HomePanel',
-               'Shell', 'Body', 'Main', 'PageScroll', 'TopBar', 'HomeTiles', 'HeaderIcon', 'HeaderSub', 'StatusDot', 'StatusRing', 'StatusText', 'StatusBar', 'StatusFill', 'StatusLoop',
-               'CapMin', 'CapMax', 'CapMaxGlyph', 'CapClose', 'StepsPanel', 'StepDots', 'StepBody', 'StepFooter', 'StepBack', 'StepNext',
-               'UpdateBar', 'UpdateText', 'UpdateOpen', 'AppVersion', 'AppVersionText', 'MenuBtn', 'CatBars',
-               'PageHeader', 'TitleText', 'HeroOver', 'HeroOneClick', 'HeroChoose', 'HeroStats') { Set-Variable $n $window.FindName($n) }
-$AppVersionText.Text = "AkariOS $AkariVersion"
-# the page glides on the mouse wheel (UI\Motion.ps1)
-Enable-AkariSmoothScroll $PageScroll
-
-# ---- theme: UI\Theme.Dark.xaml or UI\Theme.Light.xaml, merged first into the window's resources (every brush is a
-# DynamicResource, so swapping the dictionary repaints the window). The choice (System, Dark, Light) is settings.json's
-# Theme, next to akari.log; System follows Windows' app mode and changes with it.
+# ---- settings.json (next to akari.log): Theme (System / Dark / Light), Accent (Akari / Windows), Animations (On /
+# Off), SearchTip (seen)
 if (-not $AkariSettingsPath) { $AkariSettingsPath = Join-Path (Split-Path $AkariLogFile) 'settings.json' }
-$AkariThemes = @('System', 'Dark', 'Light')
-$script:ThemeDict = $null; $script:ThemeSetting = 'System'; $script:Theme = 'Dark'; $script:Mica = $false
-
 function Read-AkariSettings {
     $s = @{}
     try { (Get-Content $AkariSettingsPath -Raw -ErrorAction Stop | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $s[$_.Name] = $_.Value } } catch { }
     $s
 }
+function Save-AkariSetting([string]$Name, $Value) {
+    $s = Read-AkariSettings
+    $s[$Name] = $Value
+    try { New-Item (Split-Path $AkariSettingsPath) -ItemType Directory -Force | Out-Null; ($s | ConvertTo-Json) | Set-Content $AkariSettingsPath }
+    catch { Write-ErrLog "Could not save the setting ${Name}: $_" }
+}
+function Save-AkariThemeSetting([string]$Theme) { Save-AkariSetting 'Theme' $Theme }
+
+# Settings › Animation effects off: every animation of this window off, whatever Windows says (read before any XAML)
+if ([string](Read-AkariSettings).Animations -eq 'Off') {
+    $script:AkariMotionOn = $false
+    $script:AkariMotionText = Get-AkariMotionEntries (Get-Content "$Root\UI\Motion.xaml" -Raw) $false
+    $AkariMotion = [Windows.Markup.XamlReader]::Parse('<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" ' +
+        'xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">' + $script:AkariMotionText + '</ResourceDictionary>')
+}
+
+# ---- window
+$window = Get-AkariXaml "$Root\UI\MainWindow.xaml"
+# the WinUI controls and the fonts (UI\Controls.xaml), the Fluent icons (Ic.<name>, built by build\Icons.ps1)
+$window.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Controls.xaml"))
+$window.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Icons.xaml"))
+foreach ($n in 'Shell', 'Body', 'TopBar', 'BackBtn', 'PaneBtn', 'Logo', 'TitleText', 'AppVersionText', 'CapMin', 'CapMax', 'CapMaxGlyph', 'CapClose',
+               'Nav', 'SearchBox', 'Search', 'SearchHint', 'SearchKey', 'NavFoot', 'NavList', 'NavLayer', 'NavPill', 'Layer', 'PageScroll', 'Page',
+               'PageHeader', 'Crumbs', 'Heading', 'CatBars', 'StepsPanel', 'StepBody', 'HomePanel', 'Rows', 'StepFooter', 'StepBack', 'StepNext',
+               'StepLabel', 'StepBar', 'StepFill', 'Toasts', 'BusyToast', 'BusyLogo', 'StatusText', 'StatusBar', 'StatusFill', 'StatusLoop',
+               'ModalOverlay') { Set-Variable $n $window.FindName($n) }
+$AppVersionText.Text = $AkariVersion
+# the page glides on the mouse wheel (UI\Motion.ps1); scrolling a section page moves its SelectorBar's selection
+Enable-AkariSmoothScroll $PageScroll
+$PageScroll.Add_ScrollChanged({ Update-AkariCategoryFromScroll })
+
+# ---- theme: UI\Theme.Dark.xaml or UI\Theme.Light.xaml, merged first into the window's resources (every brush is a
+# DynamicResource, so swapping the dictionary repaints the window); System follows Windows' app mode and changes with it
+$AkariThemes = @('System', 'Dark', 'Light')
+$script:ThemeDict = $null; $script:ThemeSetting = 'System'; $script:Theme = 'Dark'; $script:Mica = $false
 
 function Get-AkariThemeSetting {
     $t = [string](Read-AkariSettings).Theme
     if ($t -in $AkariThemes) { $t } else { 'System' }
-}
-
-function Save-AkariThemeSetting([string]$Theme) {
-    $s = Read-AkariSettings
-    $s.Theme = $Theme
-    try { New-Item (Split-Path $AkariSettingsPath) -ItemType Directory -Force | Out-Null; ($s | ConvertTo-Json) | Set-Content $AkariSettingsPath }
-    catch { Write-ErrLog "Could not save the theme: $_" }
 }
 
 # System -> Dark or Light from AppsUseLightTheme (1 = light); Dark when it can't be read
@@ -49,18 +61,18 @@ function Resolve-AkariTheme([string]$Theme) {
     if ($v -eq 1) { 'Light' } else { 'Dark' }
 }
 
-# the body and the frame follow the theme: Mica (Windows 11) shows through Tint in dark only; light and Windows 10
-# use the solid Bg. Attribute 20 (immersive dark mode) darkens the frame and Mica; no handle yet = before the window opens.
+# the body and the frame follow the theme: Mica (Windows 11) shows through Tint; Windows 10 uses the solid Bg.
+# Attribute 20 (immersive dark mode) darkens the frame and Mica; no handle yet = before the window opens.
 function Update-AkariFrame {
-    $Body.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, $(if ($script:Mica -and $script:Theme -eq 'Dark') { 'Tint' } else { 'Bg' }))
+    $Body.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, $(if ($script:Mica) { 'Tint' } else { 'Bg' }))
     $h = [Windows.Interop.WindowInteropHelper]::new($window).Handle
     if ($h -ne [IntPtr]::Zero) { $v = [int]($script:Theme -eq 'Dark'); [void][Akari.Dwm]::DwmSetWindowAttribute($h, 20, [ref]$v, 4) }
 }
 
-# the title bar logo for the theme: Assets\AkariLogo-dark.png (white A) or AkariLogo-light.png (black A), each read
-# once; AkariLogo.png when the theme's file is missing
+# the logo for the theme: Assets\AkariLogo-dark.png (white A) or AkariLogo-light.png (black A), each read once;
+# AkariLogo.png when the theme's file is missing. The title bar's, the busy toast's and every toast's.
 $script:LogoCache = @{}
-function Update-AkariLogo {
+function Get-AkariLogo {
     $name = $script:Theme
     if (-not $script:LogoCache.ContainsKey($name)) {
         $p = "$Root\Assets\AkariLogo-$($name.ToLowerInvariant()).png"
@@ -71,79 +83,102 @@ function Update-AkariLogo {
             $bmp
         }
     }
-    if ($Logo) { $Logo.Source = $script:LogoCache[$name] }
+    $script:LogoCache[$name]
+}
+function Update-AkariLogo {
+    $img = Get-AkariLogo
+    foreach ($l in @($Logo, $BusyLogo) + @($script:LogoImages)) { if ($l) { $l.Source = $img } }
+}
+$script:LogoImages = [Collections.Generic.List[object]]::new()
+# an Image of the logo that follows the theme (the hero's, the toasts')
+function New-AkariLogoImage([double]$Size) {
+    $i = [Windows.Controls.Image]::new()
+    $i.Width = $Size; $i.Height = $Size
+    [Windows.Media.RenderOptions]::SetBitmapScalingMode($i, 'HighQuality')
+    $i.Source = Get-AkariLogo
+    $script:LogoImages.Add($i)
+    $i
 }
 
-# the user's Windows accent (ADR 0008): the real user's AccentPalette, $null when it can't be read
-function Get-AkariAccentPalette {
-    try { Get-AkariRegValue 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent' 'AccentPalette' } catch { $null }
-}
-
-# puts the accent brushes (Get-AkariAccentColors, UI\Cards.ps1) into the current theme dictionary: every Acc* brush
-# is a DynamicResource, so the window repaints. An unreadable palette keeps the theme file's default blue.
-function Set-AkariAccent {
-    if (-not $script:ThemeDict) { return }
-    $c = Get-AkariAccentColors (Get-AkariAccentPalette) $script:Theme
-    if (-not $c) { return }
-    foreach ($k in $c.Keys) {
-        $b = [Windows.Media.SolidColorBrush]::new([Windows.Media.ColorConverter]::ConvertFromString($c[$k]))
-        $b.Freeze()
-        $script:ThemeDict[$k] = $b
-    }
-}
-
-# $Theme: System, Dark or Light; -Save keeps it in settings.json
+# $Theme: System, Dark or Light; -Save keeps it in settings.json. The accent is put back after (Set-AkariAccent).
 function Set-AkariTheme([string]$Theme = 'System', [switch]$Save) {
     if ($Theme -notin $AkariThemes) { $Theme = 'System' }
     $name = Resolve-AkariTheme $Theme
     $d = Get-AkariXaml "$Root\UI\Theme.$name.xaml"
     $md = $window.Resources.MergedDictionaries
     if ($script:ThemeDict) { [void]$md.Remove($script:ThemeDict) }
-    $script:ThemeDict = $d; $script:ThemeSetting = $Theme; $script:Theme = $name
-    # the accent goes in before the dictionary is merged: one repaint
-    Set-AkariAccent
     $md.Insert(0, $d)
+    $script:ThemeDict = $d; $script:ThemeSetting = $Theme; $script:Theme = $name
+    Set-AkariAccent
     Update-AkariFrame
     Update-AkariLogo
     if ($Save) { Save-AkariThemeSetting $Theme }
 }
+
+# Settings' theme radios: a quick cross-fade (the prototype's veil: Bg to 60 % over 120 ms, the theme swapped, then
+# faded away over 160 ms); motion off = at once
+function Switch-AkariTheme([string]$Theme) {
+    if (-not $window.IsVisible) { Set-AkariTheme $Theme -Save; return }
+    $script:VeilTheme = $Theme
+    Start-AkariVeil $script:ThemeVeil { Set-AkariTheme $script:VeilTheme -Save }
+}
+$script:ThemeVeil = [Windows.Controls.Border]::new()
+$script:ThemeVeil.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, 'Bg')
+$script:ThemeVeil.IsHitTestVisible = $false; $script:ThemeVeil.Visibility = 'Collapsed'; $script:ThemeVeil.Opacity = 0
+[Windows.Controls.Grid]::SetRowSpan($script:ThemeVeil, 2); [Windows.Controls.Grid]::SetColumnSpan($script:ThemeVeil, 2)
+[void]$Shell.Children.Add($script:ThemeVeil)
+
+# ---- accent (decision 2): Akari crimson (the theme files' values), or the Windows accent: the real user's AccentPalette
+# (32 bytes, 8 RGBA: Light3, Light2, Light1, Base, Dark1, Dark2, Dark3, unused)
+$AkariAccents = @('Akari', 'Windows')
+function Get-AkariAccentSetting { $a = [string](Read-AkariSettings).Accent; if ($a -in $AkariAccents) { $a } else { 'Akari' } }
+
+# puts the accent into the current theme dictionary: nothing to do for Akari crimson (the theme's own values)
+function Set-AkariAccent {
+    $script:Accent = Get-AkariAccentSetting
+    if ($script:Accent -ne 'Windows' -or -not $script:ThemeDict) { return }
+    $pal = $null
+    try { $pal = Get-AkariRegValue 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent' 'AccentPalette' } catch { }
+    $cols = Get-AkariAccentColors $pal $script:Theme
+    if (-not $cols) { return }
+    foreach ($k in $cols.Keys) {
+        $v = $cols[$k]
+        $b = [Windows.Media.SolidColorBrush]::new([Windows.Media.Color]::FromArgb([byte]$v[0], [byte]$v[1], [byte]$v[2], [byte]$v[3]))
+        $b.Freeze()
+        $script:ThemeDict[$k] = $b
+    }
+}
+
 Set-AkariTheme (Get-AkariThemeSetting)
 Initialize-AkariSteps
 
-# every page: its icon (a Fluent name, UI\Icons.xaml) and the subtitle under the page title. The tabs open Home,
-# Install AkariOS, Optimize (its sub-header: the Catalogue's pages and the Legacy ones, $AkariLegacyPages), Downloads
-# Unattend Generator and ISO Builder; About is in the options menu.
+# every page: its nav glyph (a UI\Icons.xaml key); the title is the page's name unless it builds its own header
 $Pages = [ordered]@{
-    Home       = @{ Glyph = 'house'; Sub = 'Choose how you want to optimize Windows' }
-    # Install AkariOS: One-click, or Guided (pick the Tweaks, review, apply once)
-    'Install AkariOS' = @{ Glyph = 'zap'; Sub = 'Optimize Windows in one click, or pick each change yourself' }
-    # Downloads: the Guided Install cards on their own (apps, runtimes, tools; Store apps the debloat removed)
-    Downloads  = @{ Glyph = 'download'; Sub = 'Install apps, runtimes and tools, from winget where possible' }
-    # Remove apps (the Catalogue sidebar): the Guided Remove tables on their own
-    'Remove apps' = @{ Glyph = 'trash-2'; Sub = 'Store apps, optional features, Windows features and legacy apps to remove' }
-    # Unattend Generator (UI\Unattend.ps1): the Home tile, Schneegans' unattend generator on one long page
-    'Unattend Generator' = @{ Glyph = 'usb'; Sub = 'An autounattend.xml for a Windows install USB, after Schneegans'' generator' }
-    # ISO Builder (UI\IsoBuilder.ps1): the Home tile, a custom Windows 11 ISO after zISO Tweaker
-    'ISO Builder' = @{ Glyph = 'disc-3'; Sub = 'A custom Windows 11 ISO: apps removed and settings written in before it installs, after zISO Tweaker' }
-    # About & Updates (UI\About.ps1): the Home link and the update bar open it
-    About      = @{ Glyph = 'info'; Sub = 'Version, updates and credits' }
-    # Legacy pages: the frozen AkariOS-Ultimate tweaks (ADR 0004)
-    Check      = @{ Glyph = 'activity'; Sub = 'Check your BIOS, storage, RAM and GPU, and stress test them' }
-    Refresh    = @{ Glyph = 'refresh-cw'; Sub = 'Reinstall or reset Windows, and get a fresh install ready' }
-    Setup      = @{ Glyph = 'wrench'; Sub = 'First steps on a new install: activation, startup apps, updates' }
-    Graphics   = @{ Glyph = 'monitor'; Sub = 'Clean and install GPU drivers, and tune NVIDIA, AMD and Intel' }
-    Windows    = @{ Glyph = 'app-window'; Sub = 'Start menu, taskbar, theme and the rest of Windows' }
-    Hardware   = @{ Glyph = 'cpu'; Sub = 'Mouse, controller, monitor and network' }
-    Advanced   = @{ Glyph = 'flask-conical'; Sub = 'Security, CPU and display pipeline tweaks for experienced users' }
+    Home                = @{ Glyph = 'house' }
+    'Install AkariOS'   = @{ Glyph = 'zap' }
+    Optimize            = @{ Glyph = 'sliders-horizontal' }
+    Downloads           = @{ Glyph = 'download' }
+    'Remove apps'       = @{ Glyph = 'trash-2' }
+    'Install USB'       = @{ Glyph = 'usb' }
+    'ISO Builder'       = @{ Glyph = 'disc-3' }
+    Settings            = @{ Glyph = 'settings' }
+    Search              = @{ Glyph = 'search' }
+    # Legacy pages: the frozen AkariOS-Ultimate tweaks (ADR 0004), from the Optimize page
+    Check      = @{ Glyph = 'activity' }
+    Refresh    = @{ Glyph = 'refresh-cw' }
+    Setup      = @{ Glyph = 'wrench' }
+    Graphics   = @{ Glyph = 'monitor' }
+    Windows    = @{ Glyph = 'app-window' }
+    Hardware   = @{ Glyph = 'cpu' }
+    Advanced   = @{ Glyph = 'flask-conical' }
 }
 
-# opens wide enough for the whole top bar (1360 x 800) when the screen has room, else as big as the screen allows
+# opens at the prototype's 1180 x 760 when the screen has room, else as big as the screen allows
 $wa = [Windows.SystemParameters]::WorkArea
-$window.Width = [Math]::Max($window.MinWidth, [Math]::Min(1360, $wa.Width - 40))
-$window.Height = [Math]::Max($window.MinHeight, [Math]::Min(800, $wa.Height - 40))
+$window.Width = [Math]::Max($window.MinWidth, [Math]::Min(1180, $wa.Width - 40))
+$window.Height = [Math]::Max($window.MinHeight, [Math]::Min(760, $wa.Height - 40))
 
-# the window and taskbar icon: AkariLogo.ico (the one AkariOS.exe has; Windows picks the frame for each size), else
-# AkariLogo.png (the title bar logo follows the theme: Update-AkariLogo)
+# the window and taskbar icon: AkariLogo.ico (the one AkariOS.exe has), else AkariLogo.png
 $logoPath = "$Root\Assets\AkariLogo.ico"
 if (-not (Test-Path $logoPath)) { $logoPath = "$Root\Assets\AkariLogo.png" }
 if (Test-Path $logoPath) {
@@ -153,7 +188,7 @@ $window.Add_SourceInitialized({
     $h = [Windows.Interop.WindowInteropHelper]::new($window).Handle
     # no system menu: windows stops drawing its own caption buttons under ours
     [void][Akari.Dwm]::SetWindowLong($h, -16, ([Akari.Dwm]::GetWindowLong($h, -16) -band (-bnot 0x80000)))
-    # mica behind the whole window on windows 11; windows 10 keeps the solid black body
+    # mica behind the whole window on windows 11; windows 10 keeps the solid body
     $build = [Environment]::OSVersion.Version.Build
     if ($build -ge 22000) {
         [Windows.Interop.HwndSource]::FromHwnd($h).CompositionTarget.BackgroundColor = [Windows.Media.Colors]::Transparent
@@ -168,16 +203,16 @@ $window.Add_SourceInitialized({
         }
         if ($r -eq 0) { $script:Mica = $true }
     }
-    # the frame (dark or light) and the body over Mica, for the current theme
     Update-AkariFrame
-    # follow Windows: its app mode while Theme = System, and its accent always (WM_SETTINGCHANGE "ImmersiveColorSet",
-    # WM_DWMCOLORIZATIONCOLORCHANGED)
+    # follow Windows: its app mode (WM_SETTINGCHANGE "ImmersiveColorSet", Theme = System) and its accent colour
+    # (WM_DWMCOLORIZATIONCOLORCHANGED, 0x320, Accent = Windows)
     try {
         [Windows.Interop.HwndSource]::FromHwnd($h).AddHook([Windows.Interop.HwndSourceHook] {
             param($hwnd, $msg, $wParam, $lParam, [ref]$handled)
-            $colors = ($msg -eq 0x1A -and $lParam -ne [IntPtr]::Zero -and [Runtime.InteropServices.Marshal]::PtrToStringUni($lParam) -eq 'ImmersiveColorSet')
-            if ($colors -and $script:ThemeSetting -eq 'System') { Set-AkariTheme 'System' }
-            elseif ($colors -or $msg -eq 0x320) { Set-AkariAccent }
+            if ($msg -eq 0x1A -and $lParam -ne [IntPtr]::Zero -and [Runtime.InteropServices.Marshal]::PtrToStringUni($lParam) -eq 'ImmersiveColorSet') {
+                if ($script:ThemeSetting -eq 'System') { Set-AkariTheme 'System' } elseif ($script:Accent -eq 'Windows') { Set-AkariAccent }
+            }
+            if ($msg -eq 0x320 -and $script:Accent -eq 'Windows') { Set-AkariAccent }
             [IntPtr]::Zero
         })
     } catch { Write-ErrLog "Theme hook: $_" }
@@ -190,7 +225,6 @@ $window.Add_StateChanged({
     Set-AkariIcon $CapMaxGlyph $(if ($max) { 'copy' } else { 'square' })
     $CapMax.ToolTip = if ($max) { 'Restore' } else { 'Maximize' }
 })
-# caption buttons
 $CapMin.Add_Click({ [Windows.SystemCommands]::MinimizeWindow($window) })
 $CapMax.Add_Click({ if ($window.WindowState -eq 'Maximized') { [Windows.SystemCommands]::RestoreWindow($window) } else { [Windows.SystemCommands]::MaximizeWindow($window) } })
 $CapClose.Add_Click({ $window.Close() })
@@ -209,94 +243,359 @@ function Add-Log([string]$m) {
     Write-ErrLog $m
 }
 
-# shows the current page ($script:Cat, or the search's results); a debug run logs how long each build took
+# ---- the NavigationView: its items (a NavItem radio button each: the icon, regular and filled for the selected one in
+# AccText, the label, Optimize's chevron) and Optimize's sections indented under it (NavKids)
+$AkariNav = [ordered]@{ Home = 'house'; 'Install AkariOS' = 'zap'; Optimize = 'sliders-horizontal'; Downloads = 'download'; 'Remove apps' = 'trash-2'; 'Install USB' = 'usb'; 'ISO Builder' = 'disc-3' }
+$script:NavItems = [ordered]@{}
+$script:NavSync = $false
+
+function New-AkariNavItem([string]$Page, [string]$Label, [string]$Icon, [double]$Indent = 0, [switch]$Parent) {
+    $g = [Windows.Controls.Grid]::new()
+    foreach ($w in 'Auto', '*', 'Auto') { $c = [Windows.Controls.ColumnDefinition]::new(); $c.Width = if ($w -eq '*') { [Windows.GridLength]::new(1, 'Star') } else { [Windows.GridLength]::Auto }; [void]$g.ColumnDefinitions.Add($c) }
+    $ic = [Windows.Controls.Grid]::new()
+    $ic.Margin = [Windows.Thickness]::new($Indent, 0, 0, 0)
+    $ic.RenderTransformOrigin = [Windows.Point]::new(0.5, 0.5)
+    $r = New-AkariIcon $Icon 16 'Tx'
+    $f = New-AkariIcon "$Icon.Filled" 16 'AccText'
+    $f.Visibility = 'Collapsed'
+    [void]$ic.Children.Add($r); [void]$ic.Children.Add($f)
+    [void]$g.Children.Add($ic)
+    $lb = [Windows.Controls.TextBlock]::new()
+    $lb.Text = $Label; $lb.VerticalAlignment = 'Center'; $lb.Margin = [Windows.Thickness]::new(16, 0, 0, 1)
+    $lb.TextTrimming = 'CharacterEllipsis'
+    [Windows.Controls.Grid]::SetColumn($lb, 1); [void]$g.Children.Add($lb)
+    $chev = $null
+    if ($Parent) {
+        $chev = New-AkariIcon 'chevron-down' 12 'Mu'
+        $chev.RenderTransformOrigin = [Windows.Point]::new(0.5, 0.5)
+        $chev.RenderTransform = [Windows.Media.RotateTransform]::new()
+        [Windows.Controls.Grid]::SetColumn($chev, 2); [void]$g.Children.Add($chev)
+    }
+    $rb = [Windows.Controls.RadioButton]::new()
+    $rb.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'NavItem')
+    $rb.GroupName = 'nav'
+    $rb.Content = $g
+    $rb.Tag = $Page
+    $rb.Focusable = $true
+    # nav icons scale to 90 % while pressed (Motion.Fast)
+    $rb.Add_PreviewMouseLeftButtonDown({ param($s, $e) Start-AkariMotion $s.Content.Children[0] Scale $null 0.9 -Speed Fast })
+    $rb.Add_PreviewMouseLeftButtonUp({ param($s, $e) Start-AkariMotion $s.Content.Children[0] Scale $null 1 -Speed Fast })
+    $rb.Add_MouseLeave({ param($s, $e) Start-AkariMotion $s.Content.Children[0] Scale $null 1 -Speed Fast })
+    $rb.Add_Click({ param($s, $e) Invoke-AkariNav ([string]$s.Tag) })
+    $item = @{ Button = $rb; Regular = $r; Filled = $f; Label = $lb; Chevron = $chev; Page = $Page }
+    $script:NavItems[$Page] = $item
+    $item
+}
+
+foreach ($k in $AkariNav.Keys) {
+    $it = New-AkariNavItem $k $k $AkariNav[$k] -Parent:($k -eq 'Optimize')
+    [void]$NavList.Children.Add($it.Button)
+    if ($k -eq 'Optimize') {
+        # Optimize's sections, indented (the prototype's .kids, 48 px in): their height opens and closes (ADR 0008)
+        $script:NavKids = [Windows.Controls.StackPanel]::new()
+        $script:NavKids.ClipToBounds = $true
+        $script:NavKids.Height = 0
+        foreach ($s in $AkariSectionIcons.Keys) {
+            $kid = New-AkariNavItem "$AkariCataloguePrefix$s" $s $AkariSectionIcons[$s] 36
+            [void]$script:NavKids.Children.Add($kid.Button)
+        }
+        [void]$NavList.Children.Add($script:NavKids)
+    }
+}
+$settingsItem = New-AkariNavItem 'Settings' 'Settings' 'settings'
+[void]$NavFoot.Children.Add($settingsItem.Button)
+$script:KidsOpen = $false
+
+# the nav item a page shows as selected: Settings, a section (its kid, or Optimize while the pane is collapsed),
+# Optimize for its landing page, the search, the Legacy pages; else the page's own item. Pure but for the tables.
+function Get-AkariNavKey([string]$Page, [bool]$Compact = $false) {
+    if ($Page -like "$AkariCataloguePrefix*") {
+        $sec = (Split-AkariCatalogueKey $Page).Section
+        if ($Compact) { return 'Optimize' }
+        return "$AkariCataloguePrefix$sec"
+    }
+    if ($Page -in 'Search', 'Optimize' -or ($Page -in $AkariLegacyPages -and $Page -ne 'Downloads')) { return 'Optimize' }
+    if ($Page -eq 'Unattend Generator') { return 'Install USB' }
+    if ($Page -eq 'About') { return 'Settings' }
+    $Page
+}
+
+# Optimize's sections open or close under it: the chevron turns 180 degrees, the height animates (Motion.Base)
+function Set-AkariNavKids([bool]$Open) {
+    if ($script:Compact) { $Open = $false }
+    if ($Open -eq $script:KidsOpen) { return }
+    $script:KidsOpen = $Open
+    $ch = $script:NavItems['Optimize'].Chevron
+    Start-AkariTurn $ch.RenderTransform $(if ($Open) { 180 } else { 0 })
+    Set-AkariSize $script:NavKids Height $(if ($Open) { 'Auto' } else { 0 }) Base
+    # the indicator follows its item as the list moves
+    Start-AkariNavPillLater
+}
+
+# the selected item: Sub fill, the filled icon in AccText; the indicator stretches and slides to it
+function Update-AkariNav([bool]$Animate = $true) {
+    $key = Get-AkariNavKey $script:Cat $script:Compact
+    $script:NavSync = $true
+    try {
+        foreach ($it in $script:NavItems.Values) {
+            $on = ($it.Page -eq $key)
+            $it.Button.IsChecked = $on
+            $it.Regular.Visibility = if ($on) { 'Collapsed' } else { 'Visible' }
+            $it.Filled.Visibility = if ($on) { 'Visible' } else { 'Collapsed' }
+        }
+    } finally { $script:NavSync = $false }
+    $script:NavKey = $key
+    if ($script:Cat -like "$AkariCataloguePrefix*" -or $script:Cat -in 'Search', 'Optimize') { Set-AkariNavKids $true }
+    Start-AkariNavPillLater $Animate
+}
+
+# the indicator once the layout is done (an item that just moved or appeared has no place yet)
+function Start-AkariNavPillLater([bool]$Animate = $true) {
+    [void]$window.Dispatcher.BeginInvoke([Windows.Threading.DispatcherPriority]::Loaded, [Action[object]]{ param($a) Move-AkariNavIndicator $a }, $Animate)
+}
+function Move-AkariNavIndicator([bool]$Animate = $true) {
+    $it = $script:NavItems[$script:NavKey]
+    if (-not $it) { return }
+    $b = $it.Button
+    # a section's kid hidden in a closed list: Optimize's item instead
+    if (-not $b.IsVisible -or $b.ActualHeight -le 0 -or ($script:NavKey -like "$AkariCataloguePrefix*" -and -not $script:KidsOpen)) { $b = $script:NavItems['Optimize'].Button }
+    if ($b.ActualHeight -le 0) { return }
+    $p = $b.TranslatePoint([Windows.Point]::new(0, 0), $NavLayer)
+    Move-AkariNavPill $NavPill ($p.Y + ($b.ActualHeight - 16) / 2) $Animate
+}
+
+# a nav item was clicked: Optimize on its landing page opens or closes its sections; anything else opens its page
+function Invoke-AkariNav([string]$Page) {
+    if ($script:NavSync) { return }
+    if ($Page -eq 'Optimize' -and $script:Cat -eq 'Optimize') { Set-AkariNavKids (-not $script:KidsOpen); return }
+    Select-AkariPage $Page
+}
+
+# ---- the pane: 280 px, or 48 (icons only, a tooltip after 600 ms) with the pane toggle or under 1000 px of window
+$script:Compact = $false; $script:UserCompact = $null
+function Set-AkariCompact([bool]$Compact) {
+    if ($Compact -eq $script:Compact) { return }
+    $script:Compact = $Compact
+    if ($Compact) { Set-AkariNavKids $false }
+    Set-AkariSize $Nav Width $(if ($Compact) { 48 } else { 280 }) Slow
+    $SearchBox.IsHitTestVisible = -not $Compact
+    Start-AkariMotion $SearchBox Fade $null $(if ($Compact) { 0 } else { 1 }) -Speed Base
+    foreach ($it in $script:NavItems.Values) {
+        Start-AkariMotion $it.Label Fade $null $(if ($Compact) { 0 } else { 1 }) -Speed Fast
+        if ($it.Chevron) { $it.Chevron.Visibility = if ($Compact) { 'Hidden' } else { 'Visible' } }
+        $it.Button.ToolTip = if ($Compact) { $it.Label.Text } else { $null }
+        $it.Button.Width = if ($Compact) { 40 } else { [double]::NaN }
+        $it.Button.HorizontalAlignment = if ($Compact) { 'Left' } else { 'Stretch' }
+    }
+    $PaneBtn.ToolTip = if ($Compact) { 'Expand navigation' } else { 'Collapse navigation' }
+    # the indicator moves with the width change (Optimize's item while the sections are hidden)
+    $tm = [Windows.Threading.DispatcherTimer]::new()
+    $tm.Interval = [TimeSpan]::FromMilliseconds(260)
+    $tm.Add_Tick({ param($s, $e) $s.Stop(); Update-AkariNav $false })
+    $tm.Start()
+}
+$PaneBtn.Add_Click({ $script:UserCompact = -not $script:Compact; Set-AkariCompact $script:UserCompact })
+function Update-AkariWidth([double]$Width) {
+    if ($Width -le 0) { return }
+    if ($null -eq $script:UserCompact) { Set-AkariCompact ($Width -lt 1000) }
+}
+$window.Add_SizeChanged({ Update-AkariWidth $window.ActualWidth })
+# the pages that fold on a narrow content layer (Home's tiles and facts)
+$Layer.Add_SizeChanged({ param($s, $e) Update-AkariHomeWidth $e.NewSize.Width })
+
+# ---- pages and history
+
+# the page header: a title, or a breadcrumb whose earlier parts are links (Mu, Tx on hover) with a chevron between.
+# $Parts: strings, or @(label, page) for a link. $Parts empty = no header (Home).
+function Set-AkariHeader($Parts) {
+    $Crumbs.Children.Clear()
+    $parts = @($Parts)
+    if (-not $parts.Count) { $PageHeader.Visibility = 'Collapsed'; return }
+    $PageHeader.Visibility = 'Visible'
+    for ($i = 0; $i -lt $parts.Count - 1; $i++) {
+        $p = $parts[$i]
+        $b = [Windows.Controls.Button]::new()
+        $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Crumb')
+        $b.Content = if ($p -is [array]) { $p[0] } else { $p }
+        $b.Tag = if ($p -is [array]) { $p[1] } else { $p }
+        $b.Add_Click({ param($s, $e) Open-AkariCrumb ([string]$s.Tag) })
+        [void]$Crumbs.Children.Add($b)
+        $c = New-AkariIcon 'chevron-right' 16 'Mu'
+        $c.Margin = [Windows.Thickness]::new(12, 2, 12, 0); $c.VerticalAlignment = 'Center'
+        [void]$Crumbs.Children.Add($c)
+    }
+    $last = $parts[-1]
+    $Heading.Text = if ($last -is [array]) { $last[0] } else { $last }
+}
+# a breadcrumb link: Install AkariOS goes back to its chooser
+function Open-AkariCrumb([string]$Page) {
+    if ($Page -eq 'Install AkariOS' -and $script:Mode -ne 'Choose') { Push-AkariHistory; $script:Mode = 'Choose'; $script:Step = 0; Show-Page; return }
+    Select-AkariPage $Page
+}
+
+# Back (the title bar, Alt+Left) walks the history: pages, the search, and the steps of a flow
+$script:History = [Collections.Generic.List[object]]::new()
+function Push-AkariHistory {
+    $script:History.Add(@{ Cat = $script:Cat; Mode = $script:Mode; Step = $script:Step; Query = $script:Query })
+    $BackBtn.IsEnabled = $true
+}
+function Step-AkariHistoryBack {
+    # not while the page is locked (a Run); a background change leaves it usable
+    if (-not $script:History.Count -or -not $Page.IsEnabled) { return }
+    $h = $script:History[$script:History.Count - 1]
+    $script:History.RemoveAt($script:History.Count - 1)
+    $BackBtn.IsEnabled = [bool]$script:History.Count
+    $script:Cat = $h.Cat; $script:Query = $h.Query
+    if ($h.Cat -eq 'Install AkariOS' -and $h.Mode -in 'Choose', 'Guided' -and $script:Step -ne 3) { $script:Mode = $h.Mode; $script:Step = $h.Step }
+    Show-Page
+}
+$BackBtn.Add_Click({ Step-AkariHistoryBack })
+
+# shows the current page ($script:Cat); a debug run logs how long each build took
 function Show-Page {
-    $tm = Start-AkariUiTimer "page $($script:Cat)$(if ($Search.Text.Trim()) { ' (search)' })"
+    $tm = Start-AkariUiTimer "page $($script:Cat)"
     try { Show-AkariPageNow } finally { Stop-AkariUiTimer $tm }
 }
 
 function Show-AkariPageNow {
-    $q = $Search.Text.Trim()
-    # Install AkariOS and the apps flows: the search filters the current step instead of searching the Legacy pages
-    $onSteps = ($script:Cat -eq 'Install AkariOS' -or $AkariAppFlows.Contains($script:Cat))
-    # About, Unattend Generator and ISO Builder: full pages, Back leads home
-    $onAbout = (-not $q -and $script:Cat -in 'About', 'Unattend Generator', 'ISO Builder')
-    $CatBars.Visibility = 'Collapsed'
-    # a new page (or the search starting / ending) comes in once built: the surface rises, the header fades in; typing
-    # in the search only refreshes the results
-    $script:PageMoved = ("$($script:Cat)|$([bool]$q)" -ne $script:PageMotionKey)
-    if ($script:PageMoved) {
-        $script:PageMotionKey = "$($script:Cat)|$([bool]$q)"
-        Reset-AkariScroll $PageScroll
-        Start-AkariEntrance $Page Rise
-        Start-AkariEntrance $PageHeader Fade -Speed Base
+    # a new page (or another search, or another step of a flow) comes in: scrolled to the top, each top-level child
+    # rising from 28 px, staggered (Start-AkariPageEntrance)
+    $key = "$($script:Cat)|$($script:Query)|$($script:Mode)|$($script:Step)"
+    $script:PageMoved = ($key -ne $script:PageMotionKey)
+    $script:PageMotionKey = $key
+    if ($script:PageMoved) { Reset-AkariScroll $PageScroll }
+    Update-AkariNav
+    $Rows.Children.Clear(); $StepBody.Children.Clear()
+    $StepsPanel.Visibility = 'Collapsed'; $HomePanel.Visibility = 'Collapsed'
+    $script:CatSelector = $null; $script:CatHeads = $null
+    Set-AkariFooter $false
+    switch -Wildcard ($script:Cat) {
+        'Home' { Set-AkariHeader @(); $HomePanel.Visibility = 'Visible'; Show-AkariHome }
+        'Search' { Show-AkariCataloguePage $script:Query }
+        "$AkariCataloguePrefix*" { Show-AkariCataloguePage '' }
+        default {
+            $StepsPanel.Visibility = 'Visible'
+            switch ($script:Cat) {
+                'Install AkariOS' { Show-AkariSteps }
+                'Optimize' { Show-AkariOptimize }
+                'Downloads' { Show-AkariDownloads }
+                'Remove apps' { Show-AkariRemoveApps }
+                'Install USB' { Show-AkariUnattend }
+                'ISO Builder' { Show-AkariIsoBuilder }
+                'Settings' { Show-AkariSettings }
+                default {
+                    # Optimize › Legacy: the legacy tweaks of this page, each row acting right away
+                    $StepsPanel.Visibility = 'Collapsed'
+                    Set-AkariHeader @(@('Optimize', 'Optimize'), $script:Cat)
+                    foreach ($t in @(Get-AkariLegacyList $script:Tweaks $script:Cat '')) {
+                        if (-not $script:RowCache.ContainsKey($t.Id)) { $script:RowCache[$t.Id] = New-Row $t }
+                        [void]$Rows.Children.Add($script:RowCache[$t.Id])
+                        Update-Row $t
+                    }
+                    if (-not $Rows.Children.Count) { [void]$Rows.Children.Add((New-AkariEmpty 'search' 'Nothing here yet' '')) }
+                }
+            }
+        }
     }
-    # Home: the hero is the title
-    $PageHeader.Visibility = if (-not $q -and $script:Cat -eq 'Home') { 'Collapsed' } else { 'Visible' }
-    Update-AkariTopBar
-    # Optimize › Advanced (the Catalogue, UI\CataloguePage.ps1): its own pages and search
-    if ($script:Cat -like "$AkariCataloguePrefix*") { Show-AkariCataloguePage $q; return }
-    $script:CatShown = ''
-    $StepsPanel.Visibility = if ($onSteps -or $onAbout) { 'Visible' } else { 'Collapsed' }
-    $StepFooter.Visibility = $StepsPanel.Visibility
-    if ($onSteps -or $onAbout) {
-        $Rows.Children.Clear()
-        $HomePanel.Visibility = 'Collapsed'
-        $Heading.Text = $script:Cat
-        $HeaderSub.Text = $Pages[$script:Cat].Sub
-        Set-AkariIcon $HeaderIcon ([string]$Pages[$script:Cat].Glyph)
-        if ($onAbout) { switch ($script:Cat) { 'About' { Show-AkariAbout } 'ISO Builder' { Show-AkariIsoBuilder } default { Show-AkariUnattend } }; return }
-        Enter-AkariFlow $script:Cat
-        Show-AkariSteps
-        return
-    }
-    $onHome = (-not $q -and $script:Cat -eq 'Home')
-    if ($onHome) {
-        Start-AkariHomeStats
-        # the mode cards come in one after another the first time Home is shown
-        if (-not $script:HomeShown) { $script:HomeShown = $true; Start-AkariStagger $HomeTiles.Children }
-    }
-    $Rows.Children.Clear()
-    if ($q) {
-        $Heading.Text = 'Search'
-        $HeaderSub.Text = "Results for `"$q`""
-        Set-AkariIcon $HeaderIcon 'search'
-    } else {
-        $Heading.Text = $script:Cat
-        $HeaderSub.Text = $Pages[$script:Cat].Sub
-        Set-AkariIcon $HeaderIcon ([string]$Pages[$script:Cat].Glyph)
-    }
-    # Optimize › Legacy: the legacy tweaks of this page (or every legacy match of the search), each row acting right away
-    $list = @(if (-not $onHome) { Get-AkariLegacyList $script:Tweaks $script:Cat $q })
-    $HomePanel.Visibility = if ($onHome) { 'Visible' } else { 'Collapsed' }
-    foreach ($t in $list) {
-        if (-not $script:RowCache.ContainsKey($t.Id)) { $script:RowCache[$t.Id] = New-Row $t }
-        [void]$Rows.Children.Add($script:RowCache[$t.Id])
-        Update-Row $t
-    }
-    if (-not $list.Count -and -not $onHome) {
-        $msg = [Windows.Controls.TextBlock]::new()
-        $msg.Text = if ($q) { 'No scripts match.' } else { 'Nothing here yet.' }
-        $msg.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, 'Mu')
-        [void]$Rows.Children.Add($msg)
-    }
-    if ($script:PageMoved) { Start-AkariStagger $Rows.Children }
+    Update-AkariCatalogueBars
+    if ($script:PageMoved) { Start-AkariPageEntrance (@($PageHeader) + @($CatBars.Children) + @($StepBody.Children) + @($HomePanel.Children) + @($Rows.Children)) }
 }
 
-# ---- running actions in a background runspace
-# $Lock: the page can't be used meanwhile (the Catalogue keeps it usable: its changes queue up)
-function Set-Busy([bool]$b, [string]$label = '', [bool]$Lock = $true) {
+# opens page $Name, remembering the one left (Back)
+function Open-AkariPage([string]$Name, [string]$From) {
+    if ($Name -eq 'Unattend Generator') { $Name = 'Install USB' }
+    if ($Name -eq 'About') { $Name = 'Settings' }
+    if ($Name -ne $script:Cat -or $script:Query) { Push-AkariHistory }
+    $script:Cat = $Name
+    $script:Query = ''
+    if ($Search.Text -and -not $Search.IsKeyboardFocusWithin) { $script:SearchQuiet = $true; try { $Search.Text = '' } finally { $script:SearchQuiet = $false } }
+    Show-Page
+}
+function Select-AkariPage([string]$Name) { Open-AkariPage $Name $script:Cat }
+# the Optimize page seen last (kept for callers): the landing page
+function Get-AkariOptimizeTarget { 'Optimize' }
+
+# ---- Guided's footer (.foot): slides up from the bottom when Guided shows, down when it leaves (Motion.Slow)
+function Set-AkariFooter([bool]$On) {
+    $was = $StepFooter.Visibility -eq 'Visible'
+    if ($On -eq $was) { return }
+    if ($On) {
+        $StepFooter.Visibility = 'Visible'
+        $StepFooter.UpdateLayout()
+        Start-AkariMotion $StepFooter SlideY ([Math]::Max(72, $StepFooter.ActualHeight)) 0 -Speed Slow
+    } else { $StepFooter.Visibility = 'Collapsed' }
+}
+
+# ---- toasts (.toast): the logo, a title, a line, a close button; stacking upwards at the bottom right, sliding in 40 px
+# from the right (Motion.Page) and out (Motion.Base, the exit curve); they leave after about 4 seconds
+function Show-AkariToast([string]$Title, [string]$Text = '') {
+    $b = [Windows.Controls.Border]::new()
+    $b.Width = 340; $b.Margin = [Windows.Thickness]::new(0, 8, 0, 0); $b.Padding = [Windows.Thickness]::new(16, 14, 16, 14)
+    $b.CornerRadius = [Windows.CornerRadius]::new(8); $b.BorderThickness = [Windows.Thickness]::new(1)
+    $b.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, 'S2')
+    $b.SetResourceReference([Windows.Controls.Border]::BorderBrushProperty, 'Fly')
+    $fx = [Windows.Media.Effects.DropShadowEffect]::new(); $fx.BlurRadius = 16; $fx.ShadowDepth = 8; $fx.Direction = 270
+    # an Effect is not a FrameworkElement: its colour is the theme's ShadeFly now (a toast lives seconds)
+    $fx.Color = $window.FindResource('ShadeFly')
+    $b.Effect = $fx
+    $dp = [Windows.Controls.DockPanel]::new()
+    $lg = New-AkariLogoImage 20
+    $lg.Margin = [Windows.Thickness]::new(0, 0, 12, 0); $lg.VerticalAlignment = 'Top'
+    [Windows.Controls.DockPanel]::SetDock($lg, 'Left'); [void]$dp.Children.Add($lg)
+    $x = [Windows.Controls.Button]::new()
+    $x.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Ghost')
+    $x.Width = 24; $x.Height = 24; $x.MinHeight = 24; $x.Padding = [Windows.Thickness]::new(0); $x.VerticalAlignment = 'Top'
+    $x.Content = New-AkariIcon 'x' 12 'Mu'
+    $x.Tag = $b
+    $x.Add_Click({ param($s, $e) Hide-AkariToast $s.Tag })
+    [Windows.Controls.DockPanel]::SetDock($x, 'Right'); [void]$dp.Children.Add($x)
+    $sp = [Windows.Controls.StackPanel]::new()
+    [void]$sp.Children.Add((New-AkariText $Title 14 'Tx' 'SemiBold'))
+    if ($Text) { $t = New-AkariText $Text 12 'Mu'; $t.Margin = [Windows.Thickness]::new(0, 2, 0, 0); [void]$sp.Children.Add($t) }
+    [void]$dp.Children.Add($sp)
+    $b.Child = $dp
+    $Toasts.Children.Insert(0, $b)
+    Start-AkariMotion $b Fade 0 1 -Speed Page
+    Start-AkariMotion $b Slide 40 0 -Speed Page
+    $tm = [Windows.Threading.DispatcherTimer]::new()
+    $tm.Interval = [TimeSpan]::FromMilliseconds(4200)
+    $tm.Tag = $b
+    $tm.Add_Tick({ param($s, $e) $s.Stop(); Hide-AkariToast $s.Tag })
+    $tm.Start()
+    $b
+}
+function Hide-AkariToast($Toast) {
+    if (-not $Toast -or -not $Toast.Parent) { return }
+    if (-not $script:AkariMotionOn) { $Toasts.Children.Remove($Toast); return }
+    $Toast.IsHitTestVisible = $false
+    Start-AkariMotion $Toast Fade 1 0 -Speed Base -Easing Exit
+    Start-AkariMotion $Toast Slide 0 40 -Speed Base -Easing Exit
+    $tm = [Windows.Threading.DispatcherTimer]::new()
+    $tm.Interval = $AkariMotion['Motion.Base'].TimeSpan
+    $tm.Tag = $Toast
+    $tm.Add_Tick({ param($s, $e) $s.Stop(); if ($s.Tag.Parent) { $Toasts.Children.Remove($s.Tag) } })
+    $tm.Start()
+}
+
+# ---- running actions in a background runspace: the sticky busy toast (the job's label, its progress, else the
+# indeterminate bar). $Lock: the page can't be used meanwhile (the Catalogue keeps it usable: its changes queue up)
+# -Quiet: no toast (a background read that leaves the page usable)
+function Set-Busy([bool]$b, [string]$label = '', [bool]$Lock = $true, [switch]$Quiet) {
     $script:Busy = $b; $Page.IsEnabled = -not ($b -and $Lock); $StepFooter.IsEnabled = $Page.IsEnabled
-    # status bar: green dot and Ready at rest, spinner + label + progress bar while running
-    $StatusDot.Visibility = if ($b) { 'Collapsed' } else { 'Visible' }
-    $StatusRing.Visibility = if ($b) { 'Visible' } else { 'Collapsed' }
-    $StatusBar.Visibility = $StatusRing.Visibility
-    $StatusText.Text = if ($b -and $label) { $label } elseif ($b) { 'Working' + [string][char]0x2026 } else { 'Ready' }
+    $StatusText.Text = if ($b -and $label) { $label } elseif ($b) { 'Working' + [char]0x2026 } else { 'Ready' }
     $script:BusyLabel = $StatusText.Text
+    if ($b -and -not $Quiet) {
+        if ($BusyToast.Visibility -ne 'Visible') {
+            $BusyToast.Visibility = 'Visible'
+            if ($Toasts.Children.IndexOf($BusyToast) -ne $Toasts.Children.Count - 1) { $Toasts.Children.Remove($BusyToast); [void]$Toasts.Children.Add($BusyToast) }
+            Start-AkariMotion $BusyToast Fade 0 1 -Speed Page
+            Start-AkariMotion $BusyToast Slide 40 0 -Speed Page
+        }
+    } else { $BusyToast.Visibility = 'Collapsed' }
     Set-AkariStatusProgress $null
 }
 
-# the status bar's text and bar for a job's progress (Set-AkariProgress in the job: Done, Total, Step): a bar filled to
+# the busy toast's text and bar for a job's progress (Set-AkariProgress in the job: Done, Total, Step): a bar filled to
 # Done / Total with "label (n of total): step", or the sliding bar while the job doesn't say
 function Get-AkariProgressText([string]$Label, $Shared) {
     if (-not $Shared -or -not $Shared.Total) { return $Label }
@@ -308,7 +607,6 @@ function Get-AkariProgressText([string]$Label, $Shared) {
 function Set-AkariStatusProgress($Shared) {
     $on = ($Shared -and $Shared.Total)
     $StatusLoop.Visibility = if ($on) { 'Collapsed' } else { 'Visible' }
-    # the fill glides to the share done; a bar that was hidden starts there
     $was = $StatusFill.Visibility -eq 'Visible'
     $StatusFill.Visibility = if ($on) { 'Visible' } else { 'Collapsed' }
     if ($on) {
@@ -333,7 +631,12 @@ $timer.Add_Tick({
     $m = $null
     while ($script:Queue.TryDequeue([ref]$m)) { Add-Log $m }
     $j = $script:Job
-    if ($j -and $j.Shared -and -not $j.Handle.IsCompleted) { Set-AkariStatusProgress $j.Shared }
+    if ($j -and $j.Shared -and -not $j.Handle.IsCompleted) {
+        Set-AkariStatusProgress $j.Shared
+        # the run page's rows and the Remove apps rows follow the job (UI\Steps.ps1, UI\Apps.ps1)
+        if ($j.Kind -eq 'Apply') { Update-AkariRunPage $j.Shared }
+        if ($j.Kind -eq 'Remove') { Update-AkariRemoveProgress $j.Shared }
+    }
     if ($j -and $j.Handle.IsCompleted) {
         try { [void]$j.Ps.EndInvoke($j.Handle) } catch { Add-Log "Error: $($_.Exception.Message)" }
         foreach ($err in $j.Ps.Streams.Error) { Add-Log "Error: $($err.ToString())" }
@@ -343,19 +646,25 @@ $timer.Add_Tick({
         Add-Log "Done: $($j.Label)"
         $script:Job = $null
         Set-Busy $false
-        if ($j.Kind -eq 'Apply') { Complete-AkariApply $j.Shared }
-        # Downloads' Uninstall selected and Show installed (UI\Steps.ps1)
-        if ($j.Kind -eq 'Uninstall') { Complete-AkariUninstall $j.Shared }
-        if ($j.Kind -eq 'AppsInstalled') { Complete-AkariInstalledRead $j.Shared }
-        if ($j.Kind -eq 'Export') { Complete-AkariExport $j.Shared }
+        $show = $true
+        switch ($j.Kind) {
+            'Apply' { Complete-AkariApply $j.Shared }
+            'Remove' { Complete-AkariApply $j.Shared -Kind Remove }
+            'Install' { Complete-AkariInstall $j.Shared; $show = $false }
+            # Downloads' Uninstall and its installed read (UI\Steps.ps1)
+            'Uninstall' { Complete-AkariUninstall $j.Shared; $show = $false }
+            'AppsInstalled' { Complete-AkariInstalledRead $j.Shared; $show = $false }
+            'Export' { Complete-AkariExport $j.Shared; $show = $false }
+        }
         # the ISO Builder's jobs (UI\IsoBuilder.ps1): after Set-Busy, so a finished step can start the next
         if ("$($j.Kind)" -like 'Iso*') { Complete-AkariIsoJob $j }
-        # a Catalogue change updates its card only (the page stays as it is)
         # Home's stats are read again the next time it shows
         $script:StatsFresh = $false
-        if ("$($j.Kind)" -like 'Catalogue*') { Complete-AkariCatalogueJob $j } else { Show-Page }
-        # Catalogue changes that queued up meanwhile
+        # a Catalogue change updates its card only (the page stays as it is)
+        if ("$($j.Kind)" -like 'Catalogue*') { Complete-AkariCatalogueJob $j } elseif ($show) { Show-Page }
+        # what queued up meanwhile: Catalogue changes, installs
         Start-AkariCatalogueNext
+        Start-AkariInstallNext
     }
 })
 $timer.Start()
@@ -365,304 +674,195 @@ function Confirm-Run([string]$text) {
     return (Confirm-AkariDialog $text 'Continue')
 }
 
-# ---- top bar: the tabs, Optimize's sub-header (Sections, Category chips, Remove apps) and the search
-# the tabs and their icons; Optimize opens the Optimize page seen last (Get-AkariOptimizeTarget)
-$AkariTabs = [ordered]@{ Home = 'house'; 'Install AkariOS' = 'zap'; Optimize = 'sliders-horizontal'; Downloads = 'download'; 'Unattend Generator' = 'usb'; 'ISO Builder' = 'disc-3' }
+# ---- search (the nav's AutoSuggestBox): up to six Tweaks as you type, the match highlighted in AccText with
+# "Section › Category" below; arrows move, Enter shows the results page, a suggestion opens its section and flashes the
+# row; no match says so. Esc clears. Ctrl+F or Ctrl+E from anywhere.
+$script:Suggest = [Windows.Controls.Primitives.Popup]::new()
+$script:Suggest.AllowsTransparency = $true
+$script:Suggest.PlacementTarget = $SearchBox
+$script:Suggest.Placement = 'Bottom'
+$script:Suggest.VerticalOffset = -8
+$script:Suggest.HorizontalOffset = -16
+$script:Suggest.StaysOpen = $false
+$script:SuggestHi = 0
 
-# the tab page $Page belongs to ('' = none: About). Pure.
-function Get-AkariTab([string]$Page) {
-    if ($Page -in 'Home', 'Install AkariOS', 'Downloads', 'Unattend Generator', 'ISO Builder') { return $Page }
-    if ($Page -like "$AkariCataloguePrefix*" -or $Page -in $AkariLegacyPages -or $Page -in 'Optimize', 'Remove apps') { return 'Optimize' }
-    ''
+# the suggestions for $Query: the first six Tweaks whose name or description holds it. Pure but for the Catalogue.
+function Get-AkariSuggestions([string]$Query, [int]$Max = 6) {
+    if (-not $Query) { return @() }
+    @(@((Get-AkariCatalogueOf $script:Tweaks).Tweaks) | Where-Object { "$($_.Name) $($_.Description)" -like "*$Query*" } | Select-Object -First $Max)
 }
 
-# the search box's placeholder on page $Page: what the search looks through there. Pure.
-function Get-AkariSearchHint([string]$Page) {
-    if ($AkariCatalogueLists.ContainsKey($Page)) { return $AkariCatalogueLists[$Page].Hint }
-    if ($Page -like "$AkariCataloguePrefix*") { return 'Search Optimize' }
-    if ($Page -in 'Downloads', 'Remove apps') { return 'Search apps' }
-    if ($Page -eq 'Install AkariOS') { return 'Filter this step' }
-    'Search Legacy'
-}
-
-# Optimize's Sections, Legacy last: @{ Name; Header; Pages = @{ Key; Label; Icon } } (Downloads is a tab of its own)
-function Get-AkariOptimizeSections {
-    foreach ($c in (Get-AkariCatalogueOf $script:Tweaks).Pages) {
-        [pscustomobject]@{ Name = $c.Section; Header = $c.Header
-            Pages = @($c.Pages | ForEach-Object { [pscustomobject]@{ Key = $_.Key; Label = $_.Category; Icon = Get-AkariCategoryIcon $_.Category } }) }
-    }
-    [pscustomobject]@{ Name = 'Legacy'; Header = 'Legacy'
-        Pages = @($AkariLegacyPages | Where-Object { $_ -ne 'Downloads' } | ForEach-Object { [pscustomobject]@{ Key = $_; Label = $_; Icon = [string]$Pages[$_].Glyph } }) }
-}
-
-# the Optimize tab's page: the Optimize page seen last, else the Catalogue's first, else the first Legacy page
-$script:LastOptimize = ''
-function Get-AkariOptimizeTarget {
-    if ($script:LastOptimize) { return $script:LastOptimize }
-    $first = @((Get-AkariCatalogueOf $script:Tweaks).Pages | ForEach-Object { $_.Pages }) | Select-Object -First 1
-    if ($first) { $first.Key } else { $AkariLegacyPages[0] }
-}
-
-# a pill with an icon and a label, in the text colour of the control (it changes when checked)
-function New-AkariPill([string]$Style, [string]$Tag, [string]$Label, [string]$Icon, [string]$Group, [int]$Size = 16) {
+function Show-AkariSuggestions([string]$Query) {
+    if (-not $Query) { $script:Suggest.IsOpen = $false; return }
+    $hits = Get-AkariSuggestions $Query
+    $outer = [Windows.Controls.Border]::new()
+    $outer.Margin = [Windows.Thickness]::new(16, 12, 16, 24)
+    $b = [Windows.Controls.Border]::new()
+    $b.Width = 360; $b.MaxHeight = 420; $b.Padding = [Windows.Thickness]::new(0, 4, 0, 4)
+    $b.CornerRadius = [Windows.CornerRadius]::new(8); $b.BorderThickness = [Windows.Thickness]::new(1)
+    $b.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, 'S2')
+    $b.SetResourceReference([Windows.Controls.Border]::BorderBrushProperty, 'Fly')
     $sp = [Windows.Controls.StackPanel]::new()
-    $sp.Orientation = 'Horizontal'
-    $ic = New-AkariIcon $Icon $Size 'Inherit'
-    $ic.VerticalAlignment = 'Center'; $ic.Margin = [Windows.Thickness]::new(0, 0, 8, 0)
-    $lb = [Windows.Controls.TextBlock]::new()
-    $lb.Text = $Label; $lb.VerticalAlignment = 'Center'
-    [void]$sp.Children.Add($ic); [void]$sp.Children.Add($lb)
-    $rb = [Windows.Controls.RadioButton]::new()
-    $rb.Content = $sp; $rb.Tag = $Tag; $rb.GroupName = $Group
-    $rb.SetResourceReference([Windows.FrameworkElement]::StyleProperty, $Style)
-    $rb
-}
-
-# six tabs fit the narrow window with these labels (the Tag keeps the page name)
-$AkariTabShort = @{ 'Install AkariOS' = 'Install'; 'Unattend Generator' = 'Unattend'; 'ISO Builder' = 'ISO' }
-# the tabs at $Width: icons from 1440 px, short labels under 1000. Pure.
-function Get-AkariTabLayout([double]$Width) { @{ Icons = ($Width -ge 1440); Short = ($Width -lt 1000) } }
-$script:TabIcons = @(); $script:TabLabels = @()
-foreach ($t in $AkariTabs.Keys) {
-    $rb = New-AkariPill 'Tab' $t $t $AkariTabs[$t] 'tabs'
-    $script:TabIcons += $rb.Content.Children[0]
-    $script:TabLabels += $rb.Content.Children[1]
-    [void]$Tabs.Children.Add($rb)
-}
-# the current tab's tint pill slides from tab to tab (UI\Motion.ps1)
-Enable-AkariPillGroup $Tabs $window.FindName('TabPill')
-# so does Optimize's current Category chip (the row is rebuilt for each Section: the pill jumps there)
-Enable-AkariPillGroup $Chips $window.FindName('ChipPill')
-
-# the Optimize sub-header for the current page: the Section picked, its Categories as chips, the current one checked
-$script:OptSections = $null; $script:ChipSection = ''; $script:BarSync = $false
-function Update-AkariSubNav {
-    if (-not $script:OptSections) {
-        $script:OptSections = @(Get-AkariOptimizeSections)
-        foreach ($s in $script:OptSections) {
-            # a ListBoxItem: a ComboBoxItem in a ListBox ignores clicks
-            $it = [Windows.Controls.ListBoxItem]::new()
-            $it.Content = $s.Header; $it.Tag = $s.Name
-            # Legacy is being retired: a muted pill
-            if ($s.Name -eq 'Legacy') { $it.Opacity = 0.65; $it.ToolTip = 'The old AkariOS-Ultimate pages, being retired as the others take them over' }
-            [void]$Sections.Items.Add($it)
+    $script:SuggestRows = @()
+    foreach ($t in $hits) {
+        $r = [Windows.Controls.Border]::new()
+        $r.Margin = [Windows.Thickness]::new(4, 2, 4, 2); $r.Padding = [Windows.Thickness]::new(12, 8, 12, 8)
+        $r.CornerRadius = [Windows.CornerRadius]::new(4)
+        $r.Background = [Windows.Media.Brushes]::Transparent
+        $r.Tag = $t.Id
+        $dp = [Windows.Controls.DockPanel]::new()
+        $ic = New-AkariIcon (Get-AkariCategoryIcon $t.Category) 16 'Tx'
+        $ic.Margin = [Windows.Thickness]::new(0, 0, 12, 0); $ic.VerticalAlignment = 'Center'
+        [Windows.Controls.DockPanel]::SetDock($ic, 'Left'); [void]$dp.Children.Add($ic)
+        $tx = [Windows.Controls.StackPanel]::new()
+        $nm = [Windows.Controls.TextBlock]::new(); $nm.TextTrimming = 'CharacterEllipsis'
+        foreach ($p in [regex]::Split([string]$t.Name, '(' + [regex]::Escape($Query) + ')', 'IgnoreCase')) {
+            if (-not $p) { continue }
+            $run = [Windows.Documents.Run]::new($p)
+            if ($p -ieq $Query) { $run.FontWeight = 'SemiBold'; $run.SetResourceReference([Windows.Documents.TextElement]::ForegroundProperty, 'AccText') }
+            [void]$nm.Inlines.Add($run)
         }
+        [void]$tx.Children.Add($nm)
+        $hs = if ($AkariCatalogueHeaders.ContainsKey($t.Section)) { $AkariCatalogueHeaders[$t.Section] } else { $t.Section }
+        $where = New-AkariText "$hs $([char]0x203A) $($t.Category)" 12 'Ter'; $where.TextWrapping = 'NoWrap'; $where.TextTrimming = 'CharacterEllipsis'
+        [void]$tx.Children.Add($where)
+        [void]$dp.Children.Add($tx)
+        $r.Child = $dp
+        $r.Add_MouseEnter({ param($s, $e) $s.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, 'Sub') })
+        $r.Add_MouseLeave({ param($s, $e) if ($script:SuggestRows[$script:SuggestHi] -ne $s) { $s.Background = [Windows.Media.Brushes]::Transparent } })
+        $r.Add_MouseLeftButtonUp({ param($s, $e) Open-AkariSuggestion ([string]$s.Tag) })
+        [void]$sp.Children.Add($r)
+        $script:SuggestRows += $r
     }
-    $sec = $script:OptSections | Where-Object { @($_.Pages | ForEach-Object { $_.Key }) -contains $script:Cat } | Select-Object -First 1
-    if (-not $sec) { return }
-    $script:BarSync = $true
-    try {
-        $Sections.SelectedItem = @($Sections.Items | Where-Object { [string]$_.Tag -eq $sec.Name })[0]
-        if ($script:ChipSection -ne $sec.Name) {
-            $script:ChipSection = $sec.Name
-            $Chips.Children.Clear()
-            foreach ($p in $sec.Pages) { [void]$Chips.Children.Add((New-AkariPill 'Chip' $p.Key $p.Label $p.Icon 'chips' 14)) }
-        }
-        foreach ($c in $Chips.Children) { $c.IsChecked = ([string]$c.Tag -eq $script:Cat) }
-    } finally { $script:BarSync = $false }
+    $more = New-AkariText $(if ($hits.Count) { 'Press Enter to see every result' } else { "No Tweaks match `"$Query`"" }) 12 $(if ($hits.Count) { 'AccText' } else { 'Mu' })
+    $more.Margin = [Windows.Thickness]::new(16, 8, 16, 8)
+    [void]$sp.Children.Add($more)
+    $b.Child = [Windows.Controls.ScrollViewer]::new()
+    $b.Child.VerticalScrollBarVisibility = 'Auto'
+    $b.Child.Content = $sp
+    $outer.Child = $b
+    $script:Suggest.Child = $outer
+    $script:SuggestHi = 0
+    Set-AkariSuggestHi 0
+    $script:Suggest.IsOpen = $true
+    Start-AkariMotion $outer Fade 0 1 -Speed Slow
+    Start-AkariMotion $outer SlideY -12 0 -Speed Slow
+}
+function Set-AkariSuggestHi([int]$i) {
+    $rows = @($script:SuggestRows)
+    if (-not $rows.Count) { return }
+    $script:SuggestHi = ($i + $rows.Count) % $rows.Count
+    for ($n = 0; $n -lt $rows.Count; $n++) {
+        if ($n -eq $script:SuggestHi) { $rows[$n].SetResourceReference([Windows.Controls.Border]::BackgroundProperty, 'Sub') } else { $rows[$n].Background = [Windows.Media.Brushes]::Transparent }
+    }
 }
 
-# the top bar for the current page: its tab checked, the sub-header on Optimize's pages, the search placeholder
-function Update-AkariTopBar {
-    $tab = Get-AkariTab $script:Cat
-    $script:BarSync = $true
-    try { foreach ($rb in $Tabs.Children) { $rb.IsChecked = ([string]$rb.Tag -eq $tab) } } finally { $script:BarSync = $false }
-    $opt = ($script:Cat -like "$AkariCataloguePrefix*" -or ($script:Cat -in $AkariLegacyPages -and $script:Cat -ne 'Downloads'))
-    if ($opt) { $script:LastOptimize = $script:Cat; Update-AkariSubNav }
-    $SubNav.Visibility = if ($opt) { 'Visible' } else { 'Collapsed' }
-    $SearchHint.Text = Get-AkariSearchHint $script:Cat
+# a suggestion: its section opens, scrolls to the row and flashes it
+function Open-AkariSuggestion([string]$Id) {
+    $script:Suggest.IsOpen = $false
+    $t = Find-AkariTweak $Id
+    if (-not $t) { return }
+    $script:SearchQuiet = $true; try { $Search.Text = '' } finally { $script:SearchQuiet = $false }
+    Select-AkariPage "$AkariCataloguePrefix$($t.Section)"
+    $script:FlashId = $Id
+    [void]$window.Dispatcher.BeginInvoke([Windows.Threading.DispatcherPriority]::ContextIdle, [Action]{
+        $e = $script:CatCards[$script:FlashId]
+        if (-not $e -or -not $e.Card.IsVisible) { return }
+        $p = $e.Card.TranslatePoint([Windows.Point]::new(0, 0), $PageScroll)
+        Start-AkariScrollTo $PageScroll ($PageScroll.VerticalOffset + $p.Y - ($PageScroll.ActualHeight - $e.Card.ActualHeight) / 2)
+        # the flash: the card dims and comes back twice (the prototype's highlight)
+        Start-AkariFlash $e.Card
+    })
 }
 
-# opens page $Name ($From = the page left); an apps flow remembers where it was opened from; 'Optimize' = its tab's page
-function Open-AkariPage([string]$Name, [string]$From) {
-    if ($Name -eq 'Optimize') { $Name = Get-AkariOptimizeTarget }
-    if ($AkariAppFlows.Contains($Name) -and $From -ne $Name) { Set-AkariFlowExit $From }
-    $script:Cat = $Name
-    # cleared quietly: the page is built once, below
-    if ($Search.Text) { $script:SearchQuiet = $true; try { $Search.Text = '' } finally { $script:SearchQuiet = $false } }
+# Enter: the results page for the text
+function Open-AkariSearch([string]$Query) {
+    $script:Suggest.IsOpen = $false
+    if (-not $Query) { return }
+    Push-AkariHistory
+    $script:Cat = 'Search'; $script:Query = $Query
     Show-Page
 }
 
-# any page, from a tab, a chip, a tile or a button
-function Select-AkariPage([string]$Name) { Open-AkariPage $Name $script:Cat }
-
-$Tabs.AddHandler([Windows.Controls.Primitives.ToggleButton]::CheckedEvent, [Windows.RoutedEventHandler] {
-    param($s, $ev)
-    if (-not $script:BarSync) { Select-AkariPage ([string]$ev.OriginalSource.Tag) }
-})
-$Chips.AddHandler([Windows.Controls.Primitives.ToggleButton]::CheckedEvent, [Windows.RoutedEventHandler] {
-    param($s, $ev)
-    if (-not $script:BarSync) { Select-AkariPage ([string]$ev.OriginalSource.Tag) }
-})
-# a Section opens its first Category
-$Sections.Add_SelectionChanged({
-    if ($script:BarSync -or -not $Sections.SelectedItem) { return }
-    $s = $script:OptSections | Where-Object { $_.Name -eq [string]$Sections.SelectedItem.Tag } | Select-Object -First 1
-    if ($s -and $s.Pages) { Select-AkariPage $s.Pages[0].Key }
-})
-$RemoveApps.Add_Click({ Select-AkariPage 'Remove apps' })
-# the search waits for a pause in typing ($AkariSearchDelay ms, 0 = every key; tests set 0: no dispatcher runs there) so
-# a word builds the results once, not once per letter; clearing it shows the page at once
-if ($null -eq $AkariSearchDelay) { $AkariSearchDelay = 250 }
-$script:SearchTimer = [Windows.Threading.DispatcherTimer]::new()
-$script:SearchTimer.Interval = [TimeSpan]::FromMilliseconds([Math]::Max(1, $AkariSearchDelay))
-$script:SearchTimer.Add_Tick({ $script:SearchTimer.Stop(); Show-Page })
+if ($null -eq $AkariSearchDelay) { $AkariSearchDelay = 0 }
 $Search.Add_TextChanged({
-    $script:SearchTimer.Stop()
     if ($script:SearchQuiet) { return }
-    if ($AkariSearchDelay -le 0 -or -not $Search.Text.Trim()) { Show-Page } else { $script:SearchTimer.Start() }
+    Hide-AkariSearchTip
+    Show-AkariSuggestions $Search.Text.Trim()
 })
-
-# narrow window: the top bar needs about 1300 px with the tab icons and the search box, about 980 with neither,
-# and 880 without the wordmark too. Under 1320 px the search is an icon button that opens the box and the tabs show
-# text only; under 1000 the wordmark goes. Ctrl+K opens and focuses the search at any width.
-$script:Narrow = $false
-function Set-AkariSearchOpen([bool]$Open) {
-    $show = $Open -or -not $script:Narrow
-    $SearchBox.Visibility = if ($show) { 'Visible' } else { 'Collapsed' }
-    $SearchBtn.Visibility = if ($show) { 'Collapsed' } else { 'Visible' }
-}
-function Open-AkariSearch {
-    Set-AkariSearchOpen $true
-    $window.UpdateLayout()
+$Search.Add_PreviewKeyDown({
+    param($s, $e)
+    switch ($e.Key) {
+        'Down' { Set-AkariSuggestHi ($script:SuggestHi + 1); $e.Handled = $true }
+        'Up' { Set-AkariSuggestHi ($script:SuggestHi - 1); $e.Handled = $true }
+        'Return' { Open-AkariSearch $Search.Text.Trim(); $e.Handled = $true }
+        'Escape' { $script:SearchQuiet = $true; try { $Search.Text = '' } finally { $script:SearchQuiet = $false }; $script:Suggest.IsOpen = $false; [void]$PageScroll.Focus(); $e.Handled = $true }
+    }
+})
+$Search.Add_GotKeyboardFocus({ $SearchKey.Visibility = 'Collapsed' })
+$Search.Add_LostKeyboardFocus({ $SearchKey.Visibility = 'Visible' })
+function Enter-AkariSearch {
+    if ($script:Compact) { $script:UserCompact = $false; Set-AkariCompact $false }
     [void]$Search.Focus()
     $Search.SelectAll()
 }
-# Home's five mode cards: all in a row, three under 1320 px, two under 1000. Pure.
-function Get-AkariHomeColumns([double]$Width) { if ($Width -lt 1000) { 2 } elseif ($Width -lt 1320) { 3 } else { 5 } }
-function Update-AkariWidth([double]$Width) {
-    $script:Narrow = ($Width -lt 1320)
-    $TitleText.Visibility = if ($Width -lt 1000) { 'Collapsed' } else { 'Visible' }
-    $tl = Get-AkariTabLayout $Width
-    foreach ($i in $script:TabIcons) { $i.Visibility = if ($tl.Icons) { 'Visible' } else { 'Collapsed' } }
-    foreach ($l in $script:TabLabels) { $tag = $l.Parent.Parent.Tag; $l.Text = if ($tl.Short -and $AkariTabShort.ContainsKey($tag)) { $AkariTabShort[$tag] } else { $tag } }
-    $HomeTiles.Columns = Get-AkariHomeColumns $Width
-    Set-AkariSearchOpen ([bool]$Search.Text -or $Search.IsKeyboardFocusWithin)
-}
-$window.Add_SizeChanged({ Update-AkariWidth $window.ActualWidth })
-$SearchBtn.Add_Click({ Open-AkariSearch })
-$Search.Add_LostKeyboardFocus({ if (-not $Search.Text) { Set-AkariSearchOpen $false } })
 $window.Add_PreviewKeyDown({
     param($s, $e)
-    if ($e.Key -eq 'K' -and [Windows.Input.Keyboard]::Modifiers -eq 'Control') { Open-AkariSearch; $e.Handled = $true }
+    $ctrl = [Windows.Input.Keyboard]::Modifiers -eq 'Control'
+    if ($ctrl -and $e.Key -in 'F', 'E') { Enter-AkariSearch; $e.Handled = $true }
+    if ([Windows.Input.Keyboard]::Modifiers -eq 'Alt' -and $e.SystemKey -eq 'Left') { Step-AkariHistoryBack; $e.Handled = $true }
 })
 
-# ---- Home: the hero (One-click, or Guided from its first step) and its stats
-$HeroOver.Text = "AKARIOS $AkariVersion"
-$HeroOneClick.Add_Click({ Start-AkariOneClick })
-$HeroChoose.Add_Click({
-    Select-AkariPage 'Install AkariOS'
-    $script:Mode = 'Guided'; $script:Step = 0
-    Show-AkariSteps
-})
-
-# a stat: a big number over its label, a rule between stats; the numbers are in $script:HomeStat
-$script:HomeStat = @{}
-foreach ($s in @(@('Tweaks', 'Tweaks'), @('Apps', 'Removable apps'), @('Applied', 'Changes applied'))) {
-    if ($HeroStats.Children.Count) {
-        $r = [Windows.Controls.Border]::new()
-        $r.Width = 1; $r.Margin = [Windows.Thickness]::new(28, 6, 28, 6)
-        $r.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, 'Bd')
-        [void]$HeroStats.Children.Add($r)
-    }
+# the first run: a TeachingTip next to the search box ("Search every Tweak", Ctrl+F), gone on Got it or any click
+$script:SearchTip = $null
+function Show-AkariSearchTip {
+    if ([string](Read-AkariSettings).SearchTip -eq 'Seen' -or $script:Compact) { return }
+    $n = @((Get-AkariCatalogueOf $script:Tweaks).Tweaks).Count
+    $p = [Windows.Controls.Primitives.Popup]::new()
+    $p.AllowsTransparency = $true; $p.PlacementTarget = $SearchBox; $p.Placement = 'Right'; $p.HorizontalOffset = 0; $p.VerticalOffset = -20
+    $b = [Windows.Controls.Border]::new()
+    $b.Width = 300; $b.Padding = [Windows.Thickness]::new(16); $b.Margin = [Windows.Thickness]::new(14, 12, 16, 24)
+    $b.CornerRadius = [Windows.CornerRadius]::new(8); $b.BorderThickness = [Windows.Thickness]::new(1)
+    $b.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, 'S2')
+    $b.SetResourceReference([Windows.Controls.Border]::BorderBrushProperty, 'Fly')
     $sp = [Windows.Controls.StackPanel]::new()
-    $n = [Windows.Controls.TextBlock]::new()
-    $n.Text = [string][char]0x2014; $n.FontSize = 28; $n.FontWeight = 'SemiBold'
-    Set-AkariFont $n 'Display'
-    $l = [Windows.Controls.TextBlock]::new()
-    $l.Text = $s[1]; $l.FontSize = 13
-    $l.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, 'Mu')
-    [void]$sp.Children.Add($n); [void]$sp.Children.Add($l)
-    [void]$HeroStats.Children.Add($sp)
-    $script:HomeStat[$s[0]] = $n
+    $t = New-AkariText 'Search every Tweak' 14 'Tx' 'SemiBold'; $t.Margin = [Windows.Thickness]::new(0, 0, 0, 4)
+    [void]$sp.Children.Add($t)
+    [void]$sp.Children.Add((New-AkariText "$n Tweaks across Optimize, Customize, Hardware, Advanced and Tools. Press Ctrl+F from anywhere." 12 'Mu'))
+    $ok = [Windows.Controls.Button]::new()
+    $ok.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Accent')
+    $ok.MinWidth = 0; $ok.Content = 'Got it'; $ok.HorizontalAlignment = 'Right'; $ok.Margin = [Windows.Thickness]::new(0, 12, 0, 0)
+    $ok.Add_Click({ Hide-AkariSearchTip })
+    [void]$sp.Children.Add($ok)
+    $b.Child = $sp
+    $p.Child = $b
+    $script:SearchTip = $p
+    $p.IsOpen = $true
+    Start-AkariMotion $b Fade 0 1 -Speed Slow
+    Start-AkariMotion $b SlideY -12 0 -Speed Slow
 }
-
-# $Stats: @{ Tweaks; Apps; Applied }, each a count or $null (a dash: not read)
-function Set-AkariHomeStats($Stats) {
-    foreach ($k in @($Stats.Keys)) {
-        # a number counts up to its value (Start-AkariCount); unread = a dash
-        if (-not $script:HomeStat[$k]) { continue }
-        if ($null -eq $Stats[$k]) { $script:HomeStat[$k].Text = [string][char]0x2014 } else { Start-AkariCount $script:HomeStat[$k] ([int]$Stats[$k]) }
-    }
+function Hide-AkariSearchTip {
+    if (-not $script:SearchTip) { return }
+    $script:SearchTip.IsOpen = $false
+    $script:SearchTip = $null
+    Save-AkariSetting 'SearchTip' 'Seen'
 }
-
-# the stats, read once and again after a change: Tweaks = the Catalogue's; removable apps = the Store apps on the PC
-# outside the keep-list; changes applied = what Export would save (Get-AkariExportItems), read in a runspace
-$script:StatsJob = $null; $script:StatsFresh = $false
-function Start-AkariHomeStats {
-    if ($script:StatsJob -or $script:StatsFresh) { return }
-    $script:StatsFresh = $true
-    $cat = @((Get-AkariCatalogueOf $script:Tweaks).Tweaks)
-    Set-AkariHomeStats @{ Tweaks = $cat.Count }
-    $q = { param($s) "'" + ([string]$s -replace "'", "''") + "'" }
-    # the files the job needs, not the whole loader again (a script block must not cross runspaces): the Groups, and the
-    # Tweaks Export saves (= the Catalogue's Toggles and Choices outside Tools, Get-AkariExportTweaks)
-    $shared = [hashtable]::Synchronized(@{
-        Groups  = @($script:Groups | ForEach-Object { $_.Source } | Select-Object -Unique)
-        Sources = @($cat | Where-Object { $_.Kind -in 'Toggle', 'Choice' -and $_.Section -ne 'Tools' } | ForEach-Object { $_.Source })
-    })
-    # its log stays quiet, and it runs below normal priority: a minute of reads that must not slow the window
-    $code = @"
-[Threading.Thread]::CurrentThread.Priority = 'BelowNormal'
-`$root = $(& $q "$Root\Tweaks")
-`$groups = @(foreach (`$s in `$AkariShared.Groups) { try { Import-AkariTweakFile -Path `$s -TweaksRoot `$root } catch { } })
-try { `$AkariShared.Apps = @(Get-AkariAppxInstalled | Where-Object { `$e = Resolve-AkariEntry `$groups "appx/`$_"; `$e -and -not `$e.Keep }).Count } catch { }
-`$tweaks = @(foreach (`$s in `$AkariShared.Sources) { try { Import-AkariTweakFile -Path `$s -TweaksRoot `$root } catch { } })
-try { `$AkariShared.Applied = @(Get-AkariExportItems `$tweaks).Count } catch { }
-"@
-    $job = Start-AkariJob $code ([System.Collections.Concurrent.ConcurrentQueue[string]]::new()) "$Root\Core" $shared
-    $script:StatsJob = $job
-    $tm = [Windows.Threading.DispatcherTimer]::new()
-    $tm.Interval = [TimeSpan]::FromMilliseconds(300)
-    $tm.Tag = $job
-    $tm.Add_Tick({
-        param($s, $a)
-        $j = $s.Tag
-        # each stat as soon as it is read (the apps take seconds, the States about a minute)
-        Complete-AkariHomeStats $j.Shared
-        if (-not $j.Handle.IsCompleted) { return }
-        $s.Stop()
-        try { [void]$j.Ps.EndInvoke($j.Handle) } catch { Write-ErrLog "Home stats: $_" }
-        $j.Ps.Dispose(); $j.Rs.Dispose()
-        $script:StatsJob = $null
-        Complete-AkariHomeStats $j.Shared
-    })
-    $tm.Start()
-}
-function Complete-AkariHomeStats($Shared) { Set-AkariHomeStats @{ Apps = $Shared.Apps; Applied = $Shared.Applied } }
-
-# ---- Home: the mode cards under the hero: Optimize, Downloads, Unattend Generator, ISO Builder, Import / Export
-$tile = New-AkariModeCard 'sliders-horizontal' 'Optimize' 'Manual, in-depth optimization for Windows. Recommended for power users.' $true
-# the Optimize tab's page
-$tile.Add_Click({ Select-AkariPage 'Optimize' })
-[void]$HomeTiles.Children.Add($tile)
-# Downloads: the Guided Install cards on their own
-$tile = New-AkariModeCard 'download' 'Downloads' 'Install apps, game launchers, runtimes and tools, or bring back Store apps the debloat removed.' $true
-$tile.Add_Click({ Select-AkariPage 'Downloads' })
-[void]$HomeTiles.Children.Add($tile)
-# Unattend Generator: Schneegans' unattend generator, an autounattend.xml for a Windows install USB (UI\Unattend.ps1)
-$tile = New-AkariModeCard 'usb' 'Unattend Generator' 'Prepare a Windows install USB: an autounattend.xml with accounts, language, edition, disk and setup choices, after Schneegans'' generator.' $true
-$tile.Add_Click({ Select-AkariPage 'Unattend Generator' })
-[void]$HomeTiles.Children.Add($tile)
-# ISO Builder: a custom Windows 11 ISO, after zISO Tweaker (UI\IsoBuilder.ps1)
-$tile = New-AkariModeCard 'disc-3' 'ISO Builder' 'Build your own Windows 11 ISO: apps removed, updates, Defender and AI your way, AkariOS on the desktop. Downloads the ISO too.' $true
-$tile.Add_Click({ Select-AkariPage 'ISO Builder' })
-[void]$HomeTiles.Children.Add($tile)
-$tile = New-AkariModeCard 'arrow-left-right' 'Import / Export settings' 'Save this PC''s settings to a file, or load them on another PC and review them in Guided.' $true
-$tile.Add_Click({ Show-AkariImportExport })
-[void]$HomeTiles.Children.Add($tile)
-# 16 px between cards in any number of columns: 8 around each, the grid pulled out by 8
-foreach ($t in $HomeTiles.Children) { $t.Margin = [Windows.Thickness]::new(8) }
-$HomeTiles.Margin = [Windows.Thickness]::new(-8)
+$window.Add_PreviewMouseDown({ param($s, $e) if ($script:SearchTip -and -not $script:SearchTip.IsMouseOver) { Hide-AkariSearchTip } })
 
 # ---- go
 $window.Add_Loaded({
     # a debug run ($env:AKARI_UI_TIMING): launch time and UI-thread stalls to akari.log (UI\Motion.ps1)
     Start-AkariStallWatch { $script:Cat }
-    Select-AkariPage $script:Cat
+    Update-AkariWidth $window.ActualWidth
+    Show-Page
     Write-AkariProblems $loaded.Problems { param($m) Add-Log $m }
     Add-Log 'Ready.'
     $script:Busy = $false
+    # the first-run tip, once the page is in
+    $tt = [Windows.Threading.DispatcherTimer]::new()
+    $tt.Interval = [TimeSpan]::FromMilliseconds(1400)
+    $tt.Add_Tick({ param($s, $e) $s.Stop(); if ($script:Cat -eq 'Home') { Show-AkariSearchTip } })
+    $tt.Start()
 })
 # errors inside button handlers: show them in the console (and akari.log) instead of losing them
 $window.Dispatcher.Add_UnhandledException({

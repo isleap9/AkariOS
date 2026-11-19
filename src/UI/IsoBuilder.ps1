@@ -1,8 +1,8 @@
 # ISO Builder (its tab and Home tile; plan docs/plans/2026-10-31-iso-builder.md): a custom Windows 11 ISO, after
 # zoicware's zISO Tweaker. One long page in zISO's order: 1 the ISO (a file, UUP Dump, Massgrave), 2 the edition,
 # 3 the answer file, 4 Windows Update, 5 security and privacy, 6 apps, 7 AkariOS, then Build. Every slow step runs in
-# the background job (Kind Iso*, Complete-AkariIsoJob). Back leads Home. Built once per session. Needs UI\Steps.ps1
-# (New-AkariText, Set-AkariStepHeader) and UI\Unattend.ps1 (Get-AkariUnattendStart, the generator's page).
+# the background job (Kind Iso*, Complete-AkariIsoJob). Built once per session. Needs UI\Cards.ps1 (New-AkariText),
+# UI\Pages.ps1 (New-AkariLead) and UI\Unattend.ps1 (Get-AkariUnattendStart, the generator's page).
 
 $AkariIsoSub = 'A custom Windows 11 ISO: apps removed and settings written in before it installs, after zISO Tweaker'
 $AkariIsoGroupTitles = [ordered]@{ Update = '4  Windows Update'; Security = '5  Security and privacy'; Apps = '6  Apps' }
@@ -98,13 +98,13 @@ function New-AkariIsoRadio([string]$Group, [string]$Text) {
 function New-AkariIsoCard([string]$Title, [string]$Sub = '') {
     $card = [Windows.Controls.Border]::new()
     $card.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
-    $card.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
+    $card.Margin = [Windows.Thickness]::new(0, 0, 0, 8)
+    $card.Padding = [Windows.Thickness]::new(16)
     $sp = [Windows.Controls.StackPanel]::new()
-    $h = New-AkariText $Title 20
-    $h.FontWeight = 'SemiBold'; $h.Margin = [Windows.Thickness]::new(0, 0, 0, 4)
-    Set-AkariFont $h 'Display'
+    $h = New-AkariText $Title 14 'Tx' 'SemiBold'
+    $h.Margin = [Windows.Thickness]::new(0, 0, 0, 2)
     [void]$sp.Children.Add($h)
-    if ($Sub) { $s = New-AkariText $Sub 13 'Mu'; $s.Margin = [Windows.Thickness]::new(0, 0, 0, 8); [void]$sp.Children.Add($s) }
+    if ($Sub) { $s = New-AkariText $Sub 12 'Mu'; $s.Margin = [Windows.Thickness]::new(0, 0, 0, 8); [void]$sp.Children.Add($s) }
     $card.Child = $sp
     @{ Card = $card; Panel = $sp }
 }
@@ -208,7 +208,7 @@ function Get-AkariIsoView {
     $c = New-AkariIsoCard '3  Answer file' 'autounattend.xml at the root of the ISO: Windows setup reads it by itself.'
     $p.AnsNone = New-AkariIsoRadio 'iso-ans' 'None: setup asks everything as usual'
     $p.AnsLocal = New-AkariIsoRadio 'iso-ans' 'A local account (this PC''s language, keyboard and time zone; setup still asks for the disk)'
-    $p.AnsGen = New-AkariIsoRadio 'iso-ans' 'The Unattend Generator''s choices'
+    $p.AnsGen = New-AkariIsoRadio 'iso-ans' 'Install USB''s choices'
     $p.AnsLocal.IsChecked = $true
     [void]$c.Panel.Children.Add($p.AnsNone); [void]$c.Panel.Children.Add($p.AnsLocal)
     $b = New-AkariIsoBranch $p.AnsLocal
@@ -225,7 +225,7 @@ function Get-AkariIsoView {
     [void]$b.Children.Add($acct); [void]$c.Panel.Children.Add($b)
     [void]$c.Panel.Children.Add($p.AnsGen)
     $b = New-AkariIsoBranch $p.AnsGen; $r = New-AkariIsoRow
-    [void]$r.Children.Add((New-AkariIsoButton 'Open the Unattend Generator' 'Btn' { Select-AkariPage 'Unattend Generator' }))
+    [void]$r.Children.Add((New-AkariIsoButton 'Open Install USB' 'Btn' { Select-AkariPage 'Install USB' }))
     [void]$b.Children.Add($r); [void]$c.Panel.Children.Add($b)
     [void]$stack.Children.Add($c.Card)
 
@@ -294,13 +294,10 @@ function Get-AkariIsoView {
 }
 
 function Show-AkariIsoBuilder {
-    $StepDots.Children.Clear()
-    Set-AkariStepHeader 'ISO Builder' $AkariIsoSub
-    $StepBack.Visibility = 'Visible'
-    $StepNext.Visibility = 'Collapsed'
+    Set-AkariHeader @('ISO Builder')
+    [void]$StepBody.Children.Add((New-AkariLead $AkariIsoSub))
     $view = Get-AkariIsoView
     if ($view.Parent) { $view.Parent.Children.Remove($view) }
-    $StepBody.Children.Clear()
     [void]$StepBody.Children.Add($view)
 }
 
@@ -371,7 +368,7 @@ function Start-AkariIsoBuild {
             [void](Get-AkariUnattendView)
             if (-not (Confirm-AkariUnattendWipe)) { return }
             $answer = Get-AkariUnattendBytes
-            if (-not $answer) { $p.Error.Text = 'The Unattend Generator''s choices have a problem: open it to see what.'; return }
+            if (-not $answer) { $p.Error.Text = 'Install USB''s choices have a problem: open it to see what.'; return }
         }
     } catch { $p.Error.Text = "The answer file could not be made: $($_.Exception.Message)"; return }
     $sel = { param($k) @(if ($p.Lists[$k]) { $p.Lists[$k].Children | Where-Object { $_.IsChecked } | ForEach-Object { [string]$_.Tag } }) }

@@ -80,10 +80,11 @@ public static partial class Program
         Look.Motion.HookSegmentPills();
         foreach (var d in AkariXaml.SharedResources("Dark", motion))
             app.Resources.MergedDictionaries.Add(d);
-        // System follows the real user's app mode, the accent is the real user's (rule 6: their hive, not the elevated account's)
+        Look.Assets.AddFonts(app.Resources);
+        // System follows the real user's app mode (rule 6: their hive, not the elevated account's)
         var theme = new Look.ThemeService(app.Resources, new Look.SettingsFile(Path.Combine(AkariPaths.UserFolder, "settings.json")),
             () => engine.Registry.GetValue(@"HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "AppsUseLightTheme") is uint v ? (int)v : null,
-            motion, () => engine.Registry.GetValue(Look.Accent.Key, Look.Accent.Value) as byte[]);
+            motion);
         theme.Apply(theme.Saved());
         var shell = new Shell.ShellViewModel(AkariInfo.Version, Core.Tweaks.Catalogue.Pages(Core.Tweaks.Catalogue.Tweaks(engine.Loaded.Tweaks, engine.System)));
         var services = new Shell.AppServices { Engine = engine, Shell = shell, Theme = theme, Open = new Shell.ShellOpen(), Log = appLog, Picker = new Shell.FilePicker(),

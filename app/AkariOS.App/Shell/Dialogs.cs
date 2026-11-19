@@ -8,7 +8,7 @@ using AkariOS.Core;
 
 namespace AkariOS.App.Shell;
 
-/// <summary>A dialog's icon (a Fluent name), its colour and its blob's fill: Info, Question, Warning, Error, None.</summary>
+/// <summary>A dialog's icon (a Lucide name), its colour and its blob's fill: Info, Question, Warning, Error, None.</summary>
 public sealed record DialogIcon(string Glyph, string Brush, string Fill)
 {
     public static IReadOnlyDictionary<string, DialogIcon> All { get; } = new Dictionary<string, DialogIcon>
@@ -22,7 +22,7 @@ public sealed record DialogIcon(string Glyph, string Brush, string Fill)
 
 /// <summary>
 /// Akari's dialogs (src/UI/Dialog.ps1), from the shared src/UI/Dialog.xaml as it is: a dark card over the dimmed
-/// window, an icon blob beside the Display title, buttons that say what they do, the last one the accent main
+/// window, an icon blob beside the Unbounded title, buttons that say what they do, the last one the crimson main
 /// action (Enter), the first one Esc. Windows' message box only if Akari's can't open (the crash box stays native).
 /// </summary>
 public sealed class Dialogs(Func<ResourceDictionary> resources, IAkariLog log)
@@ -53,7 +53,7 @@ public sealed class Dialogs(Func<ResourceDictionary> resources, IAkariLog log)
         {
             var p = (Path)d.FindName("DlgIconPath");
             p.SetResourceReference(Path.DataProperty, $"Ic.{i.Glyph}");
-            p.SetResourceReference(Shape.FillProperty, i.Brush);
+            p.SetResourceReference(Shape.StrokeProperty, i.Brush);
             blob.SetResourceReference(Border.BackgroundProperty, i.Fill);
             blob.Tag = i.Glyph;
         }

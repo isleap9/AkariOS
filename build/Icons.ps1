@@ -1,7 +1,7 @@
 # Builds src/UI/Icons.xaml from Fluent System Icons (Microsoft, MIT, https://github.com/microsoft/fluentui-system-icons):
 # one StreamGeometry per icon AkariOS uses, keyed Ic.<name> (the names the UI used with Lucide, so no call site changes),
 # plus Ic.<name>.Filled for the icons in $Filled. Dev-only; run it again after changing $Icons or $Filled. The plan
-# (docs/plans/2026-11-17-windows-11-style.md, batch 3) has the mapping and the why.
+# (docs/plans/2026-11-19-winui-3.md, batch 3, and the prototype docs/design/akarios-prototype.html) has the mapping and the why.
 #   1. download @fluentui/svg-icons 1.1.344 (npm: https://registry.npmjs.org/@fluentui/svg-icons/-/svg-icons-1.1.344.tgz)
 #   2. unpack it (tar -xzf), then:  powershell -File build\Icons.ps1 -Package <folder>\package
 # Each icon is the 20px size (a 20 x 20 viewBox) of its regular or filled style: plain filled paths, drawn with Fill
@@ -38,9 +38,16 @@ $Icons = [ordered]@{
     # the title bar menu (About's cards from batch 5); github: Fluent has no brand icons, code stands in
     'file-input' = 'arrow_import'; 'file-output' = 'arrow_export_ltr'; 'sun-moon' = 'dark_theme'; 'github' = 'code'
     'bug' = 'bug'; 'message-circle' = 'chat'; 'external-link' = 'open'; 'folder-open' = 'folder_open'
+    # the prototype's (docs/design/akarios-prototype.html): sections, categories, pages, marks, toasts
+    'chevron-right' = 'chevron_right'; 'wand' = 'wand'; 'broom' = 'broom'; 'toolbox' = 'toolbox'; 'paint-brush' = 'paint_brush'
+    'eye-off' = 'eye_off'; 'globe' = 'globe'; 'keyboard' = 'keyboard'; 'apps' = 'apps'; 'list-bullet' = 'text_bullet_list'
+    'calendar' = 'calendar'; 'arrow-reset' = 'arrow_reset'; 'rocket' = 'rocket'; 'sparkle' = 'sparkle'; 'people' = 'people'
+    'arrow-clockwise' = 'arrow_clockwise'; 'error-circle' = 'error_circle'; 'document' = 'document'; 'box' = 'box'
+    'add' = 'add'; 'code' = 'code'
 }
-# Ic.<key>.Filled too: the navigation pages (the selected item), the InfoBar severities, the check box tick
-$Filled = @('house', 'zap', 'sliders-horizontal', 'download', 'trash-2', 'usb', 'info', 'triangle-alert', 'circle-x', 'circle-check', 'check')
+# Ic.<key>.Filled too: the navigation pages and Optimize's sections (the selected item), the InfoBar severities
+$Filled = @('house', 'zap', 'sliders-horizontal', 'download', 'trash-2', 'usb', 'disc-3', 'settings', 'gauge', 'paint-brush', 'cpu', 'shield',
+    'toolbox', 'info', 'triangle-alert', 'error-circle', 'circle-x', 'circle-check')
 
 $num = '[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?'
 function F([double]$v) { $v.ToString('0.###', [Globalization.CultureInfo]::InvariantCulture) }

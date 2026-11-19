@@ -1,676 +1,246 @@
-<!-- AkariOS controls, Windows 11 (WinUI) metrics (plan docs/plans/2026-11-17-windows-11-style.md, ADR 0008): toggle
-     switches, check boxes, radio buttons, the combobox, the accent button, setting / category / mode cards and step
-     numbers, and the fonts. Theme brushes only (DynamicResource, UI\Theme.Dark.xaml / Theme.Light.xaml); the focus
-     rings (FocusRing, FocusBox) and the window's own styles are in UI\MainWindow.xaml. Merged into the window's
-     resources by UI\Shell.ps1 (through Get-AkariXaml, which adds the Motion tokens).
-     Corners: 4 px (controls, cards, rows), 8 px (flyouts, tiles), full only for toggles and radios (a test).
+<!-- AkariOS controls, WinUI 3 metrics (plan docs/plans/2026-11-19-winui-3.md decisions 7-9; the prototype
+     docs/design/akarios-prototype.html's .tog, .chk, .rad, .combo, .flyout, .card, .exp, .tile, .selbar, .btn.acc).
+     Theme brushes only (DynamicResource, UI\Theme.Dark.xaml / Theme.Light.xaml); the focus rings and the window's own
+     styles (buttons, text box, menus, scroll bar, tooltip) are in UI\MainWindow.xaml. Merged into the window's
+     resources by UI\Shell.ps1 through Get-AkariXaml, which adds the Motion tokens.
      Motion (UI\Motion.xaml): a state's colour is a layer whose Opacity fades (brushes are shared and never animated),
-     sizes and positions are transforms; each animated value belongs to one trigger, so triggers never fight over it
-     (the switch thumb has one transform per trigger: size (unused), hover, press, middle, on). A trigger true when the
-     control loads plays its animation then (a switch already on slides into place). No overshoot (Motion.Ease only).
-     Retired for the PowerShell UI: Segmented / SegItem (only Optimize's Sections row until batch 5's navigation pane;
-     every Choice and filter is a Combo) and ModeCardHot; the native app keeps them until its views move over (batch 7).
-     A test checks the PowerShell code names none of them. -->
+     sizes and positions are transforms, every key frame a KeySpline (Motion.Ease in, Motion.Exit out). Each animated
+     value belongs to one trigger. Generated once from the prototype's CSS; edit it here. -->
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-  <!-- Fonts (ADR 0008): Windows' own Segoe UI Variable (Segoe UI on Windows 10), nothing shipped. The Windows 11 type
-       ramp: Display = Title Large 40/52, Title 28/36, Subtitle 20/28 (SemiBold); Text = Body Large 18/24, Body Strong
-       14/20 (SemiBold), Body 14/20 (Normal); Small = Caption 12/16; Mono = ids and the version. -->
+  <!-- Type: Windows' own (plan decision 3). Segoe UI Variable on Windows 11, Segoe UI on Windows 10. The ramp: Title 28/36,
+       Subtitle 20/28 (Display, SemiBold), Body 14/20, Body Strong 14/20 SemiBold, Caption 12/16 (Small). -->
   <FontFamily x:Key="FontDisplay">Segoe UI Variable Display, Segoe UI</FontFamily>
   <FontFamily x:Key="FontText">Segoe UI Variable Text, Segoe UI</FontFamily>
   <FontFamily x:Key="FontSmall">Segoe UI Variable Small, Segoe UI</FontFamily>
   <FontFamily x:Key="FontMono">Cascadia Mono, Consolas</FontFamily>
 
-  <!-- Toggle switch (WinUI ToggleSwitch): the "Off" / "On" / "Unchanged" label on its left, then a 40 x 20 track:
-       off = a 1 px Line outline on Ctl with a Line thumb, on = Acc with an AccT thumb. The thumb is 12 px, 14 on hover,
-       stretched while pressed. Three-state (IsThreeState) for a Tweak whose State is Unknown or Custom: null = no
-       change, thumb in the middle, dashed outline. Thumb transforms: [0] size (kept at 1), [1] hover, [2] press
-       stretch, [3] middle (+10 px, Unchanged), [4] on (+20 px). -->
+  <!-- ToggleSwitch (WinUI): "Off" / "On" / "Unchanged" on its left, a 40 x 20 track with a 1 px Line stroke and a 12 px thumb; on = Acc track and an AccT thumb sliding 20 px (Motion.Base); hover: the thumb grows to 14 px, pressed it stretches to 17 px (Motion.Fast). Null (IsThreeState, a mixed State): the thumb in the middle, "Unchanged". -->
   <Style x:Key="Switch" TargetType="ToggleButton">
     <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
-    <Setter Property="Cursor" Value="Hand"/>
-    <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusRing}"/>
+    <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusPill}"/>
+    <Setter Property="IsThreeState" Value="False"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="ToggleButton">
           <StackPanel Orientation="Horizontal" Background="Transparent">
-            <TextBlock x:Name="L" Text="Off" Width="88" TextAlignment="Right" Margin="0,0,12,0" VerticalAlignment="Center"
-                       Foreground="{TemplateBinding Foreground}"/>
+            <TextBlock x:Name="L" Text="Off" MinWidth="22" TextAlignment="Right" Margin="0,0,12,1" VerticalAlignment="Center" Foreground="{DynamicResource Mu}"/>
             <Grid Width="40" Height="20" VerticalAlignment="Center">
-              <Rectangle x:Name="Track" RadiusX="10" RadiusY="10" StrokeThickness="1" Stroke="{DynamicResource Line}" Fill="{DynamicResource Ctl}"/>
-              <Rectangle x:Name="Hover" Margin="1" RadiusX="9" RadiusY="9" Fill="{DynamicResource CtlH}" Opacity="0"/>
-              <Rectangle x:Name="On" RadiusX="10" RadiusY="10" Fill="{DynamicResource Acc}" Opacity="0"/>
-              <Grid x:Name="Thumb" Width="12" Height="12" Margin="4,0" HorizontalAlignment="Left" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
-                <Grid.RenderTransform>
-                  <TransformGroup>
-                    <ScaleTransform/>
-                    <ScaleTransform/>
-                    <ScaleTransform/>
-                    <TranslateTransform/>
-                    <TranslateTransform/>
-                  </TransformGroup>
-                </Grid.RenderTransform>
-                <Ellipse Fill="{DynamicResource Line}"/>
-                <Ellipse x:Name="ThumbOn" Fill="{DynamicResource AccT}" Opacity="0"/>
+              <Border CornerRadius="10" Background="{DynamicResource Ctl}" BorderBrush="{DynamicResource Line}" BorderThickness="1"/>
+              <Border x:Name="H" CornerRadius="10" Margin="1" Background="{DynamicResource CtlH}" Opacity="0"/>
+              <Border x:Name="On" CornerRadius="10" Background="{DynamicResource Acc}" Opacity="0"/>
+              <Border x:Name="OnH" CornerRadius="10" Background="{DynamicResource AccH}" Opacity="0"/>
+              <Grid x:Name="Thumb" Width="12" Height="12" HorizontalAlignment="Left" Margin="3,0,0,0" RenderTransformOrigin="0.5,0.5">
+                <Grid.RenderTransform><TransformGroup><ScaleTransform/><ScaleTransform/><TranslateTransform/></TransformGroup></Grid.RenderTransform>
+                <Border CornerRadius="6" Background="{DynamicResource Line}"/>
+                <Border x:Name="ThumbOn" CornerRadius="6" Background="{DynamicResource AccT}" Opacity="0"/>
               </Grid>
             </Grid>
           </StackPanel>
           <ControlTemplate.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-              <Trigger.EnterActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleX)" To="1.167" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleY)" To="1.167" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleX)" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleY)" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.ExitActions>
-            </Trigger>
             <Trigger Property="IsChecked" Value="True">
               <Setter TargetName="L" Property="Text" Value="On"/>
-              <Trigger.EnterActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="On" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="ThumbOn" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[4].(TranslateTransform.X)" To="20" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="On" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="ThumbOn" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[4].(TranslateTransform.X)" To="0" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.ExitActions>
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="On" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="ThumbOn" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[2].(TranslateTransform.X)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="20"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="On" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="0"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="ThumbOn" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="0"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[2].(TranslateTransform.X)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
             </Trigger>
             <Trigger Property="IsChecked" Value="{x:Null}">
               <Setter TargetName="L" Property="Text" Value="Unchanged"/>
-              <Setter TargetName="L" Property="Foreground" Value="{DynamicResource Mu}"/>
-              <Setter TargetName="Track" Property="StrokeDashArray" Value="2 2"/>
-              <Trigger.EnterActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[3].(TranslateTransform.X)" To="10" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[3].(TranslateTransform.X)" To="0" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.ExitActions>
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[2].(TranslateTransform.X)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="10"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[2].(TranslateTransform.X)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
             </Trigger>
-            <Trigger Property="IsPressed" Value="True">
-              <Trigger.EnterActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[2].(ScaleTransform.ScaleX)" To="1.2" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[2].(ScaleTransform.ScaleX)" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.ExitActions>
-            </Trigger>
-            <Trigger Property="IsEnabled" Value="False">
-              <Setter Property="Opacity" Value="0.4"/>
-            </Trigger>
-          </ControlTemplate.Triggers>
-        </ControlTemplate>
-      </Setter.Value>
-    </Setter>
-  </Style>
-
-  <!-- Catalogue switch (Optimize > Advanced): the 40 x 20 track alone, the card's State line says the rest. Null
-       (State Custom or Unknown) = thumb in the middle, dashed outline. The same track and thumb as Switch. -->
-  <Style x:Key="CatSwitch" TargetType="ToggleButton">
-    <Setter Property="Cursor" Value="Hand"/>
-    <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusRing}"/>
-    <Setter Property="Template">
-      <Setter.Value>
-        <ControlTemplate TargetType="ToggleButton">
-          <Grid Width="40" Height="20" Background="Transparent" VerticalAlignment="Center">
-            <Rectangle x:Name="Track" RadiusX="10" RadiusY="10" StrokeThickness="1" Stroke="{DynamicResource Line}" Fill="{DynamicResource Ctl}"/>
-            <Rectangle x:Name="Hover" Margin="1" RadiusX="9" RadiusY="9" Fill="{DynamicResource CtlH}" Opacity="0"/>
-            <Rectangle x:Name="On" RadiusX="10" RadiusY="10" Fill="{DynamicResource Acc}" Opacity="0"/>
-            <Grid x:Name="Thumb" Width="12" Height="12" Margin="4,0" HorizontalAlignment="Left" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
-              <Grid.RenderTransform>
-                <TransformGroup>
-                  <ScaleTransform/>
-                  <ScaleTransform/>
-                  <ScaleTransform/>
-                  <TranslateTransform/>
-                  <TranslateTransform/>
-                </TransformGroup>
-              </Grid.RenderTransform>
-              <Ellipse Fill="{DynamicResource Line}"/>
-              <Ellipse x:Name="ThumbOn" Fill="{DynamicResource AccT}" Opacity="0"/>
-            </Grid>
-          </Grid>
-          <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-              <Trigger.EnterActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleX)" To="1.167" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleY)" To="1.167" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleX)" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleY)" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.ExitActions>
-            </Trigger>
-            <Trigger Property="IsChecked" Value="True">
-              <Trigger.EnterActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="On" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="ThumbOn" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[4].(TranslateTransform.X)" To="20" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="On" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="ThumbOn" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[4].(TranslateTransform.X)" To="0" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.ExitActions>
-            </Trigger>
-            <Trigger Property="IsChecked" Value="{x:Null}">
-              <Setter TargetName="Track" Property="StrokeDashArray" Value="2 2"/>
-              <Trigger.EnterActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[3].(TranslateTransform.X)" To="10" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[3].(TranslateTransform.X)" To="0" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.ExitActions>
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleX)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1.1666666666666667"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleY)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1.1666666666666667"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleX)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="1"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleY)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
-              <Trigger.EnterActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[2].(ScaleTransform.ScaleX)" To="1.2" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[2].(ScaleTransform.ScaleX)" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.ExitActions>
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleX)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1.2142857142857142"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleX)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
             </Trigger>
-            <Trigger Property="IsEnabled" Value="False">
-              <Setter Property="Opacity" Value="0.4"/>
-            </Trigger>
+            <MultiTrigger>
+              <MultiTrigger.Conditions><Condition Property="IsChecked" Value="True"/><Condition Property="IsMouseOver" Value="True"/></MultiTrigger.Conditions>
+              <MultiTrigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="OnH" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></MultiTrigger.EnterActions>
+              <MultiTrigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="OnH" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></MultiTrigger.ExitActions>
+            </MultiTrigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
       </Setter.Value>
     </Setter>
   </Style>
 
-  <!-- Check box (WinUI CheckBox): a 20 px box, 4 px corners, a 1 px Line outline on Ctl; checked = Acc with an AccT
-       tick that grows in. Pressed = CtlP. -->
+  <!-- Catalogue switch (a Settings card): the same ToggleSwitch. -->
+  <Style x:Key="CatSwitch" TargetType="ToggleButton" BasedOn="{StaticResource Switch}">
+  </Style>
+
+  <!-- CheckBox (WinUI): a 20 px box, 4 px corners, a 1 px Line stroke on CtlP; checked = Acc, the AccT tick draws itself over Motion.Base (StrokeDashOffset, in stroke widths: 9 = the prototype's 14 px); the label 8 px after it, wrapping. -->
   <Style x:Key="Check" TargetType="CheckBox">
     <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
-    <Setter Property="Cursor" Value="Hand"/>
     <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusBox}"/>
+    <Setter Property="VerticalContentAlignment" Value="Center"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="CheckBox">
-          <!-- box, then the label in the remaining width (a long label wraps) -->
           <Grid Background="Transparent">
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="Auto"/>
-              <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-            <Grid x:Name="Box" Width="20" Height="20" VerticalAlignment="Center">
-              <Border CornerRadius="4" BorderThickness="1" BorderBrush="{DynamicResource Line}" Background="{DynamicResource Ctl}"/>
-              <Border x:Name="Hover" Margin="1" CornerRadius="3" Background="{DynamicResource CtlH}" Opacity="0"/>
-              <Border x:Name="Press" Margin="1" CornerRadius="3" Background="{DynamicResource CtlP}" Opacity="0"/>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <Grid Width="20" Height="20" VerticalAlignment="Top" Margin="0,0,0,0">
+              <Border CornerRadius="4" Background="{DynamicResource CtlP}" BorderBrush="{DynamicResource Line}" BorderThickness="1"/>
+              <Border x:Name="H" CornerRadius="4" Margin="1" Background="{DynamicResource CtlH}" Opacity="0"/>
               <Border x:Name="On" CornerRadius="4" Background="{DynamicResource Acc}" Opacity="0"/>
-              <Viewbox x:Name="Tick" Width="12" Height="12" Opacity="0" HorizontalAlignment="Center" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
-                <Viewbox.RenderTransform><ScaleTransform ScaleX="0.6" ScaleY="0.6"/></Viewbox.RenderTransform>
-                <Canvas Width="20" Height="20">
-                  <Path Data="{DynamicResource Ic.check.Filled}" Fill="{DynamicResource AccT}"/>
-                </Canvas>
-              </Viewbox>
+              <Path x:Name="Tick" Data="M5,10.5 L8.5,14 L15,6.5" Stroke="{DynamicResource AccT}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" StrokeDashArray="9" StrokeDashOffset="9"/>
             </Grid>
-            <ContentPresenter Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"/>
+            <ContentPresenter Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center" RecognizesAccessKey="True"/>
           </Grid>
           <ControlTemplate.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-              <Trigger.EnterActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.ExitActions>
-            </Trigger>
             <Trigger Property="IsChecked" Value="True">
-              <Trigger.EnterActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="On" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Tick" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Tick" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Tick" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="On" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Tick" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Tick" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="0.6" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Tick" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="0.6" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.ExitActions>
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="On" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Tick" Storyboard.TargetProperty="StrokeDashOffset"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="On" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Tick" Storyboard.TargetProperty="StrokeDashOffset"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="9"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
             </Trigger>
-            <Trigger Property="IsPressed" Value="True">
-              <Trigger.EnterActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="Press" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="Press" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.ExitActions>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
             </Trigger>
-            <Trigger Property="IsEnabled" Value="False">
-              <Setter Property="Opacity" Value="0.4"/>
-            </Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
       </Setter.Value>
     </Setter>
   </Style>
 
-  <!-- Radio button (WinUI RadioButton): a 20 px ring, 1 px Line on Ctl; picked = Acc with an 8 px AccT dot that grows
-       in. The label wraps. -->
+  <!-- RadioButton (WinUI): a 20 px ring (1 px Line on CtlP); picked = Acc and an AccT dot growing 0 -> 10 px over Motion.Base, 12 px on hover; 10 px between radios. -->
   <Style x:Key="Radio" TargetType="RadioButton">
     <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
-    <Setter Property="Cursor" Value="Hand"/>
-    <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusRing}"/>
+    <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusPill}"/>
+    <Setter Property="Margin" Value="0,5"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="RadioButton">
           <Grid Background="Transparent">
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="Auto"/>
-              <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-            <Grid Width="20" Height="20" VerticalAlignment="Center">
-              <Ellipse x:Name="Ring" StrokeThickness="1" Stroke="{DynamicResource Line}" Fill="{DynamicResource Ctl}"/>
-              <Ellipse x:Name="Hover" Margin="1" Fill="{DynamicResource CtlH}" Opacity="0"/>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <Grid Width="20" Height="20" VerticalAlignment="Top">
+              <Ellipse Fill="{DynamicResource CtlP}" Stroke="{DynamicResource Line}" StrokeThickness="1"/>
+              <Ellipse x:Name="H" Margin="1" Fill="{DynamicResource CtlH}" Opacity="0"/>
               <Ellipse x:Name="On" Fill="{DynamicResource Acc}" Opacity="0"/>
-              <Ellipse x:Name="Dot" Width="8" Height="8" Fill="{DynamicResource AccT}" Opacity="0" RenderTransformOrigin="0.5,0.5">
-                <Ellipse.RenderTransform><ScaleTransform ScaleX="0" ScaleY="0"/></Ellipse.RenderTransform>
+              <Ellipse x:Name="Dot" Width="10" Height="10" Fill="{DynamicResource AccT}" RenderTransformOrigin="0.5,0.5">
+                <Ellipse.RenderTransform><TransformGroup><ScaleTransform ScaleX="0" ScaleY="0"/><ScaleTransform/></TransformGroup></Ellipse.RenderTransform>
               </Ellipse>
             </Grid>
-            <ContentPresenter Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center">
-              <ContentPresenter.Resources>
-                <Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/></Style>
-              </ContentPresenter.Resources>
-            </ContentPresenter>
+            <ContentPresenter Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center" RecognizesAccessKey="True"/>
           </Grid>
           <ControlTemplate.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-              <Trigger.EnterActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.ExitActions>
-            </Trigger>
             <Trigger Property="IsChecked" Value="True">
-              <Trigger.EnterActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="On" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Dot" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Dot" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Dot" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="On" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Dot" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Dot" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Dot" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.ExitActions>
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="On" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Dot" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleX)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Dot" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleY)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="On" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Dot" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleX)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Dot" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleY)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
             </Trigger>
-            <Trigger Property="IsEnabled" Value="False">
-              <Setter Property="Opacity" Value="0.4"/>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Dot" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleX)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="1.2"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Dot" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleY)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="1.2"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Dot" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleX)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Exit}" Value="1"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Dot" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleY)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Exit}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
             </Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
       </Setter.Value>
     </Setter>
   </Style>
 
-  <!-- Combobox (WinUI ComboBox): 32 px, 4 px corners, Ctl with a CtlBd stroke and a CtlBd2 bottom edge, a 12 px
-       chevron; the drop-down is an S2 flyout with 8 px corners, a Fly stroke and a shadow, rows 32 px with 4 px
-       corners, Sub on hover and on the picked one, which also has the 3 x 16 Acc bar. Editable keeps the same look.
-       Every Choice and filter uses it. -->
+  <!-- ComboBox row (the prototype's .flyout .it): 32 px, Sub on hover, the picked one with the 3 x 16 Acc bar. -->
   <Style x:Key="ComboItem" TargetType="ComboBoxItem">
     <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
-    <Setter Property="Padding" Value="11,6,11,7"/>
-    <Setter Property="MinHeight" Value="32"/>
+    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="ComboBoxItem">
-          <Grid Margin="4,2" Background="Transparent">
+          <Grid Background="Transparent" Margin="4,2" MinHeight="32">
             <Border x:Name="H" CornerRadius="4" Background="{DynamicResource Sub}" Opacity="0"/>
-            <Border x:Name="S" CornerRadius="4" Background="{DynamicResource Sub}" Opacity="0"/>
-            <Border x:Name="B" CornerRadius="4" Background="Transparent" Padding="{TemplateBinding Padding}">
+            <Border x:Name="Sel" CornerRadius="4" Background="{DynamicResource Sub}" Opacity="0"/>
+            <Border x:Name="Bar" Width="3" Height="16" CornerRadius="1.5" HorizontalAlignment="Left" Background="{DynamicResource Acc}" Opacity="0"/>
+            <DockPanel Margin="12,6">
+              <!-- a note on the right of the row ("Recommended", "Windows default"): the item's Uid -->
+              <TextBlock DockPanel.Dock="Right" Text="{TemplateBinding Uid}" Margin="16,0,0,0" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource Ter}"/>
               <ContentPresenter VerticalAlignment="Center"/>
-            </Border>
-            <Border x:Name="Bar" Width="3" Height="16" CornerRadius="1.5" HorizontalAlignment="Left" VerticalAlignment="Center"
-                    Background="{DynamicResource Acc}" Opacity="0" RenderTransformOrigin="0.5,0.5">
-              <Border.RenderTransform><ScaleTransform ScaleY="0"/></Border.RenderTransform>
-            </Border>
+            </DockPanel>
           </Grid>
           <ControlTemplate.Triggers>
-            <Trigger Property="IsHighlighted" Value="True">
-              <Trigger.EnterActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.ExitActions>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
             </Trigger>
             <Trigger Property="IsSelected" Value="True">
-              <Trigger.EnterActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="S" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Bar" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Bar" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="S" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Bar" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Bar" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.ExitActions>
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Bar" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Sel" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Bar" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Sel" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
             </Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
       </Setter.Value>
     </Setter>
   </Style>
 
+  <!-- ComboBox (WinUI): 32 px, 4 px corners, Ctl fill, CtlBd stroke over a CtlBd2 bottom edge, a 12 px chevron 11 px from the right; the drop-down: an S2 panel with 8 px corners and a Fly stroke that drops 12 px and grows from 94 % (Motion.Slow). IsEditable: a typed value (a Choice that takes numbers). -->
   <Style x:Key="Combo" TargetType="ComboBox">
     <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
+    <Setter Property="Height" Value="32"/>
     <Setter Property="MinWidth" Value="120"/>
-    <Setter Property="MinHeight" Value="32"/>
-    <Setter Property="Cursor" Value="Hand"/>
     <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusRing}"/>
-    <Setter Property="ItemContainerStyle" Value="{StaticResource ComboItem}"/>
+    <Setter Property="ItemContainerStyle" Value="{DynamicResource ComboItem}"/>
+    <Setter Property="MaxDropDownHeight" Value="420"/>
+    <Setter Property="VerticalContentAlignment" Value="Center"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="ComboBox">
           <Grid>
-            <ToggleButton x:Name="Field" Focusable="False" ClickMode="Press"
-                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+            <ToggleButton x:Name="Field" Focusable="False" ClickMode="Press" IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
               <ToggleButton.Template>
                 <ControlTemplate TargetType="ToggleButton">
-                  <Grid>
-                    <Border CornerRadius="4" BorderThickness="1" BorderBrush="{DynamicResource CtlBd}" Background="{DynamicResource Ctl}"/>
-                    <Border CornerRadius="4" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CtlBd2}"/>
-                    <Border x:Name="Hover" CornerRadius="3" Margin="1" Background="{DynamicResource CtlH}" Opacity="0"/>
-                    <Border x:Name="Open" CornerRadius="3" Margin="1" Background="{DynamicResource CtlP}" Opacity="0"/>
-                    <Viewbox x:Name="Chev" Width="12" Height="12" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,11,0">
-                      <Canvas Width="20" Height="20">
-                        <Path Data="{DynamicResource Ic.chevron-down}" Fill="{DynamicResource Mu}"/>
-                      </Canvas>
+                  <Grid Background="Transparent">
+                    <Border CornerRadius="4" Background="{DynamicResource Ctl}" BorderBrush="{DynamicResource CtlBd}" BorderThickness="1"/>
+                    <Border CornerRadius="0,0,4,4" Height="1" VerticalAlignment="Bottom" Background="{DynamicResource CtlBd2}"/>
+                    <Border x:Name="H" CornerRadius="4" Margin="1" Background="{DynamicResource CtlH}" Opacity="0"/>
+                    <Viewbox Width="12" Height="12" HorizontalAlignment="Right" Margin="0,0,11,0" VerticalAlignment="Center">
+                      <Path Width="20" Height="20" Fill="{DynamicResource Mu}" Data="{DynamicResource Ic.chevron-down}"/>
                     </Viewbox>
                   </Grid>
                   <ControlTemplate.Triggers>
                     <Trigger Property="IsMouseOver" Value="True">
-                      <Trigger.EnterActions>
-                        <BeginStoryboard>
-                          <Storyboard>
-                            <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                          </Storyboard>
-                        </BeginStoryboard>
-                      </Trigger.EnterActions>
-                      <Trigger.ExitActions>
-                        <BeginStoryboard>
-                          <Storyboard>
-                            <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                          </Storyboard>
-                        </BeginStoryboard>
-                      </Trigger.ExitActions>
-                    </Trigger>
-                    <Trigger Property="IsChecked" Value="True">
-                      <Trigger.EnterActions>
-                        <BeginStoryboard>
-                          <Storyboard>
-                            <DoubleAnimation Storyboard.TargetName="Open" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                          </Storyboard>
-                        </BeginStoryboard>
-                      </Trigger.EnterActions>
-                      <Trigger.ExitActions>
-                        <BeginStoryboard>
-                          <Storyboard>
-                            <DoubleAnimation Storyboard.TargetName="Open" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                          </Storyboard>
-                        </BeginStoryboard>
-                      </Trigger.ExitActions>
+                      <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+                      <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
                     </Trigger>
                   </ControlTemplate.Triggers>
                 </ControlTemplate>
               </ToggleButton.Template>
             </ToggleButton>
-            <ContentPresenter x:Name="Shown" IsHitTestVisible="False" Margin="11,0,32,1" VerticalAlignment="Center"
-                              Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"/>
-            <TextBox x:Name="PART_EditableTextBox" Visibility="Hidden" Margin="8,0,32,1" VerticalAlignment="Center"
-                     Background="Transparent" BorderThickness="0" Foreground="{DynamicResource Tx}" CaretBrush="{DynamicResource Tx}"
+            <ContentPresenter x:Name="Shown" IsHitTestVisible="False" Margin="11,0,34,1" VerticalAlignment="Center" HorizontalAlignment="Left"
+                              Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                              ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}" ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"/>
+            <TextBox x:Name="PART_EditableTextBox" Visibility="Collapsed" Margin="1,1,30,1" Padding="10,5,0,6" VerticalContentAlignment="Center"
+                     Background="Transparent" BorderThickness="0" Foreground="{DynamicResource Tx}" CaretBrush="{DynamicResource Tx}" SelectionBrush="{DynamicResource Acc}"
                      IsReadOnly="{TemplateBinding IsReadOnly}"/>
-            <!-- the flyout: room around it for its shadow inside the popup -->
-            <Popup x:Name="PART_Popup" Placement="Bottom" AllowsTransparency="True" Focusable="False" PopupAnimation="Fade"
-                   HorizontalOffset="-12" IsOpen="{TemplateBinding IsDropDownOpen}">
-              <Border Padding="12,4,12,16">
-                <Border MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
-                        MaxHeight="{TemplateBinding MaxDropDownHeight}" CornerRadius="8" Padding="0,2"
-                        Background="{DynamicResource S2}" BorderBrush="{DynamicResource Fly}" BorderThickness="1">
-                  <Border.Effect>
-                    <DropShadowEffect BlurRadius="16" Opacity="0.26" ShadowDepth="4" Direction="270"/>
-                  </Border.Effect>
-                  <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+            <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True" Focusable="False" PopupAnimation="None" Placement="Bottom" VerticalOffset="-8" HorizontalOffset="-16">
+              <Border x:Name="Drop" Margin="16,12,16,24" MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" RenderTransformOrigin="0.5,0">
+                <Border.RenderTransform><TransformGroup><ScaleTransform/><TranslateTransform/></TransformGroup></Border.RenderTransform>
+                <Border Background="{DynamicResource S2}" BorderBrush="{DynamicResource Fly}" BorderThickness="1" CornerRadius="8" Padding="0,2">
+                  <Border.Effect><DropShadowEffect Color="{DynamicResource ShadeFly}" BlurRadius="16" ShadowDepth="8" Direction="270" Opacity="1"/></Border.Effect>
+                  <ScrollViewer MaxHeight="{TemplateBinding MaxDropDownHeight}" VerticalScrollBarVisibility="Auto">
+                    <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained"/>
                   </ScrollViewer>
                 </Border>
               </Border>
             </Popup>
           </Grid>
           <ControlTemplate.Triggers>
-            <Trigger Property="IsEditable" Value="True">
-              <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible"/>
-              <Setter TargetName="Shown" Property="Visibility" Value="Hidden"/>
+            <Trigger Property="IsDropDownOpen" Value="True">
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Drop" Storyboard.TargetProperty="Opacity"><DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Drop" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleY)"><DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.94"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Drop" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(TranslateTransform.Y)"><DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="-12"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Drop" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Slow.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Drop" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleY)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Slow.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Drop" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(TranslateTransform.Y)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Slow.T}" KeySpline="{StaticResource Motion.Ease}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Drop" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
             </Trigger>
-            <Trigger Property="IsEnabled" Value="False">
-              <Setter Property="Opacity" Value="0.4"/>
-            </Trigger>
+            <Trigger Property="IsEditable" Value="True"><Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible"/><Setter TargetName="Shown" Property="Visibility" Value="Hidden"/></Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
       </Setter.Value>
     </Setter>
   </Style>
 
-  <!-- Segmented picker: Optimize's Sections row (until batch 5) and the native app's short Choices and filters (until
-       batch 7); every other PowerShell pick is a Combo. A ListBox of ListBoxItems (never
-       ComboBoxItems: they ignore clicks outside a ComboBox) over one Pill that slides to the picked one (the motion
-       service, hooked on every ListBox). -->
-  <Style x:Key="SegItem" TargetType="ListBoxItem">
-    <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
-    <Setter Property="Padding" Value="11,5,11,6"/>
-    <Setter Property="Margin" Value="1"/>
-    <Setter Property="Cursor" Value="Hand"/>
-    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-    <Setter Property="Template">
-      <Setter.Value>
-        <ControlTemplate TargetType="ListBoxItem">
-          <Grid Background="Transparent">
-            <Border x:Name="H" CornerRadius="4" Background="{DynamicResource Sub}" Opacity="0"/>
-            <Border x:Name="B" CornerRadius="4" Background="Transparent" Padding="{TemplateBinding Padding}">
-              <ContentPresenter VerticalAlignment="Center">
-                <ContentPresenter.Resources>
-                  <Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/></Style>
-                </ContentPresenter.Resources>
-              </ContentPresenter>
-            </Border>
-          </Grid>
-          <ControlTemplate.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-              <Trigger.EnterActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.ExitActions>
-            </Trigger>
-            <Trigger Property="IsSelected" Value="True">
-              <Setter Property="Foreground" Value="{DynamicResource AccT}"/>
-              <Setter TargetName="H" Property="Visibility" Value="Hidden"/>
-            </Trigger>
-          </ControlTemplate.Triggers>
-        </ControlTemplate>
-      </Setter.Value>
-    </Setter>
-  </Style>
-
-  <Style x:Key="Segmented" TargetType="ListBox">
-    <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
-    <Setter Property="Background" Value="{DynamicResource Ctl}"/>
-    <Setter Property="BorderBrush" Value="{DynamicResource CtlBd}"/>
-    <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusRing}"/>
-    <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
-    <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Disabled"/>
-    <Setter Property="ItemContainerStyle" Value="{StaticResource SegItem}"/>
-    <Setter Property="ItemsPanel">
-      <Setter.Value>
-        <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
-      </Setter.Value>
-    </Setter>
-    <Setter Property="Template">
-      <Setter.Value>
-        <ControlTemplate TargetType="ListBox">
-          <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"
-                  CornerRadius="4" Padding="2" HorizontalAlignment="Left">
-            <Grid>
-              <Canvas IsHitTestVisible="False">
-                <Border x:Name="Pill" Width="0" Height="0" CornerRadius="4" Background="{DynamicResource Acc}" Visibility="Hidden"/>
-              </Canvas>
-              <ItemsPresenter/>
-            </Grid>
-          </Border>
-          <ControlTemplate.Triggers>
-            <Trigger Property="IsEnabled" Value="False">
-              <Setter Property="Opacity" Value="0.4"/>
-            </Trigger>
-          </ControlTemplate.Triggers>
-        </ControlTemplate>
-      </Setter.Value>
-    </Setter>
-  </Style>
-
-  <!-- Settings card (WinUI SettingsCard): a Review / result row, a Catalogue TweakRow, an About or Unattend Generator
-       section. S1 with a Bd stroke, 4 px corners, 16 px side padding, at least 68 px tall, 4 px apart, no shadow. -->
+  <!-- Settings card (WinUI SettingsCard, the prototype's .card): S1, a 1 px Bd stroke, 4 px corners, min 68 px, 16 px side padding, 4 px apart, no shadow. -->
   <Style x:Key="SettingCard" TargetType="Border">
     <Setter Property="Background" Value="{DynamicResource S1}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource Bd}"/>
@@ -681,218 +251,252 @@
     <Setter Property="Margin" Value="0,0,0,4"/>
   </Style>
 
-  <!-- Category card: one Category in the Guided Tweaks grid: icon blob, title and count, then its rows (UI\Cards.ps1).
-       A settings card's surface (batch 6 makes it an expander). -->
+  <!-- Expander frame (WinUI SettingsExpander, the prototype's .exp): S1, a 1 px Bd stroke, 4 px corners; its head is an ExpHead, its rows CardRow. -->
   <Style x:Key="CategoryCard" TargetType="Border">
     <Setter Property="Background" Value="{DynamicResource S1}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource Bd}"/>
     <Setter Property="BorderThickness" Value="1"/>
     <Setter Property="CornerRadius" Value="4"/>
-    <Setter Property="Padding" Value="16,12,16,8"/>
-    <Setter Property="Margin" Value="0,0,0,8"/>
+    <Setter Property="Margin" Value="0,0,0,4"/>
+    <Setter Property="ClipToBounds" Value="True"/>
   </Style>
 
-  <!-- Accent button (Next, Apply; WinUI AccentButton): Acc with AccT text, 32 px, 4 px corners, at least 120 px wide,
-       AccH on hover, AccP pressed (its text dimmed). No glow, no lift (ADR 0008). -->
+  <!-- A row inside an open expander (.exp .row): S1Alt, a Div rule above, 52 px in from the left, min 52 px. -->
+  <Style x:Key="CardRow" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource S1Alt}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Div}"/>
+    <Setter Property="BorderThickness" Value="0,1,0,0"/>
+    <Setter Property="Padding" Value="52,8,16,8"/>
+    <Setter Property="MinHeight" Value="52"/>
+  </Style>
+
+  <!-- A plain 8 px panel (the hero, the summary cards, the USB bar): S1, a Bd stroke. -->
+  <Style x:Key="Panel" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource S1}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Bd}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="8"/>
+    <Setter Property="Padding" Value="16"/>
+  </Style>
+
+  <!-- A Settings card you click (.card.click: an Optimize section, Import settings): CtlH on hover, S1Alt pressed. -->
+  <Style x:Key="CardButton" TargetType="Button">
+    <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
+    <Setter Property="Background" Value="{DynamicResource S1}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Bd}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="Tag" Value="4"/>
+    <Setter Property="Padding" Value="16,12"/>
+    <Setter Property="MinHeight" Value="68"/>
+    <Setter Property="Margin" Value="0,0,0,4"/>
+    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+    <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusRing}"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Grid Background="Transparent">
+            <Border CornerRadius="{TemplateBinding Tag}" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"/>
+            <Border x:Name="H" CornerRadius="4" Margin="1" Background="{DynamicResource CtlH}" Opacity="0"/>
+            <Border x:Name="P" CornerRadius="4" Margin="1" Background="{DynamicResource S1Alt}" Opacity="0"/>
+            <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="Center" HorizontalAlignment="Stretch"/>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- An expander's head (.exp > .card): CtlH on hover, the 12 px chevron turning 180 degrees (Motion.Base) while open. Its body's height is one of the three animated sizes (ADR 0008): Show-AkariExpander, UI\Motion.ps1. -->
+  <Style x:Key="ExpHead" TargetType="ToggleButton">
+    <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
+    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+    <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusRing}"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ToggleButton">
+          <Grid Background="Transparent" MinHeight="68">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <Border x:Name="H" Grid.ColumnSpan="2" Background="{DynamicResource CtlH}" Opacity="0"/>
+            <ContentPresenter Margin="16,12,12,12" VerticalAlignment="Center" HorizontalAlignment="Stretch"/>
+            <Viewbox x:Name="Chev" Grid.Column="1" Width="12" Height="12" Margin="0,0,16,0" RenderTransformOrigin="0.5,0.5" VerticalAlignment="Center">
+              <Viewbox.RenderTransform><RotateTransform/></Viewbox.RenderTransform>
+              <Path Width="20" Height="20" Fill="{DynamicResource Mu}" Data="{DynamicResource Ic.chevron-down}"/>
+            </Viewbox>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsChecked" Value="True">
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Chev" Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="180"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Chev" Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Accent button (.btn.acc): Acc fill, AccT text, a faint AccBd stroke over an AccBd2 bottom edge, 32 px, 4 px corners, min 120 px; AccH on hover, AccP pressed. No glow. -->
   <Style x:Key="Accent" TargetType="Button">
     <Setter Property="Foreground" Value="{DynamicResource AccT}"/>
     <Setter Property="Background" Value="{DynamicResource Acc}"/>
-    <Setter Property="Padding" Value="11,5,11,6"/>
+    <Setter Property="Height" Value="32"/>
     <Setter Property="MinWidth" Value="120"/>
-    <Setter Property="MinHeight" Value="32"/>
-    <Setter Property="FontSize" Value="14"/>
+    <Setter Property="Padding" Value="12,0,12,1"/>
+    <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusRing}"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Grid Background="Transparent">
+            <Border CornerRadius="4" Background="{TemplateBinding Background}" BorderBrush="{DynamicResource AccBd}" BorderThickness="1"/>
+            <Border x:Name="H" CornerRadius="4" Background="{DynamicResource AccH}" Opacity="0"/>
+            <Border x:Name="P" CornerRadius="4" Background="{DynamicResource AccP}" Opacity="0"/>
+            <Border CornerRadius="0,0,4,4" Height="1" VerticalAlignment="Bottom" Background="{DynamicResource AccBd2}"/>
+            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True"/>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Tile (.tile: Home's Get started, the Install AkariOS chooser): 8 px corners, S1, a Bd stroke (Acc for the recommended one: set its BorderBrush); hover = CtlH, a 2 px rise and a soft Shade shadow (Motion.Base), pressed 99 %. -->
+  <Style x:Key="ModeCard" TargetType="Button">
+    <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Bd}"/>
+    <Setter Property="Padding" Value="16"/>
+    <Setter Property="MinHeight" Value="152"/>
+    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+    <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusBox}"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Grid x:Name="Root" Background="Transparent" RenderTransformOrigin="0.5,0.5">
+            <Grid.RenderTransform><TransformGroup><TranslateTransform/><ScaleTransform/></TransformGroup></Grid.RenderTransform>
+            <Border x:Name="Sh" CornerRadius="8" Background="{DynamicResource S1}" Opacity="0">
+              <Border.Effect><DropShadowEffect Color="{DynamicResource Shade}" BlurRadius="14" ShadowDepth="6" Direction="270" Opacity="1"/></Border.Effect>
+            </Border>
+            <Border CornerRadius="8" Background="{DynamicResource S1}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"/>
+            <Border x:Name="H" CornerRadius="8" Margin="1" Background="{DynamicResource CtlH}" Opacity="0"/>
+            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Sh" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(TranslateTransform.Y)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="-2"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Sh" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(TranslateTransform.Y)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleX)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="0.99"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleY)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="0.99"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleX)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleY)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- SelectorBar item (WinUI, the prototype's .selbar button): 40 px, Mu text; hover Sub and Tx; picked = Tx SemiBold, over the bar's 16 x 3 Acc underline that slides to it (New-AkariSelectorBar, UI\Cards.ps1). -->
+  <Style x:Key="Selector" TargetType="RadioButton">
+    <Setter Property="Foreground" Value="{DynamicResource Mu}"/>
+    <Setter Property="Margin" Value="0,0,4,0"/>
+    <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusRing}"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="RadioButton">
+          <Grid Background="Transparent" Height="40">
+            <Border x:Name="H" CornerRadius="4" Background="{DynamicResource Sub}" Opacity="0"/>
+            <ContentPresenter Margin="12,0,12,1" VerticalAlignment="Center"/>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True"><Setter Property="Foreground" Value="{DynamicResource Tx}"/><Setter Property="FontWeight" Value="SemiBold"/></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- NavigationView item (the prototype's .ni): 36 px, 4 px corners, 4 px in from the pane's sides; Sub on hover and while selected, SubP pressed. The icon (regular, filled in AccText when selected) and label are built in UI\Shell.ps1; the selection indicator is the pane's own NavPill. -->
+  <Style x:Key="NavItem" TargetType="RadioButton">
+    <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
+    <Setter Property="Margin" Value="4,2"/>
+    <Setter Property="Padding" Value="12,0"/>
+    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+    <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusRing}"/>
+    <Setter Property="ToolTipService.InitialShowDelay" Value="600"/>
+    <Setter Property="ToolTipService.Placement" Value="Right"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="RadioButton">
+          <Grid Background="Transparent" Height="36">
+            <Border x:Name="Sel" CornerRadius="4" Background="{DynamicResource Sub}" Opacity="0"/>
+            <Border x:Name="H" CornerRadius="4" Background="{DynamicResource Sub}" Opacity="0"/>
+            <Border x:Name="P" CornerRadius="4" Background="{DynamicResource SubP}" Opacity="0"/>
+            <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="Center" HorizontalAlignment="Stretch"/>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Sel" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Sel" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- A breadcrumb's earlier part (.head .crumb): a link in Title type, Mu, Tx on hover. -->
+  <Style x:Key="Crumb" TargetType="Button">
+    <Setter Property="Foreground" Value="{DynamicResource Mu}"/>
     <Setter Property="Cursor" Value="Hand"/>
     <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusRing}"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
-          <Grid x:Name="Root">
-            <Border x:Name="B" Background="{TemplateBinding Background}" CornerRadius="4"/>
-            <Border x:Name="H" CornerRadius="4" Background="{DynamicResource AccH}" Opacity="0"/>
-            <Border x:Name="P" CornerRadius="4" Background="{DynamicResource AccP}" Opacity="0"/>
-            <ContentPresenter x:Name="C" Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-          </Grid>
+          <Border Background="Transparent" CornerRadius="4">
+            <TextBlock x:Name="T" Text="{TemplateBinding Content}" FontFamily="{DynamicResource FontDisplay}" FontSize="28" LineHeight="36" FontWeight="SemiBold"/>
+          </Border>
           <ControlTemplate.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-              <Trigger.EnterActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.ExitActions>
-            </Trigger>
-            <Trigger Property="IsPressed" Value="True">
-              <Setter TargetName="C" Property="Opacity" Value="0.8"/>
-              <Trigger.EnterActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.ExitActions>
-            </Trigger>
-            <Trigger Property="IsEnabled" Value="False">
-              <Setter TargetName="Root" Property="Opacity" Value="0.4"/>
-            </Trigger>
+            <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{DynamicResource Tx}"/></Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
       </Setter.Value>
     </Setter>
   </Style>
 
-  <!-- Mode card (the Home tiles, the Install AkariOS chooser): a tile, S1 with a Bd stroke and 8 px corners, an arrow
-       bottom right; on hover the stroke strengthens and the arrow turns accent and nudges right, pressed = CtlP. No
-       lift (batch 6 makes these Fluent tiles). ModeCardHot (the native app's recommended card) adds an accent stroke. -->
-  <Style x:Key="ModeCard" TargetType="Button">
-    <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
-    <Setter Property="BorderBrush" Value="{DynamicResource Bd}"/>
-    <Setter Property="Cursor" Value="Hand"/>
-    <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusBox}"/>
-    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-    <Setter Property="Template">
-      <Setter.Value>
-        <ControlTemplate TargetType="Button">
-          <Grid x:Name="Root" MinHeight="200">
-            <Border x:Name="B" Background="{DynamicResource S1}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="8"/>
-            <Border x:Name="H" Margin="1" CornerRadius="7" Background="{DynamicResource CtlH}" Opacity="0"/>
-            <Border x:Name="P" Margin="1" CornerRadius="7" Background="{DynamicResource CtlP}" Opacity="0"/>
-            <Border x:Name="HB" BorderBrush="{DynamicResource CtlBd2}" BorderThickness="1" CornerRadius="8" Opacity="0"/>
-            <Grid Margin="24,20">
-              <ContentPresenter VerticalAlignment="Top"/>
-              <Viewbox x:Name="Arrow" Width="16" Height="16" HorizontalAlignment="Right" VerticalAlignment="Bottom">
-                <Viewbox.RenderTransform><TranslateTransform/></Viewbox.RenderTransform>
-                <Canvas Width="20" Height="20">
-                  <Path Data="{DynamicResource Ic.arrow-right}" Fill="{DynamicResource Mu}"/>
-                  <Path x:Name="ArrowHot" Data="{DynamicResource Ic.arrow-right}" Fill="{DynamicResource AccText}" Opacity="0"/>
-                </Canvas>
-              </Viewbox>
-            </Grid>
-          </Grid>
-          <ControlTemplate.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-              <Trigger.EnterActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="HB" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="ArrowHot" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Arrow" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)" To="3" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="HB" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="ArrowHot" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                    <DoubleAnimation Storyboard.TargetName="Arrow" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)" To="0" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.ExitActions>
-            </Trigger>
-            <Trigger Property="IsPressed" Value="True">
-              <Trigger.EnterActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource Motion.Fast}" EasingFunction="{StaticResource Motion.Ease}"/>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.ExitActions>
-            </Trigger>
-            <Trigger Property="IsEnabled" Value="False">
-              <Setter TargetName="Root" Property="Opacity" Value="0.5"/>
-              <Setter TargetName="Arrow" Property="Visibility" Value="Collapsed"/>
-            </Trigger>
-          </ControlTemplate.Triggers>
-        </ControlTemplate>
-      </Setter.Value>
-    </Setter>
-  </Style>
-  <Style x:Key="ModeCardHot" TargetType="Button" BasedOn="{StaticResource ModeCard}">
-    <Setter Property="BorderBrush" Value="{DynamicResource Acc}"/>
-  </Style>
-
-  <!-- Step number (the Guided footer's stepper, UI\Steps.ps1, until batch 5's step footer): a 24 px square with 4 px
-       corners and the step's number; Tag="Current" fills it Acc, Tag="Done" AccSoft (it holds a check); either fades
-       in. -->
-  <Style x:Key="StepNum" TargetType="Border">
-    <Setter Property="Width" Value="24"/>
-    <Setter Property="Height" Value="24"/>
-    <Setter Property="CornerRadius" Value="4"/>
-    <Setter Property="BorderThickness" Value="1"/>
-    <Setter Property="BorderBrush" Value="{DynamicResource Line}"/>
-    <Setter Property="Background" Value="Transparent"/>
-    <Setter Property="TextElement.Foreground" Value="{DynamicResource Mu}"/>
-    <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
-    <Setter Property="RenderTransform">
-      <Setter.Value><ScaleTransform/></Setter.Value>
-    </Setter>
-    <Style.Triggers>
-      <Trigger Property="Tag" Value="Current">
-        <Setter Property="Background" Value="{DynamicResource Acc}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource Acc}"/>
-        <Setter Property="TextElement.Foreground" Value="{DynamicResource AccT}"/>
-        <Trigger.EnterActions>
-          <BeginStoryboard>
-            <Storyboard>
-              <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" From="0.85" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-              <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" From="0.85" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-            </Storyboard>
-          </BeginStoryboard>
-        </Trigger.EnterActions>
-        <Trigger.ExitActions>
-          <BeginStoryboard>
-            <Storyboard>
-              <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="{StaticResource Motion.Fast}"/>
-              <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="{StaticResource Motion.Fast}"/>
-            </Storyboard>
-          </BeginStoryboard>
-        </Trigger.ExitActions>
-      </Trigger>
-      <Trigger Property="Tag" Value="Done">
-        <Setter Property="Background" Value="{DynamicResource AccSoft}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource AccSoft}"/>
-        <Setter Property="TextElement.Foreground" Value="{DynamicResource AccText}"/>
-        <Trigger.EnterActions>
-          <BeginStoryboard>
-            <Storyboard>
-              <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" From="0.9" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-              <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" From="0.9" To="1" Duration="{StaticResource Motion.Base}" EasingFunction="{StaticResource Motion.Ease}"/>
-            </Storyboard>
-          </BeginStoryboard>
-        </Trigger.EnterActions>
-        <Trigger.ExitActions>
-          <BeginStoryboard>
-            <Storyboard>
-              <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="{StaticResource Motion.Fast}"/>
-              <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="{StaticResource Motion.Fast}"/>
-            </Storyboard>
-          </BeginStoryboard>
-        </Trigger.ExitActions>
-      </Trigger>
-    </Style.Triggers>
-  </Style>
 </ResourceDictionary>
