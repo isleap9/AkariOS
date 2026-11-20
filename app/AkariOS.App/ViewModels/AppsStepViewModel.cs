@@ -16,9 +16,11 @@ namespace AkariOS.App.ViewModels;
 /// A row of the Apps step (New-AkariAppRow): its Tweak or Entry, on the PC or not, a checkbox; a removal's Risk mark
 /// (Recommended / Optional / Not recommended), an install's Caution mark; the name, description and source.
 /// </summary>
-public sealed partial class AppRowViewModel(AppItem item, Action<AppRowViewModel> changed) : ObservableObject
+public sealed partial class AppRowViewModel(AppItem item, AppIcon icon, Action<AppRowViewModel> changed) : ObservableObject
 {
     private bool _isChecked;
+
+    public AppIcon Icon { get; } = icon;
 
     public Tweak Tweak { get; } = item.Tweak;
     public bool Installed { get; } = item.Installed;
@@ -96,12 +98,29 @@ public sealed partial class AppsStepViewModel : ObservableObject
     private (Preset Preset, IReadOnlyList<string> Ids)? _pendingPick;
     private bool _onlyInstalled = true;
     private string _query = "";
+    private readonly AppIcons _icons;
     private AppTableViewModel? _caps, _feats;
+    private IReadOnlyDictionary<string, string> _logos = new Dictionary<string, string>();
 
-    public AppsStepViewModel(Engine engine, IBackground background, IDialogService dialogs, IDictionary<string, Pending> sel, Action changed)
+    public AppsStepViewModel(Engine engine, IBackground background, IDialogService dialogs, AppIcons icons, IDictionary<string, Pending> sel, Action changed)
     {
-        (_engine, _background, _dialogs, _sel, _changed) = (engine, background, dialogs, sel, changed);
+        (_engine, _background, _dialogs, _icons, _sel, _changed) = (engine, background, dialogs, icons, sel, changed);
     }
+
+    /// <summary>$AkariRemoveLists: the Remove tab shows one at a time.</summary>
+    public static IReadOnlyList<string> RemoveLists { get; } = ["Store apps", "Optional features", "Windows features", "Legacy apps"];
+
+    /// <summary>The Remove list shown.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CurrentRemove))]
+    public partial string RemoveList { get; set; } = "Store apps";
+
+    /// <summary>Its table (null until read).</summary>
+    public AppTableViewModel? CurrentRemove => RemoveTables.FirstOrDefault(t => t.Name == RemoveList);
+
+    /// <summary>The removals picked, in the lists' order.</summary>
+    public IReadOnlyList<AppRowViewModel> PickedRemovals() =>
+        RemoveTables.SelectMany(t => t.Rows).Where(r => r.IsChecked).ToList();
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsBuilt))]
@@ -148,7 +167,7 @@ public sealed partial class AppsStepViewModel : ObservableObject
         }
     }
 
-    private sealed record ReadResult(IReadOnlyList<string> Installed, IReadOnlyList<string> Appx, IReadOnlyList<AppItem> Legacy);
+    private sealed record ReadResult(IReadOnlyList<string> Installed, IReadOnlyList<string> Appx, IReadOnlyDictionary<string, string> Logos, IReadOnlyList<AppItem> Legacy);
 
     /// <summary>Reads the PC's apps (once), then builds the tables.</summary>
     public void Ensure()
@@ -157,7 +176,7 @@ public sealed partial class AppsStepViewModel : ObservableObject
         IsReading = true;
         _background.Run(Read, r =>
         {
-            Build(r as ReadResult ?? new ReadResult([], [], []));
+            Build(r as ReadResult ?? new ReadResult([], [], new Dictionary<string, string>(), []));
             IsReading = false;
             if (_pendingPick is { } p) { _pendingPick = null; QuickSelect(p.Preset, p.Ids); }
             if (IsRemoveTab) ShowTab("Remove");
@@ -168,6 +187,7 @@ public sealed partial class AppsStepViewModel : ObservableObject
     private ReadResult Read()
     {
         IReadOnlyList<string> installed = [], appx = [];
+        IReadOnlyDictionary<string, string> logos = new Dictionary<string, string>();
         if (_engine.Services.Apps is { } apps)
         {
             try
@@ -175,6 +195,8 @@ public sealed partial class AppsStepViewModel : ObservableObject
                 var all = apps.All();
                 installed = apps.Installed(all);
                 appx = all.Select(p => p.Name).ToList();
+                var have = installed.ToHashSet(StringComparer.OrdinalIgnoreCase);
+                logos = Core.Apps.AppPackages.Logos(all.Where(p => have.Contains(p.Name)));
             }
             catch (Exception e) { _engine.Log.Write($"Warning: the Store apps could not be read ({e.Message})"); }
         }
@@ -182,7 +204,7 @@ public sealed partial class AppsStepViewModel : ObservableObject
             .Where(t => t.Section == "Apps" && t.Category == "Remove" && t.Group is null && (t.Requires.Count == 0 || Requirements.Check(t, _engine.System) is null))
             .OrderBy(t => t.Name, StringComparer.CurrentCultureIgnoreCase)
             .Select(t => new AppItem(t, !Gone(t))).ToList();
-        return new ReadResult(installed, appx, legacy);
+        return new ReadResult(installed, appx, logos, legacy);
     }
 
     // Get-AkariLegacyRemoveList: installed = its Detect says not gone yet
@@ -192,10 +214,12 @@ public sealed partial class AppsStepViewModel : ObservableObject
         catch (Exception) { return false; }
     }
 
-    private AppRowViewModel Row(AppItem item) => _rows[item.Tweak.Id] = new AppRowViewModel(item, r => _background.Post(() => _ = StepAsync(r)));
+    private AppRowViewModel Row(AppItem item) =>
+        _rows[item.Tweak.Id] = new AppRowViewModel(item, _icons.Of(item.Tweak, _logos), r => _background.Post(() => _ = StepAsync(r)));
 
     private void Build(ReadResult r)
     {
+        _logos = r.Logos;
         var store = new AppTableViewModel("Store apps", "App ID");
         store.Add(AppLists.Store(_engine.Loaded.Tweaks, _engine.Loaded.Groups, r.Installed).Select(Row));
         _caps = new AppTableViewModel("Optional features", "Capability") { Note = "Reading what is on this PC..." };
@@ -212,6 +236,7 @@ public sealed partial class AppsStepViewModel : ObservableObject
         }
         Filter();
         UpdateStatus();
+        OnPropertyChanged(nameof(CurrentRemove));
     }
 
     [RelayCommand]

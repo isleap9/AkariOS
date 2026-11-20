@@ -58,5 +58,7 @@ public sealed partial class InstallPage : Page
         args.Handled = true;
     }
 
+    private void OnRemoveApps(object sender, RoutedEventArgs e) => ViewModel.OpenRemoveAppsCommand.Execute(null);
+
     private void OnOpenLog(object sender, RoutedEventArgs e) => ViewModel.OpenLogCommand.Execute(null);
 }

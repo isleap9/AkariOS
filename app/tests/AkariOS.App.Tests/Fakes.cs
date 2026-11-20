@@ -73,3 +73,58 @@ internal sealed class FakeTrustedInstaller(FakeTaskScheduler tasks) : ITrustedIn
     }
 }
 
+
+/// <summary>The PC's Store packages for the App tests: removable ones by name.</summary>
+internal sealed class FakePackages : Core.Apps.IPackageManager
+{
+    public List<Core.Apps.AppPackage> Packages { get; } = [];
+    public List<string> Calls { get; } = [];
+
+    public FakePackages Add(params string[] names)
+    {
+        foreach (var n in names) Packages.Add(new Core.Apps.AppPackage(n, $"{n}_1.0.0.0_x64__8wekyb3d8bbwe", $"{n}_8wekyb3d8bbwe", null, false, false, false, false));
+        return this;
+    }
+
+    public IReadOnlyList<Core.Apps.AppPackage> AllUsers() => Packages.ToList();
+    public void Remove(string fullName) { Calls.Add($"remove {fullName}"); Packages.RemoveAll(p => p.FullName == fullName); }
+    public void RegisterByFamily(string family) => Calls.Add($"register-family {family}");
+    public void Register(string manifest) => Calls.Add($"register {manifest}");
+    public void Add(string file) => Calls.Add($"add {file}");
+    public IReadOnlyList<Core.Apps.ProvisionedApp> ProvisionedApps() => [];
+    public void Deprovision(string family) => Calls.Add($"deprovision {family}");
+}
+
+/// <summary>The PC's Optional and Windows features.</summary>
+internal sealed class FakeDism : Core.Apps.IDism
+{
+    public List<Core.Apps.DismItem> Capabilities { get; } = [];
+    public List<Core.Apps.DismItem> Features { get; } = [];
+
+    IReadOnlyList<Core.Apps.DismItem> Core.Apps.IDism.Capabilities() => Capabilities.ToList();
+    IReadOnlyList<Core.Apps.DismItem> Core.Apps.IDism.Features() => Features.ToList();
+    public string? CapabilityState(string name) => Capabilities.FirstOrDefault(c => c.Name == name)?.State;
+    public string? FeatureState(string name) => Features.FirstOrDefault(f => f.Name == name)?.State;
+    public void RemoveCapability(string name) => Capabilities.RemoveAll(c => c.Name == name);
+    public void DisableFeature(string name) => Features.RemoveAll(f => f.Name == name);
+}
+
+/// <summary>winget.exe for the App tests: every call recorded, "--version" 1.9.0, the rest code 0 with no lines unless
+/// Answer says otherwise. Nothing real is run.</summary>
+internal sealed class FakeWinget : Core.Apps.IWinget
+{
+    public List<string> Calls { get; } = [];
+    public Func<string[], Core.Apps.WingetResult?>? Answer { get; set; }
+
+    public Core.Apps.WingetResult Run(params string[] arguments)
+    {
+        Calls.Add(string.Join(" ", arguments));
+        return Answer?.Invoke(arguments) ?? (arguments[0] == "--version" ? new(0, ["v1.9.0"]) : new(0, []));
+    }
+}
+
+/// <summary>No downloads in the App tests.</summary>
+internal sealed class NoDownloads : Core.Update.IHttp
+{
+    public void Download(string url, string file) => throw new InvalidOperationException("no downloads in tests");
+}

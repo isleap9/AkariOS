@@ -227,6 +227,7 @@ public sealed class InstallTests : IDisposable
         Assert.Equal("Guided run", t.Activity.All()[0].Title);
         Assert.Equal(["fix-plain", "fix-pick"], t.Engine.Presets.LastUsed()!.Entries.Select(e => e.Id));
         Assert.False(t.Shell.Locked || t.Shell.IsBusy);
+        Assert.Equal("All done: 2 changes applied.", t.Toasts[0]);
         // Done: the chooser, Home
         i.DoneCommand.Execute(null);
         Assert.True(i.IsChoosing);
@@ -267,15 +268,18 @@ public sealed class InstallTests : IDisposable
         Assert.True(i.IsRun);
         Assert.True(t.Shell.Locked);
         Assert.Equal(RunState.Working, i.RunItems[0].State);
-        // Optimize's cards wait
+        // Optimize's change waits in its queue (W6: queued, not refused) and runs once the Run is done
         t.Work.Hold = false;
         await t.Catalogue.ChangeAsync(t.Engine.Find("fix-dark")!, TweakMode.Apply);
-        Assert.Contains("Install AkariOS is applying changes", t.Dialogs.Asked[^1]);
-        Assert.Null(t.Fix("Dark"));
-        Assert.False(await i.CanCloseAsync());
+        Assert.Equal(("Waiting\u2026", (object?)null), (t.Card("fix-dark").StateLine, t.Fix("Dark")));
+        // closing asks once, naming both
+        Assert.False(await t.Closing.CanCloseAsync());
+        Assert.Equal(Shell.ClosingGuard.Question(["Applying 1 change", "1 change from Optimize waiting"]), t.Dialogs.Asked[^1]);
         while (t.Work.Held.TryDequeue(out var run)) run();
         Assert.True(i.IsResult);
-        Assert.True(await i.CanCloseAsync());
+        Assert.Equal(1u, t.Fix("Dark"));
+        Assert.False(t.Closing.MustAsk);
+        Assert.True(await t.Closing.CanCloseAsync());
     }
 
     [Fact]

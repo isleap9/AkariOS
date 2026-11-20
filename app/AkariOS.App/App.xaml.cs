@@ -138,12 +138,18 @@ public partial class App : Application
         // made on the UI thread (OnLaunched): the window's dispatcher queue
         services.AddSingleton<IBackground>(new DispatcherBackground(queue!));
         services.AddSingleton<ShellState>();
+        // Akari's dialogs over the framework's own (registered last, so it wins)
+        services.AddSingleton<IDialogService>(_ => new AkariDialogs(() => MainWindow?.Content?.XamlRoot));
+        services.AddSingleton<ClosingGuard>();
         services.AddSingleton<RestoreRule>();
         services.AddSingleton<CatalogueViewModel>();
         services.AddSingleton<ServicesListViewModel>();
         services.AddSingleton<TasksListViewModel>();
         services.AddTransient<CataloguePageViewModel>();
+        services.AddSingleton(_ => new AppIcons(AssetFiles.Default));
         services.AddSingleton<InstallViewModel>();
+        services.AddSingleton<RemoveAppsViewModel>();
+        services.AddSingleton<DownloadsViewModel>();
         services.AddSingleton<ITextDialog>(_ => new ContentTextDialog(() => MainWindow?.Content?.XamlRoot));
         // One-click: Program runs the preset in a console once the window has closed
         services.AddSingleton(_ => new OneClickHandoff(p =>
@@ -170,7 +176,8 @@ public partial class App : Application
     // an error inside a click: in akari.log and a message, instead of closing the app
     private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
     {
-        _log?.WriteFile($"Error: UI: {e.Exception}");
+        // WinUI's own errors carry no stack trace: the window's state and last steps say where it happened
+        _log?.WriteFile($"Error: UI: {e.Exception} (HRESULT 0x{e.Exception.HResult:X8}; {MainWindow?.Describe() ?? "no window"})");
         if (MainWindow?.Content?.XamlRoot is null) return;
         e.Handled = true;
         var message = e.Exception.Message;

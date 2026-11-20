@@ -46,8 +46,8 @@ public sealed class HomeSettingsTests : IDisposable
         var t = Make();
         var home = t.Home();
         Assert.Equal(t.Catalogue.Tweaks.Count, home.Stats.Tweaks);
-        // no Store apps engine in the test: unknown, a dash; the applied changes are read (none yet)
-        Assert.Equal(("—", "0"), (home.Stats.AppsText, home.Stats.AppliedText));
+        // no Store apps on the test PC, none applied yet
+        Assert.Equal(("0", "0"), (home.Stats.AppsText, home.Stats.AppliedText));
         // One-click asks for the AkariOS preset, which the fixtures don't have
         home.OneClickCommand.Execute(null);
         Assert.Equal("The AkariOS preset is missing from this build.", Assert.Single(t.Dialogs.Asked));
@@ -163,6 +163,7 @@ public sealed class HomeSettingsTests : IDisposable
     public void A_change_running_blocks_the_update()
     {
         var t = Make();
+        t.Dialogs.Answers.Enqueue("Later");
         t.Card("fix-safe").IsOn = true;
         t.Updates.Check(manual: true);
         Assert.Equal(UpdateKind.Blocked, t.Updates.Status!.Kind);
@@ -212,7 +213,11 @@ public sealed class HomeSettingsTests : IDisposable
         t.Picker.SavePath = Path.Combine(_h.Dir, "mine.json");
         await s.ExportAsync();
         Assert.Contains("fix-plain", File.ReadAllText(t.Picker.SavePath));
-        Assert.Equal($"Exported 1 settings to:\n\n{t.Picker.SavePath}", t.Dialogs.Asked[^1]);
+        Assert.Equal($"Exported 1 setting: {t.Picker.SavePath}", t.Toasts[0]);
         Assert.False(t.Shell.IsBusy);
+        // its action opens the folder
+        t.Shell.Toasts[0].ActCommand.Execute(null);
+        Assert.Equal(_h.Dir, t.Open.Opened[^1]);
+        Assert.Empty(t.Shell.Toasts);
     }
 }

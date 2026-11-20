@@ -42,7 +42,7 @@ public sealed class ServicesWiringTests : IDisposable
 
     // made by another view model, never through DI: a card, Install AkariOS' steps and their parts
     private static readonly Type[] Parts = [typeof(TweakCardViewModel), typeof(TweaksStepViewModel), typeof(AppsStepViewModel), typeof(TweakSectionViewModel),
-        typeof(TweakCategoryViewModel), typeof(AppTableViewModel), typeof(RunItemViewModel)];
+        typeof(TweakCategoryViewModel), typeof(AppTableViewModel), typeof(RunItemViewModel), typeof(AppCardViewModel)];
 
     [Fact]
     public void Every_view_model_resolves_without_the_window()

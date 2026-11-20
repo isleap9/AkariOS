@@ -2,7 +2,8 @@
     x:Class="AkariOS.App.Views.Cards"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:vm="using:AkariOS.App.ViewModels">
+    xmlns:vm="using:AkariOS.App.ViewModels"
+    xmlns:shell="using:AkariOS.App.Shell">
 
     <!-- the settings card the Catalogue pages and Home's Quick settings share (merged in App.xaml) -->
     <!-- a settings card (the prototype's .card): WinUI's card fill and stroke, 4 px corners -->
@@ -74,4 +75,133 @@
             </Grid>
         </Border>
     </DataTemplate>
+    <!-- a tile (New-AkariTile, the prototype's .tile): the card fill and stroke, 8 px corners, at least 152 px; the
+         card's secondary fill on hover, the tertiary control fill pressed -->
+    <Style x:Key="Tile" TargetType="Button">
+        <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="16" />
+        <Setter Property="MinHeight" Value="152" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="VerticalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Top" />
+        <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+        <Setter Property="UseSystemFocusVisuals" Value="True" />
+        <Setter Property="FocusVisualMargin" Value="-3" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid x:Name="Root" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                          BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}">
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal" />
+                                <VisualState x:Name="PointerOver">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Background" Value="{ThemeResource CardBackgroundFillColorSecondaryBrush}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Pressed">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Background" Value="{ThemeResource ControlFillColorTertiaryBrush}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Disabled">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Opacity" Value="0.5" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                        <ContentPresenter Margin="{TemplateBinding Padding}" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <!-- a tile's icon (.tile .ico): 40 px, 8 px corners, the accent soft (the accent at 15 %) under the accent text colour -->
+    <Style x:Key="TileIcon" TargetType="ContentControl">
+        <Setter Property="Width" Value="40" />
+        <Setter Property="Height" Value="40" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="Margin" Value="0,0,0,4" />
+        <Setter Property="Foreground" Value="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContentControl">
+                    <Grid>
+                        <Border CornerRadius="8" Background="{ThemeResource AccentFillColorDefaultBrush}" Opacity="0.15" />
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Content="{TemplateBinding Content}" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- an app's icon (New-AkariAppIcon): its image, a black-or-white one tinted in the text colour, or a glyph -->
+    <DataTemplate x:Key="AppIconTemplate" x:DataType="shell:AppIcon">
+        <Grid>
+            <Image Visibility="{x:Bind IsColor}" Stretch="Uniform">
+                <Image.Source><BitmapImage UriSource="{x:Bind Image}" DecodePixelWidth="80" /></Image.Source>
+            </Image>
+            <BitmapIcon Visibility="{x:Bind IsMono}" UriSource="{x:Bind Image}" ShowAsMonochrome="True" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+            <FontIcon Visibility="{x:Bind IsGlyph}" Glyph="{x:Bind Glyph}" FontSize="14" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        </Grid>
+    </DataTemplate>
+    <Style x:Key="AppPanel" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="16" />
+    </Style>
+
+    <!-- an app row: check, mark, name, description, source -->
+    <DataTemplate x:Key="AppRowTemplate" x:DataType="vm:AppRowViewModel">
+        <Grid Visibility="{x:Bind Shows, Mode=OneWay}" ColumnSpacing="12" Padding="0,2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="32" /><ColumnDefinition Width="20" /><ColumnDefinition Width="24" /><ColumnDefinition Width="2*" /><ColumnDefinition Width="3*" /><ColumnDefinition Width="2*" />
+            </Grid.ColumnDefinitions>
+            <CheckBox IsChecked="{x:Bind IsChecked, Mode=TwoWay}" MinWidth="0" VerticalAlignment="Center" />
+            <Grid Grid.Column="1" VerticalAlignment="Center">
+                <FontIcon Glyph="&#xE73E;" FontSize="14" Visibility="{x:Bind IsSafe}" ToolTipService.ToolTip="Recommended" Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
+                <FontIcon Glyph="&#xE738;" FontSize="14" Visibility="{x:Bind IsOptional}" ToolTipService.ToolTip="Optional" Foreground="{ThemeResource SystemFillColorCautionBrush}" />
+                <FontIcon Glyph="&#xE7BA;" FontSize="14" Visibility="{x:Bind IsRisky}" ToolTipService.ToolTip="Not recommended" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                <FontIcon Glyph="&#xE7BA;" FontSize="14" Visibility="{x:Bind IsCautionInstall}" ToolTipService.ToolTip="{x:Bind CautionTip}" Foreground="{ThemeResource SystemFillColorCautionBrush}" />
+            </Grid>
+            <ContentControl Grid.Column="2" Content="{x:Bind Icon}" ContentTemplate="{StaticResource AppIconTemplate}" Opacity="{x:Bind Dim}" />
+            <TextBlock Grid.Column="3" Text="{x:Bind Name}" Opacity="{x:Bind Dim}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                       ToolTipService.ToolTip="{x:Bind NameTip}" />
+            <TextBlock Grid.Column="4" Text="{x:Bind Description}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" ToolTipService.ToolTip="{x:Bind Description}" />
+            <TextBlock Grid.Column="5" Text="{x:Bind Source}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" ToolTipService.ToolTip="{x:Bind SourceTip}" />
+        </Grid>
+    </DataTemplate>
+
+    <DataTemplate x:Key="AppTableTemplate" x:DataType="vm:AppTableViewModel">
+        <Border Style="{StaticResource AppPanel}" Margin="0,0,0,12">
+            <StackPanel Spacing="4">
+                <TextBlock Text="{x:Bind Title, Mode=OneWay}" Style="{StaticResource SubtitleTextBlockStyle}" FontSize="18" Margin="0,0,0,6" />
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="32" /><ColumnDefinition Width="20" /><ColumnDefinition Width="24" /><ColumnDefinition Width="2*" /><ColumnDefinition Width="3*" /><ColumnDefinition Width="2*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="3" Text="Name" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Grid.Column="4" Text="Description" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Grid.Column="5" Text="{x:Bind Last}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </Grid>
+                <TextBlock Text="{x:Bind Note, Mode=OneWay}" Visibility="{x:Bind HasNote, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <ItemsControl ItemsSource="{x:Bind Rows}" ItemTemplate="{StaticResource AppRowTemplate}" />
+            </StackPanel>
+        </Border>
+    </DataTemplate>
+
 </ResourceDictionary>

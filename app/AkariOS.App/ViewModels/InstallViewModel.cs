@@ -7,6 +7,7 @@ using AkariOS.Core.Tweaks;
 using AkariOS.Framework.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.UI.Xaml.Controls;
 
 namespace AkariOS.App.ViewModels;
 
@@ -108,10 +109,12 @@ public sealed partial class InstallViewModel : ObservableObject
     private readonly IShellOpen _open;
     private readonly IFilePicker _picker;
     private readonly OneClickHandoff _oneClick;
+    private readonly AppIcons _icons;
 
     public InstallViewModel(Engine engine, IBackground background, IDialogService dialogs, ITextDialog text, ShellState shell, RestoreRule restore,
-        CatalogueViewModel catalogue, HomeStats stats, ActivityLog activity, IShellNavigator navigator, IShellOpen open, IFilePicker picker, OneClickHandoff oneClick)
+        CatalogueViewModel catalogue, HomeStats stats, ActivityLog activity, IShellNavigator navigator, IShellOpen open, IFilePicker picker, OneClickHandoff oneClick, AppIcons icons)
     {
+        _icons = icons;
         (_engine, _background, _dialogs, _text, _shell, _restore) = (engine, background, dialogs, text, shell, restore);
         (_catalogue, _stats, _activity, _navigator, _open, _picker, _oneClick) = (catalogue, stats, activity, navigator, open, picker, oneClick);
         (Tweaks, Apps) = (NewTweaks(), NewApps());
@@ -262,7 +265,7 @@ public sealed partial class InstallViewModel : ObservableObject
 
     private TweaksStepViewModel NewTweaks() => new(_engine, _background, _dialogs, _text, Selection, Update, (preset, ids) => Apps.QuickSelect(preset, ids));
 
-    private AppsStepViewModel NewApps() => new(_engine, _background, _dialogs, Selection, Update);
+    private AppsStepViewModel NewApps() => new(_engine, _background, _dialogs, _icons, Selection, Update);
 
     /// <summary>The page was opened: its step's reads start.</summary>
     public void Shown()
@@ -410,6 +413,8 @@ public sealed partial class InstallViewModel : ObservableObject
 
     private sealed record Refused(string Message);
 
+    private BusyWork? _busy;
+
     private void Run(IReadOnlyList<PlanItem> plan, bool restore)
     {
         var label = $"Applying {plan.Count} change{(plan.Count == 1 ? "" : "s")}";
@@ -420,11 +425,11 @@ public sealed partial class InstallViewModel : ObservableObject
         Running = true;
         Step = 3;
         _shell.Locked = true;
-        _shell.SetBusy(true, label);
+        _busy = _shell.Begin(label);
         _engine.Log.Write(label);
         Update();
         if (restore) RunItems[0].State = RunState.Working;
-        var progress = new Posted(_background, Report);
+        var progress = new PostedProgress(_background, Report);
         _background.Run(() =>
         {
             if (restore && _engine.RestorePoints?.Create("AkariOS") is { Ok: false } refused) return new Refused(refused.Message);
@@ -448,6 +453,7 @@ public sealed partial class InstallViewModel : ObservableObject
     // Update-AkariRunPage: the item the Runner names is Working, the one before it done; the bar and its percent
     private void Report(RunProgress p)
     {
+        if (_busy is { } b) _shell.Report(b, p);
         foreach (var it in RunItems.Where(x => x.Kind != "Preparation"))
         {
             if (it.Plain != p.Step || it.State != RunState.Waiting) continue;
@@ -464,26 +470,31 @@ public sealed partial class InstallViewModel : ObservableObject
     private async Task AppliedAsync(object? r, IReadOnlyList<PlanItem> plan, bool restore)
     {
         Running = false;
-        _shell.Locked = false;
-        _shell.SetBusy(false);
+        _shell.End(_busy);
         if (r is Refused refused)
         {
-            // stopped before any change: back on Review; asked, then on without one (Cancel: Apply tries again)
+            // stopped before any change: back on Review; asked, then on without one (Cancel: Apply tries again). Still
+            // locked while it asks, so the changes waiting in Optimize and Downloads don't start in between.
             Step = 2;
             Update();
             if (await _dialogs.ConfirmAsync("Restore point", $"AkariOS could not create a restore point:\n\n{refused.Message}\n\nApply the changes without a restore point?", "Apply anyway"))
             {
                 _restore.Done = true;
                 await ApplyAsync(skipRestore: true);
+                if (!Running) _shell.Locked = false;
+                return;
             }
+            _shell.Locked = false;
             return;
         }
+        // the changes that waited (Optimize's, Downloads') run now
+        _shell.Locked = false;
         if (restore) _restore.Done = true;
         if (r is not IReadOnlyList<Outcome> outcomes)
         {
             Step = 2;
             Update();
-            await _dialogs.ShowErrorAsync("Install AkariOS", "The changes stopped before they ran. The details are in akari.log.");
+            _shell.Toast("Install AkariOS stopped", "The changes stopped before they ran. The details are in akari.log.", InfoBarSeverity.Error);
             return;
         }
         // each row its Outcome
@@ -502,6 +513,11 @@ public sealed partial class InstallViewModel : ObservableObject
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { _engine.Log.Write($"Warning: Last used not saved ({e.Message})"); }
         var ok = outcomes.Count(o => o.Kind is OutcomeKind.Applied or OutcomeKind.Reverted);
         _activity.Add("Guided run", "Install AkariOS", ok, "wand");
+        // Complete-AkariApply's toast: "n changes applied", Restart now when a change needs it
+        var bad = outcomes.Count(o => o.Kind == OutcomeKind.Failed);
+        _shell.Toast("All done", $"{ok} change{(ok == 1 ? "" : "s")} applied." + (bad > 0 ? $" {bad} failed." : "") + (ResultReboot ? " Restart to finish." : ""),
+            bad > 0 ? InfoBarSeverity.Warning : InfoBarSeverity.Success,
+            ResultReboot && _engine.Shutdown is not null ? "Restart now" : null, () => _ = Guard(RestartNowAsync()));
         // what this PC has now: Home's facts and the Catalogue's States are read again
         _stats.Stale();
         _catalogue.NotifyApplied();
@@ -545,6 +561,9 @@ public sealed partial class InstallViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void OpenRemoveApps() => _navigator.Open("Remove apps");
+
+    [RelayCommand]
     private void OpenOptimize()
     {
         Reset();
@@ -581,11 +600,11 @@ public sealed partial class InstallViewModel : ObservableObject
         }
         if (!await _dialogs.ConfirmAsync("Start One-click now?", OneClickWarning, "Start One-click")) return;
         if (!await _restore.ChooseAsync("OneClick")) { Hand(preset); return; }
-        _shell.SetBusy(true, "Creating a restore point");
+        var busy = _shell.Begin("Creating a restore point");
         var done = new TaskCompletionSource<object?>();
         _background.Run(() => _engine.RestorePoints!.Create("AkariOS"), r => done.SetResult(r));
         var result = await done.Task;
-        _shell.SetBusy(false);
+        _shell.End(busy);
         if (result is RestoreResult { Ok: false } failed
             && !await _dialogs.ConfirmAsync("AkariOS One-click", $"AkariOS could not create a restore point:\n\n{failed.Message}\n\nRun AkariOS One-click without a restore point?", "Run anyway"))
         {
@@ -627,24 +646,18 @@ public sealed partial class InstallViewModel : ObservableObject
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { _engine.Log.Write($"Warning: the imported file was not copied to the presets ({e.Message})"); }
         _engine.Log.Write($"Import: {path}");
         GuideTweaks(preset);
+        var n = preset.Entries.Count;
+        _shell.Toast($"Imported {Path.GetFileName(path)}", $"{n} choice{(n == 1 ? "" : "s")} loaded into Guided.", InfoBarSeverity.Informational);
         _navigator.Open("Install AkariOS");
     }
-
-    // ---- closing
-
-    /// <summary>The window is closing: a Run still applying asks first. False keeps the window open.</summary>
-    public async Task<bool> CanCloseAsync() =>
-        !Running || await _dialogs.ConfirmAsync("AkariOS", "Changes are still being applied. Close AkariOS anyway? They may be left half done.", "Close anyway", "Wait");
 
     private async Task Guard(Task task)
     {
         try { await task; }
-        catch (Exception e) { _engine.Log.WriteFile($"Error: UI: {e}"); }
-    }
-
-    // a Run's progress, handed to the UI thread
-    private sealed class Posted(IBackground background, Action<RunProgress> show) : IProgress<RunProgress>
-    {
-        public void Report(RunProgress value) => background.Post(() => show(value));
+        catch (Exception e)
+        {
+            _engine.Log.WriteFile($"Error: UI: {e}");
+            if (!Running) _shell.Locked = false;
+        }
     }
 }

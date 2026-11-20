@@ -97,4 +97,17 @@ public class AppListsOracleTests
             .Select(c => $"{c.GetProperty("Title").GetString()}: {string.Join(", ", c.GetProperty("Ids").EnumerateArray().Select(i => i.GetString()))}");
         Assert.Equal(ps, AppLists.InstallCards(Loaded.Value.Tweaks, Pc(pc), Appx).Select(c => $"{c.Title}: {string.Join(", ", c.Items.Select(i => i.Tweak.Id))}"));
     }
+
+    // Downloads: each install's category the same, in the same order (ties of one name, an install and its Store
+    // restore, either way: 5.1's sort isn't stable)
+    [Theory, MemberData(nameof(Pcs))]
+    public void The_same_downloads(string pc)
+    {
+        var ps = PowerShell.Value.GetProperty(pc).GetProperty("Downloads").EnumerateArray().Select(e => e.GetString()!).ToList();
+        var mine = AppLists.Downloads(Loaded.Value.Tweaks, Pc(pc), Appx).Select(i => $"{i.Tweak.Id}={AppLists.DownloadCategory(i.Tweak)}={i.Tweak.Name}").ToList();
+        Assert.Equal(ps.Order(StringComparer.Ordinal), mine.Order(StringComparer.Ordinal));
+        static string Key(string row) => string.Join("=", row.Split('=')[1..]);
+        Assert.Equal(ps.Select(Key), mine.Select(Key));
+        Assert.Equal(["All", "Gaming", "Browsers", "Communication", "Media", "Tools", "Development"], new[] { "All" }.Concat(AppLists.DownloadCategories.Select(c => c.Key)));
+    }
 }

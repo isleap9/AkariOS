@@ -4,17 +4,6 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:vm="using:AkariOS.App.ViewModels">
 
-    <Page.Resources>
-        <!-- a Get started tile (New-AkariTile): icon, title, text, its footer -->
-        <Style x:Key="Tile" TargetType="Button">
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="VerticalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Left" />
-            <Setter Property="VerticalContentAlignment" Value="Top" />
-            <Setter Property="Padding" Value="20" />
-        </Style>
-    </Page.Resources>
-
     <ScrollViewer x:Name="Scroller">
         <StackPanel x:Name="Column" Padding="36,28" Spacing="8">
             <!-- the update InfoBar (About.ps1's check), dismissible -->
@@ -75,7 +64,7 @@
                 </Grid.ColumnDefinitions>
                 <Button Style="{StaticResource Tile}" Command="{x:Bind ViewModel.OneClickCommand}">
                     <StackPanel Spacing="6">
-                        <FontIcon Glyph="&#xE945;" HorizontalAlignment="Left" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                        <ContentControl Style="{StaticResource TileIcon}"><FontIcon Glyph="&#xE945;" FontSize="18" /></ContentControl>
                         <TextBlock Text="One-click" Style="{StaticResource BodyStrongTextBlockStyle}" />
                         <TextBlock Text="The full AkariOS setup: apps, drivers, Safe Mode and tweaks, with restarts handled for you." TextWrapping="Wrap"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -84,7 +73,7 @@
                 </Button>
                 <Button Grid.Column="1" Style="{StaticResource Tile}" Command="{x:Bind ViewModel.ChooseChangesCommand}">
                     <StackPanel Spacing="6">
-                        <FontIcon Glyph="&#xE8A5;" HorizontalAlignment="Left" />
+                        <ContentControl Style="{StaticResource TileIcon}"><FontIcon Glyph="&#xE8A5;" FontSize="18" /></ContentControl>
                         <TextBlock Text="Guided" Style="{StaticResource BodyStrongTextBlockStyle}" />
                         <TextBlock Text="Pick the apps to remove and the Tweaks to apply, review, then apply in one go." TextWrapping="Wrap"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -93,7 +82,7 @@
                 </Button>
                 <Button Grid.Column="2" Style="{StaticResource Tile}" Command="{x:Bind ViewModel.OptimizeCommand}">
                     <StackPanel Spacing="6">
-                        <FontIcon Glyph="&#xE9E9;" HorizontalAlignment="Left" />
+                        <ContentControl Style="{StaticResource TileIcon}"><FontIcon Glyph="&#xE9E9;" FontSize="18" /></ContentControl>
                         <TextBlock Text="Optimize" Style="{StaticResource BodyStrongTextBlockStyle}" />
                         <TextBlock Text="Every Tweak by category. Each change applies the moment you flip it." TextWrapping="Wrap"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />

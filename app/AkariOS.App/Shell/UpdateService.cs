@@ -103,13 +103,14 @@ public sealed partial class UpdateService : ObservableObject
         if (Status is null || _shell.IsBusy) return;
         var now = Updates.Status(_current, Status.Release, Blocks());
         if (now.Kind != UpdateKind.Available) { await _dialogs.ShowInfoAsync(Title, now.Message); return; }
-        _shell.SetBusy(true, $"Downloading AkariOS {now.Release.Version}…");
+        var busy = _shell.Begin($"Downloading AkariOS {now.Release.Version}…");
         _log.WriteFile($"Update: downloading AkariOS {now.Release.Version}");
         var done = new TaskCompletionSource<UpdateResult>();
         _background.Run(() => _updater.Install(now.Release, _exePath), r => done.SetResult(r as UpdateResult ?? new UpdateResult(false, "The update could not be prepared.")));
         var result = await done.Task;
+        // ended first: closing asks while something still runs
+        _shell.End(busy);
         if (result.Ok) { _close(); return; }
-        _shell.SetBusy(false);
         await _dialogs.ShowErrorAsync(Title, result.Message);
     }
 

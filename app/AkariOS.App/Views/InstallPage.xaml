@@ -2,17 +2,10 @@
     x:Class="AkariOS.App.Views.InstallPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:vm="using:AkariOS.App.ViewModels">
+    xmlns:vm="using:AkariOS.App.ViewModels"
+    xmlns:local="using:AkariOS.App.Views">
 
     <Page.Resources>
-        <!-- a chooser tile (New-AkariTile -Big) -->
-        <Style x:Key="Tile" TargetType="Button">
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="VerticalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Left" />
-            <Setter Property="VerticalContentAlignment" Value="Top" />
-            <Setter Property="Padding" Value="24" />
-        </Style>
         <Style x:Key="Section" TargetType="TextBlock" BasedOn="{StaticResource BodyStrongTextBlockStyle}">
             <Setter Property="Margin" Value="0,20,0,8" />
         </Style>
@@ -73,47 +66,6 @@
             </Border>
         </DataTemplate>
 
-        <!-- an app row: check, mark, name, description, source -->
-        <DataTemplate x:Key="AppRowTemplate" x:DataType="vm:AppRowViewModel">
-            <Grid Visibility="{x:Bind Shows, Mode=OneWay}" ColumnSpacing="12" Padding="0,2">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="32" /><ColumnDefinition Width="20" /><ColumnDefinition Width="2*" /><ColumnDefinition Width="3*" /><ColumnDefinition Width="2*" />
-                </Grid.ColumnDefinitions>
-                <CheckBox IsChecked="{x:Bind IsChecked, Mode=TwoWay}" MinWidth="0" VerticalAlignment="Center" />
-                <Grid Grid.Column="1" VerticalAlignment="Center">
-                    <FontIcon Glyph="&#xE73E;" FontSize="14" Visibility="{x:Bind IsSafe}" ToolTipService.ToolTip="Recommended" Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
-                    <FontIcon Glyph="&#xE738;" FontSize="14" Visibility="{x:Bind IsOptional}" ToolTipService.ToolTip="Optional" Foreground="{ThemeResource SystemFillColorCautionBrush}" />
-                    <FontIcon Glyph="&#xE7BA;" FontSize="14" Visibility="{x:Bind IsRisky}" ToolTipService.ToolTip="Not recommended" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
-                    <FontIcon Glyph="&#xE7BA;" FontSize="14" Visibility="{x:Bind IsCautionInstall}" ToolTipService.ToolTip="{x:Bind CautionTip}" Foreground="{ThemeResource SystemFillColorCautionBrush}" />
-                </Grid>
-                <TextBlock Grid.Column="2" Text="{x:Bind Name}" Opacity="{x:Bind Dim}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
-                           ToolTipService.ToolTip="{x:Bind NameTip}" />
-                <TextBlock Grid.Column="3" Text="{x:Bind Description}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" ToolTipService.ToolTip="{x:Bind Description}" />
-                <TextBlock Grid.Column="4" Text="{x:Bind Source}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}"
-                           Foreground="{ThemeResource TextFillColorTertiaryBrush}" ToolTipService.ToolTip="{x:Bind SourceTip}" />
-            </Grid>
-        </DataTemplate>
-
-        <DataTemplate x:Key="AppTableTemplate" x:DataType="vm:AppTableViewModel">
-            <Border Style="{StaticResource Panel}" Margin="0,0,0,12">
-                <StackPanel Spacing="4">
-                    <TextBlock Text="{x:Bind Title, Mode=OneWay}" Style="{StaticResource SubtitleTextBlockStyle}" FontSize="18" Margin="0,0,0,6" />
-                    <Grid ColumnSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="32" /><ColumnDefinition Width="20" /><ColumnDefinition Width="2*" /><ColumnDefinition Width="3*" /><ColumnDefinition Width="2*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="2" Text="Name" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        <TextBlock Grid.Column="3" Text="Description" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        <TextBlock Grid.Column="4" Text="{x:Bind Last}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    </Grid>
-                    <TextBlock Text="{x:Bind Note, Mode=OneWay}" Visibility="{x:Bind HasNote, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <ItemsControl ItemsSource="{x:Bind Rows}" ItemTemplate="{StaticResource AppRowTemplate}" />
-                </StackPanel>
-            </Border>
-        </DataTemplate>
-
         <!-- a Review, run or result row -->
         <DataTemplate x:Key="ReviewRowTemplate" x:DataType="vm:ReviewRow">
             <Grid ColumnSpacing="16" Padding="0,8">
@@ -165,7 +117,7 @@
                         <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
                         <Button Style="{StaticResource Tile}" Command="{x:Bind ViewModel.StartOneClickCommand}">
                             <StackPanel Spacing="8">
-                                <FontIcon Glyph="&#xE945;" FontSize="24" HorizontalAlignment="Left" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                <ContentControl Style="{StaticResource TileIcon}"><FontIcon Glyph="&#xE945;" FontSize="20" /></ContentControl>
                                 <TextBlock Text="One-click" Style="{StaticResource SubtitleTextBlockStyle}" />
                                 <TextBlock TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                            Text="The full AkariOS setup in one go: removes bloat, cleans and reinstalls graphics drivers, applies every AkariOS Tweak, including the ones that need Safe Mode. Your PC restarts several times." />
@@ -174,7 +126,7 @@
                         </Button>
                         <Button Grid.Column="1" Style="{StaticResource Tile}" Command="{x:Bind ViewModel.GuideCommand}">
                             <StackPanel Spacing="8">
-                                <FontIcon Glyph="&#xE8A5;" FontSize="24" HorizontalAlignment="Left" />
+                                <ContentControl Style="{StaticResource TileIcon}"><FontIcon Glyph="&#xE8A5;" FontSize="20" /></ContentControl>
                                 <TextBlock Text="Guided" Style="{StaticResource SubtitleTextBlockStyle}" />
                                 <TextBlock TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                            Text="Pick the apps to remove and install and the Tweaks to apply, review everything, then apply it in one go. Nothing changes until you press Apply." />
@@ -221,32 +173,22 @@
                         <SelectorBarItem Text="Remove" Tag="Remove" IsSelected="True" />
                         <SelectorBarItem Text="Install" Tag="Install" />
                     </SelectorBar>
-                    <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                         <DropDownButton Content="Quick select" ToolTipService.ToolTip="Pick a preset: it replaces every pick, apps and Tweaks">
                             <DropDownButton.Flyout>
                                 <MenuFlyout Placement="Bottom" Opening="OnQuickMenu" />
                             </DropDownButton.Flyout>
                         </DropDownButton>
-                        <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{x:Bind ViewModel.Apps.IsRemoveTab, Mode=OneWay}">
-                            <Button Content="Select recommended" Command="{x:Bind ViewModel.Apps.SelectRecommendedCommand, Mode=OneWay}"
-                                    ToolTipService.ToolTip="Win11Debloat's pick: what is on this PC and marked Recommended" />
-                            <Button Content="AkariOS" Command="{x:Bind ViewModel.Apps.SelectAkariOSCommand, Mode=OneWay}"
-                                    ToolTipService.ToolTip="The AkariOS debloat (FR33THY's): everything on this PC except its keep-list" />
-                            <Button Content="Clear selection" Command="{x:Bind ViewModel.Apps.ClearRemovalsCommand, Mode=OneWay}" />
-                            <CheckBox Content="Only installed" IsChecked="{x:Bind ViewModel.Apps.OnlyInstalled, Mode=TwoWay}" MinWidth="0" Margin="8,0,0,0" />
-                        </StackPanel>
-                        <Button Content="Clear selection" Command="{x:Bind ViewModel.Apps.ClearInstallsCommand, Mode=OneWay}"
-                                Visibility="{x:Bind ViewModel.Apps.IsInstallTab, Mode=OneWay}" />
-                    </StackPanel>
-                    <Grid ColumnSpacing="12">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                        <TextBox PlaceholderText="Filter apps" Text="{x:Bind ViewModel.Apps.Query, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" MaxWidth="360" HorizontalAlignment="Left" />
-                        <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.Apps.StatusText, Mode=OneWay}" Style="{StaticResource Muted}" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" PlaceholderText="Filter apps" Text="{x:Bind ViewModel.Apps.Query, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" MaxWidth="360" HorizontalAlignment="Left" />
+                        <TextBlock Grid.Column="2" Text="{x:Bind ViewModel.Apps.StatusText, Mode=OneWay}" Style="{StaticResource Muted}" VerticalAlignment="Center" />
                     </Grid>
-                    <ItemsControl ItemsSource="{x:Bind ViewModel.Apps.RemoveTables, Mode=OneWay}" ItemTemplate="{StaticResource AppTableTemplate}"
-                                  Visibility="{x:Bind ViewModel.Apps.IsRemoveTab, Mode=OneWay}" />
-                    <ItemsControl ItemsSource="{x:Bind ViewModel.Apps.InstallTables, Mode=OneWay}" ItemTemplate="{StaticResource AppTableTemplate}"
-                                  Visibility="{x:Bind ViewModel.Apps.IsInstallTab, Mode=OneWay}" />
+                    <local:RemoveListsView Apps="{x:Bind ViewModel.Apps, Mode=OneWay}" Visibility="{x:Bind ViewModel.Apps.IsRemoveTab, Mode=OneWay}" />
+                    <StackPanel Visibility="{x:Bind ViewModel.Apps.IsInstallTab, Mode=OneWay}" Spacing="8">
+                        <Button Content="Clear selection" Command="{x:Bind ViewModel.Apps.ClearInstallsCommand, Mode=OneWay}" />
+                        <ItemsControl ItemsSource="{x:Bind ViewModel.Apps.InstallTables, Mode=OneWay}" ItemTemplate="{StaticResource AppTableTemplate}" />
+                    </StackPanel>
+                    <HyperlinkButton Content="Remove apps lists the same apps and features, and removes them right away" Click="OnRemoveApps" Padding="0" />
                 </StackPanel>
 
                 <!-- Guided › Tweaks -->

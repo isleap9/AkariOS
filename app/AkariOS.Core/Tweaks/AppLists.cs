@@ -83,6 +83,38 @@ public static class AppLists
         return cards;
     }
 
+    /// <summary>$AkariDownloadCategories: Downloads' SelectorBar (after All) and the AppTypes under each.</summary>
+    public static IReadOnlyList<KeyValuePair<string, string[]>> DownloadCategories { get; } =
+    [
+        new("Gaming", ["Game launchers", "Gaming & hardware"]),
+        new("Browsers", ["Browsers"]),
+        new("Communication", ["Communication"]),
+        new("Media", ["Media"]),
+        new("Tools", ["Utilities", "System tools", "Documents", "Network & remote", "Home server & streaming"]),
+        new("Development", ["Runtimes", "Dev tools", "Languages & SDKs"]),
+    ];
+
+    /// <summary>$AkariDownloadRestore: the Store apps the debloat removed, under All only.</summary>
+    public const string DownloadRestore = "Microsoft Store";
+
+    /// <summary>Get-AkariDownloadCategory: an install's Downloads category (Tools for any other AppType).</summary>
+    public static string DownloadCategory(Tweak t)
+    {
+        if (string.Equals(t.AppType, RestoreType, StringComparison.OrdinalIgnoreCase)) return DownloadRestore;
+        foreach (var (k, types) in DownloadCategories)
+            if (types.Contains(t.AppType ?? "", StringComparer.OrdinalIgnoreCase)) return k;
+        return "Tools";
+    }
+
+    /// <summary>Get-AkariDownloadsView's cards: every install of the cards, by category in the SelectorBar's order
+    /// (the Store's restores last), then by name.</summary>
+    public static IReadOnlyList<AppItem> Downloads(IEnumerable<Tweak> tweaks, ISystemInfo pc, IEnumerable<string> appx)
+    {
+        var order = DownloadCategories.Select(c => c.Key).Append(DownloadRestore).ToList();
+        return InstallCards(tweaks, pc, appx).SelectMany(c => c.Items)
+            .OrderBy(i => order.IndexOf(DownloadCategory(i.Tweak))).ThenBy(i => i.Tweak.Name, ByName).ThenBy(i => i.Tweak.Id, StringComparer.Ordinal).ToList();
+    }
+
     /// <summary>Get-AkariAppSource: the table's last column: the Store id, the package or feature name, the winget ids,
     /// the removal's id, or an AkariOS download.</summary>
     public static string Source(Tweak t)

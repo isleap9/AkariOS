@@ -61,14 +61,42 @@
 
             <Grid>
                 <Frame x:Name="ContentFrame" />
-                <!-- the busy toast (Set-Busy): what runs now -->
-                <InfoBar
-                    HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,24,24" MaxWidth="420"
-                    Severity="Informational" IsClosable="False"
-                    IsOpen="{x:Bind Shell.IsBusy, Mode=OneWay}" Title="{x:Bind Shell.BusyText, Mode=OneWay}"
-                    Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}">
-                    <ProgressBar IsIndeterminate="True" Margin="0,0,0,12" />
-                </InfoBar>
+                <!-- the toasts (Show-AkariToast, Set-Busy), stacked at the bottom right: results newest on top, the busy
+                     toast under them -->
+                <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,24,24" Width="380" Spacing="8">
+                    <ItemsControl ItemsSource="{x:Bind Shell.Toasts}">
+                        <ItemsControl.ItemContainerTransitions>
+                            <TransitionCollection>
+                                <AddDeleteThemeTransition />
+                                <RepositionThemeTransition />
+                            </TransitionCollection>
+                        </ItemsControl.ItemContainerTransitions>
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Spacing="8" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="shell:Toast">
+                                <InfoBar IsOpen="True" IsClosable="True" Severity="{x:Bind Severity}" Title="{x:Bind Title}" Message="{x:Bind Text}"
+                                         CloseButtonCommand="{x:Bind CloseCommand}"
+                                         Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}">
+                                    <InfoBar.ActionButton>
+                                        <Button Content="{x:Bind ActionText}" Command="{x:Bind ActCommand}" Visibility="{x:Bind HasAction}" />
+                                    </InfoBar.ActionButton>
+                                </InfoBar>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <!-- the busy toast (Set-Busy): what runs now and, for a Run, how far it got -->
+                    <InfoBar
+                        Severity="Informational" IsClosable="False"
+                        IsOpen="{x:Bind Shell.IsBusy, Mode=OneWay}" Title="{x:Bind Shell.BusyText, Mode=OneWay}"
+                        Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}">
+                        <ProgressBar IsIndeterminate="{x:Bind Shell.Indeterminate, Mode=OneWay}" Value="{x:Bind Shell.ProgressValue, Mode=OneWay}"
+                                     Maximum="100" Margin="0,0,0,12" />
+                    </InfoBar>
+                </StackPanel>
             </Grid>
         </NavigationView>
     </Grid>

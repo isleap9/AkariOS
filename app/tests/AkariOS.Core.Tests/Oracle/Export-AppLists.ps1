@@ -1,6 +1,6 @@
 # The reference for the native Apps lists (app/AkariOS.Core/Tweaks/AppLists.cs): src\UI\Apps.ps1's pure functions
 # (Get-AkariAppList, Get-AkariFoundList, Get-AkariInstallList, Get-AkariInstallCards, Get-AkariAppSource,
-# Get-AkariAppIconFile, Get-AkariInstallMark) on src\Tweaks, written as JSON for AppListsOracleTests. The functions are read out of
+# Get-AkariAppIconFile, Get-AkariInstallMark, Get-AkariDownloadCategory and Get-AkariDownloadsView's order) on src\Tweaks, written as JSON for AppListsOracleTests. The functions are read out of
 # Apps.ps1 (the file's WPF parts never load). Two made-up PCs (the system reads are replaced): Win11 Pro desktop with
 # an NVIDIA GPU, Win10 Home laptop with none. What is on the PC is given: -Installed (Store package names), -Capabilities,
 # -Features, -Appx (every package name, for the restore card), -Logos ('package=file;…'); each ';'-separated.
@@ -11,10 +11,10 @@ function Split-List([string]$s) { @($s.Split(';') | Where-Object { $_ }) }
 . (Join-Path $Src 'Core\Loader.ps1')
 . (Join-Path $Src 'Core\System.ps1')
 $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $Src 'UI\Apps.ps1'), [ref]$null, [ref]$null)
-foreach ($fn in 'Get-AkariAppList', 'Get-AkariFoundList', 'Get-AkariInstallList', 'Get-AkariInstallCards', 'Get-AkariAppSource', 'Get-AkariAppIconFile', 'Get-AkariInstallMark') {
+foreach ($fn in 'Get-AkariAppList', 'Get-AkariFoundList', 'Get-AkariInstallList', 'Get-AkariInstallCards', 'Get-AkariAppSource', 'Get-AkariAppIconFile', 'Get-AkariInstallMark', 'Get-AkariDownloadCategory') {
     . ([scriptblock]::Create($ast.Find({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $fn }, $true).Extent.Text))
 }
-foreach ($v in 'AkariAppTypes', 'AkariRestoreType') {
+foreach ($v in 'AkariAppTypes', 'AkariRestoreType', 'AkariDownloadCategories', 'AkariDownloadRestore') {
     . ([scriptblock]::Create($ast.Find({ param($n) $n -is [Management.Automation.Language.AssignmentStatementAst] -and "$($n.Left)" -eq "`$$v" }, $true).Extent.Text))
 }
 
@@ -46,6 +46,10 @@ foreach ($name in $pcs.Keys) {
         Features     = @(Get-AkariFoundList $groups 'FeatureDisable' (Split-List $Features) | ForEach-Object { ConvertTo-Row $_ })
         Install      = @(Get-AkariInstallList $tweaks | ForEach-Object { ConvertTo-Row $_ })
         Cards        = @(Get-AkariInstallCards $tweaks (Split-List $Appx) | ForEach-Object { [ordered]@{ Title = $_.Title; Ids = @($_.Items | ForEach-Object { $_.Tweak.Id }) } })
+        # Get-AkariDownloadsView: by category in the SelectorBar's order (the Store's restores last), then by name
+        Downloads    = @(Get-AkariInstallCards $tweaks (Split-List $Appx) | ForEach-Object { $_.Items } |
+            Sort-Object { [array]::IndexOf(@(@($AkariDownloadCategories.Keys) + $AkariDownloadRestore), (Get-AkariDownloadCategory $_.Tweak)) }, { $_.Tweak.Name } |
+            ForEach-Object { "$($_.Tweak.Id)=$(Get-AkariDownloadCategory $_.Tweak)=$($_.Tweak.Name)" })
     }
 }
 [IO.File]::WriteAllText($Out, (ConvertTo-Json $result -Depth 10 -Compress), [Text.UTF8Encoding]::new($false))

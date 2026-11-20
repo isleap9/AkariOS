@@ -24,20 +24,26 @@ public sealed partial class MainWindow : Window, IShellNavigator
     private readonly INavigationService _navigation;
     private readonly IThemeService _theme;
     private readonly CatalogueViewModel _catalogue;
-    private readonly InstallViewModel _install;
+    private readonly ClosingGuard _closingGuard;
     private readonly Dictionary<string, NavigationViewItem> _items = new(StringComparer.OrdinalIgnoreCase);
     private string _current = "";
+    private readonly Queue<string> _trail = new();
     private bool _closing;
 
-    public MainWindow(INavigationService navigation, IThemeService theme, IMessenger messenger, CatalogueViewModel catalogue, InstallViewModel install, ShellState shell)
+    public MainWindow(INavigationService navigation, IThemeService theme, IMessenger messenger, CatalogueViewModel catalogue, ClosingGuard closing, ShellState shell)
     {
         InitializeComponent();
-        _install = install;
+        _closingGuard = closing;
         _navigation = navigation;
         _theme = theme;
         _catalogue = catalogue;
         Shell = shell;
         AppWindow.Closing += OnClosing;
+        // each toast goes by itself after its time (Show-AkariToast's timer)
+        Shell.Toasts.CollectionChanged += (_, e) =>
+        {
+            foreach (var t in e.NewItems?.OfType<Toast>() ?? []) Expire(t);
+        };
 
         Title = App.AppName;
         VersionText.Text = AkariInfo.Version;
@@ -49,6 +55,16 @@ public sealed partial class MainWindow : Window, IShellNavigator
         foreach (var e in NavTable.Menu) NavView.MenuItems.Add(Item(e));
         foreach (var e in NavTable.Footer) NavView.FooterMenuItems.Add(Item(e));
 
+        // the trail a UI error is logged with (Describe): WinUI's own errors come with no stack trace
+        NavView.PaneOpened += (_, _) => Note("pane opened");
+        NavView.PaneClosed += (_, _) => Note("pane closed");
+        NavView.DisplayModeChanged += (_, e) => Note($"display mode {e.DisplayMode}");
+        NavView.Expanding += (_, e) => Note($"expanding {(e.ExpandingItemContainer?.Tag as string) ?? "?"}");
+        NavView.Collapsed += (_, e) => Note($"collapsed {(e.CollapsedItemContainer?.Tag as string) ?? "?"}");
+        NavView.Collapsed += OnNavCollapsed;
+        NavView.Expanding += OnNavExpanding;
+        RootElement.SizeChanged += (_, e) => Note($"size {(int)e.NewSize.Width}x{(int)e.NewSize.Height}");
+
         _navigation.SetFrame(ContentFrame);
         _navigation.Navigated += (_, _) => BackBtn.IsEnabled = _navigation.CanGoBack;
         Open("Home");
@@ -59,6 +75,24 @@ public sealed partial class MainWindow : Window, IShellNavigator
 
     /// <summary>The busy toast's state (bound in XAML).</summary>
     public ShellState Shell { get; }
+
+    private void Note(string what)
+    {
+        if (_trail.Count == 12) _trail.Dequeue();
+        _trail.Enqueue($"{DateTime.Now:HH:mm:ss} {what}");
+    }
+
+    /// <summary>The window's state and its last steps, for akari.log when a UI error happens.</summary>
+    public string Describe()
+    {
+        try
+        {
+            var selected = (NavView.SelectedItem as NavigationViewItem)?.Tag as string ?? "none";
+            return $"page {_current}, nav item {selected}, display mode {NavView.DisplayMode}, pane {(NavView.IsPaneOpen ? "open" : "closed")}, " +
+                   $"width {(int)RootElement.ActualWidth}; last steps: {string.Join(" / ", _trail)}";
+        }
+        catch (Exception e) { return $"(the window's state could not be read: {e.Message})"; }
+    }
 
     /// <summary>One-click: the window closes without asking (Program runs the preset in a console after it).</summary>
     public void CloseForOneClick()
@@ -75,25 +109,57 @@ public sealed partial class MainWindow : Window, IShellNavigator
         if (string.Equals(shown, _current, StringComparison.OrdinalIgnoreCase)) return;
         _current = shown;
         Shell.Page = shown;
+        Note($"open {shown}");
         switch (route.Page)
         {
             case NavPage.Home: _navigation.NavigateTo<HomePage>(); break;
             case NavPage.Settings: _navigation.NavigateTo<SettingsPage>(); break;
             case NavPage.Install: _navigation.NavigateTo<InstallPage>(); break;
+            case NavPage.Downloads: _navigation.NavigateTo<DownloadsPage>(); break;
+            case NavPage.RemoveApps: _navigation.NavigateTo<RemoveAppsPage>(); break;
             case NavPage.Catalogue: _navigation.NavigateTo<CataloguePage>(new CatalogueQuery(route.Key, route.Query)); break;
             default:
                 var entry = NavTable.Find(key);
                 _navigation.NavigateTo<PlaceholderPage>(new Placeholder(entry?.Label ?? key, NavTable.ComingWith(key)));
                 break;
         }
+        _navKey = route.NavKey;
         if (route.NavKey is null) NavView.SelectedItem = null;
         else if (_items.TryGetValue(route.NavKey, out var item) && !ReferenceEquals(NavView.SelectedItem, item))
         {
-            // a Section's item: its parent (Optimize) open
-            if (_items.TryGetValue("Optimize", out var optimize) && route.Page == NavPage.Catalogue) optimize.IsExpanded = true;
-            NavView.SelectedItem = item;
+            // a Section's item: its parent (Optimize) opened first, the child selected once that is done (SelectLater)
+            if (route.Page == NavPage.Catalogue && _items.TryGetValue("Optimize", out var optimize) && !optimize.IsExpanded)
+            {
+                optimize.IsExpanded = true;
+                SelectLater();
+            }
+            else NavView.SelectedItem = item;
         }
     }
+
+    // ---- the nav's selection around a group expanding and collapsing
+    //
+    // WinUI's NavigationView throws "invalid vector subscript" (ArgumentOutOfRangeException, no stack trace) when a group
+    // expands while one of its children is the selected item (seen on Optimize: every second click on it). So a group
+    // collapsing hands the selection to itself, and a group expanding gets its child back once the expansion is done.
+
+    private string? _navKey;
+
+    private void OnNavCollapsed(NavigationView sender, NavigationViewItemCollapsedEventArgs args)
+    {
+        if (args.CollapsedItemContainer is NavigationViewItem parent && parent.MenuItems.Contains(NavView.SelectedItem)) NavView.SelectedItem = parent;
+    }
+
+    private void OnNavExpanding(NavigationView sender, NavigationViewItemExpandingEventArgs args) => SelectLater();
+
+    // the page's own item, after the expansion under way has finished
+    private void SelectLater() => DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+    {
+        if (_navKey is not null && _items.TryGetValue(_navKey, out var item) && !ReferenceEquals(NavView.SelectedItem, item)
+            // a child of a group closed again meanwhile stays unselected (its group shows as selected)
+            && !_items.Values.Any(p => p.MenuItems.Contains(item) && !p.IsExpanded))
+            NavView.SelectedItem = item;
+    });
 
     // ---- the search box (Get-AkariSuggestions, Open-AkariSuggestion, Open-AkariSearch)
 
@@ -110,13 +176,35 @@ public sealed partial class MainWindow : Window, IShellNavigator
         else if (args.QueryText.Trim().Length > 0) Open(NavTable.SearchPrefix + args.QueryText.Trim());
     }
 
-    // ---- closing: a change running, a Guided Run applying or Safe Mode changes waiting ask first
+    private void Expire(Toast t)
+    {
+        var timer = DispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromSeconds(t.Seconds);
+        timer.IsRepeating = false;
+        timer.Tick += (s, _) =>
+        {
+            s.Stop();
+            Shell.Dismiss(t);
+        };
+        timer.Start();
+    }
+
+    // ---- closing: anything running or waiting asks once (ClosingGuard), then Safe Mode changes waiting
 
     private async void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
-        if (_closing || !(_catalogue.MustAsk || _install.Running)) return;
+        if (_closing || !_closingGuard.MustAsk) return;
         args.Cancel = true;
-        if (!await _install.CanCloseAsync() || !await _catalogue.CanCloseAsync()) return;
+        try
+        {
+            if (!await _closingGuard.CanCloseAsync()) return;
+        }
+        catch (Exception e)
+        {
+            // a dialog already open (the window closed from the taskbar while one asks): stays open
+            Note($"closing: {e.Message}");
+            return;
+        }
         _closing = true;
         Close();
     }
@@ -164,8 +252,7 @@ public sealed partial class MainWindow : Window, IShellNavigator
 
     private static ImageSource? LoadLogo(string file)
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "Assets", file);
-        return File.Exists(path) ? new BitmapImage(new Uri(path)) : null;
+        return AssetFiles.Default.File(file) is { } path ? new BitmapImage(new Uri(path)) : null;
     }
 
     private AppWindow GetAppWindow() =>
@@ -179,8 +266,7 @@ public sealed partial class MainWindow : Window, IShellNavigator
         var height = Math.Min(860, area.Height - 80);
         window.Resize(new SizeInt32(width, height));
         window.Move(new PointInt32(area.X + (area.Width - width) / 2, area.Y + (area.Height - height) / 2));
-        var icon = Path.Combine(AppContext.BaseDirectory, "Assets", "AkariLogo.ico");
-        if (File.Exists(icon)) window.SetIcon(icon);
+        if (AssetFiles.Default.File("AkariLogo.ico") is { } icon) window.SetIcon(icon);
         ApplyTitleBarColors(_theme.CurrentTheme);
     }
 

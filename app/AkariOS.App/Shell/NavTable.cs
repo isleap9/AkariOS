@@ -8,7 +8,7 @@ public sealed record NavEntry(string Key, string Label, string Glyph, IReadOnlyL
     public NavEntry(string key, string label, string glyph) : this(key, label, glyph, []) { }
 }
 
-public enum NavPage { Home, Settings, Catalogue, Install, Placeholder }
+public enum NavPage { Home, Settings, Catalogue, Install, Downloads, RemoveApps, Placeholder }
 
 /// <summary>A search box suggestion: the Tweak's name, its Section › Category under it.</summary>
 public sealed record SearchSuggestion(Tweak Tweak)
@@ -76,6 +76,8 @@ public static class NavTable
             "Home" => new(NavPage.Home, key, key, ""),
             Settings => new(NavPage.Settings, key, key, ""),
             Install => new(NavPage.Install, key, key, ""),
+            "Downloads" => new(NavPage.Downloads, key, key, ""),
+            "Remove apps" => new(NavPage.RemoveApps, key, key, ""),
             _ => new(NavPage.Placeholder, key, key, ""),
         };
     }
@@ -83,9 +85,8 @@ public static class NavTable
     /// <summary>The batch of the WinUI 3 plan (docs/plans/2026-11-19-native-winui-3.md) that brings a page still to come.</summary>
     public static string? ComingWith(string key) => key switch
     {
-        "Home" or Settings or Install => null,
+        "Home" or Settings or Install or "Downloads" or "Remove apps" => null,
         _ when key.StartsWith(Catalogue.Prefix, StringComparison.Ordinal) || key == "Optimize" => null,
-        "Downloads" or "Remove apps" => "W5",
         "Install USB" => "W7",
         "ISO Builder" => "W8",
         _ => null,

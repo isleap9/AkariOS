@@ -39,8 +39,8 @@ WPF views to ADR 0008's look, the native app's UI is rebuilt on WinUI 3 and the 
 | W2 | Optimize: Catalogue section pages (SelectorBar of categories, settings cards with ToggleSwitch / ComboBox / Run), the change queue, restart and Safe Mode InfoBars, search (AutoSuggestBox, suggestions, results page), Services and Scheduled tasks lists, closing asks | done 2026-11-20 |
 | W3 | Home (tiles, Quick settings, Recent activity, the facts, the update InfoBar and launch prompt) and Settings (theme, accent, Export, System Restore, logs, About: update check and install, What's new, links, credits). No animations setting: WinUI follows Windows' own | done 2026-11-20 |
 | W4 | Install AkariOS: chooser, Guided (Apps, Tweaks, Review & Apply), run page, result, restore point rule, One-click hand-off; Settings › Import (a preset into Guided's Tweaks step). The Apps step is Guided's only: its Remove and Install tables, row picks, Select recommended / AkariOS / Clear, Only installed, the features read, Quick select's apps; no icons | done 2026-11-20 |
-| W5 | Downloads and Remove apps: their own pages on W4's `AppsStepViewModel` (one tab each, Review & Install / Review & Remove), app icons (`src/Assets/Apps`, Store logos), Show installed, Update all apps, Uninstall selected, the install queue, the removal Run | |
-| W6 | Dialogs and toasts everywhere: ContentDialog confirmations (Advanced, Safe Mode, critical services), busy toast with progress, close-while-running questions | |
+| W5 | Downloads (the PowerShell app's card grid: categories, search, Install queued one app at a time with no restore point, Installed / Failed on the card, Uninstall from an installed card's menu, Update all apps, what is installed read once a session) and Remove apps (the four lists one at a time, Remove (n): one Run after the restore point, rows go as it passes them, the lists read again); app icons (bundled `src/Assets/Apps`, an installed Store app's logo, black-or-white ones tinted, else a glyph) on Guided's Apps step too | done 2026-11-20 |
+| W6 | Dialogs and toasts everywhere: `AkariDialogs` (ContentDialog: main action accent and first, "- " lines a list) for every confirmation (Advanced, Safe Mode's Restart and apply / Later / Cancel, critical services, One-click); result toasts (Guided run with Restart now, Downloads' install / uninstall / update all, Remove apps, Export with Open folder, Import, Waiting for Safe Mode), stacked at the bottom right; the busy toast with each page's own work and its progress ("n of m"); one closing question naming everything running or waiting (`ClosingGuard`) | done 2026-11-20 |
 | W7 | Install USB (the Unattend Generator form on `UnattendForm`) | |
 | W8 | ISO Builder | |
 | W9 | Release: `release.yml` publishes `AkariOS-Native.exe` again, ProductVersion check; VM check on Windows 10 22H2 and 11 24H2 (elevated, 100 % and 150 %) | |
@@ -64,6 +64,20 @@ WPF views to ADR 0008's look, the native app's UI is rebuilt on WinUI 3 and the 
   with the pane opening and closing.
 - Install AkariOS has no header search (the WPF app filtered the step from the window's search box): the Apps and
   Tweaks steps have their own filter boxes; the window's box stays the Catalogue's search.
-- While a Guided Run applies, `ShellState.Locked` is on: a Catalogue card refuses its change with a message (W6 may
-  queue it instead). Closing asks (`InstallViewModel.CanCloseAsync`) before the Catalogue's own question.
+- While a Run of Install AkariOS or Remove apps applies, `ShellState.Locked` is on. Decision (W6): a Catalogue change
+  made meanwhile is queued, not refused: its card says "Waiting…" and it runs once the lock lifts (the Catalogue and
+  Downloads listen for `Locked` turning off; Downloads' installs wait the same way). A refused restore point keeps the
+  lock while it asks, so nothing queued starts in between. The session's restore point is already made by then.
+- Busy state goes through `ShellState.Begin` / `End` (a `BusyWork` per job), never one shared flag: an install from
+  Downloads and a change from Optimize can run at once, and ending one must not hide the other. End the work before the
+  window closes itself (the update), or `ClosingGuard` asks.
+- Results are toasts (`ShellState.Toast`); dialogs are for questions (and a few infos that need reading before going
+  on). Closing asks once, through `ClosingGuard`; view models have no CanCloseAsync of their own but the Catalogue's
+  Safe Mode one.
 - `SelectorBar` items and `MenuFlyout` items are filled in code-behind (glue); everything they do is a view model call.
+- `src/Assets` (the logos and the app icons) is built into the exe as resources (`Assets/…`) and unpacked on first use
+  into `%LOCALAPPDATA%\AkariOS.Native\Assets\<version>` (`Shell/AssetFiles.cs`): a single-file publish has no Assets
+  folder next to the exe, so the W1-W4 logos read from `AppContext.BaseDirectory` were missing from the published exe.
+- A mono app icon is a `BitmapIcon ShowAsMonochrome` in the text colour (WinUI has no OpacityMask).
+- Downloads and Remove apps follow the PowerShell app's current pages (cards that install right away; Remove (n)),
+  not the WPF app's table flows with their own Review step.

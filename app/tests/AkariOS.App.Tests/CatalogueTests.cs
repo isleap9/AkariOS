@@ -170,7 +170,16 @@ public sealed class CatalogueTests : IDisposable
         var t = Make();
         t.Page("Catalogue:Optimize");
         var c = t.Card("fix-safe");
+        // asked first: Cancel switches it back
         c.IsOn = true;
+        Assert.StartsWith("A fixture.\n\nThis change applies in Safe Mode", t.Dialogs.Asked[^1]);
+        Assert.Equal((false, 0), (c.IsOn, t.Catalogue.SafePending.Count));
+        t.Dialogs.Asked.Clear();
+        // Later: it waits, a toast says so
+        t.Dialogs.Answers.Enqueue("Later");
+        c.IsOn = true;
+        t.Dialogs.Asked.Clear();
+        Assert.Equal("Waiting for Safe Mode: \"Safe\" applies the next time AkariOS restarts into Safe Mode.", t.Toasts[0]);
         Assert.Equal((null, "Waiting for Safe Mode", true, true), (t.Fix("Safe"), c.StateLine, c.IsOn, c.ShowWarnLine));
         Assert.Equal((true, "1 change needs Safe Mode: Akari restarts into it, applies them and restarts back."), (t.Catalogue.SafeBarOpen, t.Catalogue.SafeBarText));
         Assert.True(t.Catalogue.MustAsk);
@@ -194,6 +203,7 @@ public sealed class CatalogueTests : IDisposable
     public async Task Restart_and_apply_restarts_into_safe_mode_for_the_waiting_changes()
     {
         var t = Make();
+        t.Dialogs.Answers.Enqueue("Later");
         t.Card("fix-safe").IsOn = true;
         t.Dialogs.Answers.Enqueue("Restart now");
         await t.Catalogue.SafeRunAsync();

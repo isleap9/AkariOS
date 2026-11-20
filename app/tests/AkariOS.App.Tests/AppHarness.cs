@@ -34,6 +34,25 @@ internal sealed record AppTest(Engine Engine, CatalogueViewModel Catalogue, Shel
     }
 
     public ActivityLog Activity { get; init; } = null!;
+    public FakePackages Packages { get; init; } = null!;
+    public FakeDism Dism { get; init; } = null!;
+    public FakeWinget Winget { get; init; } = null!;
+    public string AssetDir { get; init; } = null!;
+
+    private AppIcons? _icons;
+    public AppIcons Icons => _icons ??= new AppIcons(new AssetFiles(AssetDir));
+
+    private RemoveAppsViewModel? _remove;
+    public RemoveAppsViewModel Remove => _remove ??= new RemoveAppsViewModel(Engine, Work, Dialogs, Shell, Restore, Catalogue, Stats, Activity, Icons);
+
+    private DownloadsViewModel? _downloads;
+    public DownloadsViewModel Downloads => _downloads ??= new DownloadsViewModel(Engine, Work, Dialogs, Shell, Activity, Icons);
+
+    /// <summary>The window's closing question.</summary>
+    public ClosingGuard Closing => new(Shell, Downloads, Catalogue, Dialogs);
+
+    /// <summary>The result toasts' titles and lines, newest first.</summary>
+    public IReadOnlyList<string> Toasts => Shell.Toasts.Select(x => x.Text.Length > 0 ? $"{x.Title}: {x.Text}" : x.Title).ToList();
     public UpdateService Updates { get; init; } = null!;
     public AppHarness.FakeGitHub GitHub { get; init; } = null!;
     /// <summary>Programs started (the new exe), and the app closed (after an update).</summary>
@@ -67,7 +86,7 @@ internal sealed record AppTest(Engine Engine, CatalogueViewModel Catalogue, Shel
 
     /// <summary>Install AkariOS: one per test, as the app's.</summary>
     public InstallViewModel Install => _install ??= new InstallViewModel(Engine, Work, Dialogs, new Text(Names), Shell, Restore, Catalogue, Stats, Activity,
-        new Navigator(Navigated), Open, Picker, new OneClickHandoff(OneClicks.Add));
+        new Navigator(Navigated), Open, Picker, new OneClickHandoff(OneClicks.Add), Icons);
 
     /// <summary>Home as the window opens it, at a fixed time (Recent activity's "when").</summary>
     public HomeViewModel Home(DateTime? now = null)
@@ -191,16 +210,22 @@ internal sealed class AppHarness : IDisposable
     {
         files ??= new FolderSourceFiles(Core.Tests.Repo.Root);
         var (services, tasks) = (new FakeServiceManager(), new FakeTaskScheduler());
+        var (packages, dism, winget) = (new FakePackages(), new FakeDism(), new FakeWinget());
         var trusted = new FakeTrustedInstaller(tasks);
         Directory.CreateDirectory(Dir);
         var log = new MemoryLog();
+        var apps = new Core.Apps.AppPackages(packages, dism, log);
         var (explorer, shutdown, points, boot) = (new FakeExplorer(), new FakeShutdown(), new FakeRestore(), new FakeBoot());
         var runs = new RunStore(Path.Combine(Dir, "run.json"), () => boot.Steps.Add("clear"));
         var engine = new Engine
         {
             RunStore = runs,
             RunBoot = boot,
-            Services = new TweakServices { Services = services, Tasks = tasks, Trusted = trusted, Windows = @"C:\Windows" },
+            Services = new TweakServices
+            {
+                Services = services, Tasks = tasks, Trusted = trusted, Windows = @"C:\Windows", Apps = apps,
+                Winget = new Core.Apps.Winget(winget, packages, new NoDownloads(), apps, null, log, Dir, @"C:\Windows", _ => { }),
+            },
             Files = files,
             Registry = new RegistryEngine(new RedirectedRegistryPaths(_root)),
             System = new Pc(),
@@ -229,6 +254,7 @@ internal sealed class AppHarness : IDisposable
             new ServicesListViewModel(engine, work, dialogs, catalogue), new TasksListViewModel(engine, work, catalogue), services, tasks, trusted)
         {
             Activity = activity, Updates = updates, GitHub = github, Started = run.Started, Closed = closed,
+            Packages = packages, Dism = dism, Winget = winget, AssetDir = Path.Combine(Dir, "assets"),
         };
     }
 

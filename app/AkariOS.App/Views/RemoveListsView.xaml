@@ -1,0 +1,33 @@
+<UserControl
+    x:Class="AkariOS.App.Views.RemoveListsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- the Remove lists (Apps.ps1): one at a time under a SelectorBar, the picks, Only installed, the list's table -->
+    <StackPanel Spacing="8">
+        <SelectorBar x:Name="Lists" SelectionChanged="OnList" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="Select recommended" Click="OnRecommended" ToolTipService.ToolTip="Win11Debloat's pick: what is on this PC and marked Recommended" />
+            <Button Content="AkariOS" Click="OnAkariOS"
+                    ToolTipService.ToolTip="The AkariOS debloat (FR33THY's): every Store app, optional feature, Windows feature and legacy app on this PC except its keep-list" />
+            <Button Content="Clear" Click="OnClear" ToolTipService.ToolTip="Uncheck everything to remove" />
+            <CheckBox x:Name="Only" Content="Only installed" MinWidth="0" Margin="8,0,0,0" Click="OnOnly" />
+        </StackPanel>
+        <ProgressRing x:Name="Reading" HorizontalAlignment="Left" />
+        <ContentControl x:Name="Table" HorizontalContentAlignment="Stretch" HorizontalAlignment="Stretch" ContentTemplate="{StaticResource AppTableTemplate}" />
+        <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,4,0,0">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <FontIcon Glyph="&#xE73E;" FontSize="12" Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
+                <TextBlock Text="Recommended" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <FontIcon Glyph="&#xE738;" FontSize="12" Foreground="{ThemeResource SystemFillColorCautionBrush}" />
+                <TextBlock Text="Optional" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <FontIcon Glyph="&#xE7BA;" FontSize="12" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                <TextBlock Text="Not recommended" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

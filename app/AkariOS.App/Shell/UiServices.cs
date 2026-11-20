@@ -1,6 +1,5 @@
 using AkariOS.Core;
 using AkariOS.Framework.Services;
-using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Dispatching;
 
 namespace AkariOS.App.Shell;
@@ -17,6 +16,12 @@ public interface IBackground
     void Post(Action action);
 }
 
+/// <summary>A Run's progress, handed to the UI thread.</summary>
+public sealed class PostedProgress(IBackground background, Action<Core.Runs.RunProgress> show) : IProgress<Core.Runs.RunProgress>
+{
+    public void Report(Core.Runs.RunProgress value) => background.Post(() => show(value));
+}
+
 /// <summary>The real one: the thread pool, then the window's dispatcher queue.</summary>
 public sealed class DispatcherBackground(DispatcherQueue queue) : IBackground
 {
@@ -24,30 +29,6 @@ public sealed class DispatcherBackground(DispatcherQueue queue) : IBackground
         Task.Run(work).ContinueWith(t => queue.TryEnqueue(() => done(t.IsCompletedSuccessfully ? t.Result : null)), TaskScheduler.Default);
 
     public void Post(Action action) => queue.TryEnqueue(() => action());
-}
-
-/// <summary>The shell's busy toast (Set-Busy): what runs now, shown at the bottom of the window.</summary>
-public sealed partial class ShellState : ObservableObject
-{
-    [ObservableProperty]
-    public partial bool IsBusy { get; set; }
-
-    [ObservableProperty]
-    public partial string BusyText { get; set; } = "";
-
-    /// <summary>The page shown (its NavTable key; a search: "Search:…"), set by the window.</summary>
-    [ObservableProperty]
-    public partial string Page { get; set; } = "";
-
-    /// <summary>A Run of Install AkariOS applies changes now: nothing else changes the PC until it is done.</summary>
-    [ObservableProperty]
-    public partial bool Locked { get; set; }
-
-    public void SetBusy(bool on, string text = "")
-    {
-        BusyText = on ? text : "";
-        IsBusy = on;
-    }
 }
 
 /// <summary>
@@ -94,6 +75,7 @@ public sealed class ContentTextDialog(Func<Microsoft.UI.Xaml.XamlRoot?> root) : 
             XamlRoot = xamlRoot, Title = title, Content = box, PrimaryButtonText = button, CloseButtonText = "Cancel",
             DefaultButton = Microsoft.UI.Xaml.Controls.ContentDialogButton.Primary,
         };
+        AkariDialogs.Style(dialog);
         var r = await dialog.ShowAsync();
         return r == Microsoft.UI.Xaml.Controls.ContentDialogResult.Primary && box.Text.Trim().Length > 0 ? box.Text.Trim() : null;
     }

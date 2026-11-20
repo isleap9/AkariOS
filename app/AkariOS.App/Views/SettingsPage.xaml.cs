@@ -27,7 +27,7 @@ public sealed partial class SettingsPage : Page
 
     private void SetLogo()
     {
-        var file = Path.Combine(AppContext.BaseDirectory, "Assets", ActualTheme == ElementTheme.Light ? "AkariLogo-light.png" : "AkariLogo-dark.png");
-        AboutLogo.Source = File.Exists(file) ? new BitmapImage(new Uri(file)) : null;
+        var file = Shell.AssetFiles.Default.File(ActualTheme == ElementTheme.Light ? "AkariLogo-light.png" : "AkariLogo-dark.png");
+        AboutLogo.Source = file is null ? null : new BitmapImage(new Uri(file));
     }
 }

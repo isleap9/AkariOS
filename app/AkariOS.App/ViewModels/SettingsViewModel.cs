@@ -6,6 +6,7 @@ using AkariOS.Framework.Services;
 using AkariOS.Framework.ViewModels;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.UI.Xaml.Controls;
 
 namespace AkariOS.App.ViewModels;
 
@@ -126,7 +127,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public async Task ExportAsync()
     {
         if (_shell.IsBusy || await _picker.SaveJsonAsync($"AkariOS settings {Environment.MachineName} {DateTime.Now:yyyy-MM-dd}.json") is not { } path) return;
-        _shell.SetBusy(true, "Exporting settings");
+        var busy = _shell.Begin("Exporting settings");
         _engine.Log.Write($"Exporting settings to {path}");
         var done = new TaskCompletionSource<object?>();
         _background.Run(() =>
@@ -135,14 +136,15 @@ public sealed partial class SettingsViewModel : ViewModelBase
             catch (Exception e) when (e is IOException or UnauthorizedAccessException) { _engine.Log.WriteFile($"Error: export: {e}"); return null; }
         }, r => done.SetResult(r));
         var result = await done.Task;
-        _shell.SetBusy(false);
+        _shell.End(busy);
         if (result is not ValueTuple<string, int> (var file, var count))
         {
-            await _dialogs.ShowErrorAsync("Export settings", "The settings could not be exported. The log has the details.");
+            _shell.Toast("Settings not exported", "The settings could not be exported. The log has the details.", InfoBarSeverity.Error);
             return;
         }
         _engine.Log.Write($"Exported {count} settings: {file}");
-        await _dialogs.ShowInfoAsync("Export settings", $"Exported {count} settings to:\n\n{file}");
+        _shell.Toast($"Exported {count} setting{(count == 1 ? "" : "s")}", file, InfoBarSeverity.Success, "Open folder",
+            () => _open.Folder(Path.GetDirectoryName(file) ?? file));
     }
 }
 

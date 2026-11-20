@@ -55,7 +55,7 @@ public sealed class ShellTests
             var placeholder = NavTable.Route(e.Key).Page == NavPage.Placeholder;
             Assert.Equal(placeholder, NavTable.ComingWith(e.Key) is not null);
         }
-        Assert.Equal(["Downloads", "Remove apps", "Install USB", "ISO Builder"],
+        Assert.Equal(["Install USB", "ISO Builder"],
             NavTable.All.Where(e => NavTable.Route(e.Key).Page == NavPage.Placeholder).Select(e => e.Key));
     }
 
@@ -69,6 +69,7 @@ public sealed class ShellTests
         Assert.Equal(NavPage.Home, NavTable.Route("Home").Page);
         Assert.Equal(NavPage.Settings, NavTable.Route("Settings").Page);
         Assert.Equal(NavPage.Install, NavTable.Route("Install AkariOS").Page);
+        Assert.Equal((NavPage.Downloads, NavPage.RemoveApps), (NavTable.Route("Downloads").Page, NavTable.Route("Remove apps").Page));
     }
 
     [Fact]

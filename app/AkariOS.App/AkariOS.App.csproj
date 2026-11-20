@@ -24,9 +24,11 @@
     <ProjectReference Include="..\AkariOS.Tweaks\AkariOS.Tweaks.csproj" />
     <ProjectReference Include="..\AkariOS.Framework\AkariOS.Framework.csproj" />
   </ItemGroup>
-  <!-- the logos from src/Assets, next to the exe -->
+  <!-- the logos and app icons from src/Assets, built into the exe (a single-file publish has no folder next to it):
+       Shell/AssetFiles.cs unpacks them on first use -->
   <ItemGroup>
-    <Content Include="$(AkariSrc)Assets\AkariLogo.ico;$(AkariSrc)Assets\AkariLogo.png;$(AkariSrc)Assets\AkariLogo-dark.png;$(AkariSrc)Assets\AkariLogo-light.png" Link="Assets\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="$(AkariSrc)Assets\AkariLogo.ico;$(AkariSrc)Assets\AkariLogo.png;$(AkariSrc)Assets\AkariLogo-dark.png;$(AkariSrc)Assets\AkariLogo-light.png" LogicalName="Assets/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="$(AkariSrc)Assets\Apps\*.png" LogicalName="Assets/Apps/%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="$(WindowsAppSdkVersion)" />

@@ -24,8 +24,8 @@ public sealed partial class HomePage : Page
 
     private void SetLogo()
     {
-        var file = Path.Combine(AppContext.BaseDirectory, "Assets", ActualTheme == ElementTheme.Light ? "AkariLogo-light.png" : "AkariLogo-dark.png");
-        HeroLogo.Source = File.Exists(file) ? new BitmapImage(new Uri(file)) : null;
+        var file = Shell.AssetFiles.Default.File(ActualTheme == ElementTheme.Light ? "AkariLogo-light.png" : "AkariLogo-dark.png");
+        HeroLogo.Source = file is null ? null : new BitmapImage(new Uri(file));
     }
 
     private void Layout(double width)

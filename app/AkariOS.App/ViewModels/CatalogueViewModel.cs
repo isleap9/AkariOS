@@ -38,6 +38,11 @@ public sealed partial class CatalogueViewModel : ObservableObject
         _dialogs = dialogs;
         _shell = shell;
         _restore = restore;
+        // a Run of Install AkariOS or Remove apps is done: the changes that waited for it run now
+        _shell.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ShellState.Locked) && !_shell.Locked) _ = Guard(NextAsync());
+        };
     }
 
     /// <summary>The Tweaks it lists (this PC's).</summary>
@@ -57,6 +62,11 @@ public sealed partial class CatalogueViewModel : ObservableObject
 
     /// <summary>A change runs now (one at a time, Explorer's and the PC's restart included).</summary>
     public bool Running { get; private set; }
+
+    /// <summary>Changes waiting in the queue (not the one running).</summary>
+    public int Queued => _queue.Count;
+
+    private BusyWork? _busy;
 
     [ObservableProperty]
     public partial bool SafeBarOpen { get; private set; }
@@ -141,13 +151,8 @@ public sealed partial class CatalogueViewModel : ObservableObject
     {
         var c = Card(t);
         if (c.Busy != CatalogueBusy.None || c.NotNative is not null) { Show(c); return; }
-        if (_shell.Locked)
-        {
-            // a Guided Run applies now: nothing else changes the PC meanwhile
-            Show(c);
-            await _dialogs.ShowInfoAsync(t.Name, "Install AkariOS is applying changes. Change this when it is done.");
-            return;
-        }
+        // while a Run of Install AkariOS or Remove apps applies, the change waits in the queue (Waiting…) and runs
+        // after it (the plan's W6 decision)
         if (mode == TweakMode.Apply)
         {
             var target = t.Kind == TweakKind.Choice ? value ?? t.Recommended : Selection.Optimized;
@@ -156,9 +161,21 @@ public sealed partial class CatalogueViewModel : ObservableObject
         c.Error = "";
         if (t.SafeMode && !_engine.InSafeMode())
         {
+            // the prototype's question: Restart and apply now, Later (it waits in the Safe Mode bar), or Cancel
+            var now = false;
+            if (mode == TweakMode.Apply && !SafePending.ContainsKey(t.Id))
+            {
+                var r = await _dialogs.ShowAsync($"{t.Name}?", $"{t.Description}\n\nThis change applies in Safe Mode: AkariOS restarts into it, applies it and restarts back.",
+                    "Restart and apply", "Later", "Cancel");
+                if (r == ContentDialogResult.None) { Show(c); return; }
+                now = r == ContentDialogResult.Primary;
+            }
             Catalogue.SetSafePending(SafePending, t, c.State, mode, value, c.Current);
             Show(c);
             UpdateBars();
+            if (now) StartSafeRun();
+            else if (SafePending.ContainsKey(t.Id) && mode == TweakMode.Apply)
+                _shell.Toast("Waiting for Safe Mode", $"\"{t.Name}\" applies the next time AkariOS restarts into Safe Mode.", InfoBarSeverity.Informational);
             return;
         }
         c.Busy = CatalogueBusy.Waiting;
@@ -193,12 +210,12 @@ public sealed partial class CatalogueViewModel : ObservableObject
     // goes on without one when Windows refuses
     private async Task NextAsync()
     {
-        if (Running || !_queue.TryDequeue(out var job)) return;
+        if (Running || _shell.Locked || !_queue.TryDequeue(out var job)) return;
         Running = true;
         job.Begin();
         var restore = job.Restore && await _restore.ChooseAsync("Optimize");
         if (restore) _restore.Done = true;
-        _shell.SetBusy(true, job.Label);
+        _busy = _shell.Begin(job.Label);
         _engine.Log.Write(job.Label);
         _background.Run(() =>
         {
@@ -208,7 +225,7 @@ public sealed partial class CatalogueViewModel : ObservableObject
         }, r =>
         {
             Running = false;
-            _shell.SetBusy(false);
+            _shell.End(_busy);
             job.Done(r);
             UpdateBars();
             _ = Guard(NextAsync());
@@ -245,7 +262,7 @@ public sealed partial class CatalogueViewModel : ObservableObject
         {
             _engine.Log.WriteFile($"Error: UI: {e}");
             Running = false;
-            _shell.SetBusy(false);
+            _shell.End(_busy);
         }
     }
 
@@ -272,9 +289,15 @@ public sealed partial class CatalogueViewModel : ObservableObject
         if (!await _dialogs.ConfirmAsync("Safe Mode",
                 $"AkariOS restarts into Safe Mode now to apply {n} change{(n != 1 ? "s" : "")}, then back to normal. Save your work first.",
                 "Restart now", "Cancel")) return;
+        StartSafeRun();
+    }
+
+    private void StartSafeRun()
+    {
+        var n = SafePending.Count;
         var plan = SafePending.Select(kv => new PlanItem(kv.Key, kv.Value.Mode, kv.Value.Value)).ToList();
         Enqueue($"Applying {n} change{(n != 1 ? "s" : "")} in Safe Mode", restore: true, () => { },
-            () => _engine.Runner.Run(plan, _engine.Find),
+            () => _engine.Runner.Run(plan, _engine.Find, new PostedProgress(_background, p => { if (_busy is { } b) _shell.Report(b, p); })),
             r =>
             {
                 SafePending.Clear();
@@ -290,11 +313,11 @@ public sealed partial class CatalogueViewModel : ObservableObject
     {
         if (Running) return;
         Running = true;
-        _shell.SetBusy(true, "Restarting Explorer");
+        _busy = _shell.Begin("Restarting Explorer");
         _background.Run(() => { _engine.Explorer.Restart(); return null; }, _ =>
         {
             Running = false;
-            _shell.SetBusy(false);
+            _shell.End(_busy);
             _explorer.Clear();
             UpdateBars();
             _ = Guard(NextAsync());
@@ -307,8 +330,8 @@ public sealed partial class CatalogueViewModel : ObservableObject
         if (Running || _engine.Shutdown is not { } shutdown) return;
         if (!await _dialogs.ConfirmAsync("Restart", "Restart the PC now? Save your work first.", "Restart now", "Cancel")) return;
         Running = true;
-        _shell.SetBusy(true, "Restarting the PC");
-        _background.Run(() => { shutdown.Restart(); return null; }, _ => { Running = false; _shell.SetBusy(false); });
+        _busy = _shell.Begin("Restarting the PC");
+        _background.Run(() => { shutdown.Restart(); return null; }, _ => { Running = false; _shell.End(_busy); });
     }
 
     // ---- closing

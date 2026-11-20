@@ -1,0 +1,87 @@
+<Page
+    x:Class="AkariOS.App.Views.DownloadsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:AkariOS.App.ViewModels">
+
+    <ScrollViewer x:Name="Scroller">
+        <StackPanel x:Name="Column" Padding="36,28" Spacing="8">
+            <TextBlock Text="Downloads" Style="{StaticResource TitleTextBlockStyle}" />
+            <Grid ColumnSpacing="16" Margin="0,0,0,8">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <TextBlock Text="{x:Bind ViewModel.Lead}" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Command="{x:Bind ViewModel.UpdateAllCommand}" ToolTipService.ToolTip="Update every app winget knows a newer version of">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE72C;" FontSize="14" />
+                        <TextBlock Text="Update all apps" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+            <!-- the command bar: the categories, the search -->
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <SelectorBar x:Name="Categories" SelectionChanged="OnCategory" />
+                <TextBox Grid.Column="1" Width="220" PlaceholderText="Search apps" VerticalAlignment="Center"
+                         Text="{x:Bind ViewModel.Query, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            </Grid>
+            <ProgressRing IsActive="{x:Bind ViewModel.IsReading, Mode=OneWay}" Visibility="{x:Bind ViewModel.IsReading, Mode=OneWay}" HorizontalAlignment="Left" />
+            <TextBlock Text="{x:Bind ViewModel.EmptyText, Mode=OneWay}" Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay}" Margin="0,24"
+                       HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+            <!-- the cards: at least 220 px a column -->
+            <ItemsRepeater ItemsSource="{x:Bind ViewModel.Shown, Mode=OneWay}">
+                <ItemsRepeater.Layout>
+                    <UniformGridLayout MinItemWidth="220" MinColumnSpacing="8" MinRowSpacing="8" ItemsStretch="Fill" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="vm:AppCardViewModel">
+                        <Border Style="{StaticResource AppPanel}" Padding="14" ToolTipService.ToolTip="{x:Bind Tip}">
+                            <Border.ContextFlyout>
+                                <MenuFlyout>
+                                    <MenuFlyoutItem Text="Uninstall" Command="{x:Bind UninstallCommand}" IsEnabled="{x:Bind CanUninstall, Mode=OneWay}">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74D;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                </MenuFlyout>
+                            </Border.ContextFlyout>
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="40" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <ContentControl Width="40" Height="40" Content="{x:Bind Icon}" ContentTemplate="{StaticResource AppIconTemplate}" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" />
+                                        <FontIcon Glyph="&#xE7BA;" FontSize="12" Visibility="{x:Bind IsCaution}" ToolTipService.ToolTip="{x:Bind CautionTip}"
+                                                  Foreground="{ThemeResource SystemFillColorCautionBrush}" />
+                                    </StackPanel>
+                                    <TextBlock Text="{x:Bind Category}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                                <Grid Grid.Column="2" VerticalAlignment="Center" MinWidth="92">
+                                    <Button Command="{x:Bind InstallCommand}" Visibility="{x:Bind CanInstall, Mode=OneWay}" HorizontalAlignment="Right">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon Glyph="&#xE896;" FontSize="14" />
+                                            <TextBlock Text="Install" />
+                                        </StackPanel>
+                                    </Button>
+                                    <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{x:Bind IsBusy, Mode=OneWay}" HorizontalAlignment="Right">
+                                        <ProgressRing Width="16" Height="16" IsActive="{x:Bind IsBusy, Mode=OneWay}" />
+                                        <TextBlock Text="{x:Bind BusyText, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="6" Visibility="{x:Bind IsInstalled, Mode=OneWay}" HorizontalAlignment="Right">
+                                        <FontIcon Glyph="&#xEC61;" FontSize="16" Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
+                                        <TextBlock Text="Installed" Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center" Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
+                                    </StackPanel>
+                                    <HyperlinkButton Visibility="{x:Bind IsFailed, Mode=OneWay}" Command="{x:Bind InstallCommand}" HorizontalAlignment="Right" Padding="4,2"
+                                                     ToolTipService.ToolTip="{x:Bind Why, Mode=OneWay}">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xEB90;" FontSize="16" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                                            <TextBlock Text="Failed" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                                        </StackPanel>
+                                    </HyperlinkButton>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+        </StackPanel>
+    </ScrollViewer>
+</Page>
