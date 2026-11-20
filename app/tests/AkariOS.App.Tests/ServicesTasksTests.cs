@@ -39,12 +39,16 @@ public sealed class ServicesTasksTests : IDisposable
     public void The_advanced_section_shows_the_lists_under_their_tweaks()
     {
         var t = Pc();
-        var page = t.Page("Catalogue:Advanced/Services");
-        var services = page.Groups.Single(g => g.Key == CataloguePageViewModel.ServicesKey);
+        // each list on its Category's own page, under its Tweaks
+        var services = t.Page("Catalogue:Advanced/Services").Groups.Single();
+        Assert.Equal(CataloguePageViewModel.ServicesKey, services.Key);
         Assert.Same(t.ServiceList, services.Services);
         Assert.Contains(services.Cards, c => c.Id == "advanced-services-off");
-        Assert.Same(t.TaskList, page.Groups.Single(g => g.Key == CataloguePageViewModel.TasksKey).Tasks);
-        Assert.All(page.Groups.Where(g => g.Key != CataloguePageViewModel.ServicesKey), g => Assert.False(g.HasServices));
+        var tasks = t.Page("Catalogue:Advanced/Scheduled tasks").Groups.Single();
+        Assert.Equal(CataloguePageViewModel.TasksKey, tasks.Key);
+        Assert.Same(t.TaskList, tasks.Tasks);
+        Assert.False(tasks.HasServices);
+        Assert.All(t.Page("Catalogue:Advanced/Security").Groups, g => Assert.False(g.HasServices || g.HasTasks));
         // the search results show Tweaks only
         Assert.All(t.Page("", "service").Groups, g => Assert.False(g.HasServices || g.HasTasks));
     }
@@ -53,7 +57,7 @@ public sealed class ServicesTasksTests : IDisposable
     public void The_services_list_shows_what_fr33thy_and_zoicware_change_and_show_all_lists_every_one()
     {
         var t = Pc();
-        t.Page("Catalogue:Advanced");
+        t.Page("Catalogue:Advanced/Services");
         var list = t.ServiceList;
         Assert.Equal(["BITS", "Spooler"], list.Shown.Select(r => r.Name));
         Assert.Equal("2 services FR33THY and ZOICWARE change", list.CountText);
@@ -70,7 +74,7 @@ public sealed class ServicesTasksTests : IDisposable
         Assert.Equal(["Spooler"], list.Shown.Select(r => r.Name));
         list.Query = "zzz";
         Assert.Equal((true, "No service matches."), (list.HasMessage, list.Message));
-        t.Page("Catalogue:Advanced");
+        t.Page("Catalogue:Advanced/Services");
         Assert.Equal(1, t.Services.Reads);
         list.Refresh();
         Assert.Equal(2, t.Services.Reads);
@@ -80,7 +84,7 @@ public sealed class ServicesTasksTests : IDisposable
     public void A_startup_type_is_written_to_the_service_key_after_the_restore_point()
     {
         var t = Pc();
-        t.Page("Catalogue:Advanced");
+        t.Page("Catalogue:Advanced/Services");
         var row = t.ServiceList.Rows["BITS"];
         Assert.Equal("Automatic", (row.SelectedStart as ChoiceItem)?.Value);
         row.SelectedStart = Pick(row, "Disabled");
@@ -95,7 +99,7 @@ public sealed class ServicesTasksTests : IDisposable
     public void Start_and_stop_act_on_the_service_and_read_it_back()
     {
         var t = Pc();
-        t.Page("Catalogue:Advanced");
+        t.Page("Catalogue:Advanced/Services");
         var row = t.ServiceList.Rows["BITS"];
         Assert.Equal(("Stop", true), (row.ActionText, row.IsRunning));
         row.ActCommand.Execute(null);
@@ -107,7 +111,7 @@ public sealed class ServicesTasksTests : IDisposable
     public void Disabling_a_service_windows_needs_asks_first()
     {
         var t = Pc();
-        t.Page("Catalogue:Advanced");
+        t.Page("Catalogue:Advanced/Services");
         t.ServiceList.ShowAll = true;
         var row = t.ServiceList.Rows["RpcSs"];
         row.SelectedStart = Pick(row, "Disabled");
@@ -123,7 +127,7 @@ public sealed class ServicesTasksTests : IDisposable
     {
         var t = Pc();
         t.Engine.Registry.DeleteKey($@"{ServiceStart.Root}\Spooler");
-        t.Page("Catalogue:Advanced");
+        t.Page("Catalogue:Advanced/Services");
         var row = t.ServiceList.Rows["Spooler"];
         row.SelectedStart = Pick(row, "Manual");
         Assert.Equal(("no service named Spooler", "Failed: no service named Spooler", true), (row.Error, row.StateLine, row.IsError));
@@ -133,7 +137,7 @@ public sealed class ServicesTasksTests : IDisposable
     public void The_tasks_list_shows_what_fr33thy_and_zoicware_turn_off_and_switches_them()
     {
         var t = Pc();
-        t.Page("Catalogue:Advanced");
+        t.Page("Catalogue:Advanced/Scheduled tasks");
         var list = t.TaskList;
         Assert.Contains(@"\Microsoft\Windows\UpdateOrchestrator\Schedule Scan", list.Shown.Select(r => r.Key));
         Assert.DoesNotContain(@"\ContosoUpdate", list.Shown.Select(r => r.Key));

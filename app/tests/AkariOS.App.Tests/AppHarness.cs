@@ -28,7 +28,7 @@ internal sealed record AppTest(Engine Engine, CatalogueViewModel Catalogue, Shel
     /// <summary>A page as the window opens it.</summary>
     public CataloguePageViewModel Page(string key, string query = "")
     {
-        var p = new CataloguePageViewModel(Catalogue, ServiceList, TaskList);
+        var p = new CataloguePageViewModel(Catalogue, ServiceList, TaskList, new Navigator(Navigated));
         p.OnNavigatedTo(new CatalogueQuery(key, query));
         return p;
     }
@@ -97,6 +97,14 @@ internal sealed record AppTest(Engine Engine, CatalogueViewModel Catalogue, Shel
 
     private HomeStats? _stats;
     public HomeStats Stats => _stats ??= new HomeStats(Engine, Work, Catalogue);
+
+    /// <summary>Optimize's overview as the window opens it.</summary>
+    public OptimizeViewModel Optimize()
+    {
+        var o = new OptimizeViewModel(Catalogue, new Navigator(Navigated));
+        o.OnNavigatedTo(null);
+        return o;
+    }
 
     private InstallViewModel? _install;
 

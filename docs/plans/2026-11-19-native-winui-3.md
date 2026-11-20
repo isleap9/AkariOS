@@ -43,6 +43,7 @@ WPF views to ADR 0008's look, the native app's UI is rebuilt on WinUI 3 and the 
 | W6 | Dialogs and toasts everywhere: `AkariDialogs` (ContentDialog: main action accent and first, "- " lines a list) for every confirmation (Advanced, Safe Mode's Restart and apply / Later / Cancel, critical services, One-click); result toasts (Guided run with Restart now, Downloads' install / uninstall / update all, Remove apps, Export with Open folder, Import, Waiting for Safe Mode), stacked at the bottom right; the busy toast with each page's own work and its progress ("n of m"); one closing question naming everything running or waiting (`ClosingGuard`) | done 2026-11-20 |
 | W7 | Install USB (the Unattend Generator form on `UnattendForm`): the drive bar (setup USB found, Refresh, Save to a folder…, Save to USB), his check under it, Open file… / Reset to defaults (asks), his sections as Expanders saying "Default" / "Changed from the default", the questions before a disk wipe, a drive without setup, an existing file; `IsoAnswerAsync` for W8 | done 2026-11-20 |
 | W8 | ISO Builder (zISO's cards on `IsoBuilderViewModel`: the ISO from a file, UUP Dump or Massgrave (Downloads watched every 3 s), the work folder, Open ISO; the edition; the answer file (none, a local account, Install USB's choices); the options greying what they rule out; the image's four lists; AkariOS (off in a developer build); Build with its steps on the busy toast, done as a toast with Open folder). The long jobs lock the shell; a leftover mount is cleared on launch | done 2026-11-20 |
+| W8b | The rest of the PowerShell app's shell (a sweep of every `src/UI` function: only Legacy is left out, on purpose): Optimize's overview (the Sections as cards, a few Tools), titles as breadcrumbs (Optimize › Section, Install AkariOS › step), a suggestion's card scrolled to and flashed, the search's match marked in the results, Ctrl+F / Ctrl+E / Alt+Left, the first run's search tip | done 2026-11-20 |
 | W9 | Release: `release.yml` publishes `AkariOS-Native.exe` again, ProductVersion check; VM check on Windows 10 22H2 and 11 24H2 (elevated, 100 % and 150 %) | |
 
 ## Notes
@@ -93,3 +94,18 @@ WPF views to ADR 0008's look, the native app's UI is rebuilt on WinUI 3 and the 
 - The Massgrave watch is an `ITimers` (a DispatcherQueueTimer; tests tick a fake by hand), not a timer in the view.
 - An option ruled out is greyed, so a click can't tick two that exclude each other: test option rules with the clicks
   the page allows (ticking a greyed one in a test clears both, as Update-AkariIsoOptions does).
+- Not ported on purpose: Legacy (`Tweaks/*.ps1`, Optimize › Legacy, `UI/Rows.ps1`), the "Animation effects" setting
+  (WinUI follows Windows'), the compact-nav toggle and the suggestions' arrow keys (NavigationView and AutoSuggestBox do
+  them), the Catalogue's skeletons (the cards show "Reading…" until their State is read).
+- A card is one view model shared by every page that shows it: the search's highlight is set through
+  `CatalogueViewModel.Highlight`, which clears it on the cards of the last results; a page showing cards outside the
+  results calls it with none.
+- Optimize's Section pages used to scroll to a Category from a SelectorBar at the top, which scrolled away with the
+  page: picking the next Category meant scrolling back up. Decision (2026-11-20, native app only; tried on Customize
+  first, then every Section): a drill-down (Windows 11 Settings' pattern). A Section's page lists its Categories as
+  Settings rows in groups (Optimize: Speed, Windows; Customize: Desktop, Behaviour; Advanced: System, Security and
+  features; Tools: Keep it running, Check and recover; Graphics & Hardware: one group, no heading), each row its icon,
+  name, a line saying what is inside, the count in a badge and a chevron (`Shell/CategoryInfo`); each Category has its
+  own page (Optimize › Section › Category). Every page's title is a small line of links above a normal heading,
+  Install AkariOS' Guided too. Picked from mockups; rejected: the bar pinned, tabs, plain rows with a title-size
+  breadcrumb, tiles, a switcher in the title, chips, Categories in the left nav, a list beside the cards, expanders.

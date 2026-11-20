@@ -14,14 +14,18 @@ public sealed class CatalogueTests : IDisposable
     // ---- pages
 
     [Fact]
-    public void A_section_page_lists_its_categories_with_their_states()
+    public void A_section_page_lists_its_categories_and_a_category_page_its_cards_with_their_states()
     {
         var t = Make();
         var page = t.Page("Catalogue:Optimize");
-        Assert.Equal(("Optimize", ""), (page.Title, page.ScrollTo));
-        Assert.Equal(["Other", "Test"], page.Groups.Select(g => g.Title));
-        Assert.Equal(["fix-asking", "fix-pick", "fix-plain", "fix-reboots", "fix-safe"], page.Groups[1].Cards.Select(c => c.Id).Order());
-        Assert.Equal("6 tweaks", page.CountText);
+        Assert.Equal("Optimize", page.Title);
+        Assert.Equal([("Other", 1), ("Test", 5)], page.Categories.Select(c => (c.Name, c.Count)));
+        Assert.Empty(page.Groups);
+        Assert.False(page.HasCards);
+        var test = t.Page("Catalogue:Optimize/Test");
+        Assert.Equal(["fix-asking", "fix-pick", "fix-plain", "fix-reboots", "fix-safe"], test.Groups.Single().Cards.Select(c => c.Id).Order());
+        Assert.Equal("5 tweaks", test.CountText);
+        t.Page("Catalogue:Optimize/Other");
         Assert.Equal("Windows default", t.Card("fix-plain").StateLine);
         Assert.False(t.Card("fix-plain").IsOn);
         // an Action has no State line at rest
@@ -29,10 +33,11 @@ public sealed class CatalogueTests : IDisposable
     }
 
     [Fact]
-    public void A_category_page_is_its_section_scrolled_to_it()
+    public void A_category_page_shows_only_its_cards()
     {
         var page = Make().Page("Catalogue:Optimize/Test");
-        Assert.Equal(("Optimize", "Catalogue:Optimize/Test", 2), (page.Title, page.ScrollTo, page.Groups.Count));
+        Assert.Equal(("Test", 1), (page.Title, page.Groups.Count));
+        Assert.Equal(["Optimize", "Optimize", "Test"], page.Crumbs);
     }
 
     [Fact]
@@ -81,13 +86,13 @@ public sealed class CatalogueTests : IDisposable
     public void Refresh_reads_the_states_again_and_cards_are_kept()
     {
         var t = Make();
-        var page = t.Page("Catalogue:Optimize");
+        var page = t.Page("Catalogue:Optimize/Test");
         var card = t.Card("fix-plain");
         t.Engine.Registry.SetValue(@"HKCU:\Software\AkariFix", "Plain", 1u, "DWord");
         Assert.Equal("Windows default", card.StateLine);
         page.Refresh();
         Assert.Equal(("Optimized", true), (card.StateLine, card.IsOn));
-        Assert.Same(card, t.Page("Catalogue:Optimize").Groups[1].Cards.First(c => c.Id == "fix-plain"));
+        Assert.Same(card, t.Page("Catalogue:Optimize/Test").Groups[0].Cards.First(c => c.Id == "fix-plain"));
     }
 
     // ---- changes
@@ -96,7 +101,7 @@ public sealed class CatalogueTests : IDisposable
     public void A_switch_applies_and_reverts_right_away_after_one_restore_point()
     {
         var t = Make();
-        t.Page("Catalogue:Optimize");
+        t.Page("Catalogue:Optimize/Test");
         var c = t.Card("fix-plain");
         c.IsOn = true;
         Assert.Equal((1u, "Optimized", true), (t.Fix("Plain"), c.StateLine, c.IsOn));
@@ -168,7 +173,7 @@ public sealed class CatalogueTests : IDisposable
     public async Task A_safe_mode_tweak_waits_in_its_bar_and_closing_asks()
     {
         var t = Make();
-        t.Page("Catalogue:Optimize");
+        t.Page("Catalogue:Optimize/Test");
         var c = t.Card("fix-safe");
         // asked first: Cancel switches it back
         c.IsOn = true;
@@ -255,7 +260,7 @@ public sealed class CatalogueTests : IDisposable
     public void Changes_queue_one_at_a_time()
     {
         var t = Make();
-        t.Page("Catalogue:Optimize");
+        t.Page("Catalogue:Optimize/Test");
         t.Work.Hold = true;
         var (plain, reboots) = (t.Card("fix-plain"), t.Card("fix-reboots"));
         plain.IsOn = true;

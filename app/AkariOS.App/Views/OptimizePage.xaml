@@ -1,0 +1,45 @@
+<Page
+    x:Class="AkariOS.App.Views.OptimizePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:AkariOS.App.ViewModels">
+
+    <ScrollViewer x:Name="Scroller">
+        <StackPanel x:Name="Column" Padding="36,28" Spacing="8">
+            <TextBlock Text="Optimize" Style="{StaticResource TitleTextBlockStyle}" />
+            <TextBlock Text="{x:Bind vm:OptimizeViewModel.Lead}" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,0,8" />
+
+            <!-- the Sections, two to a row (CardButton settings cards: icon, header, its first Categories, the count, a chevron) -->
+            <ItemsRepeater ItemsSource="{x:Bind ViewModel.Sections}">
+                <ItemsRepeater.Layout>
+                    <UniformGridLayout MinItemWidth="340" MinColumnSpacing="4" MinRowSpacing="4" ItemsStretch="Fill" MaximumRowsOrColumns="2" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="vm:OptimizeSection">
+                        <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="16,12" MinHeight="68"
+                                Tag="{x:Bind Key}" Click="OnSection">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <FontIcon Glyph="{x:Bind Glyph}" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{x:Bind Header}" />
+                                    <TextBlock Text="{x:Bind Categories}" Style="{StaticResource CaptionTextBlockStyle}" TextTrimming="CharacterEllipsis"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="2" Text="{x:Bind CountText}" VerticalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                <FontIcon Grid.Column="3" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center" />
+                            </Grid>
+                        </Button>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+
+            <!-- Tools: the Catalogue's own cards -->
+            <TextBlock Text="Tools" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,20,0,4" Visibility="{x:Bind ViewModel.HasTools}" />
+            <ItemsControl ItemsSource="{x:Bind ViewModel.Tools}" ItemTemplate="{StaticResource CardTemplate}" />
+        </StackPanel>
+    </ScrollViewer>
+</Page>

@@ -8,7 +8,7 @@ public sealed record NavEntry(string Key, string Label, string Glyph, IReadOnlyL
     public NavEntry(string key, string label, string glyph) : this(key, label, glyph, []) { }
 }
 
-public enum NavPage { Home, Settings, Catalogue, Install, Downloads, RemoveApps, Unattend, Iso, Placeholder }
+public enum NavPage { Home, Settings, Catalogue, Install, Downloads, RemoveApps, Unattend, Iso, Optimize, Placeholder }
 
 /// <summary>A search box suggestion: the Tweak's name, its Section › Category under it.</summary>
 public sealed record SearchSuggestion(Tweak Tweak)
@@ -31,6 +31,8 @@ public static class NavTable
     public const string Install = "Install AkariOS";
 
     // Shell.ps1's icons in Segoe Fluent Icons (Segoe MDL2 Assets on Windows 10)
+    public static string SectionGlyph(string section) => SectionGlyphs.GetValueOrDefault(section, "");
+
     private static readonly IReadOnlyDictionary<string, string> SectionGlyphs = new Dictionary<string, string>
     {
         ["Optimize"] = "", ["Customize"] = "", ["Hardware"] = "", ["Advanced"] = "", ["Tools"] = "",
@@ -59,13 +61,13 @@ public static class NavTable
     public const string SearchPrefix = "Search:";
 
     /// <summary>
-    /// Where a key goes (Get-AkariNavKey): Optimize = its first Section; a Section or Category = the Catalogue page
+    /// Where a key goes (Get-AkariNavKey): Optimize = its overview (Show-AkariOptimize); a Section or Category = the Catalogue page
     /// (a Category selects its Section's item); a search = the results (no item); else the page itself.
     /// </summary>
     public static NavRoute Route(string key)
     {
         if (key.StartsWith(SearchPrefix, StringComparison.Ordinal)) return new(NavPage.Catalogue, "", null, key[SearchPrefix.Length..]);
-        if (key == "Optimize") key = Catalogue.Prefix + Catalogue.Sections[0];
+        if (key == "Optimize") return new(NavPage.Optimize, key, key, "");
         if (key.StartsWith(Catalogue.Prefix, StringComparison.Ordinal))
         {
             var section = Catalogue.Split(key)?.Section ?? key[Catalogue.Prefix.Length..];

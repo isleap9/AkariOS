@@ -87,6 +87,22 @@ public sealed partial class CatalogueViewModel : ObservableObject
     public partial bool CanRestartPc { get; private set; }
 
     /// <summary>A card, made the first time.</summary>
+    private readonly List<TweakCardViewModel> _highlighted = [];
+
+    /// <summary>The search's query marked in these cards' names; every other card shown plain (a card is shared by
+    /// every page that shows it).</summary>
+    public void Highlight(IEnumerable<TweakCardViewModel> cards, string query)
+    {
+        foreach (var c in _highlighted) c.Query = "";
+        _highlighted.Clear();
+        if (query.Trim().Length == 0) return;
+        foreach (var c in cards)
+        {
+            c.Query = query.Trim();
+            _highlighted.Add(c);
+        }
+    }
+
     public TweakCardViewModel Card(Tweak t) =>
         _cards.TryGetValue(t.Id, out var c) ? c : _cards[t.Id] = new TweakCardViewModel(t, _engine.States.DefaultFor(t),
             (card, mode, value) => _background.Post(() => _ = Guard(ChangeAsync(card.Tweak, mode, value))));

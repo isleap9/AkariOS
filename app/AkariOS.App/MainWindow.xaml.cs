@@ -30,9 +30,13 @@ public sealed partial class MainWindow : Window, IShellNavigator
     private readonly Queue<string> _trail = new();
     private bool _closing;
 
-    public MainWindow(INavigationService navigation, IThemeService theme, IMessenger messenger, CatalogueViewModel catalogue, ClosingGuard closing, ShellState shell)
+    private readonly SearchTip _searchTip;
+
+    public MainWindow(INavigationService navigation, IThemeService theme, IMessenger messenger, CatalogueViewModel catalogue, ClosingGuard closing, ShellState shell,
+        SearchTip searchTip)
     {
         InitializeComponent();
+        _searchTip = searchTip;
         _closingGuard = closing;
         _navigation = navigation;
         _theme = theme;
@@ -68,6 +72,7 @@ public sealed partial class MainWindow : Window, IShellNavigator
         _navigation.SetFrame(ContentFrame);
         _navigation.Navigated += (_, _) => BackBtn.IsEnabled = _navigation.CanGoBack;
         Open("Home");
+        ShowSearchTipLater();
 
         messenger.Register<ThemeChangedMessage>(this, (r, m) => ((MainWindow)r).ApplyTheme(m.Theme));
         messenger.Register<NavigationRequestedMessage>(this, (r, m) => ((MainWindow)r)._navigation.NavigateTo(m.PageType, m.Parameter));
@@ -102,11 +107,14 @@ public sealed partial class MainWindow : Window, IShellNavigator
     }
 
     /// <summary>Opens a page by its key (NavTable.Route), selecting its nav item.</summary>
-    public void Open(string key)
+    public void Open(string key) => Open(key, "");
+
+    // flash: a search suggestion's Tweak, its card scrolled to and flashed (opened again even on its own page)
+    private void Open(string key, string flash)
     {
         var route = NavTable.Route(key);
         var shown = route.Page == NavPage.Catalogue && route.Query.Length > 0 ? NavTable.SearchPrefix + route.Query : route.Key;
-        if (string.Equals(shown, _current, StringComparison.OrdinalIgnoreCase)) return;
+        if (flash.Length == 0 && string.Equals(shown, _current, StringComparison.OrdinalIgnoreCase)) return;
         _current = shown;
         Shell.Page = shown;
         Note($"open {shown}");
@@ -119,7 +127,8 @@ public sealed partial class MainWindow : Window, IShellNavigator
             case NavPage.RemoveApps: _navigation.NavigateTo<RemoveAppsPage>(); break;
             case NavPage.Unattend: _navigation.NavigateTo<UnattendPage>(); break;
             case NavPage.Iso: _navigation.NavigateTo<IsoBuilderPage>(); break;
-            case NavPage.Catalogue: _navigation.NavigateTo<CataloguePage>(new CatalogueQuery(route.Key, route.Query)); break;
+            case NavPage.Optimize: _navigation.NavigateTo<OptimizePage>(); break;
+            case NavPage.Catalogue: _navigation.NavigateTo<CataloguePage>(new CatalogueQuery(route.Key, route.Query, flash)); break;
             default:
                 var entry = NavTable.Find(key);
                 _navigation.NavigateTo<PlaceholderPage>(new Placeholder(entry?.Label ?? key, NavTable.ComingWith(key)));
@@ -174,7 +183,12 @@ public sealed partial class MainWindow : Window, IShellNavigator
     private void OnSearchSubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
     {
         // a suggestion: its Category; Enter: every match
-        if (args.ChosenSuggestion is SearchSuggestion s) Open(Core.Tweaks.Catalogue.Key(s.Tweak.Section, s.Tweak.Category));
+        if (args.ChosenSuggestion is SearchSuggestion s)
+        {
+            // Open-AkariSuggestion: the box emptied, the Tweak's Category, its card flashed
+            sender.Text = "";
+            Open(Core.Tweaks.Catalogue.Key(s.Tweak.Section, s.Tweak.Category), s.Tweak.Id);
+        }
         else if (args.QueryText.Trim().Length > 0) Open(NavTable.SearchPrefix + args.QueryText.Trim());
     }
 
@@ -189,6 +203,50 @@ public sealed partial class MainWindow : Window, IShellNavigator
             Shell.Dismiss(t);
         };
         timer.Start();
+    }
+
+    // ---- the keys: Ctrl+F / Ctrl+E to the search box (the pane opened first when it is compact), Alt+Left back
+
+    private void OnSearchKey(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        args.Handled = true;
+        if (!NavView.IsPaneOpen) NavView.IsPaneOpen = true;
+        SearchBox.Focus(FocusState.Keyboard);
+    }
+
+    private void OnBackKey(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        args.Handled = true;
+        OnBack(this, new RoutedEventArgs());
+    }
+
+    // ---- the first run's search tip: on Home, 1.4 s after the window opens, once ever
+
+    private void ShowSearchTipLater()
+    {
+        var timer = DispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromMilliseconds(1400);
+        timer.IsRepeating = false;
+        timer.Tick += async (t, _) =>
+        {
+            t.Stop();
+            try
+            {
+                if (_current != "Home" || !NavView.IsPaneOpen || !await _searchTip.ShouldShowAsync()) return;
+                SearchTipView.Subtitle = SearchTip.Text(_catalogue.Tweaks.Count);
+                SearchTipView.IsOpen = true;
+            }
+            catch (Exception e) { Note($"search tip: {e.Message}"); }
+        };
+        timer.Start();
+    }
+
+    private void OnSearchTipGotIt(TeachingTip sender, object args) => sender.IsOpen = false;
+
+    private async void OnSearchTipClosed(TeachingTip sender, TeachingTipClosedEventArgs args)
+    {
+        try { await _searchTip.SeenAsync(); }
+        catch (Exception e) { Note($"search tip: {e.Message}"); }
     }
 
     // ---- closing: anything running or waiting asks once (ClosingGuard), then Safe Mode changes waiting

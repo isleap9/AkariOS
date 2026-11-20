@@ -84,6 +84,12 @@
 
         <ScrollViewer x:Name="Scroller">
             <StackPanel x:Name="Column" Padding="36,28" Spacing="8">
+                <!-- the title: in Guided an "Install AkariOS ›" link line (the chooser, picks kept), then the step -->
+                <ItemsControl ItemsSource="{x:Bind ViewModel.CrumbLinks, Mode=OneWay}" ItemTemplate="{StaticResource CrumbTemplate}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
                 <TextBlock Text="{x:Bind ViewModel.Heading, Mode=OneWay}" Style="{StaticResource TitleTextBlockStyle}" />
                 <TextBlock Text="{x:Bind ViewModel.Subheading, Mode=OneWay}" Style="{StaticResource Muted}" FontSize="14" Margin="0,0,0,8" />
 

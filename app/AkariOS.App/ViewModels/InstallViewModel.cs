@@ -325,8 +325,32 @@ public sealed partial class InstallViewModel : ObservableObject
         }
     }
 
+    /// <summary>The title as a breadcrumb in Guided (Set-AkariHeader): Install AkariOS › the step; none on the chooser.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCrumbs), nameof(HasNoCrumbs), nameof(CrumbLinks))]
+    public partial IReadOnlyList<string> Crumbs { get; private set; } = [];
+
+    public bool HasCrumbs => Crumbs.Count > 0;
+    public bool HasNoCrumbs => Crumbs.Count == 0;
+
+    /// <summary>The line above the heading: every crumb but the last, each a link.</summary>
+    public IReadOnlyList<Shell.CrumbLink> CrumbLinks => [.. Crumbs.Take(Math.Max(0, Crumbs.Count - 1)).Select((c, i) => new Shell.CrumbLink(c, () => OpenCrumb(i)))];
+
+    /// <summary>A crumb clicked (Open-AkariCrumb): Install AkariOS = the chooser, the picks kept; not while a Run applies.</summary>
+    public void OpenCrumb(int index)
+    {
+        if (index != 0 || Running || IsChoosing) return;
+        Go("Choose", 0);
+    }
+
     // Update-AkariStepFooter and the header
     private void Update()
+    {
+        UpdateHeader();
+        Crumbs = IsChoosing ? [] : ["Install AkariOS", Heading];
+    }
+
+    private void UpdateHeader()
     {
         var n = Selection.Count;
         if (IsChoosing)

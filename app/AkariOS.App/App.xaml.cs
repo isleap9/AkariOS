@@ -148,6 +148,7 @@ public partial class App : Application
         // Akari's dialogs over the framework's own (registered last, so it wins)
         services.AddSingleton<IDialogService>(_ => new AkariDialogs(() => MainWindow?.Content?.XamlRoot));
         services.AddSingleton<ClosingGuard>();
+        services.AddSingleton<SearchTip>();
         services.AddSingleton<RestoreRule>();
         services.AddSingleton<CatalogueViewModel>();
         services.AddSingleton<ServicesListViewModel>();
@@ -177,6 +178,7 @@ public partial class App : Application
         // never the window through DI (see WindowNavigator): it is still being made when Home's view model needs one
         services.AddSingleton<IShellNavigator>(new WindowNavigator(() => MainWindow));
         services.AddTransient<HomeViewModel>();
+        services.AddTransient<OptimizeViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<PlaceholderViewModel>();
 

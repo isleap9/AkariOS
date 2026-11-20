@@ -59,8 +59,8 @@ public sealed class ShellTests
     [Fact]
     public void Routes()
     {
-        // Optimize = its first Section; a Category selects its Section's item; a search selects none
-        Assert.Equal(new NavRoute(NavPage.Catalogue, "Catalogue:Optimize", "Catalogue:Optimize", ""), NavTable.Route("Optimize"));
+        // Optimize = its overview; a Category selects its Section's item; a search selects none
+        Assert.Equal(new NavRoute(NavPage.Optimize, "Optimize", "Optimize", ""), NavTable.Route("Optimize"));
         Assert.Equal(new NavRoute(NavPage.Catalogue, "Catalogue:Hardware/Graphics", "Catalogue:Hardware", ""), NavTable.Route("Catalogue:Hardware/Graphics"));
         Assert.Equal(new NavRoute(NavPage.Catalogue, "", null, "dns"), NavTable.Route("Search:dns"));
         Assert.Equal(NavPage.Home, NavTable.Route("Home").Page);

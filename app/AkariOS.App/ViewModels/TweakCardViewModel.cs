@@ -55,6 +55,13 @@ public sealed partial class TweakCardViewModel : ObservableObject
     public string Error { get; set; } = "";
 
     public string Name => Tweak.Name;
+
+    /// <summary>The search's query on a results page ("" elsewhere): the view marks it in the name.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NameText))]
+    public partial string Query { get; set; } = "";
+
+    public Shell.Highlighted NameText => new(Name, Query);
     public string Id => Tweak.Id;
     public string Description => Tweak.Description ?? "";
     public bool HasDescription => Description.Length > 0;

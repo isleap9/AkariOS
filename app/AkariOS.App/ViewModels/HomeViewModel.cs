@@ -131,6 +131,7 @@ public sealed partial class HomeViewModel : ViewModelBase, INavigationAware
     public void OnNavigatedTo(object? parameter)
     {
         Stats.Refresh();
+        _catalogue.Highlight([], "");
         _catalogue.ReadStates(QuickSettings.Select(c => c.Tweak));
         Activity = ReadActivity();
         UpdateBar();

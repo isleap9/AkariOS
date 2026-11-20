@@ -4,7 +4,13 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:shell="using:AkariOS.App.Shell">
 
-    <Grid x:Name="RootElement" Background="Transparent">
+    <Grid x:Name="RootElement" Background="Transparent" KeyboardAcceleratorPlacementMode="Hidden">
+        <!-- Ctrl+F / Ctrl+E: the search box from anywhere (Enter-AkariSearch); Alt+Left: back -->
+        <Grid.KeyboardAccelerators>
+            <KeyboardAccelerator Modifiers="Control" Key="F" Invoked="OnSearchKey" />
+            <KeyboardAccelerator Modifiers="Control" Key="E" Invoked="OnSearchKey" />
+            <KeyboardAccelerator Modifiers="Menu" Key="Left" Invoked="OnBackKey" />
+        </Grid.KeyboardAccelerators>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -61,6 +67,10 @@
 
             <Grid>
                 <Frame x:Name="ContentFrame" />
+                <!-- the first run's tip next to the search box (Show-AkariSearchTip) -->
+                <TeachingTip x:Name="SearchTipView" Target="{x:Bind SearchBox}" PreferredPlacement="Right" IsLightDismissEnabled="True"
+                             Title="Search every Tweak" ActionButtonContent="Got it" ActionButtonStyle="{StaticResource AccentButtonStyle}"
+                             ActionButtonClick="OnSearchTipGotIt" Closed="OnSearchTipClosed" />
                 <!-- the toasts (Show-AkariToast, Set-Busy), stacked at the bottom right: results newest on top, the busy
                      toast under them -->
                 <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,24,24" Width="380" Spacing="8">
