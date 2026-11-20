@@ -123,8 +123,7 @@ public sealed partial class MainWindow : Window, IShellNavigator
             case NavPage.Home: _navigation.NavigateTo<HomePage>(); break;
             case NavPage.Settings: _navigation.NavigateTo<SettingsPage>(); break;
             case NavPage.Install: _navigation.NavigateTo<InstallPage>(); break;
-            case NavPage.Downloads: _navigation.NavigateTo<DownloadsPage>(); break;
-            case NavPage.RemoveApps: _navigation.NavigateTo<RemoveAppsPage>(); break;
+            case NavPage.Downloads: _navigation.NavigateTo<DownloadsPage>(route.Query); break;
             case NavPage.Unattend: _navigation.NavigateTo<UnattendPage>(); break;
             case NavPage.Iso: _navigation.NavigateTo<IsoBuilderPage>(); break;
             case NavPage.Optimize: _navigation.NavigateTo<OptimizePage>(); break;

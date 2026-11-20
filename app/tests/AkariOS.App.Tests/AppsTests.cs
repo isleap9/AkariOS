@@ -77,13 +77,19 @@ public sealed class AppsTests : IDisposable
         var a = r.Apps;
         Assert.Equal("Store apps", a.CurrentRemove!.Name);
         Assert.True(a.Rows["appx/Microsoft.WindowsAlarms"].Installed);
+        // Windows apps shows removed apps too ("Only installed" starts off there); ticked, they hide
+        Assert.Equal(Visibility.Visible, a.Rows["appx/Microsoft.Todos"].Shows);
+        a.OnlyInstalled = true;
         Assert.Equal(Visibility.Collapsed, a.Rows["appx/Microsoft.Todos"].Shows);
         a.RemoveList = "Optional features";
         Assert.Equal(["Media.WindowsMediaPlayer~~~~0.0.12.0"], a.CurrentRemove!.Rows.Select(x => x.Tweak.Package ?? x.Tweak.Name));
         Assert.Equal(("0 selected", "Remove", false), (r.CountText, r.RemoveText, r.CanRemove));
+        Assert.False(r.RemoveSelectedCommand.CanExecute(null));
         a.Rows["appx/Microsoft.WindowsAlarms"].IsChecked = true;
         a.Rows["appx/Microsoft.BingNews"].IsChecked = true;
         Assert.Equal(("2 selected", "Remove (2)", true), (r.CountText, r.RemoveText, r.CanRemove));
+        // the button's command, as the button calls it (no parameter): it can run now
+        Assert.True(r.RemoveSelectedCommand.CanExecute(null));
         // asked with the names; Cancel: nothing
         await r.RemoveAsync();
         Assert.Contains("Alarms & Clock", t.Dialogs.Asked[^1]);
@@ -109,10 +115,16 @@ public sealed class AppsTests : IDisposable
     {
         var t = _h.Make();
         var d = t.Downloads;
-        d.Open();
+        d.Section = DownloadsViewModel.ExternalSection;
         Assert.Equal(["All", "Gaming", "Browsers", "Communication", "Media", "Tools", "Development"], d.Categories);
         Assert.Equal("Gaming", d.Shown[0].Category);
         Assert.Contains(d.Shown, c => c.Tweak.Id == "install-steam");
+        // a store card: the full name, the finer type, the description, the source
+        var discord = d.Cards["install-discord"];
+        Assert.Equal("Communication", discord.Type);
+        Assert.StartsWith("winget: ", discord.Source);
+        Assert.StartsWith("Voice and text chat.", discord.Description);
+        Assert.Equal("Game launchers", d.Cards["install-steam"].Type);
         d.Category = "Browsers";
         Assert.All(d.Shown, c => Assert.Equal("Browsers", c.Category));
         d.Category = "All";
@@ -128,13 +140,16 @@ public sealed class AppsTests : IDisposable
     {
         var t = _h.Make();
         var d = t.Downloads;
-        d.Open();
+        d.Section = DownloadsViewModel.ExternalSection;
         var putty = d.Cards["install-putty"];
         Assert.True(putty.CanInstall);
         t.Work.Hold = true;
         putty.InstallCommand.Execute(null);
         d.Cards["install-steam"].InstallCommand.Execute(null);
         Assert.Equal((CardState.Installing, CardState.Waiting), (putty.State, d.Cards["install-steam"].State));
+        // the store card's bottom line: Installing moves its bar, Waiting holds it
+        Assert.Equal(("Installing…", true), (putty.BusyText, putty.IsInstalling));
+        Assert.Equal(("Waiting…", false), (d.Cards["install-steam"].BusyText, d.Cards["install-steam"].IsInstalling));
         Assert.True(d.Busy);
         Assert.False(await t.Closing.CanCloseAsync());
         Assert.Equal(["Installing PuTTY", "1 app waiting to install"], t.Closing.Running());
@@ -163,8 +178,110 @@ public sealed class AppsTests : IDisposable
     {
         var t = _h.Make();
         t.Winget.Answer = a => a[0] == "list" ? new(0, ["Name   Id            Version", "PuTTY  PuTTY.PuTTY   0.81"]) : null;
-        t.Downloads.Open();
+        t.Downloads.Section = DownloadsViewModel.ExternalSection;
         Assert.Equal(CardState.Installed, t.Downloads.Cards["install-putty"].State);
         Assert.Equal(CardState.None, t.Downloads.Cards["install-steam"].State);
+    }
+
+    // ---- Downloads › Windows apps (the Remove apps page before)
+
+    [Fact]
+    public void A_Windows_app_knows_the_install_that_puts_it_back()
+    {
+        var loaded = _h.Make().Engine.Loaded.Tweaks;
+        Tweak Find(string id) => loaded.Single(x => x.Id == id);
+        // a Store app: the store Group's reinstall of the same package; a legacy app: the install naming it in RemoveWith
+        Assert.Equal("store", AppsStepViewModel.RestoreFor(Find("appx/Microsoft.WindowsCalculator"), loaded)!.Group);
+        Assert.Equal("Microsoft.WindowsCalculator", AppsStepViewModel.RestoreFor(Find("appx/Microsoft.WindowsCalculator"), loaded)!.Package);
+        Assert.Equal("install-onedrive", AppsStepViewModel.RestoreFor(Find("remove-onedrive"), loaded)!.Id);
+        // no Store id: it can't come back from here
+        Assert.Null(AppsStepViewModel.RestoreFor(Find("appx/Microsoft.MicrosoftSolitaireCollection"), loaded));
+    }
+
+    [Fact]
+    public void Downloads_opens_on_Windows_apps_and_External_apps_leaves_the_Store_reinstalls_to_it()
+    {
+        var t = _h.Make();
+        var d = t.Downloads;
+        Assert.True(d.IsWindows);
+        d.Open();
+        Assert.False(t.Remove.Apps.IsReading);
+        Assert.Contains(t.Remove.Apps.CurrentRemove!.ShownRows, r => r.Tweak.Id == "appx/Microsoft.WindowsCalculator");
+        Assert.Empty(d.Cards);
+        d.Section = DownloadsViewModel.ExternalSection;
+        Assert.True(d.IsExternal);
+        Assert.NotEmpty(d.Cards);
+        Assert.DoesNotContain(d.Cards.Values, c => c.Tweak.Group == "store");
+        // the old Remove apps page opens Windows apps
+        d.OnNavigatedTo(DownloadsViewModel.WindowsSection);
+        Assert.True(d.IsWindows);
+    }
+
+    [Fact]
+    public void A_removed_Windows_app_is_put_back_through_the_install_queue()
+    {
+        var t = _h.Make();
+        // the Microsoft Store is there (a Store reinstall needs it)
+        t.Packages.Add(["Microsoft.WindowsStore"]);
+        var d = t.Downloads;
+        d.Open();
+        var row = t.Remove.Apps.Rows["appx/Microsoft.WindowsCalculator"];
+        Assert.False(row.Installed);
+        Assert.True(row.CanRestore);
+        Assert.Equal("Removed", row.StateText);
+        var before = t.Remove.Apps;
+        t.Work.Hold = true;
+        row.RestoreAppCommand.Execute(null);
+        Assert.True(row.Restoring);
+        Assert.False(row.CanRestore);
+        Assert.Equal("Installing Calculator", t.Shell.BusyText);
+        t.Work.Release();
+        // winget installs it from the Store, then the lists are read again
+        Assert.Contains(t.Winget.Calls, c => c.Contains("9WZDNCRFHVN5", StringComparison.Ordinal));
+        Assert.NotSame(before, t.Remove.Apps);
+        Assert.Equal("Calculator is installed", t.Toasts[0]);
+    }
+
+    [Fact]
+    public void Shown_rows_follow_the_filter_so_the_card_grid_has_no_gaps()
+    {
+        var t = _h.Make();
+        t.Downloads.Open();
+        var store = t.Remove.Apps.CurrentRemove!;
+        var all = store.ShownRows.Count;
+        t.Remove.Apps.Query = "calculator";
+        Assert.Equal(["appx/Microsoft.WindowsCalculator"], store.ShownRows.Select(r => r.Tweak.Id));
+        t.Remove.Apps.Query = "";
+        Assert.Equal(all, store.ShownRows.Count);
+    }
+
+    [Fact]
+    public void External_cards_are_picked_and_installed_together()
+    {
+        var t = _h.Make();
+        var d = t.Downloads;
+        d.Section = DownloadsViewModel.ExternalSection;
+        var (putty, discord) = (d.Cards["install-putty"], d.Cards["install-discord"]);
+        Assert.False(d.InstallSelectedCommand.CanExecute(null));
+        putty.IsSelected = true;
+        discord.IsSelected = true;
+        Assert.Equal(("2 selected", "Install (2)"), (d.SelectionText, d.InstallSelectedText));
+        Assert.True(d.InstallSelectedCommand.CanExecute(null));
+        d.ClearSelectionCommand.Execute(null);
+        Assert.Equal(0, d.SelectedCount);
+        putty.IsSelected = true;
+        discord.IsSelected = true;
+        t.Work.Hold = true;
+        d.InstallSelectedCommand.Execute(null);
+        // both queued in the order the page shows them, one at a time; the picks are dropped
+        Assert.Equal((CardState.Installing, CardState.Waiting), (discord.State, putty.State));
+        Assert.Equal(0, d.SelectedCount);
+        Assert.False(d.InstallSelectedCommand.CanExecute(null));
+        // a card that is waiting or installing can't be picked
+        putty.IsSelected = true;
+        Assert.False(putty.IsSelected);
+        t.Work.Release();
+        Assert.Equal(CardState.Installed, putty.State);
+        Assert.False(putty.CanSelect);
     }
 }

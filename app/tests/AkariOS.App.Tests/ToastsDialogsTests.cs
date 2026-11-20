@@ -149,7 +149,7 @@ public sealed class ToastsDialogsTests : IDisposable
     {
         var t = _h.Make();
         var d = t.Downloads;
-        d.Open();
+        d.Section = DownloadsViewModel.ExternalSection;
         t.Shell.Locked = true;
         d.Cards["install-putty"].InstallCommand.Execute(null);
         Assert.Equal(CardState.Waiting, d.Cards["install-putty"].State);

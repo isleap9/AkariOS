@@ -134,19 +134,33 @@ public sealed class InstallTests : IDisposable
     }
 
     [Fact]
-    public void Filter_hides_rows_cards_and_sections_and_columns_follow_the_width()
+    public void Filter_hides_rows_categories_and_sections_and_opens_what_it_matches()
     {
         var t = Make();
         var s = OnTweaks(t).Tweaks;
+        var all = s.Sections.SelectMany(x => x.Categories).ToList();
+        // the first two Categories start open (Get-AkariTweaksView)
+        Assert.Equal(all.Select((_, i) => i < 2), all.Select(c => c.IsExpanded));
         s.Query = "dark";
         Assert.Equal(Visibility.Collapsed, s.Rows["fix-plain"].Shows);
         Assert.Equal([Visibility.Collapsed, Visibility.Visible], s.Sections.Select(x => x.Shows));
+        Assert.All(all.Where(c => c.Shows == Visibility.Visible), c => Assert.True(c.IsExpanded));
         s.Query = "";
-        s.SetColumns(2);
-        Assert.Equal(0, s.Sections[0].ThirdWidth.Value);
-        Assert.Equal(2, s.Sections[0].Column0.Count + s.Sections[0].Column1.Count);
-        s.SetColumns(3);
-        Assert.Equal(GridUnitType.Star, s.Sections[0].ThirdWidth.GridUnitType);
+        Assert.All(s.Sections, x => Assert.Equal(Visibility.Visible, x.Shows));
+    }
+
+    [Fact]
+    public void A_row_shows_its_description_badges_and_marks()
+    {
+        var t = Make();
+        var s = OnTweaks(t).Tweaks;
+        var dark = s.Rows["fix-dark"];
+        Assert.Equal(("A fixture.", true), (dark.Description, dark.HasDescription));
+        Assert.Equal(("Caution", true), (dark.RiskBadge, dark.HasRiskBadge));
+        Assert.False(s.Rows["fix-plain"].HasRiskBadge);
+        Assert.True(s.Rows["fix-safe"].InSafeMode);
+        Assert.True(s.Rows["fix-reboots"].Reboots);
+        Assert.Equal("1 Tweak", s.Sections.SelectMany(x => x.Categories).Single(c => c.Name == "Look").Subtitle);
     }
 
     [Fact]
@@ -179,6 +193,9 @@ public sealed class InstallTests : IDisposable
         Assert.Equal(["Store apps (0)", "Optional features (0)", "Windows features (0)", "Legacy apps (1)"], a.RemoveTables.Select(x => x.Title));
         Assert.True(a.FeaturesRead);
         Assert.Equal(["Utilities (1)", "Restore removed apps (0)"], a.InstallTables.Select(x => x.Title));
+        // Guided shows the installs as one grid of cards (New-AkariAppCard): the same rows, their category under the name
+        Assert.Equal(a.InstallTables.SelectMany(x => x.Rows), a.InstallItems);
+        Assert.Equal(Core.Tweaks.AppLists.DownloadCategory(a.Rows["fix-app"].Tweak), a.Rows["fix-app"].Category);
         Assert.True(a.Rows["fix-app"].IsCautionInstall);
         a.SelectRecommendedCommand.Execute(null);
         Assert.True(a.Rows["fix-legacy"].IsChecked);

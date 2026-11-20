@@ -28,6 +28,32 @@ public sealed partial class AppRowViewModel(AppItem item, AppIcon icon, Action<A
     public string Name => Tweak.Name;
     public string Description => string.IsNullOrEmpty(Tweak.Description) ? "Not in Akari's list: found on this PC" : Tweak.Description;
     public string Source => AppLists.Source(Tweak);
+
+    /// <summary>Downloads › Windows apps: the install that puts a removed app back (a Store app's Store reinstall, a
+    /// legacy app's own install), or null when AkariOS can't.</summary>
+    public Tweak? Restore { get; set; }
+
+    /// <summary>Asked to put it back (Downloads queues the install).</summary>
+    public Action<AppRowViewModel>? OnRestore { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanRestore))]
+    public partial bool Restoring { get; set; }
+
+    public bool IsRemoved => !Installed;
+    public bool CanRestore => !Installed && Restore is not null && !Restoring;
+    public bool CantRestore => !Installed && Restore is null;
+    public string StateText => Installed ? "Installed" : "Removed";
+
+    [RelayCommand]
+    private void RestoreApp()
+    {
+        if (CanRestore) OnRestore?.Invoke(this);
+    }
+
+    /// <summary>An install card's second line (Get-AkariDownloadCategory) and its tooltip (description, source).</summary>
+    public string Category => AppLists.DownloadCategory(Tweak);
+    public string CardTip => $"{Tweak.Description}\n{Source}".Trim();
     public string SourceTip => Installed ? Source : $"{Source} (not on this PC)";
     public string NameTip => Tweak.Keep ? "Kept by the AkariOS pick (FR33THY's keep-list)" : Tweak.Name;
     public double Dim => Installed ? 1 : 0.6;
@@ -64,6 +90,10 @@ public sealed partial class AppTableViewModel(string name, string last) : Observ
 
     public ObservableCollection<AppRowViewModel> Rows { get; } = [];
 
+    /// <summary>The rows shown now (a card grid leaves no gap for a hidden one): Rows filtered by their Shows.</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<AppRowViewModel> ShownRows { get; private set; } = [];
+
     [ObservableProperty]
     public partial string Title { get; set; } = name;
 
@@ -75,9 +105,16 @@ public sealed partial class AppTableViewModel(string name, string last) : Observ
 
     public void Add(IEnumerable<AppRowViewModel> rows)
     {
-        foreach (var r in rows) Rows.Add(r);
+        foreach (var r in rows)
+        {
+            Rows.Add(r);
+            r.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(AppRowViewModel.Shows)) Reshow(); };
+        }
         Title = $"{Name} ({Rows.Count})";
+        Reshow();
     }
+
+    private void Reshow() => ShownRows = [.. Rows.Where(r => r.Shows == Visibility.Visible)];
 }
 
 /// <summary>
@@ -141,6 +178,9 @@ public sealed partial class AppsStepViewModel : ObservableObject
 
     public ObservableCollection<AppTableViewModel> RemoveTables { get; } = [];
     public ObservableCollection<AppTableViewModel> InstallTables { get; } = [];
+
+    /// <summary>Guided's installs as one grid of tickable cards (New-AkariAppCard), in InstallTables' order.</summary>
+    public ObservableCollection<AppRowViewModel> InstallItems { get; } = [];
 
     /// <summary>The rows by Tweak id.</summary>
     public IReadOnlyDictionary<string, AppRowViewModel> Rows => _rows;
@@ -214,8 +254,26 @@ public sealed partial class AppsStepViewModel : ObservableObject
         catch (Exception) { return false; }
     }
 
-    private AppRowViewModel Row(AppItem item) =>
-        _rows[item.Tweak.Id] = new AppRowViewModel(item, _icons.Of(item.Tweak, _logos), r => _background.Post(() => _ = StepAsync(r)));
+    private AppRowViewModel Row(AppItem item)
+    {
+        var row = _rows[item.Tweak.Id] = new AppRowViewModel(item, _icons.Of(item.Tweak, _logos), r => _background.Post(() => _ = StepAsync(r)));
+        row.Restore = RestoreFor(item.Tweak, _engine.Loaded.Tweaks);
+        row.OnRestore = r => Restore?.Invoke(r);
+        return row;
+    }
+
+    /// <summary>Downloads › Windows apps asks for a removed app back.</summary>
+    public Action<AppRowViewModel>? Restore { get; set; }
+
+    /// <summary>The install that puts a removal back: a Store app's (appx) Store reinstall (the store Group's Entry of
+    /// the same package), a legacy app's install naming it in RemoveWith; none for features and capabilities.</summary>
+    public static Tweak? RestoreFor(Tweak removal, IEnumerable<Tweak> loaded)
+    {
+        if (removal.Group == "appx" && removal.Package is { Length: > 0 } p)
+            return loaded.FirstOrDefault(t => t.Group == "store" && string.Equals(t.Package, p, StringComparison.OrdinalIgnoreCase));
+        if (removal.Group is null) return loaded.FirstOrDefault(t => string.Equals(t.RemoveWith, removal.Id, StringComparison.OrdinalIgnoreCase));
+        return null;
+    }
 
     private void Build(ReadResult r)
     {
@@ -233,6 +291,7 @@ public sealed partial class AppsStepViewModel : ObservableObject
             if (c.Items.Count == 0) t.Note = "Nothing to restore: every app in this list is on this PC.";
             t.Add(c.Items.Select(Row));
             InstallTables.Add(t);
+            foreach (var row in t.Rows) InstallItems.Add(row);
         }
         Filter();
         UpdateStatus();

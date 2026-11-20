@@ -6,8 +6,7 @@ namespace AkariOS.App.Views;
 
 /// <summary>
 /// Install AkariOS: the chooser, Guided's steps, the run page and the result, all from <see cref="InstallViewModel"/>.
-/// The view only fills the Quick select menus, hands the Apps tabs and a typed Choice value over, and sets the Tweaks
-/// step's columns by its width (three from 900 px).
+/// The view only fills the Quick select menus, hands a typed Choice value over, and lets a whole install card tick.
 /// </summary>
 public sealed partial class InstallPage : Page
 {
@@ -20,18 +19,20 @@ public sealed partial class InstallPage : Page
         PageLayout.Fit(Scroller, Column);
         DataContext = viewModel;
         Loaded += (_, _) => ViewModel.Shown();
-        Column.SizeChanged += (_, e) => ViewModel.Tweaks.SetColumns(e.NewSize.Width >= 900 ? 3 : 2);
-        ViewModel.PropertyChanged += (_, e) =>
-        {
-            // a new Tweaks step (Done, a Reset): its columns for this width
-            if (e.PropertyName == nameof(InstallViewModel.Tweaks)) ViewModel.Tweaks.SetColumns(Column.ActualWidth >= 900 ? 3 : 2);
-            if (e.PropertyName == nameof(InstallViewModel.Apps)) AppTabs.SelectedItem = AppTabs.Items[0];
-        };
     }
 
-    private void OnAppTab(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    // the prototype's role="checkbox": a click anywhere on an install card ticks it (the box itself handles its own)
+    private void OnInstallCard(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
     {
-        if (sender.SelectedItem?.Tag is string tab) ViewModel.Apps.ShowTab(tab);
+        if (e.OriginalSource is DependencyObject d && IsInCheckBox(d)) return;
+        if (sender is FrameworkElement { DataContext: AppRowViewModel row }) row.IsChecked = !row.IsChecked;
+    }
+
+    private static bool IsInCheckBox(DependencyObject d)
+    {
+        for (var x = d; x is not null; x = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(x))
+            if (x is CheckBox) return true;
+        return false;
     }
 
     // the presets, built each time it opens (a preset saved just now is listed)

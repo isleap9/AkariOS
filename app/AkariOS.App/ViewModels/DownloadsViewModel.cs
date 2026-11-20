@@ -14,9 +14,9 @@ namespace AkariOS.App.ViewModels;
 public enum CardState { None, Waiting, Installing, Installed, Failed }
 
 /// <summary>
-/// A Downloads card (New-AkariAppCard -Mode Action): the icon, name and category, a Caution install's mark, and its
-/// action by State (Set-AkariAppCardState): Install, Waiting / Installing, Installed (Uninstall from its menu when
-/// winget installed it), Failed (the reason; Install again).
+/// A Downloads card (store cards, picked from mockups): the icon, the full name, the app's type, its description, and
+/// at the bottom its source and its action by State (Set-AkariAppCardState): Install, Waiting / Installing with a bar,
+/// Installed (Uninstall from its "…" menu when winget installed it), Failed (the reason; Try again).
 /// </summary>
 public sealed partial class AppCardViewModel(Tweak tweak, AppIcon icon, DownloadsViewModel owner) : ObservableObject
 {
@@ -24,22 +24,49 @@ public sealed partial class AppCardViewModel(Tweak tweak, AppIcon icon, Download
     public AppIcon Icon { get; } = icon;
     public string Name => Tweak.Name;
     public string Category => AppLists.DownloadCategory(Tweak);
+
+    /// <summary>The finer type under the name (AppType: Game launchers, Utilities…), else the Downloads category.</summary>
+    public string Type => string.IsNullOrEmpty(Tweak.AppType) ? Category : Tweak.AppType;
+
+    public string Description => Tweak.Description ?? "";
+    public string Source => AppLists.Source(Tweak);
     public string Tip => $"{Tweak.Description}\n{AppLists.Source(Tweak)}".Trim();
     public bool IsCaution => AppLists.InstallMark(Tweak) is not null;
     public string CautionTip => AppLists.InstallMark(Tweak)?.Tip ?? "";
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanInstall), nameof(IsBusy), nameof(IsInstalled), nameof(IsFailed), nameof(BusyText), nameof(CanUninstall))]
+    [NotifyPropertyChangedFor(nameof(CanInstall), nameof(CanSelect), nameof(IsBusy), nameof(IsInstalling), nameof(IsInstalled), nameof(IsFailed), nameof(BusyText), nameof(CanUninstall))]
     public partial CardState State { get; set; }
 
     [ObservableProperty]
     public partial string Why { get; set; } = "";
 
     public bool CanInstall => State == CardState.None;
+
+    /// <summary>Picked for "Install (n)" (a click on the card or its box). Only a card that can install is pickable;
+    /// one that starts installing drops out.</summary>
+    [ObservableProperty]
+    public partial bool IsSelected { get; set; }
+
+    public bool CanSelect => State is CardState.None or CardState.Failed;
+
+    partial void OnIsSelectedChanged(bool value)
+    {
+        if (value && !CanSelect) { IsSelected = false; return; }
+        owner.SelectionChanged();
+    }
+
+    partial void OnStateChanged(CardState value)
+    {
+        if (!CanSelect && IsSelected) IsSelected = false;
+    }
     public bool IsBusy => State is CardState.Waiting or CardState.Installing;
+
+    /// <summary>Installing moves its bar; Waiting holds it empty.</summary>
+    public bool IsInstalling => State == CardState.Installing;
     public bool IsInstalled => State == CardState.Installed;
     public bool IsFailed => State == CardState.Failed;
-    public string BusyText => State.ToString();
+    public string BusyText => State == CardState.Waiting ? "Waiting…" : "Installing…";
 
     /// <summary>winutil W4's Uninstall, one app at a time: an installed app winget can remove here.</summary>
     public bool CanUninstall => IsInstalled && Tweak.Winget.Count > 0 && string.IsNullOrEmpty(Tweak.RemoveWith);
@@ -52,12 +79,16 @@ public sealed partial class AppCardViewModel(Tweak tweak, AppIcon icon, Download
 }
 
 /// <summary>
-/// Downloads (Apps.ps1's Show-AkariDownloads, winutil W4): a SelectorBar of categories, a search box, Update all apps,
-/// then a grid of app cards whose Install acts right away: queued, installed one at a time (a Run of that one app, no
-/// restore point). Which apps are on this PC is read once a session, quietly. One per app.
+/// Downloads, in two sections (after Winhance's Software &amp; Apps; its idea and layout only, rule 9): Windows apps
+/// (Windows' own: the Remove lists as cards, Remove (n), and Install for a removed one that can come back; it was the
+/// Remove apps page) and External apps (Apps.ps1's Show-AkariDownloads, winutil W4: a SelectorBar of categories, a
+/// search box, Update all apps, then a grid of app cards whose Install acts right away: queued, installed one at a time
+/// (a Run of that one app, no restore point)). Which apps are on this PC is read once a session, quietly. One per app.
 /// </summary>
-public sealed partial class DownloadsViewModel : ObservableObject
+public sealed partial class DownloadsViewModel : ObservableObject, AkariOS.Framework.Navigation.INavigationAware
 {
+    public const string WindowsSection = "Windows";
+    public const string ExternalSection = "External";
     private readonly Engine _engine;
     private readonly IBackground _background;
     private readonly IDialogService _dialogs;
@@ -74,9 +105,18 @@ public sealed partial class DownloadsViewModel : ObservableObject
     private string _category = "All";
     private bool _installedRead;
 
-    public DownloadsViewModel(Engine engine, IBackground background, IDialogService dialogs, ShellState shell, ActivityLog activity, AppIcons icons)
+    public DownloadsViewModel(Engine engine, IBackground background, IDialogService dialogs, ShellState shell, ActivityLog activity, AppIcons icons,
+        RemoveAppsViewModel windows)
     {
         (_engine, _background, _dialogs, _shell, _activity, _icons) = (engine, background, dialogs, shell, activity, icons);
+        Windows = windows;
+        // a removed Windows app put back goes through the same queue as the other installs
+        windows.RestoreRequested = row =>
+        {
+            if (row.Restore is not { } t) return;
+            row.Restoring = true;
+            Add(t.Id);
+        };
         var n = AppLists.Install(engine.Loaded.Tweaks, engine.System).Count;
         Lead = $"Apps, game launchers, runtimes and tools, installed from winget where possible. {n} in the catalogue.";
         // a Run of Install AkariOS or Remove apps is done: the installs that waited for it start
@@ -87,6 +127,27 @@ public sealed partial class DownloadsViewModel : ObservableObject
     }
 
     public string Lead { get; }
+
+    /// <summary>Windows apps: Windows' own apps and features, removed or put back.</summary>
+    public RemoveAppsViewModel Windows { get; }
+
+    /// <summary>Windows or External; Remove apps (its old page's key) opens Windows.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsWindows), nameof(IsExternal))]
+    public partial string Section { get; set; } = WindowsSection;
+
+    public bool IsWindows => Section == WindowsSection;
+    public bool IsExternal => Section == ExternalSection;
+
+    partial void OnSectionChanged(string value) => Open();
+
+    public void OnNavigatedTo(object? parameter)
+    {
+        if (parameter is string s && (s == WindowsSection || s == ExternalSection)) Section = s;
+        Open();
+    }
+
+    public void OnNavigatedFrom() { }
 
     /// <summary>All, then $AkariDownloadCategories.</summary>
     public IReadOnlyList<string> Categories { get; } = ["All", .. AppLists.DownloadCategories.Select(c => c.Key)];
@@ -125,9 +186,11 @@ public sealed partial class DownloadsViewModel : ObservableObject
         }
     }
 
-    /// <summary>The page was opened: the cards are read (once), then which apps are on this PC (once a session).</summary>
+    /// <summary>The page was opened: Windows apps reads its lists (once); External apps its cards (once), then which apps
+    /// are on this PC (once a session).</summary>
     public void Open()
     {
+        if (IsWindows) { Windows.Shown(); return; }
         if (_cards.Count > 0 || IsReading) { ReadInstalled(); return; }
         IsReading = true;
         _background.Run(() =>
@@ -144,7 +207,8 @@ public sealed partial class DownloadsViewModel : ObservableObject
                 }
                 catch (Exception e) { _engine.Log.Write($"Warning: the Store apps could not be read ({e.Message})"); }
             }
-            var items = AppLists.Downloads(_engine.Loaded.Tweaks, _engine.System, appx);
+            // the Store apps the debloat removes are Windows apps now: only the other installs here
+            var items = AppLists.Downloads(_engine.Loaded.Tweaks, _engine.System, appx).Where(i => i.Tweak.Group is null);
             return items.Select(i => new AppCardViewModel(i.Tweak, _icons.Of(i.Tweak, logos), this)).ToList();
         }, r =>
         {
@@ -174,6 +238,37 @@ public sealed partial class DownloadsViewModel : ObservableObject
             foreach (var id in r as IReadOnlyList<string> ?? [])
                 if (_cards.TryGetValue(id, out var c) && c.State == CardState.None) c.State = CardState.Installed;
         });
+    }
+
+    // ---- several at once: the cards picked, "Install (n)"
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(InstallSelectedCommand), nameof(ClearSelectionCommand))]
+    [NotifyPropertyChangedFor(nameof(HasSelection), nameof(SelectionText), nameof(InstallSelectedText))]
+    public partial int SelectedCount { get; private set; }
+
+    public bool HasSelection => SelectedCount > 0;
+    public string SelectionText => $"{SelectedCount} selected";
+    public string InstallSelectedText => SelectedCount > 0 ? $"Install ({SelectedCount})" : "Install";
+
+    /// <summary>A card was picked or dropped.</summary>
+    public void SelectionChanged() => SelectedCount = _cards.Values.Count(c => c.IsSelected);
+
+    /// <summary>The picked cards into the install queue, in the order shown.</summary>
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private void InstallSelected()
+    {
+        foreach (var c in _cards.Values.Where(c => c.IsSelected).ToList())
+        {
+            c.IsSelected = false;
+            Add(c.Tweak.Id);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private void ClearSelection()
+    {
+        foreach (var c in _cards.Values.Where(c => c.IsSelected).ToList()) c.IsSelected = false;
     }
 
     // Set-AkariDownloadsFilter
@@ -235,6 +330,8 @@ public sealed partial class DownloadsViewModel : ObservableObject
         if (o is { Kind: OutcomeKind.Applied or OutcomeKind.Already })
         {
             if (card is not null) card.State = CardState.Installed;
+            // a Windows app put back: its list is read again
+            if (IsRestore(t)) Windows.Reread();
             _activity.Add($"Installed {t.Name}", "Downloads", 1, "download");
             _shell.Toast($"{t.Name} is installed", o.Reboot ? "Restart Windows to finish." : "");
         }
@@ -242,10 +339,13 @@ public sealed partial class DownloadsViewModel : ObservableObject
         {
             var why = o is { Message.Length: > 0 } ? o.Message : "The install did not run. The details are in akari.log.";
             if (card is not null) (card.Why, card.State) = (why, CardState.Failed);
+            foreach (var row in Windows.Apps.Rows.Values.Where(r => r.Restore?.Id == t.Id)) row.Restoring = false;
             _shell.Toast($"{t.Name} was not installed", why, InfoBarSeverity.Error);
         }
         Next();
     }
+
+    private static bool IsRestore(Tweak t) => t.Group == "store" || !string.IsNullOrEmpty(t.RemoveWith);
 
     // ---- winutil W4: Uninstall (an installed card's menu) and Update all apps
 

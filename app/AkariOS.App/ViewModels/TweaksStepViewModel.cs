@@ -55,6 +55,15 @@ public sealed partial class TweakRowViewModel : ObservableObject
     /// <summary>" (AkariOS)" after the name: part of the AkariOS setup.</summary>
     public string AkariOSTag => Tweak.AkariOS ? " (AkariOS)" : "";
     public string Tip => Selection.RowTip(Tweak, State);
+    public string Description => Tweak.Description ?? "";
+    public bool HasDescription => Description.Length > 0;
+
+    /// <summary>New-AkariBadges: Caution or Advanced as a badge after the AkariOS one.</summary>
+    public string RiskBadge => Tweak.Risk is Risk.Caution or Risk.Advanced ? Tweak.Risk.ToString() : "";
+    public bool HasRiskBadge => RiskBadge.Length > 0;
+
+    /// <summary>New-AkariMarks: runs in Safe Mode.</summary>
+    public bool InSafeMode => Tweak.SafeMode;
     public bool IsCheck => Tweak.Kind != TweakKind.Choice;
     public bool IsChoice => Tweak.Kind == TweakKind.Choice;
     public bool IsEditable => Tweak.Editable;
@@ -133,15 +142,17 @@ public sealed partial class TweakRowViewModel : ObservableObject
     }
 }
 
-/// <summary>A Category card of the Tweaks step: its name, glyph, rows and "n of m".</summary>
+/// <summary>A Category of the Tweaks step, an expander (Get-AkariTweaksView): its name, glyph, "n Tweaks", rows and
+/// "n of m" picked; the step's first two start open.</summary>
 public sealed partial class TweakCategoryViewModel(string name, string glyph, IReadOnlyList<TweakRowViewModel> rows) : ObservableObject
 {
     public string Name { get; } = name;
     public string Glyph { get; } = glyph;
     public IReadOnlyList<TweakRowViewModel> Rows { get; } = rows;
+    public string Subtitle => $"{Rows.Count} Tweak{(Rows.Count == 1 ? "" : "s")}";
 
-    /// <summary>A Choice counts 2 (Get-AkariMasonry).</summary>
-    public int Size => Rows.Sum(r => r.IsChoice ? 2 : 1);
+    [ObservableProperty]
+    public partial bool IsExpanded { get; set; }
 
     [ObservableProperty]
     public partial Visibility Shows { get; set; } = Visibility.Visible;
@@ -150,7 +161,7 @@ public sealed partial class TweakCategoryViewModel(string name, string glyph, IR
     public partial string CountText { get; set; } = "";
 }
 
-/// <summary>A Section of the Tweaks step: its heading and its Category cards in two or three masonry columns.</summary>
+/// <summary>A Section of the Tweaks step: its heading and its Categories, one expander each, in one column.</summary>
 public sealed partial class TweakSectionViewModel(string section, string header, IReadOnlyList<TweakCategoryViewModel> categories) : ObservableObject
 {
     public string Section { get; } = section;
@@ -158,35 +169,12 @@ public sealed partial class TweakSectionViewModel(string section, string header,
     public IReadOnlyList<TweakCategoryViewModel> Categories { get; } = categories;
 
     [ObservableProperty]
-    public partial IReadOnlyList<TweakCategoryViewModel> Column0 { get; private set; } = [];
-
-    [ObservableProperty]
-    public partial IReadOnlyList<TweakCategoryViewModel> Column1 { get; private set; } = [];
-
-    [ObservableProperty]
-    public partial IReadOnlyList<TweakCategoryViewModel> Column2 { get; private set; } = [];
-
-    /// <summary>The third column's width (0 with two columns).</summary>
-    [ObservableProperty]
-    public partial GridLength ThirdWidth { get; private set; } = new(1, GridUnitType.Star);
-
-    [ObservableProperty]
     public partial Visibility Shows { get; set; } = Visibility.Visible;
-
-    /// <summary>Set-AkariTweaksColumns: each card in the shortest column so far (only the cards shown count).</summary>
-    public void Lay(int columns)
-    {
-        var shown = Categories.Where(c => c.Shows == Visibility.Visible).ToList();
-        var at = Selection.Masonry(shown.Select(c => c.Size).ToList(), columns);
-        var cols = Enumerable.Range(0, 3).Select(i => shown.Where((_, n) => at[n] == i).ToList()).ToList();
-        (Column0, Column1, Column2) = (cols[0], cols[1], cols[2]);
-        ThirdWidth = columns == 3 ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-    }
 }
 
 /// <summary>
-/// The Guided Tweaks step (Get-AkariTweaksView, after Win11Debloat's System Tweaks): a toolbar (Quick select, Clear
-/// selection, Show current state, a filter), then per Section a heading and Category cards. Every State is read once
+/// The Guided Tweaks step (Get-AkariTweaksView): an InfoBar, a toolbar (Quick select, Clear selection, Show current
+/// state; here also a filter), then per Section a heading and an expander per Category, the first two open. Every State is read once
 /// in the background before the rows are made. The rows write into the Selection; nothing changes on the PC here.
 /// </summary>
 public sealed partial class TweaksStepViewModel : ObservableObject
@@ -202,7 +190,6 @@ public sealed partial class TweaksStepViewModel : ObservableObject
     private Preset? _pending;
     private bool _useState = true;
     private string _query = "";
-    private int _columns = 3;
 
     public TweaksStepViewModel(Engine engine, IBackground background, IDialogService dialogs, ITextDialog text, IDictionary<string, Pending> sel,
         Action changed, Action<Preset, IReadOnlyList<string>>? pickApps = null)
@@ -280,15 +267,10 @@ public sealed partial class TweaksStepViewModel : ObservableObject
             }).ToList())).ToList();
             Sections.Add(new TweakSectionViewModel(g.Section, g.Header, cats));
         }
+        // the first two Categories open (Get-AkariTweaksView's $open)
+        foreach (var c in Sections.SelectMany(s => s.Categories).Take(2)) c.IsExpanded = true;
         Reset();
         Filter();
-    }
-
-    /// <summary>Two or three columns, by the view's width (Win11Debloat folds its third column under 900 px).</summary>
-    public void SetColumns(int columns)
-    {
-        _columns = columns;
-        foreach (var s in Sections) s.Lay(columns);
     }
 
     // Step-AkariCheck / Set-AkariChoiceTarget: asked first when needed, then into the Selection
@@ -351,10 +333,14 @@ public sealed partial class TweaksStepViewModel : ObservableObject
             row.Shows = q.Length == 0 || PsSemantics.Like($"{row.Tweak.Name} {row.Tweak.Description}", $"*{q}*") ? Visibility.Visible : Visibility.Collapsed;
         foreach (var s in Sections)
         {
-            foreach (var c in s.Categories) c.Shows = c.Rows.Any(r => r.IsShown) ? Visibility.Visible : Visibility.Collapsed;
+            foreach (var c in s.Categories)
+            {
+                c.Shows = c.Rows.Any(r => r.IsShown) ? Visibility.Visible : Visibility.Collapsed;
+                // a filter opens every Category it matches
+                if (q.Length > 0 && c.Shows == Visibility.Visible) c.IsExpanded = true;
+            }
             s.Shows = s.Categories.Any(c => c.Shows == Visibility.Visible) ? Visibility.Visible : Visibility.Collapsed;
         }
-        SetColumns(_columns);
     }
 
     // ---- Quick select

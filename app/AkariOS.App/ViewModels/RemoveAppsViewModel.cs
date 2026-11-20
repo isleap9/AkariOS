@@ -11,8 +11,9 @@ using Microsoft.UI.Xaml.Controls;
 namespace AkariOS.App.ViewModels;
 
 /// <summary>
-/// Remove apps (Apps.ps1's Show-AkariRemoveApps): the Apps step's four Remove lists alone, one at a time, with "n
-/// selected" and the accent Remove (n). Remove asks with the names, then removes them in one Run (the session's restore
+/// Downloads › Windows apps (Apps.ps1's Show-AkariRemoveApps, the Remove apps page before): the Apps step's four Remove
+/// lists, one at a time, as cards, with "n selected" and the accent Remove (n); a removed app that can come back has
+/// Install (Downloads' queue, <see cref="RestoreRequested"/>). Remove asks with the names, then removes them in one Run (the session's restore
 /// point first); each row goes as the Run gets past it. After the Run the lists are read again. One per app.
 /// </summary>
 public sealed partial class RemoveAppsViewModel : ObservableObject
@@ -50,11 +51,41 @@ public sealed partial class RemoveAppsViewModel : ObservableObject
     public partial string RemoveText { get; private set; } = "Remove";
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RemoveSelectedCommand))]
     public partial bool CanRemove { get; private set; }
+
+    /// <summary>The accent Remove (n). A command made from RemoveAsync(bool) can't run from a button: with no parameter
+    /// its CanExecute is false, and WinUI greys the button whatever its IsEnabled says.</summary>
+    [RelayCommand(CanExecute = nameof(CanRemove))]
+    private Task RemoveSelected() => RemoveAsync();
 
     private BusyWork? _busy;
 
-    private AppsStepViewModel New() => new(_engine, _background, _dialogs, _icons, _sel, Update);
+    // Windows apps shows removed apps too (they may come back): "Only installed" starts off here, and stays as set
+    private bool _onlyInstalled;
+
+    private AppsStepViewModel New()
+    {
+        var apps = new AppsStepViewModel(_engine, _background, _dialogs, _icons, _sel, Update) { Restore = r => RestoreRequested?.Invoke(r) };
+        apps.OnlyInstalled = _onlyInstalled;
+        return apps;
+    }
+
+    /// <summary>A removed app's Install was pressed (Downloads queues it).</summary>
+    public Action<AppRowViewModel>? RestoreRequested { get; set; }
+
+    /// <summary>What is on this PC changed (a removal, an app put back): the lists are read again, the picks dropped.</summary>
+    public void Reread()
+    {
+        _sel.Clear();
+        _onlyInstalled = Apps.OnlyInstalled;
+        var list = Apps.RemoveList;
+        Apps = New();
+        Apps.RemoveList = list;
+        Shown();
+        Update();
+        _stats.Stale();
+    }
 
     /// <summary>The page was opened: the apps are read (once).</summary>
     public void Shown()
@@ -72,7 +103,6 @@ public sealed partial class RemoveAppsViewModel : ObservableObject
     }
 
     /// <summary>Start-AkariRemoveApps: asks with the names, then one Run of the picks after the restore point.</summary>
-    [RelayCommand]
     public async Task RemoveAsync(bool skipRestore = false)
     {
         var rows = Apps.PickedRemovals();
@@ -149,13 +179,7 @@ public sealed partial class RemoveAppsViewModel : ObservableObject
         _shell.Toast("Removed", $"{ok} app{(ok == 1 ? " is" : "s are")} gone." + (bad > 0 ? $" {bad} failed: see the log." : ""),
             bad > 0 ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
         // what is on this PC changed: the lists are read again, Home's counts too
-        _sel.Clear();
-        var list = Apps.RemoveList;
-        Apps = New();
-        Apps.RemoveList = list;
-        Shown();
-        Update();
-        _stats.Stale();
+        Reread();
     }
 
     private async Task Guard(Task task)

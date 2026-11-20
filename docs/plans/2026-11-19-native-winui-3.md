@@ -109,3 +109,29 @@ WPF views to ADR 0008's look, the native app's UI is rebuilt on WinUI 3 and the 
   own page (Optimize › Section › Category). Every page's title is a small line of links above a normal heading,
   Install AkariOS' Guided too. Picked from mockups; rejected: the bar pinned, tabs, plain rows with a title-size
   breadcrumb, tiles, a switcher in the title, chips, Categories in the left nav, a list beside the cards, expanders.
+- Guided's steps follow the PowerShell app's current pages (ADR 0008), not the WPF app's (2026-11-20, from the VM): the
+  Apps step is one page (Remove: the four lists and their command bar; Install: a grid of tickable app cards), not
+  Remove / Install tabs with install tables; the Tweaks step has the InfoBar and one column of expanders per Category
+  (the first two open, a filter opens what it matches), each row its name and description, AkariOS / Caution /
+  Advanced badges and restart / Safe Mode marks, not a masonry of open cards with "(AkariOS)" in the text; Review
+  shows Remove, Install and Tweaks as expanders (Tweaks open). The filter boxes stay (native only: the window's
+  search is Optimize's).
+- Downloads' cards (picked from mockups, 2026-11-20; native only): store cards, 280 px at least: a 48 px icon, the full
+  name on up to two lines (the old 220 px cards cut names off beside the Install button), the app's type (AppType),
+  its description on two lines, then its source and a small accent Install; Installing / Waiting as a line and a
+  bar, Installed with a "…" menu (Uninstall), Failed with Try again. Rejected: sections by type, picking several to
+  install at once, picks over a compact grid. Some installs' descriptions only name the publisher (Steam: "Valve").
+- Downloads in two sections (2026-11-20, native only; Winhance's Software & Apps idea and layout, none of its code):
+  Windows apps (Windows' own: the four Remove lists as store cards, "Remove" ticks and Remove (n) in one Run after the
+  restore point, as the Remove apps page did; a removed Store app with a Store id, or a legacy app with its own install,
+  has Install, queued with the other installs; "Only installed" starts off so removed apps show) and External apps
+  (the store cards; the Store reinstalls moved to Windows apps). The Remove apps page and its nav item are gone; its
+  key opens Windows apps. Guided's Apps step is unchanged.
+- Downloads' cards are selectable by a click anywhere on them (2026-11-20; each card is a Button, style `SelectCard`,
+  so the whole card has WinUI's hover and press and answers Enter / Space; a Tapped handler on a plain Border gave no
+  feedback and didn't feel clickable): on Windows apps it ticks an installed
+  app's "Remove"; on External apps it picks the card for "Install (n)" (n selected, Clear), which queues the picks in
+  the order shown; each card keeps its own Install. A selected card has an accent tint and outline. A command made
+  from a method with a bool parameter (`RemoveAsync(bool skipRestore = false)`) can't run from a button (no parameter:
+  CanExecute false, and WinUI greys the button over its IsEnabled): bind buttons to parameterless commands.
+

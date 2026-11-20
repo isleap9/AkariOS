@@ -35,7 +35,8 @@ public sealed class ShellTests
     public void Nav_is_the_PowerShell_apps()
     {
         // Shell.ps1's $AkariNav, Settings in the footer
-        Assert.Equal(["Home", "Install AkariOS", "Optimize", "Downloads", "Remove apps", "Install USB", "ISO Builder"], NavTable.Menu.Select(e => e.Key));
+        // Remove apps is Downloads' Windows apps section now
+        Assert.Equal(["Home", "Install AkariOS", "Optimize", "Downloads", "Install USB", "ISO Builder"], NavTable.Menu.Select(e => e.Key));
         Assert.Equal([NavTable.Settings], NavTable.Footer.Select(e => e.Key));
     }
 
@@ -66,7 +67,8 @@ public sealed class ShellTests
         Assert.Equal(NavPage.Home, NavTable.Route("Home").Page);
         Assert.Equal(NavPage.Settings, NavTable.Route("Settings").Page);
         Assert.Equal(NavPage.Install, NavTable.Route("Install AkariOS").Page);
-        Assert.Equal((NavPage.Downloads, NavPage.RemoveApps), (NavTable.Route("Downloads").Page, NavTable.Route("Remove apps").Page));
+        Assert.Equal(NavPage.Downloads, NavTable.Route("Downloads").Page);
+        Assert.Equal(new NavRoute(NavPage.Downloads, "Remove apps", "Downloads", "Windows"), NavTable.Route("Remove apps"));
         // 'Unattend Generator' (the PowerShell app's old name) opens Install USB
         Assert.Equal(new NavRoute(NavPage.Unattend, "Install USB", "Install USB", ""), NavTable.Route("Unattend Generator"));
     }

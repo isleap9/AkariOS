@@ -46,7 +46,7 @@ internal sealed record AppTest(Engine Engine, CatalogueViewModel Catalogue, Shel
     public RemoveAppsViewModel Remove => _remove ??= new RemoveAppsViewModel(Engine, Work, Dialogs, Shell, Restore, Catalogue, Stats, Activity, Icons);
 
     private DownloadsViewModel? _downloads;
-    public DownloadsViewModel Downloads => _downloads ??= new DownloadsViewModel(Engine, Work, Dialogs, Shell, Activity, Icons);
+    public DownloadsViewModel Downloads => _downloads ??= new DownloadsViewModel(Engine, Work, Dialogs, Shell, Activity, Icons, Remove);
 
     /// <summary>Install USB's drives (none until the test adds them) and this PC's language (an Italian PC).</summary>
     public AppHarness.FakeDrives Drives { get; } = new();

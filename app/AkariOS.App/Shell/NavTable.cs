@@ -8,7 +8,7 @@ public sealed record NavEntry(string Key, string Label, string Glyph, IReadOnlyL
     public NavEntry(string key, string label, string glyph) : this(key, label, glyph, []) { }
 }
 
-public enum NavPage { Home, Settings, Catalogue, Install, Downloads, RemoveApps, Unattend, Iso, Optimize, Placeholder }
+public enum NavPage { Home, Settings, Catalogue, Install, Downloads, Unattend, Iso, Optimize, Placeholder }
 
 /// <summary>A search box suggestion: the Tweak's name, its Section › Category under it.</summary>
 public sealed record SearchSuggestion(Tweak Tweak)
@@ -22,8 +22,8 @@ public sealed record SearchSuggestion(Tweak Tweak)
 public sealed record NavRoute(NavPage Page, string Key, string? NavKey, string Query);
 
 /// <summary>
-/// The left NavigationView, as Shell.ps1's $AkariNav: Home, Install AkariOS, Optimize (its Catalogue sections under
-/// it), Downloads, Remove apps, Install USB, ISO Builder; Settings in the footer. Pure: the window builds from it.
+/// The left NavigationView, as Shell.ps1's $AkariNav but Remove apps (Downloads' Windows apps now): Home, Install
+/// AkariOS, Optimize (its Catalogue sections under it), Downloads, Install USB, ISO Builder; Settings in the footer. Pure: the window builds from it.
 /// </summary>
 public static class NavTable
 {
@@ -45,7 +45,6 @@ public static class NavTable
         new("Optimize", "Optimize", "",
             Catalogue.Sections.Select(s => new NavEntry(Catalogue.Prefix + s, Catalogue.HeaderOf(s), SectionGlyphs.GetValueOrDefault(s, ""))).ToList()),
         new("Downloads", "Downloads", ""),
-        new("Remove apps", "Remove apps", ""),
         new("Install USB", "Install USB", ""),
         new("ISO Builder", "ISO Builder", ""),
     ];
@@ -79,7 +78,8 @@ public static class NavTable
             Settings => new(NavPage.Settings, key, key, ""),
             Install => new(NavPage.Install, key, key, ""),
             "Downloads" => new(NavPage.Downloads, key, key, ""),
-            "Remove apps" => new(NavPage.RemoveApps, key, key, ""),
+            // Downloads' two sections in the query; Remove apps (the old page) is its Windows apps
+            "Remove apps" => new(NavPage.Downloads, key, "Downloads", ViewModels.DownloadsViewModel.WindowsSection),
             // Open-AkariPage: 'Unattend Generator' is Install USB
             "Install USB" or "Unattend Generator" => new(NavPage.Unattend, "Install USB", "Install USB", ""),
             "ISO Builder" => new(NavPage.Iso, key, key, ""),
