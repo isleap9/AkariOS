@@ -200,6 +200,42 @@ public sealed partial class IsoBuild
         }
     }
 
+    /// <summary>Turbo: the Windows features out in one dism /Disable-Feature with a /FeatureName each (payload
+    /// removed), then each one's state read back: Done when it is disabled or gone, Failed when it isn't.</summary>
+    private void RemoveFeaturesAtOnce(string mount, IReadOnlyList<string> names)
+    {
+        if (names.Count == 0) return;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        foreach (var n in names) _ops?.Report(new IsoOperation(_stage, $"{KindName("Feature")} {n}", IsoOpState.Running, TimeSpan.Zero));
+        p.Log.Write($"Removing {names.Count} Windows features at once");
+        var code = p.Image.Dism([$"/Image:{mount}", "/Disable-Feature", .. names.Select(n => $"/FeatureName:{n}"), "/Remove", "/NoRestart"]);
+        if (code != 0 && code != 3010) p.Log.Write($"  DISM exit code {code}: each feature's state read back");
+        var states = p.Image.Features(mount).ToDictionary(f => f.Name, f => f.State, StringComparer.OrdinalIgnoreCase);
+        var each = TimeSpan.FromTicks(clock.Elapsed.Ticks / names.Count);
+        foreach (var n in names)
+        {
+            var (state, note) = !states.TryGetValue(n, out var now) ? (IsoOpState.Done, "Not in the image any more")
+                : now.Contains("Disabled", StringComparison.OrdinalIgnoreCase) ? (IsoOpState.Done, code == 3010 ? "Finishes when the new Windows first starts" : "")
+                : (IsoOpState.Failed, $"Still {now} (DISM exit code {code})");
+            if (state == IsoOpState.Failed) p.Log.Write($"  {n} is still {now}");
+            Ended($"{KindName("Feature")} {n}", state, each, note);
+        }
+    }
+
+    /// <summary>Remove leftover image data: <see cref="IsoPlan.Leftovers"/>, one operation each; all kept while the
+    /// image has pending servicing.</summary>
+    private void RemoveLeftovers(string mount)
+    {
+        if (File.Exists(Path.Combine(mount, IsoPlan.PendingXml)))
+        {
+            p.Log.Write("The image has pending servicing (pending.xml): leftover data kept");
+            Op("Leftover image data", () => (IsoOpState.Skipped, "The image has pending servicing (pending.xml): kept"));
+            return;
+        }
+        foreach (var path in IsoPlan.Leftovers)
+            Op(path, () => RemovePaths(mount, [path]) is var n and > 0 ? (IsoOpState.Done, $"{n} removed") : (IsoOpState.Skipped, "Nothing there"));
+    }
+
     private static string KindName(string kind) => kind switch
     {
         "Feature" => "Windows feature",

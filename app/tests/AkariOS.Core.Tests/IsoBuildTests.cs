@@ -194,6 +194,126 @@ public sealed class IsoBuildTests
         Assert.Equal("logo", File.ReadAllText(logos["Microsoft.BingNews"]));
     }
 
+    // ---- the build settings (batch I3, native only)
+
+    private static Dictionary<string, object> WithSettings(IsoBuildSettings settings, Action<Dictionary<string, object>>? change = null) =>
+        Case(x => { Choices(x)["Settings"] = settings; change?.Invoke(x); });
+
+    [Fact]
+    public void The_default_settings_build_as_the_port_does()
+    {
+        var c = Case();
+        var steps = IsoPlan.Steps(new IsoChoices { Edition = "Windows 11 Pro" }, []);
+        Assert.DoesNotContain(steps, x => x.Id is "Leftovers" or "NoSxs");
+        Assert.Contains(steps, x => x.Text == "Compressing install.wim");
+        using var s = new Side(c);
+        IsoFakes? fakes = null;
+        Cs(s, c, f => fakes = f);
+        Assert.Contains(fakes!.Calls, x => x.StartsWith("Export ", StringComparison.Ordinal) && x.EndsWith(@"\Media\sources\install.wim max", StringComparison.Ordinal));
+        Assert.Equal(new IsoBuildSettings(), fakes.Report!.Settings);
+    }
+
+    [Theory]
+    [InlineData(IsoCompression.Recovery, "install.esd recovery", "Compressing install.esd (recovery compression)")]
+    [InlineData(IsoCompression.Fast, "install.wim fast", "Compressing install.wim (fast compression)")]
+    public void Compresses_as_picked(IsoCompression compression, string export, string text)
+    {
+        var c = WithSettings(new() { Compression = compression });
+        using var s = new Side(c);
+        IsoFakes? fakes = null;
+        var o = Cs(s, c, f => fakes = f);
+        Assert.StartsWith("Action=Build;Ok=true", o.Results[1]);
+        Assert.Contains(fakes!.Calls, x => x.StartsWith("Export ", StringComparison.Ordinal) && x.EndsWith(@"\Media\sources\" + export, StringComparison.Ordinal));
+        Assert.Contains(text, o.Log);
+        Assert.Equal(compression, fakes.Report!.Settings.Compression);
+    }
+
+    [Fact]
+    public void Turbo_removes_the_features_in_one_dism_call_and_reads_each_back()
+    {
+        var c = WithSettings(new() { Turbo = true }, x =>
+        {
+            Choices(x)["Features"] = new[] { "Recall", "Printing-PrintToPDFServices-Features", "Gone-Feature" };
+            x["StuckFeatures"] = new[] { "Printing-PrintToPDFServices-Features" };
+        });
+        using var s = new Side(c);
+        IsoFakes? fakes = null;
+        var o = Cs(s, c, f => fakes = f);
+        Assert.StartsWith("Action=Build;Ok=true", o.Results[1]);
+        Assert.DoesNotContain(fakes!.Calls, x => x.StartsWith("Remove Feature", StringComparison.Ordinal));
+        Assert.Single(fakes.Calls, x => x.StartsWith("Dism /Image:", StringComparison.Ordinal) && x.Contains("/Disable-Feature", StringComparison.Ordinal) &&
+            x.EndsWith("/FeatureName:Recall /FeatureName:Printing-PrintToPDFServices-Features /FeatureName:Gone-Feature /Remove /NoRestart", StringComparison.Ordinal));
+        var ended = fakes.Ops.Where(x => x.State != IsoOpState.Running && x.Name.StartsWith("Windows feature ", StringComparison.Ordinal)).ToDictionary(x => x.Name, x => x.State);
+        Assert.Equal(IsoOpState.Done, ended["Windows feature Recall"]);
+        Assert.Equal(IsoOpState.Failed, ended["Windows feature Printing-PrintToPDFServices-Features"]);
+        Assert.Equal(IsoOpState.Done, ended["Windows feature Gone-Feature"]);
+        Assert.Contains("Removing 3 Windows features at once", o.Log);
+        Assert.Contains("  Printing-PrintToPDFServices-Features is still Enabled", o.Log);
+    }
+
+    [Fact]
+    public void Removes_the_leftover_image_data_on_the_allow_list_only()
+    {
+        string[] leftovers = [@"Windows\SoftwareDistribution\Download\abc\x.cab", @"Windows\Temp\t.tmp", @"Windows\Logs\CBS\CbsPersist_1.log",
+            @"ProgramData\Microsoft\Windows\WER\ReportQueue\r\a.wer", @"Windows\MEMORY.DMP"];
+        string[] kept = [@"Windows\Logs\CBS\CBS.log", @"Windows\SoftwareDistribution\DataStore\DataStore.edb"];
+        var c = WithSettings(new() { CleanLeftovers = true }, x => x["ImageFiles"] = (string[])[.. ImageFiles, .. leftovers, .. kept]);
+        using var s = new Side(c);
+        IsoFakes? fakes = null;
+        var left = new List<string>();
+        var o = Cs(s, c, f =>
+        {
+            fakes = f;
+            f.OnCommit = m => { if (left.Count == 0) left.AddRange(leftovers.Concat(kept).Where(x => File.Exists(Path.Combine(m, x)))); };
+        });
+        Assert.StartsWith("Action=Build;Ok=true", o.Results[1]);
+        Assert.Equal(kept, left);
+        Assert.Contains("Removing leftover image data", o.Log);
+        Assert.Equal(IsoPlan.Leftovers, fakes!.Ops.Where(x => x.State != IsoOpState.Running && IsoPlan.Leftovers.Contains(x.Name)).Select(x => x.Name));
+        Assert.Contains(fakes.Ops, x => x.Name == @"Windows\Temp\*" && x.State == IsoOpState.Done);
+        Assert.Contains(fakes.Ops, x => x.Name == @"Windows\Minidump\*" && x.State == IsoOpState.Skipped);
+    }
+
+    [Fact]
+    public void Keeps_the_leftover_data_while_servicing_is_pending()
+    {
+        var c = WithSettings(new() { CleanLeftovers = true }, x => x["ImageFiles"] = (string[])[.. ImageFiles, @"Windows\Temp\t.tmp", IsoPlan.PendingXml]);
+        using var s = new Side(c);
+        IsoFakes? fakes = null;
+        var kept = false;
+        var o = Cs(s, c, f =>
+        {
+            fakes = f;
+            f.OnCommit = m => kept |= File.Exists(Path.Combine(m, @"Windows\Temp\t.tmp"));
+        });
+        Assert.True(kept);
+        Assert.Contains("The image has pending servicing (pending.xml): leftover data kept", o.Log);
+        Assert.Single(fakes!.Ops, x => x.Name == "Leftover image data" && x.State == IsoOpState.Skipped);
+    }
+
+    [Fact]
+    public void Leaves_the_net35_setup_files_off_the_iso_after_adding_net35()
+    {
+        var c = WithSettings(new() { LeaveOutNetFx3Files = true });
+        using var s = new Side(c);
+        var sxs = Path.Combine(s.Root, @"out\AkariIso\Media\sources\sxs");
+        bool? onIso = null;
+        IsoFakes? fakes = null;
+        var o = Cs(s, c, f => { fakes = f; f.OnOscdimg = () => onIso = Directory.Exists(sxs); });
+        Assert.StartsWith("Action=Build;Ok=true", o.Results[1]);
+        Assert.False(onIso);
+        // .NET 3.5 is still added from it first
+        Assert.Contains(fakes!.Calls, x => x.Contains("/FeatureName:NetFx3", StringComparison.Ordinal));
+        var steps = IsoPlan.Steps(new IsoChoices { Settings = new() { LeaveOutNetFx3Files = true } }, []).Select(x => x.Id).ToList();
+        Assert.True(steps.IndexOf("NetFx3") < steps.IndexOf("NoSxs") && steps.IndexOf("NoSxs") < steps.IndexOf("Iso"));
+        Assert.True(fakes.Report!.Settings.LeaveOutNetFx3Files);
+    }
+
+    [Fact]
+    public void Says_the_settings_as_review_lines() => Assert.Equal(
+        ["Compression: Recovery ESD (smallest, slowest)", "Turbo feature removal: On", "Remove leftover image data: Off", ".NET 3.5's setup files on the ISO: Kept"],
+        new IsoBuildSettings { Compression = IsoCompression.Recovery, Turbo = true }.Lines());
+
     private sealed class CapabilitiesImage(IImage inner) : IImage
     {
         public IReadOnlyList<WimImage> Images(string wim) => inner.Images(wim);

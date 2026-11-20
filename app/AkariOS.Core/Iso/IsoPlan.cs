@@ -25,6 +25,44 @@ public sealed record IsoChoices
     public string[]? Packages { get; init; }
     public string? AkariExe { get; init; }
     public byte[]? Unattend { get; init; }
+
+    /// <summary>The wizard's build settings (batch I3, native only so far); the defaults build as the port does.</summary>
+    public IsoBuildSettings Settings { get; init; } = new();
+}
+
+/// <summary>How install.wim leaves the build: Recovery = install.esd (/Compress:recovery, smallest, slowest),
+/// Maximum = install.wim /Compress:max (the port's), Fast = install.wim /Compress:fast.</summary>
+[System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter<IsoCompression>))]
+public enum IsoCompression { Recovery, Maximum, Fast }
+
+/// <summary>The Build settings step's switches (plan docs/plans/2026-11-20-iso-builder-wizard.md, Build settings): the
+/// final compression; Turbo = the Windows features removed in one DISM call, each read back; CleanLeftovers = the
+/// image's leftover data (<see cref="IsoPlan.Leftovers"/>) removed unless servicing is pending; LeaveOutNetFx3Files =
+/// sources\sxs not on the ISO. All off by default, compression Maximum.</summary>
+public sealed record IsoBuildSettings
+{
+    public IsoCompression Compression { get; init; } = IsoCompression.Maximum;
+    public bool Turbo { get; init; }
+    public bool CleanLeftovers { get; init; }
+    public bool LeaveOutNetFx3Files { get; init; }
+
+    public static string CompressionText(IsoCompression c) => c switch
+    {
+        IsoCompression.Recovery => "Recovery ESD (smallest, slowest)",
+        IsoCompression.Fast => "Fast WIM (largest, quickest)",
+        _ => "Maximum WIM",
+    };
+
+    /// <summary>The settings as Review's lines.</summary>
+    public IReadOnlyList<string> Lines() =>
+    [
+        $"Compression: {CompressionText(Compression)}",
+        $"Turbo feature removal: {OnOff(Turbo)}",
+        $"Remove leftover image data: {OnOff(CleanLeftovers)}",
+        $".NET 3.5's setup files on the ISO: {(LeaveOutNetFx3Files ? "Left out" : "Kept")}",
+    ];
+
+    private static string OnOff(bool on) => on ? "On" : "Off";
 }
 
 /// <summary>A build step: its id and the text the status bar shows.</summary>
@@ -70,14 +108,42 @@ public static partial class IsoPlan
         if (!string.IsNullOrEmpty(c.AkariExe)) Add("AkariOS", "Adding AkariOS to the image");
         Add("NetFx3", "Adding .NET Framework 3.5");
         Add("Cleanup", "Cleaning up the component store");
+        if (c.Settings.CleanLeftovers) Add("Leftovers", "Removing leftover image data");
         Add("Commit", "Saving the image");
-        Add("Compress", "Compressing install.wim");
+        Add("Compress", c.Settings.Compression switch
+        {
+            IsoCompression.Recovery => "Compressing install.esd (recovery compression)",
+            IsoCompression.Fast => "Compressing install.wim (fast compression)",
+            _ => "Compressing install.wim",
+        });
         Add("Boot", "Skipping the Windows 11 requirements in setup (boot.wim)");
         if (c.Unattend is { Length: > 0 }) Add("Answer", "Adding the answer file (autounattend.xml)");
+        if (c.Settings.LeaveOutNetFx3Files) Add("NoSxs", "Leaving .NET Framework 3.5's setup files off the ISO");
         Add("Iso", "Building the ISO");
         Add("Tidy", "Removing the work folder");
         return s;
     }
+
+    /// <summary>Remove leftover image data's allow-list, paths under the mounted image (the last part may hold
+    /// wildcards): downloaded updates, temp files, archived CBS and DISM logs, Windows Error Reporting's queues, crash
+    /// dumps. Nothing a running Windows needs; kept whole while the image has pending servicing (<see cref="PendingXml"/>).</summary>
+    public static IReadOnlyList<string> Leftovers { get; } =
+    [
+        @"Windows\SoftwareDistribution\Download\*",
+        @"Windows\Temp\*",
+        @"Windows\Logs\CBS\*.cab",
+        @"Windows\Logs\CBS\CbsPersist_*.log",
+        @"Windows\Logs\DISM\*.bak",
+        @"ProgramData\Microsoft\Windows\WER\ReportQueue\*",
+        @"ProgramData\Microsoft\Windows\WER\ReportArchive\*",
+        @"ProgramData\Microsoft\Windows\WER\Temp\*",
+        @"Windows\Minidump\*",
+        @"Windows\MEMORY.DMP",
+        @"Windows\LiveKernelReports\*.dmp",
+    ];
+
+    /// <summary>The image's pending servicing marker: while it is there, leftover data stays.</summary>
+    public const string PendingXml = @"Windows\WinSxS\pending.xml";
 
     /// <summary>A choice list without its empty entries (Get-AkariIsoList).</summary>
     public static IReadOnlyList<string> List(IEnumerable<string>? v) => [.. (v ?? []).Where(x => !string.IsNullOrEmpty(x))];

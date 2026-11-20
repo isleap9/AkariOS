@@ -185,6 +185,36 @@ public sealed partial class IsoBuilderViewModel
     [ObservableProperty]
     public partial string ResultDetails { get; private set; } = "";
 
+    // ---- the Build settings step's switches (batch I3)
+
+    /// <summary>The compression's choices, in <see cref="CompressionIndex"/>'s order.</summary>
+    public static IReadOnlyList<IsoCompression> Compressions { get; } = [IsoCompression.Recovery, IsoCompression.Maximum, IsoCompression.Fast];
+
+    public static IReadOnlyList<string> CompressionNames { get; } = [.. Compressions.Select(IsoBuildSettings.CompressionText)];
+
+    /// <summary>The final compression: Maximum WIM at first (the port's).</summary>
+    [ObservableProperty]
+    public partial int CompressionIndex { get; set; } = 1;
+
+    /// <summary>Turbo: the Windows features removed in one DISM call.</summary>
+    [ObservableProperty]
+    public partial bool Turbo { get; set; }
+
+    /// <summary>Remove leftover image data (the allow-list, kept while servicing is pending).</summary>
+    [ObservableProperty]
+    public partial bool CleanLeftovers { get; set; }
+
+    /// <summary>Leave .NET 3.5's setup files (sources\sxs) off the ISO.</summary>
+    [ObservableProperty]
+    public partial bool LeaveOutNetFx3Files { get; set; }
+
+    /// <summary>The switches as the build takes them.</summary>
+    public IsoBuildSettings Settings => new()
+    {
+        Compression = Compressions[Math.Clamp(CompressionIndex, 0, Compressions.Count - 1)],
+        Turbo = Turbo, CleanLeftovers = CleanLeftovers, LeaveOutNetFx3Files = LeaveOutNetFx3Files,
+    };
+
     // an operation reported by the build, onto the UI thread
     private sealed class PostedOps(IBackground background, Action<IsoOperation> show) : IProgress<IsoOperation>
     {
@@ -291,6 +321,7 @@ public sealed partial class IsoBuilderViewModel
             new(mode.Glyph, mode.Name, counts.Count > 0 ? string.Join("\n", counts) : "Nothing removed: the image's lists weren't read."),
             new("\uE8B7", "Output and workspace", $"ISO\n{Path.Combine(OutDir.Trim(), IsoPlan.OutName(IsoPath.Trim()))}\n\nWork folder\n{IsoWork.Of(OutDir.Trim()).Root}"),
             new("\uE713", "Installation options", $"Answer file: {answer}\nAkariOS on the new Windows: {(AkariOS ? "Yes" : "No")}"),
+            new("\uE9F5", "Build settings", string.Join("\n", Settings.Lines())),
         ];
     }
 

@@ -235,6 +235,8 @@ internal sealed class IsoFakes : IImage, IOfflineHives, IDiskImage, IExe, ITrust
         foreach (var f in Directory.EnumerateFiles(mount)) File.Delete(f);
     }
 
+    private readonly HashSet<string> _disabled = new(StringComparer.OrdinalIgnoreCase);
+
     private int Code(string verb) => _c.GetProperty("DismCodes").TryGetProperty(verb, out var v) ? v.GetInt32() : 0;
 
     // ---- IImage
@@ -280,7 +282,10 @@ internal sealed class IsoFakes : IImage, IOfflineHives, IDiskImage, IExe, ITrust
     public IReadOnlyList<DismItem> Features(string mount)
     {
         Rec($"Read Features {mount}");
-        return [.. _c.GetProperty("ImageFeatures").EnumerateArray().Select(n => new DismItem(n.GetString()!, "Enabled"))];
+        // a feature removed reads back disabled, unless the case keeps it ("StuckFeatures": DISM said done, it isn't)
+        var stuck = _c.TryGetProperty("StuckFeatures", out var s) ? s.EnumerateArray().Select(x => x.GetString()).ToHashSet() : [];
+        return [.. _c.GetProperty("ImageFeatures").EnumerateArray().Select(n => n.GetString()!)
+            .Select(n => new DismItem(n, _disabled.Contains(n) && !stuck.Contains(n) ? "DisabledWithPayloadRemoved" : "Enabled"))];
     }
 
     public IReadOnlyList<DismItem> Capabilities(string mount)
@@ -300,12 +305,15 @@ internal sealed class IsoFakes : IImage, IOfflineHives, IDiskImage, IExe, ITrust
     public int Remove(string mount, string kind, string name)
     {
         Rec($"Remove {kind} {mount} {name}");
+        if (kind == "Feature") _disabled.Add(name);
         return Code(kind switch { "Feature" => "Disable-Feature", "Capability" => "Remove-Capability", _ => "Remove-Package" });
     }
 
     public int Dism(IReadOnlyList<string> arguments)
     {
         Rec("Dism " + string.Join(" ", arguments));
+        if (arguments[1] == "/Disable-Feature")
+            foreach (var a in arguments.Where(a => a.StartsWith("/FeatureName:", StringComparison.Ordinal))) _disabled.Add(a["/FeatureName:".Length..]);
         return Code(arguments[1].TrimStart('/'));
     }
 

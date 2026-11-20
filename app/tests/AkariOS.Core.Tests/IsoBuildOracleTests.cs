@@ -87,6 +87,8 @@ public sealed partial class IsoBuildOracleTests
                         Options = List("Options"), Apps = List("Apps"), Features = List("Features"), Capabilities = List("Capabilities"), Packages = List("Packages"),
                         AkariExe = ch.TryGetValue("AkariOS", out var ak) && ak is true ? f.MakeExe() : null,
                         Unattend = ch.TryGetValue("Unattend", out var u) ? System.Text.Encoding.UTF8.GetBytes((string)u) : null,
+                        // native only (batch I3): the port has no build settings yet
+                        Settings = ch.TryGetValue("Settings", out var st) ? (IsoBuildSettings)st : new(),
                     };
                     var r = b.Build(choices, f.Progress, f.Operations);
                     f.Report = r.Report;

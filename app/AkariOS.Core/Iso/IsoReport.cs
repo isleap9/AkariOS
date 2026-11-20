@@ -30,6 +30,7 @@ public sealed record IsoReport
     public string Source { get; init; } = "";
     public string Edition { get; init; } = "";
     public string Iso { get; init; } = "";
+    public IsoBuildSettings Settings { get; init; } = new();
     public long Size { get; init; }
     public string Sha256 { get; init; } = "";
     public IReadOnlyList<IsoReportStage> Stages { get; init; } = [];

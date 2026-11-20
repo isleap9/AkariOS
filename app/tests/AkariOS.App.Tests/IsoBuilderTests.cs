@@ -132,7 +132,8 @@ public sealed class IsoBuilderTests : IDisposable
         Assert.Equal((IsoBuilderViewModel.SettingsStep, "Review"), (iso.Step, iso.NextText));
         await iso.NextAsync();
         Assert.Equal((IsoBuilderViewModel.ReviewStep, "Build ISO"), (iso.Step, iso.NextText));
-        Assert.Equal(["Windows image", "Custom", "Output and workspace", "Installation options"], iso.ReviewCards.Select(c => c.Title));
+        Assert.Equal(["Windows image", "Custom", "Output and workspace", "Installation options", "Build settings"], iso.ReviewCards.Select(c => c.Title));
+        Assert.Equal(string.Join("\n", new Core.Iso.IsoBuildSettings().Lines()), iso.ReviewCards[4].Lines);
         Assert.Contains(Path.Combine(side.Root, "out", "Win11-Akari.iso"), iso.ReviewCards[2].Lines);
         Assert.Contains($"Store apps: {iso.List("Apps").Ticked().Length} of 4", iso.ReviewCards[1].Lines);
         Assert.Equal(["Done", "Done", "Done", "Done", "Current", ""], iso.Stepper.Select(s => s.State));
@@ -254,6 +255,38 @@ public sealed class IsoBuilderTests : IDisposable
         Assert.Equal("Open folder", t.Shell.Toasts[0].ActionText);
         t.Shell.Toasts[0].Act();
         Assert.Equal([Path.Combine(side.Root, "out")], t.Open.Opened);
+    }
+
+    [Fact]
+    public async Task The_build_settings_start_off_but_maximum_wim_and_go_to_review_the_build_and_its_report()
+    {
+        var (t, iso, side, fakes) = await Opened();
+        Assert.Equal(new Core.Iso.IsoBuildSettings(), iso.Settings);
+        Assert.Equal(["Recovery ESD (smallest, slowest)", "Maximum WIM", "Fast WIM (largest, quickest)"], IsoBuilderViewModel.CompressionNames);
+        Assert.Equal(1, iso.CompressionIndex);
+
+        await iso.ReadImageAsync();
+        iso.List("Features").Items.Single(i => i.Label == "Recall").IsChecked = true;
+        iso.Answer = "None";
+        iso.CompressionIndex = 0;
+        iso.Turbo = true;
+        iso.CleanLeftovers = true;
+        iso.LeaveOutNetFx3Files = true;
+        iso.Step = IsoBuilderViewModel.ReviewStep;
+        Assert.Equal(
+            "Compression: Recovery ESD (smallest, slowest)\nTurbo feature removal: On\nRemove leftover image data: On\n.NET 3.5's setup files on the ISO: Left out",
+            iso.ReviewCards.Single(c => c.Title == "Build settings").Lines);
+
+        t.Dialogs.Answers.Enqueue("Build ISO");
+        await iso.BuildAsync();
+        Assert.True(iso.HasResult);
+        Assert.Contains(fakes.Calls, c => c.StartsWith("Export ", StringComparison.Ordinal) && c.EndsWith(@"\Media\sources\install.esd recovery", StringComparison.Ordinal));
+        Assert.Contains(fakes.Calls, c => c.Contains("/Disable-Feature /FeatureName:Recall /Remove /NoRestart", StringComparison.Ordinal));
+        Assert.DoesNotContain(@"Remove Feature <root>\out\AkariIso\Mount Recall", fakes.Calls);
+        Assert.Contains(iso.Stages, s => s.Text == "Removing leftover image data");
+        Assert.Contains(iso.Stages, s => s.Text == "Leaving .NET Framework 3.5's setup files off the ISO");
+        var report = Core.Iso.IsoReport.FromJson(File.ReadAllText(Path.Combine(side.Root, "out", "Win11-Akari.report.json")))!;
+        Assert.Equal(iso.Settings, report.Settings);
     }
 
     [Fact]

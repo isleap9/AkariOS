@@ -206,7 +206,9 @@ public sealed partial class IsoBuild(IsoParts p)
                         {
                             var patterns = picked.SelectMany(o => o.Features).ToList();
                             IReadOnlyList<string> have = patterns.Count > 0 ? [.. p.Image.Features(w.Mount).Select(f => f.Name)] : [];
-                            RemoveItems(w.Mount, "Feature", IsoData.Resolve(IsoPlan.List(c.Features), patterns, have));
+                            var features = IsoData.Resolve(IsoPlan.List(c.Features), patterns, have);
+                            if (c.Settings.Turbo) RemoveFeaturesAtOnce(w.Mount, features);
+                            else RemoveItems(w.Mount, "Feature", features);
                             break;
                         }
                     case "Capabilities": RemoveItems(w.Mount, "Capability", IsoPlan.List(c.Capabilities)); break;
@@ -247,6 +249,7 @@ public sealed partial class IsoBuild(IsoParts p)
                             return (IsoOpState.Skipped, $"Pending operations (DISM exit code {code}): the image may be larger");
                         });
                         break;
+                    case "Leftovers": RemoveLeftovers(w.Mount); break;
                     case "Commit": p.Image.Commit(w.Mount); break;
                     case "Compress":
                         {
@@ -254,7 +257,13 @@ public sealed partial class IsoBuild(IsoParts p)
                             if (Directory.Exists(sources))
                                 foreach (var old in Directory.EnumerateFiles(sources, "install*"))
                                     if (Path.GetExtension(old).ToLowerInvariant() is ".wim" or ".esd" or ".swm") File.Delete(old);
-                            p.Image.Export(w.Wim, 1, Path.Combine(sources, "install.wim"), "max");
+                            var (file, mode) = c.Settings.Compression switch
+                            {
+                                IsoCompression.Recovery => ("install.esd", "recovery"),
+                                IsoCompression.Fast => ("install.wim", "fast"),
+                                _ => ("install.wim", "max"),
+                            };
+                            p.Image.Export(w.Wim, 1, Path.Combine(sources, file), mode);
                             TryDelete(w.Wim);
                             break;
                         }
@@ -268,6 +277,15 @@ public sealed partial class IsoBuild(IsoParts p)
                             ClearMarker();
                             break;
                         }
+                    case "NoSxs":
+                        Op(@"sources\sxs", () =>
+                        {
+                            var sxs = Path.Combine(w.Media, @"sources\sxs");
+                            if (!Directory.Exists(sxs)) return (IsoOpState.Skipped, "Not on this ISO");
+                            DeleteTree(sxs);
+                            return (IsoOpState.Done, "");
+                        });
+                        break;
                     case "Iso":
                         {
                             TryDelete(output);
@@ -312,7 +330,8 @@ public sealed partial class IsoBuild(IsoParts p)
 
         IsoReport Report(bool ok, string message) => new()
         {
-            Started = started, Finished = DateTime.Now, Ok = ok, Message = message, Source = c.Iso, Edition = c.Edition, Iso = output, Stages = stages,
+            Started = started, Finished = DateTime.Now, Ok = ok, Message = message, Source = c.Iso, Edition = c.Edition, Iso = output,
+            Settings = c.Settings, Stages = stages,
         };
     }
 

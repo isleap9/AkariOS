@@ -675,7 +675,7 @@ public sealed partial class IsoBuilderViewModel : ObservableObject
         {
             OutDir = OutDir.Trim(), Iso = IsoPath.Trim(), Image = _image, Index = ed.Index, Edition = ed.Name, Options = [],
             Apps = lists["Apps"], Capabilities = lists["Capabilities"], Features = lists["Features"], Packages = lists["Packages"],
-            AkariExe = AkariOS ? _tools.AkariExe : null, Unattend = answer,
+            AkariExe = AkariOS ? _tools.AkariExe : null, Unattend = answer, Settings = Settings,
         };
     }
 }

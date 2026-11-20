@@ -275,6 +275,54 @@
                             <TextBlock Text="{x:Bind ViewModel.AkariOSNote}" Style="{StaticResource Note}" Visibility="{x:Bind ViewModel.HasAkariOSNote}" Margin="28,0,0,0" />
                         </StackPanel>
                     </Border>
+
+                    <!-- the build settings: a switch card each, the compression's choice on the right -->
+                    <TextBlock Text="Build settings" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,12,0,8" />
+                    <Border Style="{StaticResource Card}">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Final compression" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <TextBlock Style="{StaticResource Note}"
+                                           Text="Recovery ESD makes the smallest ISO but takes much longer to build. Maximum WIM is the usual choice; Fast WIM builds quickest and is the largest." />
+                            </StackPanel>
+                            <ComboBox Grid.Column="1" VerticalAlignment="Center" MinWidth="260" ItemsSource="{x:Bind vm:IsoBuilderViewModel.CompressionNames}"
+                                      SelectedIndex="{x:Bind ViewModel.CompressionIndex, Mode=TwoWay}" />
+                        </Grid>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Turbo feature removal" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <TextBlock Style="{StaticResource Note}"
+                                           Text="The Windows features you picked go in one DISM call instead of one each, then each one is checked." />
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" VerticalAlignment="Center" MinWidth="0" IsOn="{x:Bind ViewModel.Turbo, Mode=TwoWay}" />
+                        </Grid>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Remove leftover image data" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <TextBlock Style="{StaticResource Note}"
+                                           Text="Downloaded updates, temp files, archived logs, error reports and crash dumps inside the image. Nothing is removed while the image has updates waiting to finish." />
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" VerticalAlignment="Center" MinWidth="0" IsOn="{x:Bind ViewModel.CleanLeftovers, Mode=TwoWay}" />
+                        </Grid>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Leave .NET 3.5's setup files off the ISO" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <TextBlock Style="{StaticResource Note}"
+                                           Text="The ISO's sources\sxs folder. .NET Framework 3.5 is still added to the image first; the ISO just can't serve as an offline source for it later." />
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" VerticalAlignment="Center" MinWidth="0" IsOn="{x:Bind ViewModel.LeaveOutNetFx3Files, Mode=TwoWay}" />
+                        </Grid>
+                    </Border>
                 </StackPanel>
 
                 <!-- 5 Review -->
