@@ -1,13 +1,16 @@
-using System.IO;
 using System.Runtime.InteropServices;
-using System.Windows;
 using AkariOS.Core;
 using AkariOS.Core.Machine;
 using AkariOS.Core.Update;
 using AkariOS.Tweaks;
+using Microsoft.UI.Dispatching;
 
 namespace AkariOS.App;
 
+/// <summary>
+/// AkariOS-Native.exe's entry point: --resume and the CLI run in a console before any XAML is loaded; else the WinUI 3
+/// window (App); after it closes for One-click, the AkariOS preset's Run in a console of its own.
+/// </summary>
 public static partial class Program
 {
     [LibraryImport("kernel32.dll", SetLastError = true)]
@@ -24,6 +27,24 @@ public static partial class Program
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool ShowWindow(IntPtr window, int show);
+
+    [LibraryImport("user32.dll", EntryPoint = "MessageBoxW", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial int MessageBox(IntPtr owner, string text, string caption, uint type);
+
+    /// <summary>
+    /// A failure before or while the window starts (Write-AkariCrash): akari.log, then Windows' own message box (no
+    /// XAML: it may be what failed). Never throws.
+    /// </summary>
+    public static void Crash(string what, Exception e)
+    {
+        try { new AkariLog(AkariPaths.LogFile).WriteFile($"Error: {what}: {e}"); }
+        catch (Exception)
+        {
+            // the message box still says what happened
+        }
+        // MB_OK | MB_ICONERROR
+        MessageBox(IntPtr.Zero, $"{what}: {e.Message}\n\nThe details are in {AkariPaths.LogFile}.", "AkariOS", 0x10);
+    }
 
     /// <summary>
     /// A Run in phases in a console window of its own, maximized (Akari.ps1's -Resume and One-click consoles): the log's
@@ -68,67 +89,30 @@ public static partial class Program
             return Cli.Run(args, output, error, () => Engine.Live(TweaksAssembly.Codes, log));
         }
 
-        var appLog = new AkariLog(AkariPaths.LogFile);
         // after an update: the old exe (still closing) and a stray download go
         if (Environment.ProcessPath is { } exePath) Task.Run(() => Updater.Cleanup(exePath));
         // the exe copy a finished Run in phases resumed from
         Task.Run(() => Core.Runs.SelfCopy.Live().Clean(File.Exists(Core.Runs.RunStore.Default)));
-        var engine = Engine.Live(TweaksAssembly.Codes, appLog);
-        var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
-        var motion = AkariXaml.MotionOn();
-        Look.Motion.Initialize(motion);
-        Look.Motion.HookSegmentPills();
-        foreach (var d in AkariXaml.SharedResources("Dark", motion))
-            app.Resources.MergedDictionaries.Add(d);
-        Look.Assets.AddFonts(app.Resources);
-        // System follows the real user's app mode (rule 6: their hive, not the elevated account's)
-        var theme = new Look.ThemeService(app.Resources, new Look.SettingsFile(Path.Combine(AkariPaths.UserFolder, "settings.json")),
-            () => engine.Registry.GetValue(@"HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "AppsUseLightTheme") is uint v ? (int)v : null,
-            motion);
-        theme.Apply(theme.Saved());
-        var shell = new Shell.ShellViewModel(AkariInfo.Version, Core.Tweaks.Catalogue.Pages(Core.Tweaks.Catalogue.Tweaks(engine.Loaded.Tweaks, engine.System)));
-        var services = new Shell.AppServices { Engine = engine, Shell = shell, Theme = theme, Open = new Shell.ShellOpen(), Log = appLog, Picker = new Shell.FilePicker(),
-            Drives = new Core.Unattend.LiveSetupDrives(), Region = Core.Unattend.RegistryPcRegion.Live(engine.Registry) };
-        // the ISO Builder: DISM, the hives, the ISO drive, UUP Dump and Massgrave on the engine's parts; AkariOS in an
-        // image is this exe (none for a developer build); a mount left by a closed build is discarded in the background
-        var tw = engine.Services;
-        services.IsoBuild = new Core.Iso.IsoBuild(Core.Iso.IsoParts.Live(engine.Files, engine.Registry, tw.Trusted!, tw.Exe!, tw.Http!, tw.Shortcuts!, appLog));
-        services.IsoDownload = new Core.Iso.IsoDownload(Core.Iso.IsoDownloadParts.Live(tw.Http!, tw.Exe!, appLog, engine.Registry));
-        services.AkariExe = Shell.UpdateService.IsDeveloperBuild() ? null : Environment.ProcessPath;
-        var isoBuild = services.IsoBuild;
-        Task.Run(isoBuild.ClearLeftover);
-        var window = new MainWindow(theme, shell, Pages.PageFactory.For(services));
-        services.Dialogs = Shell.Dialogs.For(window, appLog);
-        services.Bars = window.CatBars;
-        services.Footer = new Pages.StepFooter(window.StepFooter, window.StepBack, window.StepDots, window.StepNext);
-        services.Install?.Attach(services.Footer);
-        // a Run or a change running, Safe Mode changes waiting: closing asks first (not for an update: the new exe
-        // is starting already, and the update is only offered with nothing running or waiting)
-        var updating = false;
-        window.Closing += (s, e) =>
+
+        try
         {
-            if (updating) return;
-            if (services.Install?.CanClose() == false || services.Iso?.CanClose() == false) { e.Cancel = true; return; }
-            services.Catalogue?.OnClosing(s, e);
-        };
-        services.Close = () => { updating = true; window.Close(); };
-        services.Updates = Shell.UpdateService.Live(new ExeRunner(), appLog);
-        // every launch: checked in the background once the window is up
-        window.Loaded += (_, _) => services.Updates.Check(services, manual: false);
-        Shell.OptionsMenu.Attach(window.MenuBtn, Shell.OptionsMenu.Build(services));
-        foreach (var p in engine.Loaded.Problems) appLog.WriteFile($"{p.Level}: {p.File}: {p.Message}");
-        // an error inside a click: in akari.log and a message, instead of closing the app
-        app.DispatcherUnhandledException += (_, e) =>
+            WinRT.ComWrappersSupport.InitializeComWrappers();
+            Microsoft.UI.Xaml.Application.Start(p =>
+            {
+                SynchronizationContext.SetSynchronizationContext(new DispatcherQueueSynchronizationContext(DispatcherQueue.GetForCurrentThread()));
+                _ = new App();
+            });
+        }
+        catch (Exception e)
         {
-            e.Handled = true;
-            appLog.WriteFile($"Error: UI: {e.Exception}");
-            services.Dialogs.Message($"Something went wrong: {e.Exception.Message}\n\nThe details are in akari.log.", "Error");
-            shell.SetBusy(false);
-        };
-        var code = app.Run(window);
+            // WinUI itself didn't start (the Windows App SDK's files, an old Windows)
+            Crash("AkariOS could not start", e);
+            return 1;
+        }
+
         // One-click closed the window: its console runs the AkariOS preset's phases (a fresh engine, its log printed)
-        if (services.OneClick is { } preset)
+        if (App.OneClick is { } preset)
             return InConsole((console, log) => console.OneClick(Engine.Live(TweaksAssembly.Codes, log), preset));
-        return code;
+        return 0;
     }
 }

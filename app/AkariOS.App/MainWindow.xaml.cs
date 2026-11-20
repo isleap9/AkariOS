@@ -1,230 +1,202 @@
-using System.ComponentModel;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
-using System.Windows.Input;
-using System.Windows.Media.Imaging;
-using AkariOS.App.Look;
 using AkariOS.App.Shell;
+using AkariOS.App.ViewModels;
+using AkariOS.App.Views;
+using AkariOS.Core;
+using AkariOS.Framework.Messaging;
+using AkariOS.Framework.Navigation;
+using AkariOS.Framework.Services;
+using CommunityToolkit.Mvvm.Messaging;
+using Microsoft.UI.Windowing;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.Graphics;
 
 namespace AkariOS.App;
 
 /// <summary>
-/// The window's glue (what binding can't do): the tabs and their pill, the width rules, the search box and Ctrl+K,
-/// the caption buttons, the status bar's ring and fill, a new page's entrance. The state is ShellViewModel's.
+/// The shell (Shell.ps1): a 48 px title bar over Mica, the left NavigationView built from NavTable, the page frame.
+/// Pages are keyed by the PowerShell app's page names; one still to come shows a placeholder naming its batch.
 /// </summary>
-public partial class MainWindow : Window
+public sealed partial class MainWindow : Window, IShellNavigator
 {
-    private readonly ThemeService _theme;
-    private readonly ShellViewModel _vm;
-    private readonly Func<string, UIElement> _pages;
-    private readonly List<(RadioButton Button, FrameworkElement Icon, TextBlock Label, string Name)> _tabs = [];
-    private bool _sync;
-    private bool _narrow;
+    private readonly INavigationService _navigation;
+    private readonly IThemeService _theme;
+    private readonly CatalogueViewModel _catalogue;
+    private readonly InstallViewModel _install;
+    private readonly Dictionary<string, NavigationViewItem> _items = new(StringComparer.OrdinalIgnoreCase);
+    private string _current = "";
+    private bool _closing;
 
-    /// <param name="resources">Tests only: the shared resources, when there is no Application to hold them.</param>
-    public MainWindow(ThemeService theme, ShellViewModel vm, Func<string, UIElement> pages, IEnumerable<ResourceDictionary>? resources = null)
+    public MainWindow(INavigationService navigation, IThemeService theme, IMessenger messenger, CatalogueViewModel catalogue, InstallViewModel install, ShellState shell)
     {
-        foreach (var d in resources ?? []) Resources.MergedDictionaries.Add(d);
         InitializeComponent();
-        (_theme, _vm, _pages) = (theme, vm, pages);
-        DataContext = vm;
-        try { Icon = BitmapFrame.Create(Assets.Icon); } catch (Exception) { }
-        // opens wide enough for the whole top bar (1360 x 800) when the screen has room, else as big as it allows
-        var area = SystemParameters.WorkArea;
-        Width = Math.Max(MinWidth, Math.Min(1360, area.Width - 40));
-        Height = Math.Max(MinHeight, Math.Min(800, area.Height - 40));
-        WindowFrame.Attach(this, Body, theme);
-        theme.Changed += UpdateLogo;
-        UpdateLogo();
+        _install = install;
+        _navigation = navigation;
+        _theme = theme;
+        _catalogue = catalogue;
+        Shell = shell;
+        AppWindow.Closing += OnClosing;
 
-        BuildTabs();
-        Motion.PillGroup(Tabs, TabPill);
-        BuildSections();
-        Motion.PillGroup(Chips, ChipPill);
-        Motion.SmoothScroll(PageScroll);
-        CapMin.Click += (_, _) => SystemCommands.MinimizeWindow(this);
-        CapMax.Click += (_, _) => { if (WindowState == WindowState.Maximized) SystemCommands.RestoreWindow(this); else SystemCommands.MaximizeWindow(this); };
-        CapClose.Click += (_, _) => Close();
-        StateChanged += (_, _) => OnStateChanged();
-        SizeChanged += (_, _) => UpdateWidth(ActualWidth);
-        SearchBtn.Click += (_, _) => OpenSearch();
-        SearchInput.LostKeyboardFocus += (_, _) => { if (SearchInput.Text.Length == 0) SetSearchOpen(false); };
-        PreviewKeyDown += (_, e) =>
-        {
-            if (e.Key == Key.K && Keyboard.Modifiers == ModifierKeys.Control) { OpenSearch(); e.Handled = true; }
-        };
+        Title = App.AppName;
+        VersionText.Text = AkariInfo.Version;
+        SystemBackdrop = new MicaBackdrop();
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(AppTitleBar);
+        ConfigureWindow();
 
-        vm.PropertyChanged += OnViewModelChanged;
-        vm.PageMoved += ShowPage;
-        vm.SearchTyped += () => Page.Content = _pages(_vm.Page);
-        Icons.Set(HeaderIcon, vm.Glyph);
-        ShowPage();
-        SyncTabs();
-        SyncSubNav();
+        foreach (var e in NavTable.Menu) NavView.MenuItems.Add(Item(e));
+        foreach (var e in NavTable.Footer) NavView.FooterMenuItems.Add(Item(e));
+
+        _navigation.SetFrame(ContentFrame);
+        _navigation.Navigated += (_, _) => BackBtn.IsEnabled = _navigation.CanGoBack;
+        Open("Home");
+
+        messenger.Register<ThemeChangedMessage>(this, (r, m) => ((MainWindow)r).ApplyTheme(m.Theme));
+        messenger.Register<NavigationRequestedMessage>(this, (r, m) => ((MainWindow)r)._navigation.NavigateTo(m.PageType, m.Parameter));
     }
 
-    private void UpdateLogo()
+    /// <summary>The busy toast's state (bound in XAML).</summary>
+    public ShellState Shell { get; }
+
+    /// <summary>One-click: the window closes without asking (Program runs the preset in a console after it).</summary>
+    public void CloseForOneClick()
     {
-        try { Logo.Source = Assets.Image(Assets.LogoFor(_theme.Current)); } catch (Exception) { }
+        _closing = true;
+        Close();
     }
 
-    private void BuildTabs()
+    /// <summary>Opens a page by its key (NavTable.Route), selecting its nav item.</summary>
+    public void Open(string key)
     {
-        foreach (var (name, icon) in ShellLayout.Tabs)
+        var route = NavTable.Route(key);
+        var shown = route.Page == NavPage.Catalogue && route.Query.Length > 0 ? NavTable.SearchPrefix + route.Query : route.Key;
+        if (string.Equals(shown, _current, StringComparison.OrdinalIgnoreCase)) return;
+        _current = shown;
+        Shell.Page = shown;
+        switch (route.Page)
         {
-            var ic = Icons.Make(icon, 16, "Inherit");
-            ic.VerticalAlignment = VerticalAlignment.Center;
-            ic.Margin = new Thickness(0, 0, 8, 0);
-            var label = new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center };
-            var content = new StackPanel { Orientation = Orientation.Horizontal };
-            content.Children.Add(ic);
-            content.Children.Add(label);
-            var rb = new RadioButton { Content = content, Tag = name, GroupName = "tabs" };
-            rb.SetResourceReference(StyleProperty, "Tab");
-            Tabs.Children.Add(rb);
-            _tabs.Add((rb, ic, label, name));
-        }
-        Tabs.AddHandler(ToggleButton.CheckedEvent, new RoutedEventHandler((_, e) =>
-        {
-            if (!_sync && e.OriginalSource is RadioButton { Tag: string tab }) _vm.Open(tab);
-        }));
-    }
-
-    // Optimize's sub-header: a segment per Section (picking one opens its first page), Remove apps
-    private void BuildSections()
-    {
-        foreach (var sec in _vm.Optimize)
-            // a ListBoxItem: a ComboBoxItem in a ListBox ignores clicks
-            Sections.Items.Add(new ListBoxItem { Content = sec.Header, Tag = sec.Section });
-        Sections.SelectionChanged += (_, _) =>
-        {
-            if (_sync || Sections.SelectedItem is not ListBoxItem { Tag: string name }) return;
-            var sec = _vm.Optimize.FirstOrDefault(s => s.Section == name);
-            if (sec is { Pages.Count: > 0 }) _vm.Open(sec.Pages[0].Key);
-        };
-        Chips.AddHandler(ToggleButton.CheckedEvent, new RoutedEventHandler((_, e) =>
-        {
-            if (!_sync && e.OriginalSource is RadioButton { Tag: string page }) _vm.Open(page);
-        }));
-        RemoveApps.Click += (_, _) => _vm.Open("Remove apps");
-    }
-
-    // the Section picked, its Categories as chips (rebuilt for another Section: the pill jumps there), the page checked
-    private string _chipSection = "";
-    private void SyncSubNav()
-    {
-        SubNav.Visibility = _vm.Section.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-        var sec = _vm.Optimize.FirstOrDefault(s => s.Section == _vm.Section);
-        if (sec is null) return;
-        _sync = true;
-        try
-        {
-            Sections.SelectedItem = Sections.Items.OfType<ListBoxItem>().FirstOrDefault(i => (string)i.Tag == sec.Section);
-            if (_chipSection != sec.Section)
-            {
-                _chipSection = sec.Section;
-                Chips.Children.Clear();
-                foreach (var p in sec.Pages) Chips.Children.Add(Pill("Chip", p.Key, p.Category, Icons.Category(p.Category), "chips", 14));
-            }
-            foreach (var c in Chips.Children.OfType<RadioButton>()) c.IsChecked = (string)c.Tag == _vm.Page;
-        }
-        finally { _sync = false; }
-    }
-
-    // a pill with an icon and a label in the control's text colour (New-AkariPill)
-    private static RadioButton Pill(string style, string tag, string label, string icon, string group, double size)
-    {
-        var ic = Icons.Make(icon, size, "Inherit");
-        ic.VerticalAlignment = VerticalAlignment.Center;
-        ic.Margin = new Thickness(0, 0, 8, 0);
-        var content = new StackPanel { Orientation = Orientation.Horizontal };
-        content.Children.Add(ic);
-        content.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
-        var rb = new RadioButton { Content = content, Tag = tag, GroupName = group };
-        rb.SetResourceReference(StyleProperty, style);
-        return rb;
-    }
-
-    private void SyncTabs()
-    {
-        _sync = true;
-        try { foreach (var t in _tabs) t.Button.IsChecked = t.Name == _vm.Tab; }
-        finally { _sync = false; }
-    }
-
-    private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        switch (e.PropertyName)
-        {
-            case nameof(ShellViewModel.Tab): SyncTabs(); break;
-            case nameof(ShellViewModel.Page) or nameof(ShellViewModel.Section): SyncSubNav(); break;
-            case nameof(ShellViewModel.Glyph): Icons.Set(HeaderIcon, _vm.Glyph); break;
-            case nameof(ShellViewModel.Busy):
-                StatusDot.Visibility = _vm.Busy ? Visibility.Collapsed : Visibility.Visible;
-                StatusRing.Visibility = StatusBar.Visibility = _vm.Busy ? Visibility.Visible : Visibility.Collapsed;
+            case NavPage.Home: _navigation.NavigateTo<HomePage>(); break;
+            case NavPage.Settings: _navigation.NavigateTo<SettingsPage>(); break;
+            case NavPage.Install: _navigation.NavigateTo<InstallPage>(); break;
+            case NavPage.Catalogue: _navigation.NavigateTo<CataloguePage>(new CatalogueQuery(route.Key, route.Query)); break;
+            default:
+                var entry = NavTable.Find(key);
+                _navigation.NavigateTo<PlaceholderPage>(new Placeholder(entry?.Label ?? key, NavTable.ComingWith(key)));
                 break;
-            case nameof(ShellViewModel.Locked): Page.IsEnabled = !_vm.Locked; break;
-            case nameof(ShellViewModel.Progress): UpdateProgress(); break;
         }
-    }
-
-    // the fill glides to the share done; a bar that was hidden starts there
-    private void UpdateProgress()
-    {
-        var on = _vm.Progress is not null;
-        StatusLoop.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
-        var was = StatusFill.Visibility == Visibility.Visible;
-        StatusFill.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
-        if (_vm.Progress is { } share) Motion.Start(StatusFill, MotionKind.Fill, was ? null : share, share, "Slow");
-    }
-
-    /// <summary>A new page (or the search starting / ending): built, then the surface rises and the header fades in.</summary>
-    private void ShowPage()
-    {
-        Motion.ResetScroll(PageScroll);
-        Page.Content = _pages(_vm.Page);
-        Motion.Entrance(Page, MotionKind.Rise);
-        Motion.Entrance(PageHeader, MotionKind.Fade, speed: "Base");
-    }
-
-    private void OnStateChanged()
-    {
-        var max = WindowState == WindowState.Maximized;
-        // maximized, Windows pushes the frame past the screen edge: pad it back in
-        Shell.Margin = new Thickness(max ? 8 : 0);
-        Icons.Set(CapMaxGlyph, max ? "copy" : "square");
-        CapMax.ToolTip = max ? "Restore" : "Maximize";
-    }
-
-    // narrow window: under 1320 px the search is an icon button and the tabs show text only; under 1000 the wordmark
-    // goes and the tabs take their short labels
-    private void UpdateWidth(double width)
-    {
-        _vm.Width = width;
-        _narrow = ShellLayout.Narrow(width);
-        TitleText.Visibility = ShellLayout.Wordmark(width) ? Visibility.Visible : Visibility.Collapsed;
-        var (icons, _) = ShellLayout.TabLayout(width);
-        foreach (var t in _tabs)
+        if (route.NavKey is null) NavView.SelectedItem = null;
+        else if (_items.TryGetValue(route.NavKey, out var item) && !ReferenceEquals(NavView.SelectedItem, item))
         {
-            t.Icon.Visibility = icons ? Visibility.Visible : Visibility.Collapsed;
-            t.Label.Text = ShellLayout.TabLabel(t.Name, width);
+            // a Section's item: its parent (Optimize) open
+            if (_items.TryGetValue("Optimize", out var optimize) && route.Page == NavPage.Catalogue) optimize.IsExpanded = true;
+            NavView.SelectedItem = item;
         }
-        SetSearchOpen(SearchInput.Text.Length > 0 || SearchInput.IsKeyboardFocusWithin);
     }
 
-    private void SetSearchOpen(bool open)
+    // ---- the search box (Get-AkariSuggestions, Open-AkariSuggestion, Open-AkariSearch)
+
+    private void OnSearchTyped(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
-        var show = open || !_narrow;
-        SearchBox.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        SearchBtn.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
+        if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput) return;
+        sender.ItemsSource = _catalogue.Suggest(sender.Text).Select(t => new SearchSuggestion(t)).ToList();
     }
 
-    private void OpenSearch()
+    private void OnSearchSubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
     {
-        SetSearchOpen(true);
-        UpdateLayout();
-        SearchInput.Focus();
-        SearchInput.SelectAll();
+        // a suggestion: its Category; Enter: every match
+        if (args.ChosenSuggestion is SearchSuggestion s) Open(Core.Tweaks.Catalogue.Key(s.Tweak.Section, s.Tweak.Category));
+        else if (args.QueryText.Trim().Length > 0) Open(NavTable.SearchPrefix + args.QueryText.Trim());
+    }
+
+    // ---- closing: a change running, a Guided Run applying or Safe Mode changes waiting ask first
+
+    private async void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
+    {
+        if (_closing || !(_catalogue.MustAsk || _install.Running)) return;
+        args.Cancel = true;
+        if (!await _install.CanCloseAsync() || !await _catalogue.CanCloseAsync()) return;
+        _closing = true;
+        Close();
+    }
+
+    /// <summary>The accent changed: WinUI's theme brushes read the new SystemAccentColor* when the theme is applied
+    /// again (switched to the other one and back).</summary>
+    public void RefreshTheme()
+    {
+        var requested = RootElement.RequestedTheme;
+        RootElement.RequestedTheme = RootElement.ActualTheme == ElementTheme.Dark ? ElementTheme.Light : ElementTheme.Dark;
+        RootElement.RequestedTheme = requested;
+    }
+
+    public void ApplyTheme(AppTheme theme)
+    {
+        RootElement.RequestedTheme = theme switch
+        {
+            AppTheme.Light => ElementTheme.Light,
+            AppTheme.Dark => ElementTheme.Dark,
+            _ => ElementTheme.Default,
+        };
+        Logo.Source = LoadLogo(RootElement.ActualTheme == ElementTheme.Light ? "AkariLogo-light.png" : "AkariLogo-dark.png");
+        ApplyTitleBarColors(theme);
+    }
+
+    private NavigationViewItem Item(NavEntry e)
+    {
+        var item = new NavigationViewItem { Content = e.Label, Tag = e.Key, Icon = new FontIcon { Glyph = e.Glyph } };
+        foreach (var c in e.Children) item.MenuItems.Add(Item(c));
+        _items[e.Key] = item;
+        return item;
+    }
+
+    private void OnNavInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
+    {
+        if (args.InvokedItemContainer?.Tag is string key) Open(key);
+    }
+
+    private void OnBack(object sender, RoutedEventArgs e)
+    {
+        if (!_navigation.CanGoBack) return;
+        _navigation.GoBack();
+        _current = "";
+    }
+
+    private static ImageSource? LoadLogo(string file)
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "Assets", file);
+        return File.Exists(path) ? new BitmapImage(new Uri(path)) : null;
+    }
+
+    private AppWindow GetAppWindow() =>
+        AppWindow.GetFromWindowId(Microsoft.UI.Win32Interop.GetWindowIdFromWindow(WinRT.Interop.WindowNative.GetWindowHandle(this)));
+
+    private void ConfigureWindow()
+    {
+        var window = GetAppWindow();
+        var area = DisplayArea.GetFromWindowId(window.Id, DisplayAreaFallback.Nearest).WorkArea;
+        var width = Math.Min(1280, area.Width - 60);
+        var height = Math.Min(860, area.Height - 80);
+        window.Resize(new SizeInt32(width, height));
+        window.Move(new PointInt32(area.X + (area.Width - width) / 2, area.Y + (area.Height - height) / 2));
+        var icon = Path.Combine(AppContext.BaseDirectory, "Assets", "AkariLogo.ico");
+        if (File.Exists(icon)) window.SetIcon(icon);
+        ApplyTitleBarColors(_theme.CurrentTheme);
+    }
+
+    private void ApplyTitleBarColors(AppTheme theme)
+    {
+        var bar = GetAppWindow().TitleBar;
+        var dark = theme switch
+        {
+            AppTheme.Dark => true,
+            AppTheme.Light => false,
+            _ => RootElement.ActualTheme == ElementTheme.Dark,
+        };
+        var fore = dark ? Microsoft.UI.Colors.White : Microsoft.UI.Colors.Black;
+        bar.ButtonForegroundColor = fore;
+        bar.ButtonHoverForegroundColor = fore;
+        bar.ButtonBackgroundColor = Microsoft.UI.Colors.Transparent;
+        bar.ButtonInactiveBackgroundColor = Microsoft.UI.Colors.Transparent;
     }
 }

@@ -1,18 +1,20 @@
+<!-- The CLI's tests, and the view models' (no WinUI object is made here: they can't be in a test host). -->
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
-    <UseWPF>true</UseWPF>
+    <EnableMsixTooling>false</EnableMsixTooling>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <WindowsPackageType>None</WindowsPackageType>
+    <Platforms>x64</Platforms>
+    <Platform Condition="'$(Platform)' == '' or '$(Platform)' == 'AnyCPU'">x64</Platform>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
   </PropertyGroup>
   <ItemGroup>
     <Using Include="Xunit" />
-    <ProjectReference Include="..\..\AkariOS.App\AkariOS.App.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <!-- shared with the Core tests: the ISO Builder's cases and recording fakes (the ISO Builder page) -->
-    <Compile Include="..\AkariOS.Core.Tests\IsoShared.cs" Link="Shared\IsoShared.cs" />
-    <Compile Include="..\AkariOS.Core.Tests\TestKey.cs" Link="Shared\TestKey.cs" />
+    <!-- the repo's folders (the real Tweak files and lists) -->
     <Compile Include="..\AkariOS.Core.Tests\Repo.cs" Link="Shared\Repo.cs" />
+    <ProjectReference Include="..\..\AkariOS.App\AkariOS.App.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3" Version="4.0.2" />

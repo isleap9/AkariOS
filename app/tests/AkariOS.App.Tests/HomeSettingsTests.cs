@@ -1,0 +1,218 @@
+using AkariOS.App.Shell;
+using AkariOS.App.ViewModels;
+using AkariOS.Core.Update;
+using AkariOS.Framework.Services;
+
+namespace AkariOS.App.Tests;
+
+/// <summary>Home (Pages.ps1) and Settings (About.ps1) on fixture Tweaks: the hero's facts, Quick settings, Recent
+/// activity, the update InfoBar and prompt, the accent, Export. GitHub, the download and the new exe are faked.</summary>
+public sealed class HomeSettingsTests : IDisposable
+{
+    private readonly AppHarness _h = new();
+
+    public void Dispose() => _h.Dispose();
+
+    private sealed class Theme : IThemeService
+    {
+        public AppTheme CurrentTheme { get; private set; } = AppTheme.System;
+        public Task InitializeAsync() => Task.CompletedTask;
+        public Task SetThemeAsync(AppTheme theme) { CurrentTheme = theme; return Task.CompletedTask; }
+        public void Toggle() { }
+        public Task SetSystemThemeAsync() => SetThemeAsync(AppTheme.System);
+    }
+
+    private sealed class Settings : ISettingsService
+    {
+        public Dictionary<string, object?> Values { get; } = [];
+        public Task<T?> GetAsync<T>(string key, T? defaultValue = default) => Task.FromResult(Values.TryGetValue(key, out var v) ? (T?)v : defaultValue);
+        public Task SetAsync<T>(string key, T value) { Values[key] = value; return Task.CompletedTask; }
+        public Task RemoveAsync(string key) { Values.Remove(key); return Task.CompletedTask; }
+    }
+
+    // a fixture "Quick settings" Tweak: Home lists the ones it knows that this PC has
+    private AppTest Make() => _h.Make(AppHarness.Fixtures().Add("src/Tweaks/Optimize/Gaming/GameDvr.ps1", """
+        @{
+            Id = 'disable-game-dvr'; Name = 'Game DVR off'; Section = 'Optimize'; Category = 'Gaming'; Risk = 'Safe'; Description = 'A fixture.'
+            Registry = @( @{ Path = 'HKCU:\Software\AkariFix'; Name = 'Dvr'; Type = 'DWord'; Value = 0; Default = $null } )
+        }
+        """));
+
+    // ---- Home
+
+    [Fact]
+    public void Home_states_its_facts_and_opens_the_pages()
+    {
+        var t = Make();
+        var home = t.Home();
+        Assert.Equal(t.Catalogue.Tweaks.Count, home.Stats.Tweaks);
+        // no Store apps engine in the test: unknown, a dash; the applied changes are read (none yet)
+        Assert.Equal(("—", "0"), (home.Stats.AppsText, home.Stats.AppliedText));
+        // One-click asks for the AkariOS preset, which the fixtures don't have
+        home.OneClickCommand.Execute(null);
+        Assert.Equal("The AkariOS preset is missing from this build.", Assert.Single(t.Dialogs.Asked));
+        // Choose changes: Install AkariOS on Guided's first step
+        home.ChooseChangesCommand.Execute(null);
+        home.OptimizeCommand.Execute(null);
+        Assert.Equal(["Install AkariOS", "Optimize"], t.Navigated);
+        Assert.Equal(("Guided", 0), (t.Install.Mode, t.Install.Step));
+    }
+
+    [Fact]
+    public void Quick_settings_are_the_catalogues_cards_and_act_right_away()
+    {
+        var t = Make();
+        var home = t.Home();
+        var dvr = Assert.Single(home.QuickSettings);
+        Assert.Same(t.Card("disable-game-dvr"), dvr);
+        Assert.Equal("Windows default", dvr.StateLine);
+        dvr.IsOn = true;
+        Assert.Equal(0u, t.Fix("Dvr"));
+        // it is in Recent activity, and Home's "changes applied" is read again
+        Assert.Equal("Applied \"Game DVR off\"", home.Activity[0].Title);
+        Assert.Equal("Just now · Optimize", t.Home(DateTime.Now).Activity[0].Detail);
+        Assert.Equal("1", t.Home().Stats.AppliedText);
+    }
+
+    [Fact]
+    public void Recent_activity_shows_the_last_five_or_says_nothing_yet()
+    {
+        var t = Make();
+        Assert.Equal((false, true), (t.Home().HasActivity, t.Home().HasNoActivity));
+        var now = new DateTime(2026, 11, 20, 12, 0, 0);
+        for (var i = 0; i < 7; i++) t.Activity.Add($"Run {i}", "Install AkariOS", i, "wand", now.AddMinutes(-i * 5));
+        var home = t.Home(now);
+        Assert.Equal(["Run 6", "Run 5", "Run 4", "Run 3", "Run 2"], home.Activity.Select(a => a.Title));
+        Assert.Equal(("30 minutes ago · Install AkariOS", "6 changes", ""), (home.Activity[0].Detail, home.Activity[0].CountText, home.Activity[0].Glyph));
+        t.Activity.Add("One", "Downloads", 1, "download", now);
+        Assert.Equal(("1 change", ""), (t.Home(now).Activity[0].CountText, t.Home(now).Activity[0].Glyph));
+    }
+
+    [Theory]
+    [InlineData(0, "Just now")]
+    [InlineData(1, "1 minute ago")]
+    [InlineData(59, "59 minutes ago")]
+    [InlineData(60 * 3, "Today 09:00")]
+    [InlineData(60 * 15, "Yesterday")]
+    [InlineData(60 * 24 * 3, "17 Nov 2026")]
+    public void When_text(int minutesAgo, string text)
+    {
+        var now = new DateTime(2026, 11, 20, 12, 0, 0);
+        Assert.Equal(text, ActivityLog.WhenText(now.AddMinutes(-minutesAgo), now));
+    }
+
+    [Fact]
+    public void Activity_is_kept_to_twenty_newest_first_in_the_powershell_apps_shape()
+    {
+        var t = Make();
+        for (var i = 0; i < 25; i++) t.Activity.Add($"Run {i}", "Optimize", 1, "x");
+        var all = t.Activity.All();
+        Assert.Equal((ActivityLog.Max, "Run 24"), (all.Count, all[0].Title));
+        var json = File.ReadAllText(Path.Combine(_h.Dir, "activity.json"));
+        foreach (var k in new[] { "\"Title\"", "\"Where\"", "\"Count\"", "\"Icon\"", "\"When\"" }) Assert.Contains(k, json);
+    }
+
+    [Fact]
+    public async Task The_launch_check_on_home_asks_and_updates()
+    {
+        var t = Make();
+        t.Shell.Page = "Home";
+        t.Dialogs.Answers.Enqueue("Update now");
+        t.Updates.Check(manual: false);
+        await Task.Yield();
+        Assert.Equal(UpdateKind.Available, t.Updates.Status!.Kind);
+        Assert.StartsWith("AkariOS 1.4.0 is available", t.Dialogs.Asked[0]);
+        Assert.Contains("What's new:", t.Dialogs.Asked[0]);
+        Assert.Contains("Faster", t.Dialogs.Asked[0]);
+        // downloaded, swapped in, the new exe started, the app closed
+        Assert.Equal(FakeGitHubExe(), File.ReadAllBytes(Path.Combine(_h.Dir, "AkariOS-Native.exe")));
+        Assert.Single(t.Started);
+        Assert.Equal(["closed"], t.Closed);
+    }
+
+    private static byte[] FakeGitHubExe() => AppHarness.FakeGitHub.NewExe;
+
+    [Fact]
+    public void Later_keeps_the_infobar_on_home_until_it_is_closed()
+    {
+        var t = Make();
+        t.Shell.Page = "Home";
+        var home = t.Home();
+        t.Updates.Check(manual: false);
+        Assert.Equal((true, "AkariOS 1.4.0 is available", true), (home.UpdateBarOpen, t.Updates.FoundTitle, t.Updates.CanInstall));
+        Assert.Empty(t.Closed);
+        home.DismissUpdateCommand.Execute(null);
+        Assert.False(home.UpdateBarOpen);
+        Assert.False(t.Home().UpdateBarOpen);
+    }
+
+    [Fact]
+    public void Off_home_or_by_hand_the_check_doesnt_ask_and_errors_say_why()
+    {
+        var t = Make();
+        t.Shell.Page = "Settings";
+        t.Updates.Check(manual: false);
+        Assert.Empty(t.Dialogs.Asked);
+        t.GitHub.Status = 0;
+        t.Updates.Check(manual: true);
+        Assert.Equal((UpdateKind.Error, "Couldn't reach GitHub. Check the internet connection."), (t.Updates.Status!.Kind, t.Updates.StatusText));
+        Assert.False(t.Updates.Found);
+    }
+
+    [Fact]
+    public void A_change_running_blocks_the_update()
+    {
+        var t = Make();
+        t.Card("fix-safe").IsOn = true;
+        t.Updates.Check(manual: true);
+        Assert.Equal(UpdateKind.Blocked, t.Updates.Status!.Kind);
+        Assert.True(t.Home().UpdateBarOpen);
+        Assert.Equal(t.Updates.Status.Message, t.Home().UpdateBarText);
+        Assert.False(t.Updates.CanInstall);
+    }
+
+    // ---- Settings
+
+    [Fact]
+    public void Settings_sets_the_theme_and_the_accent()
+    {
+        var t = Make();
+        var (theme, settings) = (new Theme(), new Settings());
+        var s = t.Settings(theme, settings);
+        s.SelectedTheme = AppTheme.Dark;
+        Assert.Equal(AppTheme.Dark, theme.CurrentTheme);
+        Assert.Equal(["Akari crimson", "Windows accent"], s.Accents.Select(a => a.Label));
+        Assert.Equal("Akari crimson", (s.SelectedAccent as ChoiceItem)?.Label);
+        s.SelectedAccent = s.Accents[1];
+        Assert.Equal((Accent.Windows, (object?)Accent.Windows), (t.Accents.Single(), settings.Values[Accent.Key]));
+    }
+
+    [Fact]
+    public void Settings_opens_system_restore_the_log_folder_and_links()
+    {
+        var t = Make();
+        var s = t.Settings(new Theme(), new Settings());
+        s.OpenSystemRestoreCommand.Execute(null);
+        s.OpenLogFolderCommand.Execute(null);
+        s.OpenLinkCommand.Execute(s.About.Links[0].Url);
+        Assert.Equal([Path.Combine(Environment.SystemDirectory, "rstrui.exe"), Core.AkariPaths.UserFolder, "https://github.com/isleap9/AkariOS"], t.Open.Opened);
+        Assert.Contains(s.About.Credits, c => c.Name == "FR33THY Ultimate");
+        Assert.StartsWith("MIT License", s.About.License);
+    }
+
+    [Fact]
+    public async Task Export_writes_this_pcs_settings_as_a_preset()
+    {
+        var t = Make();
+        t.Card("fix-plain").IsOn = true;
+        var s = t.Settings(new Theme(), new Settings());
+        // cancelled: nothing written
+        await s.ExportAsync();
+        Assert.StartsWith($"AkariOS settings {Environment.MachineName} ", t.Picker.Suggested[0]);
+        t.Picker.SavePath = Path.Combine(_h.Dir, "mine.json");
+        await s.ExportAsync();
+        Assert.Contains("fix-plain", File.ReadAllText(t.Picker.SavePath));
+        Assert.Equal($"Exported 1 settings to:\n\n{t.Picker.SavePath}", t.Dialogs.Asked[^1]);
+        Assert.False(t.Shell.IsBusy);
+    }
+}

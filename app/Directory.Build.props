@@ -15,6 +15,8 @@
     <Version>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(AkariSrc)Core\Version.ps1')), "(?&lt;=AkariVersion = ')[^']+").Value)</Version>
     <!-- the version as written, without a +commit suffix -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <!-- the Windows App SDK of the WinUI 3 app and its framework (ADR 0009) -->
+    <WindowsAppSdkVersion>2.3.1</WindowsAppSdkVersion>
     <Product>AkariOS</Product>
     <Company>AkariOS</Company>
     <Copyright>AkariOS contributors, MIT</Copyright>

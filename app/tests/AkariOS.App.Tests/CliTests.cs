@@ -91,7 +91,7 @@ public sealed class CliTests : IDisposable
     {
         var o = new StringWriter();
         var e = new StringWriter();
-        var code = App.Cli.Run(args, o, e, Make);
+        var code = AkariOS.App.Cli.Run(args, o, e, Make);
         return (code, o.ToString().Replace("\r\n", "\n"), e.ToString());
     }
 
@@ -99,7 +99,7 @@ public sealed class CliTests : IDisposable
     public void Prints_the_version_without_an_engine()
     {
         var o = new StringWriter();
-        Assert.Equal(0, App.Cli.Run(["--version"], o, new StringWriter(), () => throw new InvalidOperationException("no engine for --version")));
+        Assert.Equal(0, AkariOS.App.Cli.Run(["--version"], o, new StringWriter(), () => throw new InvalidOperationException("no engine for --version")));
         Assert.Equal($"AkariOS-Native {AkariInfo.Version}", o.ToString().Trim());
     }
 
@@ -162,7 +162,7 @@ public sealed class CliTests : IDisposable
         // after the restart, in Safe Mode: the empty phase, then Safe Mode off, the Run done
         _safeMode = true;
         var console = new StringWriter();
-        Assert.Equal(0, new App.RunConsole(console, new StringReader("\n"), new App.QuietConsole()).Resume(Store.Get, _ => Make()));
+        Assert.Equal(0, new RunConsole(console, new StringReader("\n"), new QuietConsole()).Resume(Store.Get, _ => Make()));
         Assert.Equal(["next SafeMode", "restart 5", "clear", "safeboot False"], _boot.Steps);
         Assert.Null(Store.Get());
         Assert.Contains("AkariOS is continuing...", console.ToString());
@@ -174,7 +174,7 @@ public sealed class CliTests : IDisposable
     public void Resume_with_nothing_saved_says_so()
     {
         var console = new StringWriter();
-        Assert.Equal(0, new App.RunConsole(console, new StringReader("\n"), new App.QuietConsole()).Resume(() => null, _ => throw new InvalidOperationException("no engine")));
+        Assert.Equal(0, new RunConsole(console, new StringReader("\n"), new QuietConsole()).Resume(() => null, _ => throw new InvalidOperationException("no engine")));
         Assert.Contains("Nothing to continue.", console.ToString());
     }
 
@@ -183,7 +183,7 @@ public sealed class CliTests : IDisposable
     {
         var console = new StringWriter();
         var e = Make();
-        Assert.Equal(0, new App.RunConsole(console, new StringReader("\n"), new App.QuietConsole()).OneClick(e, e.Presets.Find("AkariOS")!));
+        Assert.Equal(0, new RunConsole(console, new StringReader("\n"), new QuietConsole()).OneClick(e, e.Presets.Find("AkariOS")!));
         Assert.Contains("AkariOS One-click is running...", console.ToString());
         Assert.Equal(["next SafeMode", "restart 5"], _boot.Steps);
         // restarting: no summary, no Enter to wait for

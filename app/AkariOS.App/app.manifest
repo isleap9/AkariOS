@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- AkariOS-Native.exe: always as admin (it changes the system), per-monitor DPI, Windows 10 and 11. -->
+<!-- AkariOS-Native.exe (WinUI 3, unpackaged): always as admin (it changes the system), per-monitor DPI, Windows 10 and 11. -->
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
   <assemblyIdentity version="1.0.0.0" name="AkariOS.Native"/>
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">

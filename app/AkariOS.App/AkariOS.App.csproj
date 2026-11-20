@@ -1,34 +1,38 @@
-<!-- The WPF app and the CLI: AkariOS-Native.exe (the PowerShell app's launcher is AkariOS.exe). -->
+<!-- The WinUI 3 app and the CLI: AkariOS-Native.exe (ADR 0009; the PowerShell app's launcher is AkariOS.exe).
+     Unpackaged, the Windows App SDK self-contained: nothing to install first. -->
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <UseWPF>true</UseWPF>
+    <UseWinUI>true</UseWinUI>
     <AssemblyName>AkariOS-Native</AssemblyName>
     <RootNamespace>AkariOS.App</RootNamespace>
-    <StartupObject>AkariOS.App.Program</StartupObject>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>$(AkariSrc)Assets\AkariLogo.ico</ApplicationIcon>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <!-- still unpackaged: single-file publishing needs it to embed resources.pri -->
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <Platforms>x64</Platforms>
+    <Platform Condition="'$(Platform)' == '' or '$(Platform)' == 'AnyCPU'">x64</Platform>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- Program.Main: the CLI and the Run consoles before any XAML -->
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
   </PropertyGroup>
-  <ItemGroup>
-    <!-- the window tests reach its named parts (Tabs, Page, the status bar) -->
-    <InternalsVisibleTo Include="AkariOS.App.Tests" />
-  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\AkariOS.Core\AkariOS.Core.csproj" />
     <ProjectReference Include="..\AkariOS.Tweaks\AkariOS.Tweaks.csproj" />
+    <ProjectReference Include="..\AkariOS.Framework\AkariOS.Framework.csproj" />
   </ItemGroup>
-  <!-- Fonts (SIL OFL) and logos from src/Assets, as WPF resources: pack://application:,,,/AkariOS-Native;component/Assets/... -->
+  <!-- the logos from src/Assets, next to the exe -->
   <ItemGroup>
-    <Resource Include="$(AkariSrc)Assets\Fonts\*.ttf" Link="Assets\Fonts\%(Filename)%(Extension)" />
-    <!-- the app icons (build\AppIcons.ps1): the Apps step's rows -->
-    <Resource Include="$(AkariSrc)Assets\Apps\*.png" Link="Assets\Apps\%(Filename)%(Extension)" />
-    <Resource Include="$(AkariSrc)Assets\AkariLogo-dark.png;$(AkariSrc)Assets\AkariLogo-light.png;$(AkariSrc)Assets\AkariLogo.png;$(AkariSrc)Assets\AkariLogo.ico" Link="Assets\%(Filename)%(Extension)" />
-  </ItemGroup>
-  <!-- The look shared with the PowerShell app (ADR 0006, 0007), loaded as it is through AkariXaml. -->
-  <ItemGroup>
-    <EmbeddedResource Include="$(AkariSrc)UI\Theme.Dark.xaml;$(AkariSrc)UI\Theme.Light.xaml;$(AkariSrc)UI\Icons.xaml;$(AkariSrc)UI\Motion.xaml;$(AkariSrc)UI\Controls.xaml;$(AkariSrc)UI\MainWindow.xaml;$(AkariSrc)UI\Dialog.xaml" LogicalName="src/UI/%(Filename)%(Extension)" />
+    <Content Include="$(AkariSrc)Assets\AkariLogo.ico;$(AkariSrc)Assets\AkariLogo.png;$(AkariSrc)Assets\AkariLogo-dark.png;$(AkariSrc)Assets\AkariLogo-light.png" Link="Assets\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="$(WindowsAppSdkVersion)" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.4654" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools.MSIX" Version="1.7.251221100" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
   </ItemGroup>
 </Project>
