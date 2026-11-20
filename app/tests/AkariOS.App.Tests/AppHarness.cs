@@ -62,7 +62,7 @@ internal sealed record AppTest(Engine Engine, CatalogueViewModel Catalogue, Shel
 
     private IsoBuilderViewModel? _iso;
     public IsoBuilderViewModel Iso => _iso ??= new IsoBuilderViewModel(Engine, IsoTools, Work, Dialogs, Shell, Picker, Open, Timers, Catalogue, Unattend,
-        new Navigator(Navigated));
+        new Navigator(Navigated), Icons) { LogoFolder = Path.Combine(Path.GetDirectoryName(AssetDir)!, "iso-logos") };
 
     /// <summary>The window's closing question.</summary>
     public ClosingGuard Closing => new(Shell, Downloads, Catalogue, Dialogs);

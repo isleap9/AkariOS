@@ -39,6 +39,10 @@ public interface IImage
 
     IReadOnlyList<DismItem> Packages(string mount);
 
+    /// <summary>Features, capabilities and packages at once (the page's lists): the real one reads them in one DISM
+    /// session, as opening a session on a mounted image takes a while each time.</summary>
+    ImageItems Items(string mount) => new(Features(mount), Capabilities(mount), Packages(mount));
+
     /// <summary>A feature (disabled, its payload removed), a capability or an OS package out of the mounted image:
     /// 0 = done, 3010 = done with a restart due, else the failure's code.</summary>
     int Remove(string mount, string kind, string name);
@@ -119,6 +123,9 @@ public sealed record IsoParts
 
 /// <summary>An opened ISO: the work folder, its install image, the image's editions.</summary>
 public sealed record IsoSource(IsoWork Work, string Image, IReadOnlyList<IsoEdition> Editions);
+
+/// <summary>A mounted image's features, capabilities and packages (<see cref="IImage.Items"/>).</summary>
+public sealed record ImageItems(IReadOnlyList<DismItem> Features, IReadOnlyList<DismItem> Capabilities, IReadOnlyList<DismItem> Packages);
 
 /// <summary>A build's end: the ISO's path, or why it failed.</summary>
 public sealed record IsoResult(bool Ok, string? Path, string Message);

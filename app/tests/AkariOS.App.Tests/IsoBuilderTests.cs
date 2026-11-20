@@ -119,6 +119,11 @@ public sealed class IsoBuilderTests : IDisposable
         Assert.Equal("Store apps (4)", iso.List("Apps").Heading);
         Assert.True(iso.List("Apps").Shown);
         Assert.Equal(["Microsoft.BingNews", "Microsoft.Copilot", "Microsoft.SecHealthUI", "Microsoft.WindowsCalculator"], iso.List("Apps").Items.Select(i => i.Label));
+        // every Store app has an icon (no logo in the fake image: the app box), the other lists none
+        Assert.All(iso.List("Apps").Items, i => Assert.True(i.HasIcon));
+        Assert.All(iso.List("Features").Items, i => Assert.False(i.HasIcon));
+        // each step timed in akari.log
+        Assert.Contains(((Core.MemoryLog)t.Engine.Log).FileLines, l => l.StartsWith("ISO Builder: Reading the features and packages: ", StringComparison.Ordinal));
         Assert.Equal("Optional features (1)", iso.List("Capabilities").Heading);
         Assert.Equal("Windows features (3)", iso.List("Features").Heading);
         Assert.Equal("OS packages (advanced) (0)", iso.List("Packages").Heading);

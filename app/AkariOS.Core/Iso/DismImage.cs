@@ -145,6 +145,16 @@ public sealed partial class DismImage : IImage
         return (IReadOnlyList<DismItem>)DismApi.Items(items, count, DismApi.CapabilityStateName, PackageSize);
     });
 
+    public ImageItems Items(string mount) => DismApi.Session(mount, s =>
+    {
+        DismApi.Check(DismApi.DismGetFeatures(s, null, 0, out var f, out var fc));
+        var features = DismApi.Items(f, fc, DismApi.FeatureStateName);
+        DismApi.Check(DismApi.DismGetCapabilities(s, out var c, out var cc));
+        var capabilities = DismApi.Items(c, cc, DismApi.CapabilityStateName);
+        DismApi.Check(DismGetPackages(s, out var p, out var pc));
+        return new ImageItems(features, capabilities, DismApi.Items(p, pc, DismApi.CapabilityStateName, PackageSize));
+    });
+
     public int Remove(string mount, string kind, string name) => Code(DismApi.Session(mount, s => kind switch
     {
         "Feature" => DismApi.DismDisableFeature(s, name, null, 1, 0, 0, 0),

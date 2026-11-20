@@ -77,6 +77,17 @@ public sealed class AppIcons(AssetFiles assets)
         return new(new Uri(path), own ? IsWhite(path) : AppLists.IsMono(file), glyph);
     }
 
+    /// <summary>A Store package by name (the ISO Builder's image apps, which have no Tweak): its own logo, else the
+    /// bundled icon named after it, else the app box.</summary>
+    public AppIcon OfPackage(string package, IReadOnlyDictionary<string, string>? logos)
+    {
+        if (logos is not null && logos.TryGetValue(package, out var own) && System.IO.File.Exists(own))
+            return new(new Uri(own), IsWhite(own), AppGlyph);
+        foreach (var f in new[] { $"Apps/{package}.png", $"Apps/{package}.mono.png" })
+            if (AssetFiles.Has(f) && assets.File(f) is { } path) return new(new Uri(path), AppLists.IsMono(f), AppGlyph);
+        return new(null, false, AppGlyph);
+    }
+
     private bool IsWhite(string file)
     {
         if (_white.TryGetValue(file, out var w)) return w;

@@ -13,14 +13,20 @@ public sealed class WmiDiskImage : IDiskImage
 
     public WmiDiskImage() => SystemGuard.Check("disk image");
 
-    /// <summary>A WQL string literal: backslashes doubled, quotes escaped.</summary>
-    public static string Literal(string text) => "'" + text.Replace(@"\", @"\\").Replace("'", @"\'") + "'";
+    /// <summary>A WMI object path's string key: backslashes doubled, double quotes escaped.</summary>
+    public static string Literal(string text) => "\"" + text.Replace(@"\", @"\\").Replace("\"", "\\\"") + "\"";
+
+    /// <summary>The image's instance path. MSFT_DiskImage answers only a lookup by its keys (as Get-DiskImage
+    /// does): a WQL query over it returns nothing, so every ISO looked unopenable.</summary>
+    public static string InstancePath(string iso) =>
+        $@"\\.\{Storage}:MSFT_DiskImage.ImagePath={Literal(Path.GetFullPath(iso))},StorageType={Iso}";
 
     private static ManagementObject? Image(string iso)
     {
-        using var s = new ManagementObjectSearcher(new ManagementScope(Storage),
-            new ObjectQuery($"SELECT * FROM MSFT_DiskImage WHERE ImagePath = {Literal(Path.GetFullPath(iso))} AND StorageType = {Iso}"));
-        return s.Get().Cast<ManagementObject>().FirstOrDefault();
+        var image = new ManagementObject(InstancePath(iso));
+        try { image.Get(); return image; }
+        catch (ManagementException) { image.Dispose(); return null; }
+        catch (System.Runtime.InteropServices.COMException) { image.Dispose(); return null; }
     }
 
     public string Mount(string iso)

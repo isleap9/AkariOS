@@ -36,7 +36,9 @@ public sealed class DismImageTests
     public void Gives_a_removal_the_ports_exit_codes(int hr, int code) => Assert.Equal(code, DismImage.Code(hr));
 
     [Fact]
-    public void Quotes_an_iso_path_for_wql() => Assert.Equal(@"'D:\\isos\\it\'s.iso'", WmiDiskImage.Literal(@"D:\isos\it's.iso"));
+    public void Names_an_iso_by_its_instance_path() => Assert.Equal(
+        @"\\.\root\Microsoft\Windows\Storage:MSFT_DiskImage.ImagePath=""D:\\isos\\it's \""x\"".iso"",StorageType=1",
+        WmiDiskImage.InstancePath(@"D:\isos\it's ""x"".iso"));
 
     private sealed class NoExe : Machine.IExe
     {

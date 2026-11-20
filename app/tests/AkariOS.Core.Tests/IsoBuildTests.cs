@@ -124,6 +124,26 @@ public sealed class IsoBuildTests
         Assert.Equal(["Microsoft.BingNews", "Microsoft.SecHealthUI", "Microsoft.Copilot", "Microsoft.WindowsCalculator"], b.Apps("m").Select(a => a.Name));
         var image = new CapabilitiesImage(f);
         Assert.Equal(["A"], new IsoBuild(f.Parts with { Image = image }).Capabilities("m").Select(x => x.Name));
+        Assert.Equal(["A"], new IsoBuild(f.Parts with { Image = image }).Items("m").Capabilities.Select(x => x.Name));
+    }
+
+    [Fact]
+    public void Copies_each_image_apps_logo_out_of_the_mounted_image()
+    {
+        var c = Case();
+        using var s = new Side(c);
+        var mount = Path.Combine(s.Root, "mount");
+        var app = Path.Combine(mount, "Program Files", "WindowsApps", "Microsoft.BingNews_1.0_x64__8wekyb3d8bbwe");
+        Directory.CreateDirectory(Path.Combine(app, "Assets"));
+        File.WriteAllText(Path.Combine(app, "AppxManifest.xml"),
+            """<Package xmlns="x"><Applications><Application><VisualElements Square44x44Logo="Assets\Small.png" /></Application></Applications></Package>""");
+        File.WriteAllText(Path.Combine(app, "Assets", "Small.scale-100.png"), "logo");
+        var logos = new IsoBuild(new IsoFakes(s, c).Parts).AppLogos(mount,
+            [new("Microsoft.BingNews", "Microsoft.BingNews_1.0_x64__8wekyb3d8bbwe"), new("Microsoft.Missing", "Microsoft.Missing_1.0_x64__8wekyb3d8bbwe")],
+            Path.Combine(s.Root, "logos"));
+        Assert.Equal(["Microsoft.BingNews"], logos.Keys);
+        Assert.Equal(Path.Combine(s.Root, "logos", "Microsoft.BingNews.png"), logos["Microsoft.BingNews"]);
+        Assert.Equal("logo", File.ReadAllText(logos["Microsoft.BingNews"]));
     }
 
     private sealed class CapabilitiesImage(IImage inner) : IImage

@@ -52,10 +52,14 @@ public sealed record IsoGroupViewModel(string Group, string Title, IReadOnlyList
 }
 
 /// <summary>A row of one of the image's lists: its label, the name removed, ticked.</summary>
-public sealed partial class ImageItemViewModel(string label, string value) : ObservableObject
+public sealed partial class ImageItemViewModel(string label, string value, AppIcon? icon = null) : ObservableObject
 {
     public string Label { get; } = label;
     public string Value { get; } = value;
+
+    /// <summary>A Store app's icon (the image's own logo); null for the other lists.</summary>
+    public AppIcon? Icon { get; } = icon;
+    public bool HasIcon => Icon is not null;
 
     [ObservableProperty]
     public partial bool IsChecked { get; set; }
@@ -76,10 +80,12 @@ public sealed partial class ImageListViewModel(string kind, string title) : Obse
     [ObservableProperty]
     public partial string Heading { get; private set; } = "";
 
-    public void Set(IEnumerable<(string Label, string Value)> items)
+    public void Set(IEnumerable<(string Label, string Value)> items) => Set(items.Select(i => (i.Label, i.Value, (AppIcon?)null)));
+
+    public void Set(IEnumerable<(string Label, string Value, AppIcon? Icon)> items)
     {
         Items.Clear();
-        foreach (var (label, value) in items.OrderBy(i => i.Label, StringComparer.CurrentCultureIgnoreCase)) Items.Add(new(label, value));
+        foreach (var (label, value, icon) in items.OrderBy(i => i.Label, StringComparer.CurrentCultureIgnoreCase)) Items.Add(new(label, value, icon));
         Heading = $"{Title} ({Items.Count})";
         Shown = true;
     }
@@ -129,6 +135,10 @@ public sealed partial class IsoBuilderViewModel : ObservableObject
     private IReadOnlyList<IsoOption>? _options;
     private IReadOnlyList<IsoGroupViewModel>? _groups;
     private BusyWork? _busy;
+    private readonly AppIcons _icons;
+
+    /// <summary>Where the image's app logos are copied (the image is unmounted after a build).</summary>
+    public string LogoFolder { get; set; } = Path.Combine(AkariPaths.UserFolder, "IsoLogos");
     private string _label = "";
     private bool _filling;
     private string _image = "";
@@ -143,10 +153,10 @@ public sealed partial class IsoBuilderViewModel : ObservableObject
     private IDisposable? _watch;
 
     public IsoBuilderViewModel(Engine engine, IsoTools tools, IBackground background, IDialogService dialogs, ShellState shell, IFilePicker picker,
-        IShellOpen open, ITimers timers, CatalogueViewModel catalogue, UnattendViewModel unattend, IShellNavigator navigator)
+        IShellOpen open, ITimers timers, CatalogueViewModel catalogue, UnattendViewModel unattend, IShellNavigator navigator, AppIcons icons)
     {
-        (_engine, _tools, _background, _dialogs, _shell, _picker, _open, _timers, _catalogue, _unattend, _navigator) =
-            (engine, tools, background, dialogs, shell, picker, open, timers, catalogue, unattend, navigator);
+        (_engine, _tools, _background, _dialogs, _shell, _picker, _open, _timers, _catalogue, _unattend, _navigator, _icons) =
+            (engine, tools, background, dialogs, shell, picker, open, timers, catalogue, unattend, navigator, icons);
         try { OutDir = UserFolders.Get(engine.Registry, "Downloads") ?? ""; }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException or InvalidOperationException) { OutDir = ""; }
         if (tools.AkariExe is null)
@@ -221,6 +231,9 @@ public sealed partial class IsoBuilderViewModel : ObservableObject
 
     [ObservableProperty]
     public partial string IsoPath { get; set; } = "";
+
+    // another ISO: the last one's note no longer applies
+    partial void OnIsoPathChanged(string value) => OpenNote = "";
 
     /// <summary>The work and output folder (the real user's Downloads at first).</summary>
     [ObservableProperty]
@@ -543,7 +556,7 @@ public sealed partial class IsoBuilderViewModel : ObservableObject
     [ObservableProperty]
     public partial string ListNote { get; private set; } = "Open the ISO first: the lists come from the edition itself (mounting it takes a few minutes).";
 
-    private sealed record ImageLists(IReadOnlyList<ImageApp> Apps, IReadOnlyList<DismItem> Capabilities, IReadOnlyList<DismItem> Features, IReadOnlyList<DismItem> Packages);
+    private sealed record ImageLists(IReadOnlyList<ImageApp> Apps, IReadOnlyList<AppIcon> Icons, IReadOnlyList<DismItem> Capabilities, IReadOnlyList<DismItem> Features, IReadOnlyList<DismItem> Packages);
 
     /// <summary>Read the image's apps (Start-AkariIsoRead): the edition mounted, its four lists read.</summary>
     [RelayCommand]
@@ -553,21 +566,37 @@ public sealed partial class IsoBuilderViewModel : ObservableObject
         if (_tools.Build is not { } build) return;
         var outDir = OutDir.Trim();
         var image = _image;
+        var progress = new PostedProgress(_background, p => { if (_busy is { } b) _shell.Report(b, p); });
+        var log = _engine.Log;
+        var logoFolder = LogoFolder;
         await StartAsync("IsoRead", $"Reading the apps in {ed.Name}", () =>
         {
+            // each step on the busy toast and, timed, in akari.log
+            T Step<T>(int done, string text, Func<T> work)
+            {
+                progress.Report(new Core.Runs.RunProgress(done, 3, text));
+                var clock = System.Diagnostics.Stopwatch.StartNew();
+                var r = work();
+                log.WriteFile($"ISO Builder: {text}: {clock.Elapsed.TotalSeconds:0} s");
+                return r;
+            }
             try
             {
                 var w = IsoWork.Of(outDir);
-                build.MountEdition(w, image, ed.Index);
-                return new ImageLists(build.Apps(w.Mount), build.Capabilities(w.Mount),
-                    [.. build.Features(w.Mount).Where(f => !f.State.Contains("Disabled", StringComparison.OrdinalIgnoreCase))], build.Packages(w.Mount));
+                Step(0, "Exporting and mounting the edition (the first time only)", () => { build.MountEdition(w, image, ed.Index); return 0; });
+                var apps = Step(1, "Reading the Store apps and their icons", () => build.Apps(w.Mount));
+                var logos = build.AppLogos(w.Mount, apps, logoFolder);
+                var icons = apps.Select(a => _icons.OfPackage(a.Name, logos)).ToList();
+                var items = Step(2, "Reading the features and packages", () => build.Items(w.Mount));
+                return new ImageLists(apps, icons, items.Capabilities,
+                    [.. items.Features.Where(f => !f.State.Contains("Disabled", StringComparison.OrdinalIgnoreCase))], items.Packages);
             }
             catch (Exception e) { return e.Message; }
         }, r =>
         {
             if (r is not ImageLists l) { ListNote = $"Not read: {r as string ?? "see the log"}"; return; }
             _imageApps = l.Apps;
-            List("Apps").Set(l.Apps.Select(a => (a.Name, a.Package)));
+            List("Apps").Set(l.Apps.Select((a, i) => (a.Name, a.Package, (AppIcon?)l.Icons[i])));
             List("Capabilities").Set(l.Capabilities.Select(c => (c.Name, c.Name)));
             List("Features").Set(l.Features.Select(f => (f.Name, f.Name)));
             List("Packages").Set(l.Packages.Select(p => (p.Name, p.Name)));

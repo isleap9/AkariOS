@@ -16,6 +16,28 @@ public sealed partial class IsoBuild
     /// the apps that use them).</summary>
     public IReadOnlyList<ImageApp> Apps(string mount) => [.. p.Image.ProvisionedApps(mount).Where(a => !Frameworks().IsMatch(a.Name))];
 
+    /// <summary>The image's own app logos (name → a copy in <paramref name="folder"/>): each app's AppxManifest.xml
+    /// under the mount's WindowsApps read as for installed apps (<see cref="AppPackages.Logos"/>), the logo copied out,
+    /// as the image is unmounted after a build. An app with no readable logo is left out.</summary>
+    public IReadOnlyDictionary<string, string> AppLogos(string mount, IEnumerable<ImageApp> apps, string folder)
+    {
+        var found = AppPackages.Logos(apps.Select(a => new AppPackage(a.Name, a.Package, "",
+            Path.Combine(mount, "Program Files", "WindowsApps", a.Package), false, false, false, false)));
+        var copies = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, file) in found)
+        {
+            try
+            {
+                Directory.CreateDirectory(folder);
+                var copy = Path.Combine(folder, name + Path.GetExtension(file));
+                File.Copy(file, copy, overwrite: true);
+                copies[name] = copy;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        }
+        return copies;
+    }
+
     [GeneratedRegex(@"DesktopAppInstaller|AppRuntime|VCLibs|UI\.Xaml|NET\.Native", RegexOptions.IgnoreCase)]
     private static partial Regex Frameworks();
 
@@ -25,6 +47,13 @@ public sealed partial class IsoBuild
     public IReadOnlyList<DismItem> Capabilities(string mount) => [.. p.Image.Capabilities(mount).Where(x => x.State == "Installed")];
 
     public IReadOnlyList<DismItem> Packages(string mount) => p.Image.Packages(mount);
+
+    /// <summary>The page's three lists in one read: the features as they are, the installed capabilities, the packages.</summary>
+    public ImageItems Items(string mount)
+    {
+        var all = p.Image.Items(mount);
+        return all with { Capabilities = [.. all.Capabilities.Where(x => x.State == "Installed")] };
+    }
 
     // ---- the ADK
 
