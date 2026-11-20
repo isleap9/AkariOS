@@ -167,11 +167,15 @@ public sealed partial class IsoBuild
         foreach (var pkg in packages)
         {
             var name = pkg.Split('_')[0];
-            p.Log.Write($"Removing {name}");
-            p.Image.Dism([$"/Image:{mount}", "/Set-NonRemovableAppPolicy", $"/PackageFamily:{IsoData.Family(pkg)}", "/NonRemovable:0"]);
-            var code = p.Image.Dism([$"/Image:{mount}", "/Remove-ProvisionedAppxPackage", $"/PackageName:{pkg}"]);
-            if (code != 0) p.Log.Write($"  DISM could not remove it (exit code {code})");
-            RemovePaths(mount, [$@"Program Files\WindowsApps\{name}_*", $@"Windows\SystemApps\{name}_*"]);
+            Op($"App {name}", () =>
+            {
+                p.Log.Write($"Removing {name}");
+                p.Image.Dism([$"/Image:{mount}", "/Set-NonRemovableAppPolicy", $"/PackageFamily:{IsoData.Family(pkg)}", "/NonRemovable:0"]);
+                var code = p.Image.Dism([$"/Image:{mount}", "/Remove-ProvisionedAppxPackage", $"/PackageName:{pkg}"]);
+                if (code != 0) p.Log.Write($"  DISM could not remove it (exit code {code})");
+                RemovePaths(mount, [$@"Program Files\WindowsApps\{name}_*", $@"Windows\SystemApps\{name}_*"]);
+                return code == 0 ? (IsoOpState.Done, "") : (IsoOpState.Failed, $"DISM exit code {code}; its files removed");
+            });
         }
     }
 
@@ -181,12 +185,28 @@ public sealed partial class IsoBuild
     {
         foreach (var n in names)
         {
-            p.Log.Write($"Removing {kind.ToLowerInvariant()} {n}");
-            var code = p.Image.Remove(mount, kind, n);
-            if (code != 0 && code != 3010) p.Log.Write($"  DISM could not remove it (exit code {code})");
+            Op($"{KindName(kind)} {n}", () =>
+            {
+                p.Log.Write($"Removing {kind.ToLowerInvariant()} {n}");
+                var code = p.Image.Remove(mount, kind, n);
+                if (code != 0 && code != 3010) p.Log.Write($"  DISM could not remove it (exit code {code})");
+                return code switch
+                {
+                    0 => (IsoOpState.Done, ""),
+                    3010 => (IsoOpState.Done, "Finishes when the new Windows first starts"),
+                    _ => (IsoOpState.Failed, $"DISM exit code {code}"),
+                };
+            });
         }
     }
 
+    private static string KindName(string kind) => kind switch
+    {
+        "Feature" => "Windows feature",
+        "Capability" => "Optional feature",
+        "Package" => "OS package",
+        _ => kind,
+    };
     /// <summary>Paths under the mounted image (the last part may hold wildcards) removed, ownership taken first
     /// (Remove-AkariImagePaths): how many went.</summary>
     private int RemovePaths(string mount, IEnumerable<string> paths)

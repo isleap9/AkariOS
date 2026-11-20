@@ -1,4 +1,4 @@
-<Page
+﻿<Page
     x:Class="AkariOS.App.Views.IsoBuilderPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -23,14 +23,6 @@
             <Setter Property="Spacing" Value="8" />
         </Style>
 
-        <DataTemplate x:Key="OptionTemplate" x:DataType="vm:IsoOptionViewModel">
-            <StackPanel Margin="0,2,0,6">
-                <CheckBox Content="{x:Bind Name}" IsChecked="{x:Bind IsChecked, Mode=TwoWay}" IsEnabled="{x:Bind IsEnabled, Mode=OneWay}"
-                          ToolTipService.ToolTip="{x:Bind Description}" />
-                <TextBlock Text="{x:Bind Description}" Style="{StaticResource Note}" Margin="28,0,0,0" />
-            </StackPanel>
-        </DataTemplate>
-
         <DataTemplate x:Key="ImageItemTemplate" x:DataType="vm:ImageItemViewModel">
             <CheckBox IsChecked="{x:Bind IsChecked, Mode=TwoWay}" MinHeight="28" Padding="8,4,0,0">
                 <StackPanel Orientation="Horizontal" Spacing="8">
@@ -50,160 +42,302 @@
                 </ScrollViewer>
             </StackPanel>
         </DataTemplate>
+        <!-- an operation of a stage: its state, name, why it was skipped or failed, its time -->
+        <DataTemplate x:Key="OpTemplate" x:DataType="vm:IsoOpViewModel">
+            <Grid ColumnSpacing="12" MinHeight="28" Padding="0,2">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="20" /><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <ProgressRing Width="14" Height="14" IsActive="{x:Bind IsRunning, Mode=OneWay}" Visibility="{x:Bind IsRunning, Mode=OneWay}" />
+                <FontIcon Glyph="&#xE73E;" FontSize="12" Visibility="{x:Bind IsDone, Mode=OneWay}" Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
+                <FontIcon Glyph="&#xE711;" FontSize="12" Visibility="{x:Bind IsFailed, Mode=OneWay}" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                <FontIcon Glyph="&#xE7BA;" FontSize="12" Visibility="{x:Bind IsSkipped, Mode=OneWay}" Foreground="{ThemeResource SystemFillColorCautionBrush}" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="{x:Bind Name}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                    <TextBlock Text="{x:Bind Note, Mode=OneWay}" Style="{StaticResource Note}" IsTextSelectionEnabled="True" />
+                </StackPanel>
+                <TextBlock Grid.Column="2" VerticalAlignment="Center" Style="{StaticResource Note}">
+                    <Run Text="{x:Bind StateText, Mode=OneWay}" /><Run Text="  " /><Run Text="{x:Bind Elapsed, Mode=OneWay}" />
+                </TextBlock>
+            </Grid>
+        </DataTemplate>
+
+        <!-- a stage's line: its state as a glyph or a ring, the text, how long it took -->
+        <DataTemplate x:Key="StageLine" x:DataType="vm:IsoStageViewModel">
+            <Grid ColumnSpacing="12" MinHeight="32">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="20" /><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <FontIcon Glyph="&#xEA3A;" FontSize="14" Visibility="{x:Bind IsWaiting, Mode=OneWay}" Foreground="{ThemeResource TextFillColorDisabledBrush}" />
+                <ProgressRing Width="16" Height="16" IsActive="{x:Bind IsRunning, Mode=OneWay}" Visibility="{x:Bind IsRunning, Mode=OneWay}" />
+                <FontIcon Glyph="&#xEC61;" FontSize="16" Visibility="{x:Bind IsDone, Mode=OneWay}" Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
+                <FontIcon Glyph="&#xEB90;" FontSize="16" Visibility="{x:Bind IsFailed, Mode=OneWay}" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="{x:Bind Text}" TextWrapping="Wrap" />
+                    <TextBlock Text="{x:Bind Summary, Mode=OneWay}" Style="{StaticResource Note}" Visibility="{x:Bind HasOperations, Mode=OneWay}" />
+                </StackPanel>
+                <TextBlock Grid.Column="2" VerticalAlignment="Center" Style="{StaticResource Note}">
+                    <Run Text="{x:Bind State, Mode=OneWay}" /><Run Text="  " /><Run Text="{x:Bind Elapsed, Mode=OneWay}" />
+                </TextBlock>
+            </Grid>
+        </DataTemplate>
+
+        <!-- a stage: an expander of its operations when it has some, else its line -->
+        <DataTemplate x:Key="StageTemplate" x:DataType="vm:IsoStageViewModel">
+            <Grid Margin="0,0,0,4">
+                <ContentControl Content="{x:Bind}" ContentTemplate="{StaticResource StageLine}" HorizontalContentAlignment="Stretch"
+                                HorizontalAlignment="Stretch" Padding="16,0" Visibility="{x:Bind NoOperations, Mode=OneWay}" />
+                <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Visibility="{x:Bind HasOperations, Mode=OneWay}">
+                    <Expander.Header>
+                        <ContentControl Content="{x:Bind}" ContentTemplate="{StaticResource StageLine}" HorizontalContentAlignment="Stretch" HorizontalAlignment="Stretch" />
+                    </Expander.Header>
+                    <ItemsControl ItemsSource="{x:Bind Operations}" ItemTemplate="{StaticResource OpTemplate}" />
+                </Expander>
+            </Grid>
+        </DataTemplate>
+        <!-- a mode's card: picked = the accent border; not there yet = greyed -->
+        <DataTemplate x:Key="ModeTemplate" x:DataType="vm:IsoModeViewModel">
+            <Grid>
+                <Button Style="{StaticResource Tile}" Command="{x:Bind PickCommand}" IsEnabled="{x:Bind Available}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                    <StackPanel Spacing="8">
+                        <ContentControl Style="{StaticResource TileIcon}"><FontIcon Glyph="{x:Bind Glyph}" FontSize="20" /></ContentControl>
+                        <TextBlock Text="{x:Bind Name}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock Text="{x:Bind Description}" TextWrapping="Wrap" Style="{StaticResource Note}" />
+                        <TextBlock Text="{x:Bind Tag}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                    </StackPanel>
+                </Button>
+                <Border BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" BorderThickness="2" CornerRadius="8" IsHitTestVisible="False"
+                        Visibility="{x:Bind IsSelected, Mode=OneWay}" />
+            </Grid>
+        </DataTemplate>
     </Page.Resources>
 
-    <ScrollViewer x:Name="Scroller">
-        <StackPanel x:Name="Column" Padding="36,28" Spacing="0">
-            <TextBlock Text="ISO Builder" Style="{StaticResource TitleTextBlockStyle}" Margin="0,0,0,4" />
-            <TextBlock TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,0,16"
-                       Text="A Windows 11 ISO with apps removed, settings made and AkariOS on it, after zoicware's zISO Tweaker. Your own Windows is not changed." />
+    <Grid>
+        <Grid.RowDefinitions><RowDefinition /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+        <ScrollViewer x:Name="Scroller">
+            <StackPanel x:Name="Column" Padding="36,28" Spacing="0">
+                <TextBlock Text="{x:Bind ViewModel.Heading, Mode=OneWay}" Style="{StaticResource TitleTextBlockStyle}" Margin="0,0,0,4" />
+                <TextBlock Text="{x:Bind ViewModel.Subheading, Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,0,12" />
 
-            <!-- 1 the ISO -->
-            <Border Style="{StaticResource Card}">
-                <StackPanel Spacing="4">
-                    <TextBlock Text="1  Windows 11 ISO" Style="{StaticResource CardTitle}" />
-                    <TextBlock Style="{StaticResource Note}" Margin="0,0,0,8"
-                               Text="An ISO you have, or one downloaded here. AkariOS copies it to a work folder, so the ISO itself is not changed." />
-
-                    <RadioButton GroupName="IsoSource" Content="An ISO file I have" IsChecked="{x:Bind ViewModel.IsFile, Mode=TwoWay}" />
-                    <StackPanel Style="{StaticResource Branch}" Orientation="Horizontal" Visibility="{x:Bind ViewModel.IsFile, Mode=OneWay}">
-                        <TextBox Text="{x:Bind ViewModel.IsoPath, Mode=TwoWay}" Width="420" PlaceholderText="C:\Users\you\Downloads\Win11.iso" />
-                        <Button Content="Browse…" Command="{x:Bind ViewModel.PickIsoCommand}" />
-                    </StackPanel>
-
-                    <RadioButton GroupName="IsoSource" Content="Download with UUP Dump (23H2 to 26H2, any language, Home to IoT Enterprise)"
-                                 IsChecked="{x:Bind ViewModel.IsUup, Mode=TwoWay}" />
-                    <StackPanel Style="{StaticResource Branch}" Visibility="{x:Bind ViewModel.IsUup, Mode=OneWay}">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <ComboBox ItemsSource="{x:Bind ViewModel.UupVersions}" SelectedIndex="{x:Bind ViewModel.UupVersionIndex, Mode=TwoWay}"
-                                      PlaceholderText="Version" MinWidth="170" IsEnabled="{x:Bind ViewModel.Idle, Mode=OneWay}" />
-                            <ComboBox ItemsSource="{x:Bind ViewModel.UupLanguages, Mode=OneWay}" SelectedIndex="{x:Bind ViewModel.UupLanguageIndex, Mode=TwoWay}"
-                                      PlaceholderText="Language" MinWidth="220" IsEnabled="{x:Bind ViewModel.Idle, Mode=OneWay}" />
-                            <ComboBox ItemsSource="{x:Bind ViewModel.UupEditions, Mode=OneWay}" SelectedIndex="{x:Bind ViewModel.UupEditionIndex, Mode=TwoWay}"
-                                      PlaceholderText="Edition" MinWidth="200" />
-                        </StackPanel>
-                        <Button Content="Download" Command="{x:Bind ViewModel.UupDownloadCommand}" />
-                        <TextBlock Text="{x:Bind ViewModel.UupNote, Mode=OneWay}" Style="{StaticResource Note}" />
-                    </StackPanel>
-
-                    <RadioButton GroupName="IsoSource" Content="Download from Massgrave (LTSC, IoT LTSC, consumer and business media)"
-                                 IsChecked="{x:Bind ViewModel.IsMassgrave, Mode=TwoWay}" />
-                    <StackPanel Style="{StaticResource Branch}" Visibility="{x:Bind ViewModel.IsMassgrave, Mode=OneWay}">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <ComboBox ItemsSource="{x:Bind ViewModel.MassgraveProducts, Mode=OneWay}" SelectedIndex="{x:Bind ViewModel.MassgraveProductIndex, Mode=TwoWay}"
-                                      PlaceholderText="Product" MinWidth="320" />
-                            <ComboBox ItemsSource="{x:Bind ViewModel.MassgraveFiles, Mode=OneWay}" SelectedIndex="{x:Bind ViewModel.MassgraveFileIndex, Mode=TwoWay}"
-                                      PlaceholderText="Language" MinWidth="220" />
-                        </StackPanel>
-                        <Button Command="{x:Bind ViewModel.OpenMassgravePageCommand}">
+                <!-- the stepper: numbered circles joined by lines, done ones ticked (Guided's) -->
+                <ItemsControl ItemsSource="{x:Bind ViewModel.Stepper, Mode=OneWay}" Margin="0,0,0,8">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:StepItem">
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <FontIcon Glyph="&#xE8A7;" FontSize="14" />
-                                <TextBlock Text="Open download page" />
+                                <Rectangle Width="24" Height="1" VerticalAlignment="Center" Margin="4,0" Visibility="{x:Bind HasLine}"
+                                           Fill="{ThemeResource ControlStrokeColorDefaultBrush}" />
+                                <Grid Width="22" Height="22">
+                                    <Ellipse Fill="{ThemeResource ControlFillColorDefaultBrush}" Stroke="{ThemeResource ControlStrongStrokeColorDefaultBrush}" StrokeThickness="1" />
+                                    <Ellipse Fill="{ThemeResource AccentFillColorDefaultBrush}" Visibility="{x:Bind IsCurrent}" />
+                                    <Ellipse Fill="{ThemeResource AccentFillColorSecondaryBrush}" Visibility="{x:Bind IsDone}" />
+                                    <TextBlock Text="{x:Bind NumberText}" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{x:Bind IsCurrent}"
+                                               Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                                    <FontIcon Glyph="&#xE73E;" FontSize="11" Visibility="{x:Bind IsDone}" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                                </Grid>
+                                <TextBlock Text="{x:Bind Name}" VerticalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}" />
                             </StackPanel>
-                        </Button>
-                        <TextBlock Text="{x:Bind ViewModel.MassgraveNote, Mode=OneWay}" Style="{StaticResource Note}" />
-                    </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
 
-                    <TextBlock Text="Work and output folder (NTFS, 25 GB free; the ISO is saved here)" Margin="0,12,0,4" />
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <TextBox Text="{x:Bind ViewModel.OutDir, Mode=TwoWay}" Width="420" />
-                        <Button Content="Browse…" Command="{x:Bind ViewModel.PickFolderCommand}" />
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,12,0,0">
-                        <Button Content="Open ISO" Style="{StaticResource AccentButtonStyle}" Command="{x:Bind ViewModel.OpenIsoCommand}" />
-                        <TextBlock Text="{x:Bind ViewModel.OpenNote, Mode=OneWay}" Style="{StaticResource Note}" VerticalAlignment="Center" />
-                    </StackPanel>
+                <!-- the image picked so far -->
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,16">
+                    <FontIcon Glyph="&#xE7F8;" FontSize="14" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="{x:Bind ViewModel.ImageSummary, Mode=OneWay}" Style="{StaticResource Note}" />
                 </StackPanel>
-            </Border>
 
-            <!-- 2 the edition -->
-            <Border Style="{StaticResource Card}">
-                <StackPanel Spacing="4">
-                    <TextBlock Text="2  Edition" Style="{StaticResource CardTitle}" />
-                    <TextBlock Text="The ISO keeps only this edition." Style="{StaticResource Note}" Margin="0,0,0,8" />
-                    <ComboBox ItemsSource="{x:Bind ViewModel.Editions, Mode=OneWay}" SelectedIndex="{x:Bind ViewModel.EditionIndex, Mode=TwoWay}"
-                              IsEnabled="{x:Bind ViewModel.EditionEnabled, Mode=OneWay}" PlaceholderText="Open the ISO first" MinWidth="340" />
+                <!-- 1 Start: the modes -->
+                <StackPanel Visibility="{x:Bind ViewModel.IsStart, Mode=OneWay}" Spacing="8">
+                    <TextBlock Text="Build modes" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.Modes}" ItemTemplate="{StaticResource ModeTemplate}">
+                        <ItemsRepeater.Layout>
+                            <UniformGridLayout MinItemWidth="220" MinItemHeight="180" MinColumnSpacing="8" MinRowSpacing="8" ItemsStretch="Fill" />
+                        </ItemsRepeater.Layout>
+                    </ItemsRepeater>
+                    <TextBlock Style="{StaticResource Note}" Text="Windows 11 only. Try a new ISO in a virtual machine first." />
                 </StackPanel>
-            </Border>
 
-            <!-- 3 the answer file -->
-            <Border Style="{StaticResource Card}">
-                <StackPanel Spacing="4">
-                    <TextBlock Text="3  Answer file" Style="{StaticResource CardTitle}" />
-                    <TextBlock Text="autounattend.xml at the root of the ISO: Windows setup reads it by itself." Style="{StaticResource Note}" Margin="0,0,0,8" />
-                    <RadioButton GroupName="IsoAnswer" Content="None: setup asks everything as usual" IsChecked="{x:Bind ViewModel.AnswerNone, Mode=TwoWay}" />
-                    <RadioButton GroupName="IsoAnswer" Content="A local account (this PC's language, keyboard and time zone; setup still asks for the disk)"
-                                 IsChecked="{x:Bind ViewModel.AnswerLocal, Mode=TwoWay}" />
-                    <StackPanel Style="{StaticResource Branch}" Visibility="{x:Bind ViewModel.AnswerLocal, Mode=OneWay}">
-                        <CheckBox Content="Skip the setup questions (OOBE) and create this administrator" IsChecked="{x:Bind ViewModel.SkipOobe, Mode=TwoWay}" />
-                        <StackPanel Style="{StaticResource Branch}" Visibility="{x:Bind ViewModel.SkipOobe, Mode=OneWay}">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBox Header="User name" Text="{x:Bind ViewModel.User, Mode=TwoWay}" Width="200" />
-                                <TextBox Header="Password" Text="{x:Bind ViewModel.Password, Mode=TwoWay}" Width="200" />
+                <!-- 2 Windows image -->
+                <StackPanel Visibility="{x:Bind ViewModel.IsImage, Mode=OneWay}">
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Windows 11 ISO" Style="{StaticResource CardTitle}" Margin="0,0,0,8" />
+                            <RadioButton GroupName="IsoSource" Content="An ISO file I have" IsChecked="{x:Bind ViewModel.IsFile, Mode=TwoWay}" />
+                            <StackPanel Style="{StaticResource Branch}" Orientation="Horizontal" Visibility="{x:Bind ViewModel.IsFile, Mode=OneWay}">
+                                <TextBox Text="{x:Bind ViewModel.IsoPath, Mode=TwoWay}" Width="420" PlaceholderText="C:\Users\you\Downloads\Win11.iso" />
+                                <Button Content="Browse…" Command="{x:Bind ViewModel.PickIsoCommand}" />
                             </StackPanel>
-                            <TextBlock Style="{StaticResource Note}"
-                                       Text="The password is in the answer file (Base64, not encrypted): anyone with the ISO can read it. Leave it empty for none." />
-                        </StackPanel>
-                    </StackPanel>
-                    <RadioButton GroupName="IsoAnswer" Content="The Unattend Generator's choices (Install USB)" IsChecked="{x:Bind ViewModel.AnswerGenerator, Mode=TwoWay}" />
-                    <StackPanel Style="{StaticResource Branch}" Visibility="{x:Bind ViewModel.AnswerGenerator, Mode=OneWay}">
-                        <HyperlinkButton Content="Open Install USB to make your choices" Command="{x:Bind ViewModel.OpenUnattendCommand}" Padding="0" />
-                    </StackPanel>
-                </StackPanel>
-            </Border>
 
-            <!-- 4-6 zISO's options; 6 also the image's own lists -->
-            <ItemsControl ItemsSource="{x:Bind ViewModel.Groups}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:IsoGroupViewModel">
-                        <Border Style="{StaticResource Card}">
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="{x:Bind Title}" Style="{StaticResource CardTitle}" Margin="0,0,0,8" />
-                                <ItemsControl ItemsSource="{x:Bind Options}" ItemTemplate="{StaticResource OptionTemplate}" />
-                                <!-- 6 Apps: the image's own apps and features -->
-                                <StackPanel Visibility="{x:Bind HasLists}" Spacing="8" Margin="0,12,0,0">
-                                    <TextBlock Text="Apps and features in the image" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <RadioButton GroupName="IsoSource" Content="Download with UUP Dump (23H2 to 26H2, any language, Home to IoT Enterprise)"
+                                         IsChecked="{x:Bind ViewModel.IsUup, Mode=TwoWay}" />
+                            <StackPanel Style="{StaticResource Branch}" Visibility="{x:Bind ViewModel.IsUup, Mode=OneWay}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <ComboBox ItemsSource="{x:Bind ViewModel.UupVersions}" SelectedIndex="{x:Bind ViewModel.UupVersionIndex, Mode=TwoWay}"
+                                              PlaceholderText="Version" MinWidth="170" IsEnabled="{x:Bind ViewModel.Idle, Mode=OneWay}" />
+                                    <ComboBox ItemsSource="{x:Bind ViewModel.UupLanguages, Mode=OneWay}" SelectedIndex="{x:Bind ViewModel.UupLanguageIndex, Mode=TwoWay}"
+                                              PlaceholderText="Language" MinWidth="220" IsEnabled="{x:Bind ViewModel.Idle, Mode=OneWay}" />
+                                    <ComboBox ItemsSource="{x:Bind ViewModel.UupEditions, Mode=OneWay}" SelectedIndex="{x:Bind ViewModel.UupEditionIndex, Mode=TwoWay}"
+                                              PlaceholderText="Edition" MinWidth="200" />
+                                </StackPanel>
+                                <Button Content="Download" Command="{x:Bind ViewModel.UupDownloadCommand}" />
+                                <TextBlock Text="{x:Bind ViewModel.UupNote, Mode=OneWay}" Style="{StaticResource Note}" />
+                            </StackPanel>
+
+                            <RadioButton GroupName="IsoSource" Content="Download from Massgrave (LTSC, IoT LTSC, consumer and business media)"
+                                         IsChecked="{x:Bind ViewModel.IsMassgrave, Mode=TwoWay}" />
+                            <StackPanel Style="{StaticResource Branch}" Visibility="{x:Bind ViewModel.IsMassgrave, Mode=OneWay}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <ComboBox ItemsSource="{x:Bind ViewModel.MassgraveProducts, Mode=OneWay}" SelectedIndex="{x:Bind ViewModel.MassgraveProductIndex, Mode=TwoWay}"
+                                              PlaceholderText="Product" MinWidth="320" />
+                                    <ComboBox ItemsSource="{x:Bind ViewModel.MassgraveFiles, Mode=OneWay}" SelectedIndex="{x:Bind ViewModel.MassgraveFileIndex, Mode=TwoWay}"
+                                              PlaceholderText="Language" MinWidth="220" />
+                                </StackPanel>
+                                <Button Command="{x:Bind ViewModel.OpenMassgravePageCommand}">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <Button Content="Read the image's apps" Command="{x:Bind Owner.ReadImageCommand}" />
-                                        <Button Content="Select recommended" Command="{x:Bind Owner.SelectRecommendedCommand}" />
-                                        <Button Content="Clear" Command="{x:Bind Owner.ClearListsCommand}" />
+                                        <FontIcon Glyph="&#xE8A7;" FontSize="14" />
+                                        <TextBlock Text="Open download page" />
                                     </StackPanel>
-                                    <TextBlock Text="{x:Bind Owner.ListNote, Mode=OneWay}" Style="{StaticResource Note}" />
-                                    <ItemsControl ItemsSource="{x:Bind Owner.Lists}" ItemTemplate="{StaticResource ImageListTemplate}" />
+                                </Button>
+                                <TextBlock Text="{x:Bind ViewModel.MassgraveNote, Mode=OneWay}" Style="{StaticResource Note}" />
+                            </StackPanel>
+                            <TextBlock Text="Work and output folder (NTFS, 25 GB free; the ISO is saved here)" Margin="0,12,0,4" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBox Text="{x:Bind ViewModel.OutDir, Mode=TwoWay}" Width="420" />
+                                <Button Content="Browse…" Command="{x:Bind ViewModel.PickFolderCommand}" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,12,0,0">
+                                <Button Content="Open ISO" Style="{StaticResource AccentButtonStyle}" Command="{x:Bind ViewModel.OpenIsoCommand}" />
+                                <TextBlock Text="{x:Bind ViewModel.OpenNote, Mode=OneWay}" Style="{StaticResource Note}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Edition" Style="{StaticResource CardTitle}" />
+                            <TextBlock Text="The ISO keeps only this edition. Pro is picked when the ISO has it." Style="{StaticResource Note}" Margin="0,0,0,8" />
+                            <ComboBox ItemsSource="{x:Bind ViewModel.Editions, Mode=OneWay}" SelectedIndex="{x:Bind ViewModel.EditionIndex, Mode=TwoWay}"
+                                      IsEnabled="{x:Bind ViewModel.EditionEnabled, Mode=OneWay}" PlaceholderText="Open the ISO first" MinWidth="340" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- 3 Components: the mode, then Custom's lists -->
+                <StackPanel Visibility="{x:Bind ViewModel.IsComponents, Mode=OneWay}" Spacing="8">
+                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.Modes}" ItemTemplate="{StaticResource ModeTemplate}">
+                        <ItemsRepeater.Layout>
+                            <UniformGridLayout MinItemWidth="200" MinItemHeight="160" MinColumnSpacing="8" MinRowSpacing="8" ItemsStretch="Fill" />
+                        </ItemsRepeater.Layout>
+                    </ItemsRepeater>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Apps and features in the image" Style="{StaticResource CardTitle}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="Read the image's apps again" Command="{x:Bind ViewModel.ReadImageCommand}" />
+                                <Button Content="Select recommended" Command="{x:Bind ViewModel.SelectRecommendedCommand}" />
+                                <Button Content="Clear" Command="{x:Bind ViewModel.ClearListsCommand}" />
+                            </StackPanel>
+                            <TextBlock Text="{x:Bind ViewModel.ListNote, Mode=OneWay}" Style="{StaticResource Note}" />
+                            <ItemsControl ItemsSource="{x:Bind ViewModel.Lists}" ItemTemplate="{StaticResource ImageListTemplate}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- 4 Build settings -->
+                <StackPanel Visibility="{x:Bind ViewModel.IsSettings, Mode=OneWay}">
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Answer file" Style="{StaticResource CardTitle}" />
+                            <TextBlock Text="autounattend.xml at the root of the ISO: Windows setup reads it by itself." Style="{StaticResource Note}" Margin="0,0,0,8" />
+                            <RadioButton GroupName="IsoAnswer" Content="None: setup asks everything as usual" IsChecked="{x:Bind ViewModel.AnswerNone, Mode=TwoWay}" />
+                            <RadioButton GroupName="IsoAnswer" Content="A local account (this PC's language, keyboard and time zone; setup still asks for the disk)"
+                                         IsChecked="{x:Bind ViewModel.AnswerLocal, Mode=TwoWay}" />
+                            <StackPanel Style="{StaticResource Branch}" Visibility="{x:Bind ViewModel.AnswerLocal, Mode=OneWay}">
+                                <CheckBox Content="Skip the setup questions (OOBE) and create this administrator" IsChecked="{x:Bind ViewModel.SkipOobe, Mode=TwoWay}" />
+                                <StackPanel Style="{StaticResource Branch}" Visibility="{x:Bind ViewModel.SkipOobe, Mode=OneWay}">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBox Header="User name" Text="{x:Bind ViewModel.User, Mode=TwoWay}" Width="200" />
+                                        <TextBox Header="Password" Text="{x:Bind ViewModel.Password, Mode=TwoWay}" Width="200" />
+                                    </StackPanel>
+                                    <TextBlock Style="{StaticResource Note}"
+                                               Text="The password is in the answer file (Base64, not encrypted): anyone with the ISO can read it. Leave it empty for none." />
                                 </StackPanel>
                             </StackPanel>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-
-            <!-- 7 AkariOS -->
-            <Border Style="{StaticResource Card}">
-                <StackPanel Spacing="4">
-                    <TextBlock Text="7  AkariOS" Style="{StaticResource CardTitle}" Margin="0,0,0,8" />
-                    <CheckBox Content="Put AkariOS on the new Windows (C:\AkariOS, a Start menu and a desktop shortcut; nothing runs by itself)"
-                              IsChecked="{x:Bind ViewModel.AkariOS, Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.AkariOSEnabled}" />
-                    <TextBlock Text="{x:Bind ViewModel.AkariOSNote}" Style="{StaticResource Note}" Visibility="{x:Bind ViewModel.HasAkariOSNote}" Margin="28,0,0,0" />
+                            <RadioButton GroupName="IsoAnswer" Content="The Unattend Generator's choices (Install USB)" IsChecked="{x:Bind ViewModel.AnswerGenerator, Mode=TwoWay}" />
+                            <StackPanel Style="{StaticResource Branch}" Visibility="{x:Bind ViewModel.AnswerGenerator, Mode=OneWay}">
+                                <HyperlinkButton Content="Open Install USB to make your choices" Command="{x:Bind ViewModel.OpenUnattendCommand}" Padding="0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="AkariOS" Style="{StaticResource CardTitle}" Margin="0,0,0,8" />
+                            <CheckBox Content="Put AkariOS on the new Windows (C:\AkariOS, a Start menu and a desktop shortcut; nothing runs by itself)"
+                                      IsChecked="{x:Bind ViewModel.AkariOS, Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.AkariOSEnabled}" />
+                            <TextBlock Text="{x:Bind ViewModel.AkariOSNote}" Style="{StaticResource Note}" Visibility="{x:Bind ViewModel.HasAkariOSNote}" Margin="28,0,0,0" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-            </Border>
 
-            <!-- Build -->
-            <Border Style="{StaticResource Card}">
-                <StackPanel Spacing="8">
-                    <TextBlock Text="Build" Style="{StaticResource CardTitle}" />
-                    <TextBlock Style="{StaticResource Note}"
-                               Text="Allow 20 to 40 minutes. Optimize's changes and installs wait meanwhile; the busy toast shows each step." />
-                    <InfoBar IsOpen="{x:Bind ViewModel.HasBuildError, Mode=OneWay}" Severity="Error" Title="Not built"
+                <!-- 5 Review -->
+                <StackPanel Visibility="{x:Bind ViewModel.IsReview, Mode=OneWay}" Spacing="8">
+                    <InfoBar IsOpen="{x:Bind ViewModel.HasBuildError, Mode=OneWay}" Severity="Error" Title="Can't build yet"
                              Message="{x:Bind ViewModel.BuildError, Mode=OneWay}" IsClosable="False" />
+                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.ReviewCards, Mode=OneWay}">
+                        <ItemsRepeater.Layout>
+                            <UniformGridLayout MinItemWidth="320" MinColumnSpacing="8" MinRowSpacing="8" ItemsStretch="Fill" />
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="vm:IsoReviewCard">
+                                <Border Style="{StaticResource CardBorder}" Padding="20,16" MinHeight="170">
+                                    <StackPanel Spacing="8">
+                                        <FontIcon Glyph="{x:Bind Glyph}" FontSize="24" HorizontalAlignment="Left" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                        <TextBlock Text="{x:Bind Title}" Style="{StaticResource SubtitleTextBlockStyle}" />
+                                        <TextBlock Text="{x:Bind Lines}" TextWrapping="Wrap" IsTextSelectionEnabled="True" Style="{StaticResource Note}" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                </StackPanel>
+
+                <!-- 6 Create ISO: the stages, then the result -->
+                <StackPanel Visibility="{x:Bind ViewModel.IsBuild, Mode=OneWay}" Spacing="8">
                     <InfoBar IsOpen="{x:Bind ViewModel.HasResult, Mode=OneWay}" Severity="Success" Title="Your ISO is ready"
                              Message="{x:Bind ViewModel.ResultPath, Mode=OneWay}" IsClosable="False">
+                        <InfoBar.Content>
+                            <TextBlock Text="{x:Bind ViewModel.ResultDetails, Mode=OneWay}" TextWrapping="Wrap" IsTextSelectionEnabled="True" Margin="0,0,0,12" />
+                        </InfoBar.Content>
                         <InfoBar.ActionButton>
                             <Button Content="Open folder" Command="{x:Bind ViewModel.OpenOutFolderCommand}" />
                         </InfoBar.ActionButton>
                     </InfoBar>
-                    <Button Content="Build ISO" Style="{StaticResource AccentButtonStyle}" Command="{x:Bind ViewModel.BuildCommand}" MinWidth="120" />
+                    <InfoBar IsOpen="{x:Bind ViewModel.HasBuildError, Mode=OneWay}" Severity="Error" Title="Not built"
+                             Message="{x:Bind ViewModel.BuildError, Mode=OneWay}" IsClosable="False">
+                        <InfoBar.Content>
+                            <TextBlock Text="{x:Bind ViewModel.ResultDetails, Mode=OneWay}" TextWrapping="Wrap" IsTextSelectionEnabled="True" Margin="0,0,0,12" />
+                        </InfoBar.Content>
+                    </InfoBar>
+                    <!-- the operation running now -->
+                    <TextBlock Style="{StaticResource Note}" Visibility="{x:Bind ViewModel.Working, Mode=OneWay}">
+                        <Run Text="Now: " /><Run Text="{x:Bind ViewModel.CurrentOperation, Mode=OneWay}" />
+                    </TextBlock>
+                    <ItemsControl ItemsSource="{x:Bind ViewModel.Stages}" ItemTemplate="{StaticResource StageTemplate}" />
                 </StackPanel>
-            </Border>
-        </StackPanel>
-    </ScrollViewer>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- the footer: the step, why Next waits, Back, Next -->
+        <Border Grid.Row="1" Visibility="{x:Bind ViewModel.ShowFooter, Mode=OneWay}" Padding="36,12"
+                Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{x:Bind ViewModel.StepLabel, Mode=OneWay}" Style="{StaticResource Note}" />
+                    <TextBlock Text="{x:Bind ViewModel.NextHint, Mode=OneWay}" Style="{StaticResource Note}" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="Back" Command="{x:Bind ViewModel.BackCommand}" IsEnabled="{x:Bind ViewModel.CanBack, Mode=OneWay}" />
+                <Button Grid.Column="2" Content="{x:Bind ViewModel.NextText, Mode=OneWay}" Style="{StaticResource AccentButtonStyle}" MinWidth="110"
+                        Command="{x:Bind ViewModel.NextCommand}" IsEnabled="{x:Bind ViewModel.CanNext, Mode=OneWay}" />
+            </Grid>
+        </Border>
+    </Grid>
 </Page>

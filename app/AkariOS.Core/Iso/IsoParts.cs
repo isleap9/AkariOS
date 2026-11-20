@@ -124,8 +124,12 @@ public sealed record IsoParts
 /// <summary>An opened ISO: the work folder, its install image, the image's editions.</summary>
 public sealed record IsoSource(IsoWork Work, string Image, IReadOnlyList<IsoEdition> Editions);
 
+/// <summary>A build's end: the ISO's path, or why it failed.</summary>
 /// <summary>A mounted image's features, capabilities and packages (<see cref="IImage.Items"/>).</summary>
 public sealed record ImageItems(IReadOnlyList<DismItem> Features, IReadOnlyList<DismItem> Capabilities, IReadOnlyList<DismItem> Packages);
 
-/// <summary>A build's end: the ISO's path, or why it failed.</summary>
-public sealed record IsoResult(bool Ok, string? Path, string Message);
+public sealed record IsoResult(bool Ok, string? Path, string Message)
+{
+    /// <summary>A build's report (also written next to the ISO); null for other actions.</summary>
+    public IsoReport? Report { get; init; }
+}

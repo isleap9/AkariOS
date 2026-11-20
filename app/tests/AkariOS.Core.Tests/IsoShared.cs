@@ -204,6 +204,16 @@ internal sealed class IsoFakes : IImage, IOfflineHives, IDiskImage, IExe, ITrust
         public void Report(RunProgress value) => on(value);
     }
 
+    /// <summary>The build's operations as they were reported, and the last build's report.</summary>
+    public List<IsoOperation> Ops { get; } = [];
+    public IProgress<IsoOperation> Operations => new OpRecorder(Ops.Add);
+    public IsoReport? Report { get; set; }
+
+    private sealed class OpRecorder(Action<IsoOperation> on) : IProgress<IsoOperation>
+    {
+        public void Report(IsoOperation value) => on(value);
+    }
+
     public string Norm(string s) => s.Replace(_side.Root, "<root>");
 
     private void Rec(string s) => Calls.Add(Norm(s));

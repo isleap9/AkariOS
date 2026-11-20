@@ -159,10 +159,18 @@ public sealed partial class IsoBuild(IsoParts p)
 
     // ---- the build
 
-    /// <summary>Invoke-AkariIsoBuild: the steps of <see cref="IsoPlan.Steps"/>, progress per step; a failure discards
-    /// the image, never left mounted.</summary>
-    public IsoResult Build(IsoChoices c, IProgress<RunProgress>? progress = null)
+    /// <summary>Invoke-AkariIsoBuild: the steps of <see cref="IsoPlan.Steps"/>, progress per step and each step's
+    /// operations through <paramref name="operations"/>; a failure discards the image, never left mounted. Either way
+    /// a report (<see cref="IsoReport"/>) goes next to the ISO and on the result.</summary>
+    public IsoResult Build(IsoChoices c, IProgress<RunProgress>? progress = null, IProgress<IsoOperation>? operations = null)
     {
+        _ops = operations;
+        _stageOps.Clear();
+        var started = DateTime.Now;
+        var stages = new List<IsoReportStage>();
+        var stageClock = new System.Diagnostics.Stopwatch();
+        void EndStage(IsoStep step, string state) =>
+            stages.Add(new IsoReportStage(step.Id, step.Text, state, Math.Round(stageClock.Elapsed.TotalSeconds, 1), [.. _stageOps]));
         var all = IsoData.Options(p.Files);
         if (IsoData.Check(IsoPlan.List(c.Options), all) is { } bad) return new IsoResult(false, null, bad);
         var picked = IsoData.Picked(c.Options, all);
@@ -171,11 +179,15 @@ public sealed partial class IsoBuild(IsoParts p)
         var always = IsoData.Always(p.Files);
         var steps = IsoPlan.Steps(c, picked);
         string? oscdimg = null;
+        var sha = "";
         try
         {
             for (var i = 0; i < steps.Count; i++)
             {
                 var s = steps[i];
+                (_stage, _current) = (i, s);
+                _stageOps.Clear();
+                stageClock.Restart();
                 progress?.Report(new RunProgress(i, steps.Count, s.Text));
                 p.Log.Write(s.Text);
                 switch (s.Id)
@@ -200,26 +212,41 @@ public sealed partial class IsoBuild(IsoParts p)
                     case "Capabilities": RemoveItems(w.Mount, "Capability", IsoPlan.List(c.Capabilities)); break;
                     case "Packages": RemoveItems(w.Mount, "Package", IsoPlan.List(c.Packages)); break;
                     case "Registry":
-                        WriteImageRegistry(w.Mount, [.. always.Requirements, .. always.Registry, .. picked.SelectMany(o => o.Registry)],
-                            [.. picked.SelectMany(o => o.RemoveKeys)]);
+                        {
+                            IReadOnlyList<Data.PsHashtable> rows = [.. always.Requirements, .. always.Registry, .. picked.SelectMany(o => o.Registry)];
+                            Op($"Write {rows.Count} settings", () =>
+                            {
+                                WriteImageRegistry(w.Mount, rows, [.. picked.SelectMany(o => o.RemoveKeys)]);
+                                return (IsoOpState.Done, "");
+                            });
+                            break;
+                        }
+                    case "Files":
+                        foreach (var path in always.Remove.Concat(picked.SelectMany(o => o.Remove)))
+                            Op(path, () => RemovePaths(w.Mount, [path]) is var n and > 0 ? (IsoOpState.Done, $"{n} removed") : (IsoOpState.Skipped, "Not in this image"));
                         break;
-                    case "Files": RemovePaths(w.Mount, [.. always.Remove, .. picked.SelectMany(o => o.Remove)]); break;
-                    case "AkariOS": CopyAkariOS(w.Mount, c.AkariExe!); break;
-                    case "Answer": File.WriteAllBytes(Path.Combine(w.Media, "autounattend.xml"), c.Unattend!); break;
+                    case "AkariOS": Op("AkariOS-Native.exe and its shortcuts", () => { CopyAkariOS(w.Mount, c.AkariExe!); return (IsoOpState.Done, ""); }); break;
+                    case "Answer": Op("autounattend.xml", () => { File.WriteAllBytes(Path.Combine(w.Media, "autounattend.xml"), c.Unattend!); return (IsoOpState.Done, ""); }); break;
                     case "NetFx3":
+                        Op(".NET Framework 3.5", () =>
                         {
                             var sxs = Path.Combine(w.Media, @"sources\sxs");
-                            if (!Exists(sxs)) { p.Log.Write(@"No sources\sxs on the ISO: .NET Framework 3.5 left out"); break; }
+                            if (!Exists(sxs)) { p.Log.Write(@"No sources\sxs on the ISO: .NET Framework 3.5 left out"); return (IsoOpState.Skipped, @"The ISO has no sources\sxs"); }
                             var code = p.Image.Dism([$"/Image:{w.Mount}", "/Enable-Feature", "/FeatureName:NetFx3", "/All", "/LimitAccess", $"/Source:{sxs}"]);
-                            if (code != 0) p.Log.Write($".NET Framework 3.5 was not added (DISM exit code {code})");
-                            break;
-                        }
+                            if (code == 0) return (IsoOpState.Done, "");
+                            p.Log.Write($".NET Framework 3.5 was not added (DISM exit code {code})");
+                            return (IsoOpState.Failed, $"DISM exit code {code}");
+                        });
+                        break;
                     case "Cleanup":
+                        Op("Component store cleanup", () =>
                         {
                             var code = p.Image.Dism([$"/Image:{w.Mount}", "/Cleanup-Image", "/StartComponentCleanup", "/ResetBase"]);
-                            if (code != 0) p.Log.Write($"Component cleanup skipped (DISM exit code {code}, pending operations)");
-                            break;
-                        }
+                            if (code == 0) return (IsoOpState.Done, "");
+                            p.Log.Write($"Component cleanup skipped (DISM exit code {code}, pending operations)");
+                            return (IsoOpState.Skipped, $"Pending operations (DISM exit code {code}): the image may be larger");
+                        });
+                        break;
                     case "Commit": p.Image.Commit(w.Mount); break;
                     case "Compress":
                         {
@@ -246,6 +273,7 @@ public sealed partial class IsoBuild(IsoParts p)
                             TryDelete(output);
                             var code = p.Exe.Run(oscdimg!, JoinArgs(IsoPlan.OscdimgArgs(w.Media, output, Exists))).ExitCode;
                             if (code != 0) throw new IsoException($"oscdimg failed (exit code {code})");
+                            Op("SHA-256 of the ISO", () => (sha = IsoReport.Sha256Of(output)).Length > 0 ? (IsoOpState.Done, sha) : (IsoOpState.Skipped, "No ISO to check"));
                             break;
                         }
                     case "Tidy":
@@ -254,13 +282,18 @@ public sealed partial class IsoBuild(IsoParts p)
                         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
                         break;
                 }
+                EndStage(s, "Done");
             }
             progress?.Report(new RunProgress(steps.Count, steps.Count, "Done"));
             p.Log.Write($"ISO ready: {output}");
-            return new IsoResult(true, output, "");
+            var report = WriteReport(Report(true, "") with { Size = File.Exists(output) ? new FileInfo(output).Length : 0, Sha256 = sha });
+            return new IsoResult(true, output, "") { Report = report };
         }
         catch (Exception e)
         {
+            if (_current is { } failed) EndStage(failed, "Failed");
+            foreach (var rest in steps.Skip(stages.Count)) stages.Add(new IsoReportStage(rest.Id, rest.Text, "Not run", 0, []));
+            var report = WriteReport(Report(false, e.Message));
             p.Log.Write($"ISO build failed: {e.Message}");
             p.Log.WriteFile($"ISO Builder: {e.Message}");
             UnloadHives(AllHives);
@@ -269,8 +302,59 @@ public sealed partial class IsoBuild(IsoParts p)
                 p.Image.Discard(w.Mount);
                 ClearMarker();
             }
-            return new IsoResult(false, null, e.Message);
+            return new IsoResult(false, null, e.Message) { Report = report };
         }
+        finally
+        {
+            _ops = null;
+            _current = null;
+        }
+
+        IsoReport Report(bool ok, string message) => new()
+        {
+            Started = started, Finished = DateTime.Now, Ok = ok, Message = message, Source = c.Iso, Edition = c.Edition, Iso = output, Stages = stages,
+        };
+    }
+
+    // ---- the build's operations and report
+
+    private IProgress<IsoOperation>? _ops;
+    private int _stage;
+    private IsoStep? _current;
+    private readonly List<IsoReportOperation> _stageOps = [];
+
+    /// <summary>One operation of the running stage: Running, then how it ended (a throw = Failed, and the build
+    /// fails as before). No log line: the build's log stays the port's.</summary>
+    private void Op(string name, Func<(IsoOpState State, string Note)> work)
+    {
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        _ops?.Report(new IsoOperation(_stage, name, IsoOpState.Running, TimeSpan.Zero));
+        (IsoOpState State, string Note) r;
+        try { r = work(); }
+        catch (Exception e)
+        {
+            Ended(name, IsoOpState.Failed, clock.Elapsed, e.Message);
+            throw;
+        }
+        Ended(name, r.State, clock.Elapsed, r.Note);
+    }
+
+    private void Ended(string name, IsoOpState state, TimeSpan elapsed, string note)
+    {
+        _ops?.Report(new IsoOperation(_stage, name, state, elapsed, note));
+        _stageOps.Add(new IsoReportOperation(name, state, Math.Round(elapsed.TotalSeconds, 1), note));
+    }
+
+    /// <summary>The report next to the ISO; never fails the build (a folder that can't be written = no file).</summary>
+    private static IsoReport WriteReport(IsoReport report)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(report.Iso)!);
+            File.WriteAllText(IsoReport.FileFor(report.Iso), report.ToJson());
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException) { }
+        return report;
     }
 
     private static bool PsLike(string text, string pattern) => Data.PsSemantics.Like(text, pattern);

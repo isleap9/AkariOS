@@ -128,6 +128,54 @@ public sealed class IsoBuildTests
     }
 
     [Fact]
+    public void Reports_each_removal_as_an_operation_and_writes_the_report_next_to_the_iso()
+    {
+        var c = Case(x => Choices(x)["Features"] = new[] { "Recall" });
+        using var s = new Side(c);
+        IsoFakes? fakes = null;
+        var o = Cs(s, c, f => fakes = f);
+        Assert.StartsWith("Action=Build;Ok=true", o.Results[1]);
+
+        // each operation Running, then how it ended, under its step's index
+        var steps = IsoPlan.Steps(new IsoChoices { Features = ["Recall"], Edition = "Windows 11 Pro" }, []);
+        var feature = steps.ToList().FindIndex(x => x.Id == "Features");
+        var recall = fakes!.Ops.Where(x => x.Name == "Windows feature Recall").ToList();
+        Assert.Equal([IsoOpState.Running, IsoOpState.Done], recall.Select(x => x.State));
+        Assert.All(recall, x => Assert.Equal(feature, x.Stage));
+        Assert.Contains(fakes.Ops, x => x.Name == "SHA-256 of the ISO" && x.State != IsoOpState.Running);
+
+        // the report: every stage done in order, its operations, the ISO's hash
+        var iso = Path.Combine(s.Root, "out", "Win11-Akari.iso");
+        var file = Path.Combine(s.Root, "out", "Win11-Akari.report.json");
+        Assert.True(File.Exists(file));
+        var report = IsoReport.FromJson(File.ReadAllText(file))!;
+        Assert.True(report.Ok);
+        Assert.Equal(iso, report.Iso);
+        Assert.Equal("Windows 11 Pro", report.Edition);
+        Assert.All(report.Stages, x => Assert.Equal("Done", x.State));
+        Assert.Contains(report.Stages, x => x.Id == "Features" && x.Operations.Single().Name == "Windows feature Recall");
+        Assert.Equal(IsoReport.Sha256Of(iso), report.Sha256);
+        Assert.Equal(report.Sha256, fakes.Report!.Sha256);
+    }
+
+    [Fact]
+    public void A_failed_build_reports_the_failed_stage_and_what_did_not_run()
+    {
+        var c = Case(x => x["Fail"] = "Oscdimg");
+        using var s = new Side(c);
+        IsoFakes? fakes = null;
+        var o = Cs(s, c, f => fakes = f);
+        Assert.StartsWith("Action=Build;Ok=false", o.Results[1]);
+        var report = fakes!.Report!;
+        Assert.False(report.Ok);
+        Assert.NotEmpty(report.Message);
+        Assert.Equal("Failed", report.Stages.Single(x => x.Id == "Iso").State);
+        Assert.Equal("Not run", report.Stages.Single(x => x.Id == "Tidy").State);
+        Assert.All(report.Stages.TakeWhile(x => x.Id != "Iso"), x => Assert.Equal("Done", x.State));
+        Assert.True(File.Exists(Path.Combine(s.Root, "out", "Win11-Akari.report.json")));
+    }
+
+    [Fact]
     public void Copies_each_image_apps_logo_out_of_the_mounted_image()
     {
         var c = Case();

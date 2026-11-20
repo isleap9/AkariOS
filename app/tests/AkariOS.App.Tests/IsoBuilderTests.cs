@@ -17,13 +17,18 @@ public sealed class IsoBuilderTests : IDisposable
     private static IReadOnlyList<string> Log(AppTest t) => ((Core.MemoryLog)t.Engine.Log).Lines;
 
     [Fact]
-    public void The_cards_are_zISOs_and_the_page_opens_from_the_nav()
+    public void The_wizard_starts_on_the_modes_with_custom_picked()
     {
         var t = _h.Make();
         var iso = t.Iso;
-        Assert.Equal(["4  Windows Update", "5  Security and privacy", "6  Apps"], iso.Groups.Select(g => g.Title));
-        Assert.Contains("Disable all Windows updates", iso.Groups.SelectMany(g => g.Options).Select(o => o.Name));
-        Assert.Equal([false, false, true], iso.Groups.Select(g => g.HasLists));
+        Assert.Equal(IsoBuilderViewModel.StartStep, iso.Step);
+        Assert.Equal(["Start", "Windows image", "Components", "Build settings", "Review", "Create ISO"], iso.Stepper.Select(s => s.Name));
+        Assert.Equal(["Current", "", "", "", "", ""], iso.Stepper.Select(s => s.State));
+        Assert.Equal(("Start", true, false), (iso.NextText, iso.CanNext, iso.CanBack));
+        Assert.Equal(["AkariOS", "Lite", "Minimal", "Custom"], iso.Modes.Select(m => m.Id));
+        Assert.Equal(["Custom"], iso.Modes.Where(m => m.Available).Select(m => m.Id));
+        Assert.Equal(["Custom"], iso.Modes.Where(m => m.IsSelected).Select(m => m.Id));
+        Assert.Equal("No image yet", iso.ImageSummary);
         Assert.Equal(["Store apps", "Optional features", "Windows features", "OS packages (advanced)"], iso.Lists.Select(l => l.Title));
         Assert.All(iso.Lists, l => Assert.False(l.Shown));
         Assert.Equal(["Windows 11 26H2", "Windows 11 25H2", "Windows 11 24H2", "Windows 11 23H2"], iso.UupVersions);
@@ -65,7 +70,8 @@ public sealed class IsoBuilderTests : IDisposable
         Assert.False(iso.Running);
         Assert.Equal(["Windows 11 Home (10.0.26100.1742)", "Windows 11 Pro (10.0.26100.1742)"], iso.Editions);
         Assert.True(iso.EditionEnabled);
-        Assert.Equal(0, iso.EditionIndex);
+        // Pro picked when the ISO has it
+        Assert.Equal(1, iso.EditionIndex);
         Assert.Equal("Opened: 2 Windows 11 editions.", iso.OpenNote);
         Assert.Contains("Copying the ISO and reading its editions", Log(t));
         Assert.Contains(@"DiskMount <root>\Win11.iso", fakes.Calls);
@@ -99,6 +105,41 @@ public sealed class IsoBuilderTests : IDisposable
         await o.Iso.OpenIsoAsync();
         o.Iso.EditionIndex = 1;
         return o;
+    }
+
+    [Fact]
+    public async Task The_wizard_waits_for_an_image_reads_its_lists_on_components_and_reviews_the_picks()
+    {
+        var (t, iso, side, _) = Picked();
+        iso.PickModeCommand.Execute("Custom");
+        Assert.Equal(IsoBuilderViewModel.ImageStep, iso.Step);
+        Assert.Equal(("Next", false, "Open an ISO and pick an edition first."), (iso.NextText, iso.CanNext, iso.NextHint));
+        Assert.True(iso.CanBack);
+
+        await iso.OpenIsoAsync();
+        Assert.Equal("Windows 11 Pro", iso.Edition?.Name);
+        Assert.StartsWith("Windows 11 Pro · ", iso.ImageSummary);
+        Assert.True(iso.CanNext);
+
+        // Components reads the edition's lists the first time
+        await iso.NextAsync();
+        Assert.Equal(IsoBuilderViewModel.ComponentsStep, iso.Step);
+        Assert.True(iso.List("Apps").Shown);
+        Assert.All(iso.List("Apps").Items, i => Assert.True(i.HasIcon));
+        iso.SelectRecommended();
+
+        await iso.NextAsync();
+        Assert.Equal((IsoBuilderViewModel.SettingsStep, "Review"), (iso.Step, iso.NextText));
+        await iso.NextAsync();
+        Assert.Equal((IsoBuilderViewModel.ReviewStep, "Build ISO"), (iso.Step, iso.NextText));
+        Assert.Equal(["Windows image", "Custom", "Output and workspace", "Installation options"], iso.ReviewCards.Select(c => c.Title));
+        Assert.Contains(Path.Combine(side.Root, "out", "Win11-Akari.iso"), iso.ReviewCards[2].Lines);
+        Assert.Contains($"Store apps: {iso.List("Apps").Ticked().Length} of 4", iso.ReviewCards[1].Lines);
+        Assert.Equal(["Done", "Done", "Done", "Done", "Current", ""], iso.Stepper.Select(s => s.State));
+
+        iso.Back();
+        Assert.Equal(IsoBuilderViewModel.SettingsStep, iso.Step);
+        Assert.Empty(t.Dialogs.Asked);
     }
 
     [Fact]
@@ -152,31 +193,12 @@ public sealed class IsoBuilderTests : IDisposable
     }
 
     [Fact]
-    public void An_option_greys_out_the_ones_it_rules_out()
-    {
-        var iso = _h.Make().Iso;
-        iso.Option("SecurityOnly").IsChecked = true;
-        Assert.False(iso.Option("DisableUpdates").IsEnabled);
-        Assert.True(iso.Option("DisableVersionUpgrade").IsEnabled);
-        iso.Option("SecurityOnly").IsChecked = false;
-        Assert.True(iso.Option("DisableUpdates").IsEnabled);
-
-        // Disable all updates rules out both others
-        iso.Option("DisableUpdates").IsChecked = true;
-        Assert.True(iso.Option("DisableUpdates").IsEnabled);
-        Assert.Equal((false, false), (iso.Option("SecurityOnly").IsEnabled, iso.Option("DisableVersionUpgrade").IsEnabled));
-        iso.Option("DisableUpdates").IsChecked = false;
-        Assert.True(iso.Option("SecurityOnly").IsEnabled);
-        Assert.True(iso.Option("DisableVersionUpgrade").IsEnabled);
-    }
-
-    [Fact]
     public async Task Build_needs_an_opened_ISO()
     {
         var t = _h.Make();
         _h.Iso(t);
         await t.Iso.BuildAsync();
-        Assert.Equal("Open the ISO and pick an edition first (step 1 and 2).", t.Iso.BuildError);
+        Assert.Equal("Open the ISO and pick an edition first (Windows image).", t.Iso.BuildError);
         Assert.True(t.Iso.HasBuildError);
         Assert.Empty(t.Dialogs.Asked);
     }
@@ -192,7 +214,6 @@ public sealed class IsoBuilderTests : IDisposable
         await iso.ReadImageAsync();
         iso.SelectRecommended();
         iso.List("Features").Items.Single(i => i.Label == "Recall").IsChecked = true;
-        iso.Option("DisableTelemetry").IsChecked = true;
         iso.Answer = "None";
         string? during = null;
         fakes.OnOscdimg = () => during = $"{t.Shell.Locked}|{t.Shell.Indeterminate}|{t.Shell.BusyText}";
@@ -200,7 +221,7 @@ public sealed class IsoBuilderTests : IDisposable
         await iso.BuildAsync();
 
         Assert.Equal("", iso.BuildError);
-        Assert.Equal("Build Win11-Akari.iso from Windows 11 Pro?\n\n1 options, 3 apps and features to remove. It takes 20 to 40 minutes and AkariOS can't be used meanwhile.",
+        Assert.Equal("Build Win11-Akari.iso from Windows 11 Pro?\n\n3 apps and features to remove. It takes 20 to 40 minutes and AkariOS can't be used meanwhile.",
             t.Dialogs.Asked.Single());
         Assert.NotNull(during);
         Assert.StartsWith("True|False|Building Win11-Akari.iso (", during);
@@ -210,6 +231,19 @@ public sealed class IsoBuilderTests : IDisposable
         Assert.Equal(path, iso.ResultPath);
         Assert.True(iso.HasResult);
         Assert.Equal($"Your ISO is ready: {path}", t.Toasts.Single());
+        // the Create ISO step: every stage done, Build another next
+        Assert.Equal(IsoBuilderViewModel.BuildStep, iso.Step);
+        Assert.NotEmpty(iso.Stages);
+        Assert.All(iso.Stages, s => Assert.Equal("Done", s.State));
+        // a stage's operations, each ended; the result's size, hash and report
+        var recall = iso.Stages.SelectMany(s => s.Operations).Single(o => o.Name == "Windows feature Recall");
+        Assert.Equal(Core.Iso.IsoOpState.Done, recall.State);
+        Assert.Contains(iso.Stages, s => s.Summary.StartsWith("1 operation", StringComparison.Ordinal));
+        Assert.DoesNotContain(iso.Stages.SelectMany(s => s.Operations), o => o.IsRunning);
+        Assert.Equal("", iso.CurrentOperation);
+        Assert.Contains("SHA-256 ", iso.ResultDetails);
+        Assert.Contains(Path.Combine(side.Root, "out", "Win11-Akari.report.json"), iso.ResultDetails);
+        Assert.Equal(("Build another", true, false), (iso.NextText, iso.CanNext, iso.CanBack));
         Assert.Empty(iso.Editions);
         Assert.False(iso.EditionEnabled);
         Assert.False(iso.List("Apps").Shown);
@@ -242,6 +276,12 @@ public sealed class IsoBuilderTests : IDisposable
         Assert.StartsWith("Not built: ", iso.BuildError);
         Assert.False(iso.HasResult);
         Assert.StartsWith("ISO not built: ", t.Toasts.Single());
+        // the stage that failed, the rest not run; Back goes to Review
+        Assert.Equal(IsoBuilderViewModel.BuildStep, iso.Step);
+        Assert.Single(iso.Stages, s => s.State == "Failed");
+        Assert.Contains(iso.Stages, s => s.State == "Not run");
+        Assert.StartsWith("Report: ", iso.ResultDetails);
+        Assert.True(iso.CanBack);
         Assert.Equal(2, iso.Editions.Count);
         Assert.False(t.Shell.Locked);
     }

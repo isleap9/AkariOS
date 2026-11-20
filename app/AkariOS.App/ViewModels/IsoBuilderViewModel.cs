@@ -27,30 +27,6 @@ public sealed record IsoTools(IsoBuild? Build, IsoDownload? Download, string? Ak
     }
 }
 
-/// <summary>One of zISO's options: ticked, or greyed while a picked one rules it out (Update-AkariIsoOptions).</summary>
-public sealed partial class IsoOptionViewModel(IsoOption option, Action changed) : ObservableObject
-{
-    public IsoOption Option { get; } = option;
-    public string Id => Option.Id;
-    public string Name => Option.Name;
-    public string Description => Option.Description;
-
-    [ObservableProperty]
-    public partial bool IsChecked { get; set; }
-
-    [ObservableProperty]
-    public partial bool IsEnabled { get; set; } = true;
-
-    partial void OnIsCheckedChanged(bool value) => changed();
-}
-
-/// <summary>A card of options: 4 Windows Update, 5 Security and privacy, 6 Apps (its Owner set: it also lists the
-/// image's own apps and features, through the page's view model).</summary>
-public sealed record IsoGroupViewModel(string Group, string Title, IReadOnlyList<IsoOptionViewModel> Options, IsoBuilderViewModel? Owner)
-{
-    public bool HasLists => Owner is not null;
-}
-
 /// <summary>A row of one of the image's lists: its label, the name removed, ticked.</summary>
 public sealed partial class ImageItemViewModel(string label, string value, AppIcon? icon = null) : ObservableObject
 {
@@ -101,9 +77,10 @@ public sealed partial class ImageListViewModel(string kind, string title) : Obse
 }
 
 /// <summary>
-/// The ISO Builder (src/UI/IsoBuilder.ps1): a custom Windows 11 ISO after zoicware's zISO Tweaker, one page in zISO's
-/// order: 1 the ISO (a file, UUP Dump, Massgrave), the work and output folder, Open ISO; 2 the edition; 3 the answer
-/// file; 4-6 zISO's options by Group, 6 also the image's own lists; 7 AkariOS; Build. One per app. Every slow step is a
+/// The ISO Builder: a custom Windows 11 ISO through a six-step wizard (plan docs/plans/2026-11-20-iso-builder-wizard.md;
+/// the steps in IsoBuilderViewModel.Wizard.cs): Start (the mode), Windows image (a file, UUP Dump, Massgrave; the work
+/// and output folder; Open ISO; the edition), Components (the image's own lists), Build settings (the answer file,
+/// AkariOS), Review, Create ISO (its stages). One per app. Every slow step is a
 /// job through <see cref="IBackground"/>, one at a time (Start-AkariIsoJob): the long ones (Open, Read, Build, the UUP
 /// download) lock the shell, so Optimize's changes and Downloads' installs wait, and are refused while anything else
 /// runs; the questions to a website (UUP Dump's lists, Massgrave's) don't.
@@ -114,9 +91,6 @@ public sealed partial class IsoBuilderViewModel : ObservableObject
 
     /// <summary>The jobs that lock the shell (closing names them, a half-built image is discarded at the next launch).</summary>
     public static IReadOnlyList<string> LongJobs { get; } = ["IsoOpen", "IsoRead", "IsoBuild", "IsoUup"];
-
-    private static readonly (string Group, string Title)[] GroupTitles =
-        [("Update", "4  Windows Update"), ("Security", "5  Security and privacy"), ("Apps", "6  Apps")];
 
     public const string MassgraveHint = "Massgrave's links go to file hosts AkariOS can't download from: your browser does, then AkariOS finds the file in Downloads.";
 
@@ -132,8 +106,6 @@ public sealed partial class IsoBuilderViewModel : ObservableObject
     private readonly UnattendViewModel _unattend;
     private readonly IShellNavigator _navigator;
 
-    private IReadOnlyList<IsoOption>? _options;
-    private IReadOnlyList<IsoGroupViewModel>? _groups;
     private BusyWork? _busy;
     private readonly AppIcons _icons;
 
@@ -165,9 +137,8 @@ public sealed partial class IsoBuilderViewModel : ObservableObject
             AkariOSEnabled = false;
             AkariOSNote = "Not in a developer build: only the published AkariOS-Native.exe can be copied into the image.";
         }
+        UpdateWizard();
     }
-
-    private IReadOnlyList<IsoOption> Options => _options ??= IsoData.Options(_engine.Files);
 
     // ---- the job (Start-AkariIsoJob, Complete-AkariIsoJob)
 
@@ -275,7 +246,9 @@ public sealed partial class IsoBuilderViewModel : ObservableObject
             ResetLists();
             _editions = [.. src.Editions.Where(e => e.Supported)];
             Editions = [.. _editions.Select(e => $"{e.Name} ({e.Version})")];
-            EditionIndex = _editions.Count > 0 ? 0 : -1;
+            // Pro when the ISO has it, else the first
+            var pro = _editions.ToList().FindIndex(e => e.Name.EndsWith(" Pro", StringComparison.OrdinalIgnoreCase));
+            EditionIndex = _editions.Count > 0 ? Math.Max(0, pro) : -1;
             OpenNote = $"Opened: {_editions.Count} Windows 11 editions.";
         });
     }
@@ -489,7 +462,8 @@ public sealed partial class IsoBuilderViewModel : ObservableObject
 
     public bool EditionEnabled => Editions.Count > 0;
 
-    private IsoEdition? Edition => _image.Length > 0 ? Pick(_editions, EditionIndex) : null;
+    /// <summary>The edition picked in the opened ISO, else null.</summary>
+    public IsoEdition? Edition =>_image.Length > 0 ? Pick(_editions, EditionIndex) : null;
 
     // ---- 3 the answer file
 
@@ -513,38 +487,6 @@ public sealed partial class IsoBuilderViewModel : ObservableObject
 
     [RelayCommand]
     public void OpenUnattend() => _navigator.Open("Install USB");
-
-    // ---- 4-6 the options
-
-    public IReadOnlyList<IsoGroupViewModel> Groups => _groups ??=
-        [.. GroupTitles.Select(g => new IsoGroupViewModel(g.Group, g.Title,
-            [.. Options.Where(o => o.Group == g.Group).Select(o => new IsoOptionViewModel(o, UpdateOptions))], g.Group == "Apps" ? this : null))];
-
-    private IEnumerable<IsoOptionViewModel> AllOptions => Groups.SelectMany(g => g.Options);
-
-    public IsoOptionViewModel Option(string id) => AllOptions.Single(o => string.Equals(o.Id, id, StringComparison.OrdinalIgnoreCase));
-
-    private bool _updating;
-
-    // options that rule each other out: the other one unticked and greyed (Update-AkariIsoOptions)
-    private void UpdateOptions()
-    {
-        if (_updating) return;
-        _updating = true;
-        try
-        {
-            var blocked = IsoData.Blocked(PickedOptions(), Options);
-            foreach (var o in AllOptions)
-            {
-                var off = blocked.Contains(o.Id, StringComparer.OrdinalIgnoreCase);
-                if (off) o.IsChecked = false;
-                o.IsEnabled = !off;
-            }
-        }
-        finally { _updating = false; }
-    }
-
-    private string[] PickedOptions() => [.. AllOptions.Where(o => o.IsChecked).Select(o => o.Id)];
 
     // ---- 6 the image's lists
 
@@ -654,17 +596,15 @@ public sealed partial class IsoBuilderViewModel : ObservableObject
     [RelayCommand]
     public void OpenOutFolder() => _open.Folder(OutDir.Trim());
 
-    /// <summary>Build ISO (Start-AkariIsoBuild): the choices checked, the answer file made, asked, then built with its
-    /// steps on the busy toast; done = a toast with Open folder.</summary>
+    /// <summary>Build ISO (the Review step's Next): the answer file made, asked, then the Create ISO step with its
+    /// stages following the build; done = the result and a toast with Open folder.</summary>
     [RelayCommand]
     public async Task BuildAsync()
     {
         BuildError = "";
         ResultPath = "";
-        if (Edition is not { } ed) { BuildError = "Open the ISO and pick an edition first (step 1 and 2)."; return; }
+        if (Edition is not { } ed) { BuildError = "Open the ISO and pick an edition first (Windows image)."; return; }
         if (_tools.Build is not { } build) return;
-        var picked = PickedOptions();
-        if (IsoData.Check(picked, Options) is { } bad) { BuildError = bad; return; }
         byte[]? answer = null;
         try
         {
@@ -681,28 +621,27 @@ public sealed partial class IsoBuilderViewModel : ObservableObject
             }
         }
         catch (UnattendException e) { BuildError = $"The answer file could not be made: {e.Message}"; return; }
-        var outDir = OutDir.Trim();
-        var iso = IsoPath.Trim();
-        var lists = Lists.ToDictionary(l => l.Kind, l => l.Ticked());
-        var choices = new IsoChoices
-        {
-            OutDir = outDir, Iso = iso, Image = _image, Index = ed.Index, Edition = ed.Name, Options = picked,
-            Apps = lists["Apps"], Capabilities = lists["Capabilities"], Features = lists["Features"], Packages = lists["Packages"],
-            AkariExe = AkariOS ? _tools.AkariExe : null, Unattend = answer,
-        };
-        var name = IsoPlan.OutName(iso);
-        var n = lists.Values.Sum(l => l.Length);
-        var q = $"Build {name} from {ed.Name}?\n\n{picked.Length} options, {n} apps and features to remove. It takes 20 to 40 minutes and AkariOS can't be used meanwhile.";
+        var choices = Choices(ed, answer);
+        var name = IsoPlan.OutName(choices.Iso);
+        var q = $"Build {name} from {ed.Name}?\n\n{RemovalCount} apps and features to remove. It takes 20 to 40 minutes and AkariOS can't be used meanwhile.";
         if (!await _dialogs.ConfirmAsync("Build the ISO?", q, "Build ISO")) return;
-        var progress = new PostedProgress(_background, p => { if (_busy is { } b) _shell.Report(b, p); });
-        await StartAsync("IsoBuild", $"Building {name}", () =>
+        StartStages(IsoPlan.Steps(choices, []));
+        var progress = new PostedProgress(_background, p =>
         {
-            try { return build.Build(choices, progress); }
+            if (_busy is { } b) _shell.Report(b, p);
+            ReportStage(p.Done, p.Total);
+        });
+        var ops = new PostedOps(_background, ReportOperation);
+        ResultDetails = "";
+        var started = await StartAsync("IsoBuild", $"Building {name}", () =>
+        {
+            try { return build.Build(choices, progress, ops); }
             catch (Exception e) { return new IsoResult(false, null, e.Message); }
         }, r =>
         {
             if (r is IsoResult { Ok: true, Path: { } path })
             {
+                EndStages(true, ((IsoResult)r).Report);
                 ResultPath = path;
                 _image = "";
                 ResetLists();
@@ -714,10 +653,29 @@ public sealed partial class IsoBuilderViewModel : ObservableObject
             }
             else
             {
+                EndStages(false, (r as IsoResult)?.Report);
                 var why = (r as IsoResult)?.Message ?? "see the log";
                 BuildError = $"Not built: {why}";
                 _shell.Toast("ISO not built", why, InfoBarSeverity.Error);
             }
+            UpdateWizard();
         });
+        if (!started) return;
+        Step = BuildStep;
+        UpdateWizard();
+    }
+
+    /// <summary>The image's lists' ticks, counted for the question and Review.</summary>
+    public int RemovalCount => Lists.Sum(l => l.Ticked().Length);
+
+    private IsoChoices Choices(IsoEdition ed, byte[]? answer)
+    {
+        var lists = Lists.ToDictionary(l => l.Kind, l => l.Ticked());
+        return new IsoChoices
+        {
+            OutDir = OutDir.Trim(), Iso = IsoPath.Trim(), Image = _image, Index = ed.Index, Edition = ed.Name, Options = [],
+            Apps = lists["Apps"], Capabilities = lists["Capabilities"], Features = lists["Features"], Packages = lists["Packages"],
+            AkariExe = AkariOS ? _tools.AkariExe : null, Unattend = answer,
+        };
     }
 }

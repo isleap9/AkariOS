@@ -88,7 +88,8 @@ public sealed partial class IsoBuildOracleTests
                         AkariExe = ch.TryGetValue("AkariOS", out var ak) && ak is true ? f.MakeExe() : null,
                         Unattend = ch.TryGetValue("Unattend", out var u) ? System.Text.Encoding.UTF8.GetBytes((string)u) : null,
                     };
-                    var r = b.Build(choices, f.Progress);
+                    var r = b.Build(choices, f.Progress, f.Operations);
+                    f.Report = r.Report;
                     results.Add($"Action=Build;Ok={(r.Ok ? "true" : "false")};Path={f.Norm(r.Path ?? "")};Message={f.Norm(r.Message)}");
                     break;
                 case "Leftover":
