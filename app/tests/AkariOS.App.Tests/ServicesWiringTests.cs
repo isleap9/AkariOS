@@ -32,6 +32,7 @@ public sealed class ServicesWiringTests : IDisposable
         services.AddSingleton(t.Activity);
         services.AddSingleton<Core.Unattend.ISetupDrives>(t.Drives);
         services.AddSingleton<Core.Unattend.IPcRegion>(t.Region);
+        services.AddSingleton(t.IsoTools);
         return services.BuildServiceProvider();
     }
 
@@ -44,7 +45,8 @@ public sealed class ServicesWiringTests : IDisposable
 
     // made by another view model, never through DI: a card, Install AkariOS' steps and their parts
     private static readonly Type[] Parts = [typeof(TweakCardViewModel), typeof(TweaksStepViewModel), typeof(AppsStepViewModel), typeof(TweakSectionViewModel),
-        typeof(TweakCategoryViewModel), typeof(AppTableViewModel), typeof(RunItemViewModel), typeof(AppCardViewModel), typeof(UaSectionViewModel)];
+        typeof(TweakCategoryViewModel), typeof(AppTableViewModel), typeof(RunItemViewModel), typeof(AppCardViewModel), typeof(UaSectionViewModel),
+        typeof(IsoOptionViewModel), typeof(IsoGroupViewModel), typeof(ImageItemViewModel), typeof(ImageListViewModel)];
 
     [Fact]
     public void Every_view_model_resolves_without_the_window()

@@ -93,6 +93,13 @@ public partial class App : Application
                 MainWindow?.ApplyTheme(theme.CurrentTheme);
                 // every launch: the update check, once the window is up (on Home, an Available release asks)
                 Services.GetRequiredService<UpdateService>().Check(manual: false);
+                // a mount left by a build the app closed during: discarded in the background (Clear-AkariIsoLeftover)
+                if (Services.GetRequiredService<IsoTools>().Build is { } iso)
+                    _ = Task.Run(() =>
+                    {
+                        try { iso.ClearLeftover(); }
+                        catch (Exception e) { _log?.WriteFile($"Error: ISO Builder: leftover not cleared: {e.Message}"); }
+                    });
             }
             catch (Exception e)
             {
@@ -154,6 +161,10 @@ public partial class App : Application
         services.AddSingleton<Core.Unattend.ISetupDrives>(_ => new Core.Unattend.LiveSetupDrives());
         services.AddSingleton<Core.Unattend.IPcRegion>(sp => Core.Unattend.RegistryPcRegion.Live(sp.GetRequiredService<Engine>().Registry));
         services.AddSingleton<UnattendViewModel>();
+        // the ISO Builder: DISM, the hives, the ISO drive, UUP Dump and Massgrave (guarded: tests give their own)
+        services.AddSingleton(sp => IsoTools.Live(sp.GetRequiredService<Engine>()));
+        services.AddSingleton<ITimers>(new DispatcherTimers(queue!));
+        services.AddSingleton<IsoBuilderViewModel>();
         services.AddSingleton<ITextDialog>(_ => new ContentTextDialog(() => MainWindow?.Content?.XamlRoot));
         // One-click: Program runs the preset in a console once the window has closed
         services.AddSingleton(_ => new OneClickHandoff(p =>

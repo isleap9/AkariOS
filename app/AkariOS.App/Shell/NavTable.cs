@@ -8,7 +8,7 @@ public sealed record NavEntry(string Key, string Label, string Glyph, IReadOnlyL
     public NavEntry(string key, string label, string glyph) : this(key, label, glyph, []) { }
 }
 
-public enum NavPage { Home, Settings, Catalogue, Install, Downloads, RemoveApps, Unattend, Placeholder }
+public enum NavPage { Home, Settings, Catalogue, Install, Downloads, RemoveApps, Unattend, Iso, Placeholder }
 
 /// <summary>A search box suggestion: the Tweak's name, its Section › Category under it.</summary>
 public sealed record SearchSuggestion(Tweak Tweak)
@@ -80,16 +80,12 @@ public static class NavTable
             "Remove apps" => new(NavPage.RemoveApps, key, key, ""),
             // Open-AkariPage: 'Unattend Generator' is Install USB
             "Install USB" or "Unattend Generator" => new(NavPage.Unattend, "Install USB", "Install USB", ""),
+            "ISO Builder" => new(NavPage.Iso, key, key, ""),
             _ => new(NavPage.Placeholder, key, key, ""),
         };
     }
 
-    /// <summary>The batch of the WinUI 3 plan (docs/plans/2026-11-19-native-winui-3.md) that brings a page still to come.</summary>
-    public static string? ComingWith(string key) => key switch
-    {
-        "Home" or Settings or Install or "Downloads" or "Remove apps" or "Install USB" => null,
-        _ when key.StartsWith(Catalogue.Prefix, StringComparison.Ordinal) || key == "Optimize" => null,
-        "ISO Builder" => "W8",
-        _ => null,
-    };
+    /// <summary>The batch of the WinUI 3 plan (docs/plans/2026-11-19-native-winui-3.md) that brings a page still to come.
+    /// Every page is built now (W8 brought the last): none.</summary>
+    public static string? ComingWith(string key) => null;
 }

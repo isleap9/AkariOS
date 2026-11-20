@@ -14,6 +14,9 @@
     <Using Include="Xunit" />
     <!-- the repo's folders (the real Tweak files and lists) -->
     <Compile Include="..\AkariOS.Core.Tests\Repo.cs" Link="Shared\Repo.cs" />
+    <!-- the ISO Builder's cases and recording fakes (IsoFakes, DownloadFakes), and the test key they write under -->
+    <Compile Include="..\AkariOS.Core.Tests\IsoShared.cs" Link="Shared\IsoShared.cs" />
+    <Compile Include="..\AkariOS.Core.Tests\TestKey.cs" Link="Shared\TestKey.cs" />
     <ProjectReference Include="..\..\AkariOS.App\AkariOS.App.csproj" />
   </ItemGroup>
   <ItemGroup>

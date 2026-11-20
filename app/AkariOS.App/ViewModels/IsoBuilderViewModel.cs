@@ -1,0 +1,694 @@
+using System.Collections.ObjectModel;
+using AkariOS.App.Shell;
+using AkariOS.Core;
+using AkariOS.Core.Apps;
+using AkariOS.Core.Iso;
+using AkariOS.Core.Machine;
+using AkariOS.Core.Unattend;
+using AkariOS.Framework.Services;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Microsoft.UI.Xaml.Controls;
+
+namespace AkariOS.App.ViewModels;
+
+/// <summary>The ISO Builder's engine parts: the build and the downloads (null where there are none), and the exe an
+/// image gets as AkariOS (null for a developer build).</summary>
+public sealed record IsoTools(IsoBuild? Build, IsoDownload? Download, string? AkariExe)
+{
+    /// <summary>The real ones on the engine's parts: DISM, the hives, the ISO drive, UUP Dump and Massgrave; this exe
+    /// unless it is a developer build (Program's IsoBuild / IsoDownload in the WPF app).</summary>
+    public static IsoTools Live(Engine engine)
+    {
+        var tw = engine.Services;
+        var build = new IsoBuild(IsoParts.Live(engine.Files, engine.Registry, tw.Trusted!, tw.Exe!, tw.Http!, tw.Shortcuts!, engine.Log));
+        var download = new IsoDownload(IsoDownloadParts.Live(tw.Http!, tw.Exe!, engine.Log, engine.Registry));
+        return new(build, download, UpdateService.IsDeveloperBuild() ? null : Environment.ProcessPath);
+    }
+}
+
+/// <summary>One of zISO's options: ticked, or greyed while a picked one rules it out (Update-AkariIsoOptions).</summary>
+public sealed partial class IsoOptionViewModel(IsoOption option, Action changed) : ObservableObject
+{
+    public IsoOption Option { get; } = option;
+    public string Id => Option.Id;
+    public string Name => Option.Name;
+    public string Description => Option.Description;
+
+    [ObservableProperty]
+    public partial bool IsChecked { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsEnabled { get; set; } = true;
+
+    partial void OnIsCheckedChanged(bool value) => changed();
+}
+
+/// <summary>A card of options: 4 Windows Update, 5 Security and privacy, 6 Apps (its Owner set: it also lists the
+/// image's own apps and features, through the page's view model).</summary>
+public sealed record IsoGroupViewModel(string Group, string Title, IReadOnlyList<IsoOptionViewModel> Options, IsoBuilderViewModel? Owner)
+{
+    public bool HasLists => Owner is not null;
+}
+
+/// <summary>A row of one of the image's lists: its label, the name removed, ticked.</summary>
+public sealed partial class ImageItemViewModel(string label, string value) : ObservableObject
+{
+    public string Label { get; } = label;
+    public string Value { get; } = value;
+
+    [ObservableProperty]
+    public partial bool IsChecked { get; set; }
+}
+
+/// <summary>One of the image's four lists (Store apps, Optional features, Windows features, OS packages): hidden until
+/// the image is read, its heading with the count.</summary>
+public sealed partial class ImageListViewModel(string kind, string title) : ObservableObject
+{
+    public string Kind { get; } = kind;
+    public string Title { get; } = title;
+
+    public ObservableCollection<ImageItemViewModel> Items { get; } = [];
+
+    [ObservableProperty]
+    public partial bool Shown { get; private set; }
+
+    [ObservableProperty]
+    public partial string Heading { get; private set; } = "";
+
+    public void Set(IEnumerable<(string Label, string Value)> items)
+    {
+        Items.Clear();
+        foreach (var (label, value) in items.OrderBy(i => i.Label, StringComparer.CurrentCultureIgnoreCase)) Items.Add(new(label, value));
+        Heading = $"{Title} ({Items.Count})";
+        Shown = true;
+    }
+
+    public void Reset()
+    {
+        Items.Clear();
+        Heading = "";
+        Shown = false;
+    }
+
+    public string[] Ticked() => [.. Items.Where(i => i.IsChecked).Select(i => i.Value)];
+}
+
+/// <summary>
+/// The ISO Builder (src/UI/IsoBuilder.ps1): a custom Windows 11 ISO after zoicware's zISO Tweaker, one page in zISO's
+/// order: 1 the ISO (a file, UUP Dump, Massgrave), the work and output folder, Open ISO; 2 the edition; 3 the answer
+/// file; 4-6 zISO's options by Group, 6 also the image's own lists; 7 AkariOS; Build. One per app. Every slow step is a
+/// job through <see cref="IBackground"/>, one at a time (Start-AkariIsoJob): the long ones (Open, Read, Build, the UUP
+/// download) lock the shell, so Optimize's changes and Downloads' installs wait, and are refused while anything else
+/// runs; the questions to a website (UUP Dump's lists, Massgrave's) don't.
+/// </summary>
+public sealed partial class IsoBuilderViewModel : ObservableObject
+{
+    public const string Title = "ISO Builder";
+
+    /// <summary>The jobs that lock the shell (closing names them, a half-built image is discarded at the next launch).</summary>
+    public static IReadOnlyList<string> LongJobs { get; } = ["IsoOpen", "IsoRead", "IsoBuild", "IsoUup"];
+
+    private static readonly (string Group, string Title)[] GroupTitles =
+        [("Update", "4  Windows Update"), ("Security", "5  Security and privacy"), ("Apps", "6  Apps")];
+
+    public const string MassgraveHint = "Massgrave's links go to file hosts AkariOS can't download from: your browser does, then AkariOS finds the file in Downloads.";
+
+    private readonly Engine _engine;
+    private readonly IsoTools _tools;
+    private readonly IBackground _background;
+    private readonly IDialogService _dialogs;
+    private readonly ShellState _shell;
+    private readonly IFilePicker _picker;
+    private readonly IShellOpen _open;
+    private readonly ITimers _timers;
+    private readonly CatalogueViewModel _catalogue;
+    private readonly UnattendViewModel _unattend;
+    private readonly IShellNavigator _navigator;
+
+    private IReadOnlyList<IsoOption>? _options;
+    private IReadOnlyList<IsoGroupViewModel>? _groups;
+    private BusyWork? _busy;
+    private string _label = "";
+    private bool _filling;
+    private string _image = "";
+    private IReadOnlyList<IsoEdition> _editions = [];
+    private IReadOnlyList<ImageApp>? _imageApps;
+    private UupBuild? _uupBuild;
+    private IReadOnlyList<UupLanguage> _uupLangs = [];
+    private IReadOnlyList<UupTarget> _uupTargets = [];
+    private IReadOnlyList<MassgraveIso> _massgrave = [];
+    private IReadOnlyList<MassgraveIso> _mgFiles = [];
+    private string _waiting = "";
+    private IDisposable? _watch;
+
+    public IsoBuilderViewModel(Engine engine, IsoTools tools, IBackground background, IDialogService dialogs, ShellState shell, IFilePicker picker,
+        IShellOpen open, ITimers timers, CatalogueViewModel catalogue, UnattendViewModel unattend, IShellNavigator navigator)
+    {
+        (_engine, _tools, _background, _dialogs, _shell, _picker, _open, _timers, _catalogue, _unattend, _navigator) =
+            (engine, tools, background, dialogs, shell, picker, open, timers, catalogue, unattend, navigator);
+        try { OutDir = UserFolders.Get(engine.Registry, "Downloads") ?? ""; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException or InvalidOperationException) { OutDir = ""; }
+        if (tools.AkariExe is null)
+        {
+            AkariOS = false;
+            AkariOSEnabled = false;
+            AkariOSNote = "Not in a developer build: only the published AkariOS-Native.exe can be copied into the image.";
+        }
+    }
+
+    private IReadOnlyList<IsoOption> Options => _options ??= IsoData.Options(_engine.Files);
+
+    // ---- the job (Start-AkariIsoJob, Complete-AkariIsoJob)
+
+    /// <summary>The running job's kind (IsoOpen, IsoRead, IsoBuild, IsoUup, IsoUupList, IsoMassgrave), else null.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Running), nameof(Working), nameof(Idle))]
+    public partial string? Job { get; private set; }
+
+    public bool Running => Job is not null;
+    public bool Idle => Job is null;
+
+    /// <summary>One of the long jobs runs (the shell is locked meanwhile).</summary>
+    public bool Working => Job is not null && LongJobs.Contains(Job);
+
+    /// <summary>Starts a job unless the ISO Builder or (for a long one) anything else is working: its label in the log
+    /// and on the busy toast, the work in the background, then <paramref name="done"/> with the job cleared.</summary>
+    private async Task<bool> StartAsync(string kind, string label, Func<object?> work, Action<object?> done)
+    {
+        var isLong = LongJobs.Contains(kind);
+        if (Job is not null)
+        {
+            await _dialogs.ShowInfoAsync(Title, $"The ISO Builder is still working ({_label}). Try again when it is done.");
+            return false;
+        }
+        if (isLong && (_shell.IsBusy || _shell.Locked || _catalogue.Running))
+        {
+            await _dialogs.ShowInfoAsync(Title, "Wait until the changes running now are done, then try again.");
+            return false;
+        }
+        Job = kind;
+        _label = label;
+        if (isLong) _shell.Locked = true;
+        _busy = _shell.Begin(label);
+        _engine.Log.Write(label);
+        _background.Run(work, r =>
+        {
+            Job = null;
+            _shell.End(_busy);
+            _busy = null;
+            if (isLong) _shell.Locked = false;
+            done(r);
+        });
+        return true;
+    }
+
+    // ---- 1 the ISO
+
+    /// <summary>The ISO's source: File, Uup or Massgrave (Massgrave's list is read the first time).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFile), nameof(IsUup), nameof(IsMassgrave))]
+    public partial string Source { get; set; } = "File";
+
+    public bool IsFile { get => Source == "File"; set { if (value) Source = "File"; } }
+    public bool IsUup { get => Source == "Uup"; set { if (value) Source = "Uup"; } }
+    public bool IsMassgrave { get => Source == "Massgrave"; set { if (value) Source = "Massgrave"; } }
+
+    partial void OnSourceChanged(string value)
+    {
+        if (value == "Massgrave" && _massgrave.Count == 0 && Job != "IsoMassgrave") _ = MassgraveListAsync();
+    }
+
+    [ObservableProperty]
+    public partial string IsoPath { get; set; } = "";
+
+    /// <summary>The work and output folder (the real user's Downloads at first).</summary>
+    [ObservableProperty]
+    public partial string OutDir { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string OpenNote { get; private set; } = "";
+
+    [RelayCommand]
+    public async Task PickIsoAsync()
+    {
+        if (await _picker.OpenIsoAsync() is { } f) IsoPath = f;
+    }
+
+    [RelayCommand]
+    public async Task PickFolderAsync()
+    {
+        if (await _picker.FolderAsync() is { } f) OutDir = f;
+    }
+
+    /// <summary>Open ISO (Start-AkariIsoOpen): copied to the work folder, its editions read.</summary>
+    [RelayCommand]
+    public async Task OpenIsoAsync()
+    {
+        BuildError = "";
+        var iso = IsoPath.Trim();
+        var outDir = OutDir.Trim();
+        if (iso.Length == 0 || !File.Exists(iso)) { OpenNote = "Pick an ISO file first (or download one above)."; return; }
+        if (outDir.Length == 0) { OpenNote = "Pick a work and output folder."; return; }
+        if (_tools.Build is not { } build) { OpenNote = "Not opened: the ISO Builder isn't available here."; return; }
+        await StartAsync("IsoOpen", "Copying the ISO and reading its editions", () =>
+        {
+            try { return build.Open(iso, outDir); }
+            catch (Exception e) { return e.Message; }
+        }, r =>
+        {
+            if (r is not IsoSource src) { OpenNote = $"Not opened: {r as string ?? "see the log"}"; return; }
+            _image = src.Image;
+            ResetLists();
+            _editions = [.. src.Editions.Where(e => e.Supported)];
+            Editions = [.. _editions.Select(e => $"{e.Name} ({e.Version})")];
+            EditionIndex = _editions.Count > 0 ? 0 : -1;
+            OpenNote = $"Opened: {_editions.Count} Windows 11 editions.";
+        });
+    }
+
+    // a downloaded ISO becomes the source: "An ISO file I have", ready to open (Set-AkariIsoSource)
+    private void SetSource(string path, string note)
+    {
+        IsoPath = path;
+        Source = "File";
+        OpenNote = $"{note}. Press Open ISO.";
+        _engine.Log.Write($"ISO Builder: {note}");
+    }
+
+    // ---- UUP Dump
+
+    public IReadOnlyList<string> UupVersions { get; } = [.. Uup.Versions.Select(v => $"Windows 11 {v.Version}")];
+
+    [ObservableProperty]
+    public partial int UupVersionIndex { get; set; } = -1;
+
+    [ObservableProperty]
+    public partial IReadOnlyList<string> UupLanguages { get; private set; } = [];
+
+    [ObservableProperty]
+    public partial int UupLanguageIndex { get; set; } = -1;
+
+    [ObservableProperty]
+    public partial IReadOnlyList<string> UupEditions { get; private set; } = [];
+
+    [ObservableProperty]
+    public partial int UupEditionIndex { get; set; } = -1;
+
+    [ObservableProperty]
+    public partial string UupNote { get; private set; } = "Pick a version. UUP Dump builds the ISO from Microsoft's own files: allow 20 to 60 minutes.";
+
+    public string UupLanguage => Pick(_uupLangs, UupLanguageIndex)?.Name ?? "";
+    public string UupEdition => Pick(_uupTargets, UupEditionIndex)?.Label ?? "";
+
+    private static T? Pick<T>(IReadOnlyList<T> list, int i) where T : class => i >= 0 && i < list.Count ? list[i] : null;
+
+    private string? UupVersion => UupVersionIndex >= 0 && UupVersionIndex < Uup.Versions.Count ? Uup.Versions[UupVersionIndex].Version : null;
+
+    partial void OnUupVersionIndexChanged(int value)
+    {
+        if (!_filling) _ = UupVersionPickedAsync();
+    }
+
+    partial void OnUupLanguageIndexChanged(int value)
+    {
+        if (!_filling) _ = UupEditionsAsync();
+    }
+
+    // a version picked: its newest build and languages (en-us picked), then its editions
+    private async Task UupVersionPickedAsync()
+    {
+        if (UupVersion is not { } v || _tools.Download is not { } dl) return;
+        SetLanguages([]);
+        SetTargets([]);
+        await StartAsync("IsoUupList", $"Asking UUP Dump for Windows 11 {v}", () =>
+        {
+            var b = dl.Build(v);
+            return (b, b.Ok ? dl.Languages(b.Value!.Id) : null);
+        }, r =>
+        {
+            if (r is not ValueTuple<UupAnswer<UupBuild>, UupAnswer<IReadOnlyList<UupLanguage>>?> (var b, var langs)) { UupNote = "UUP Dump could not be asked: see the log."; return; }
+            if (!b.Ok) { UupNote = b.Message; return; }
+            _uupBuild = b.Value;
+            if (langs is not { Ok: true }) { UupNote = langs?.Message ?? ""; return; }
+            UupNote = $"{b.Value!.Title}. Pick a language and an edition.";
+            var list = langs.Value!.OrderBy(l => l.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+            SetLanguages(list, Math.Max(0, list.FindIndex(l => l.Code == "en-us")));
+            _ = UupEditionsAsync();
+        });
+    }
+
+    private void SetLanguages(IReadOnlyList<UupLanguage> list, int pick = -1)
+    {
+        _filling = true;
+        try
+        {
+            _uupLangs = list;
+            UupLanguages = [.. list.Select(l => l.Name)];
+            UupLanguageIndex = list.Count > 0 ? pick : -1;
+        }
+        finally { _filling = false; }
+    }
+
+    private void SetTargets(IReadOnlyList<UupTarget> list, int pick = -1)
+    {
+        _uupTargets = list;
+        UupEditions = [.. list.Select(t => t.Label)];
+        UupEditionIndex = list.Count > 0 ? pick : -1;
+    }
+
+    // a language picked: its editions (Pro picked)
+    private async Task UupEditionsAsync()
+    {
+        if (Pick(_uupLangs, UupLanguageIndex) is not { } lang || _uupBuild is not { } build || _tools.Download is not { } dl) return;
+        await StartAsync("IsoUupList", "Asking UUP Dump for its editions", () => dl.Editions(build.Id, lang.Code), r =>
+        {
+            if (r is not UupAnswer<IReadOnlyList<UupTarget>> e) { UupNote = "UUP Dump could not be asked: see the log."; return; }
+            if (!e.Ok) { UupNote = e.Message; return; }
+            var list = e.Value!.ToList();
+            SetTargets(list, Math.Max(0, list.FindIndex(t => t.Label == "Pro")));
+        });
+    }
+
+    /// <summary>Download (Start-AkariUupDownload): asked first, then UUP Dump's converter builds the ISO; it becomes the
+    /// source.</summary>
+    [RelayCommand]
+    public async Task UupDownloadAsync()
+    {
+        var (v, lang, t) = (UupVersion, Pick(_uupLangs, UupLanguageIndex), Pick(_uupTargets, UupEditionIndex));
+        if (v is null || lang is null || t is null || _uupBuild is not { } build) { UupNote = "Pick a version, a language and an edition first."; return; }
+        var outDir = OutDir.Trim();
+        if (outDir.Length == 0) { UupNote = "Pick a work and output folder below first."; return; }
+        if (_tools.Download is not { } dl) return;
+        var q = $"Download Windows 11 {v} {t.Label} ({lang.Name}) with UUP Dump?\n\nIt downloads several GB from Microsoft and builds the ISO: allow 20 to 60 minutes. AkariOS can't be used meanwhile.";
+        if (!await _dialogs.ConfirmAsync("Download with UUP Dump?", q, "Download")) return;
+        await StartAsync("IsoUup", $"Downloading Windows 11 {v} {t.Label}", () => dl.SaveUup(v, build, lang.Code, t, outDir), r =>
+        {
+            if (r is IsoResult { Ok: true, Path: { } path })
+            {
+                SetSource(path, $"Downloaded: {path}");
+                _shell.Toast("Windows 11 downloaded", path);
+            }
+            else
+            {
+                UupNote = $"Not downloaded: {(r as IsoResult)?.Message ?? "see the log"}";
+                _shell.Toast("Not downloaded", (r as IsoResult)?.Message ?? "See the log.", InfoBarSeverity.Error);
+            }
+        });
+    }
+
+    // ---- Massgrave
+
+    [ObservableProperty]
+    public partial IReadOnlyList<string> MassgraveProducts { get; private set; } = [];
+
+    [ObservableProperty]
+    public partial int MassgraveProductIndex { get; set; } = -1;
+
+    [ObservableProperty]
+    public partial IReadOnlyList<string> MassgraveFiles { get; private set; } = [];
+
+    [ObservableProperty]
+    public partial int MassgraveFileIndex { get; set; } = -1;
+
+    [ObservableProperty]
+    public partial string MassgraveNote { get; private set; } = MassgraveHint;
+
+    partial void OnMassgraveProductIndexChanged(int value)
+    {
+        if (value < 0 || value >= MassgraveProducts.Count) return;
+        _mgFiles = Massgrave.Files(_massgrave, MassgraveProducts[value]);
+        MassgraveFiles = [.. _mgFiles.Select(f => f.Language)];
+        MassgraveFileIndex = _mgFiles.Count > 0 ? 0 : -1;
+    }
+
+    private async Task MassgraveListAsync()
+    {
+        if (_tools.Download is not { } dl) return;
+        MassgraveNote = "Reading Massgrave's list…";
+        await StartAsync("IsoMassgrave", "Reading Massgrave's list", () => dl.Catalogue(), r =>
+        {
+            if (r is not UupAnswer<IReadOnlyList<MassgraveIso>> c) { MassgraveNote = "Massgrave's list could not be read: see the log."; return; }
+            if (!c.Ok) { MassgraveNote = c.Message; return; }
+            _massgrave = c.Value!;
+            MassgraveProducts = Massgrave.Products(_massgrave);
+            MassgraveProductIndex = -1;
+            MassgraveProductIndex = MassgraveProducts.Count > 0 ? 0 : -1;
+            MassgraveNote = "Pick an ISO and open its page. " + MassgraveHint;
+        });
+    }
+
+    /// <summary>Opens the chosen file's page in the browser, then looks for it in Downloads every 3 seconds.</summary>
+    [RelayCommand]
+    public void OpenMassgravePage()
+    {
+        if (Pick(_mgFiles, MassgraveFileIndex) is not { } f) return;
+        _open.Url(f.Url);
+        _waiting = f.File;
+        MassgraveNote = $"Waiting for {f.File} in Downloads… (download it in the browser that just opened)";
+        _watch ??= _timers.Every(TimeSpan.FromSeconds(3), CheckDownload);
+    }
+
+    private void CheckDownload()
+    {
+        if (_waiting.Length == 0 || _tools.Download is not { } dl) { StopWatch(); return; }
+        if (dl.FindDownloaded(_waiting) is not { } hit) return;
+        StopWatch();
+        _waiting = "";
+        SetSource(hit, $"Downloaded: {hit}");
+        _shell.Toast("ISO found in Downloads", hit, InfoBarSeverity.Informational);
+    }
+
+    private void StopWatch()
+    {
+        _watch?.Dispose();
+        _watch = null;
+    }
+
+    // ---- 2 the edition
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EditionEnabled))]
+    public partial IReadOnlyList<string> Editions { get; private set; } = [];
+
+    [ObservableProperty]
+    public partial int EditionIndex { get; set; } = -1;
+
+    public bool EditionEnabled => Editions.Count > 0;
+
+    private IsoEdition? Edition => _image.Length > 0 ? Pick(_editions, EditionIndex) : null;
+
+    // ---- 3 the answer file
+
+    /// <summary>None, Local or Generator.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AnswerNone), nameof(AnswerLocal), nameof(AnswerGenerator))]
+    public partial string Answer { get; set; } = "Local";
+
+    public bool AnswerNone { get => Answer == "None"; set { if (value) Answer = "None"; } }
+    public bool AnswerLocal { get => Answer == "Local"; set { if (value) Answer = "Local"; } }
+    public bool AnswerGenerator { get => Answer == "Generator"; set { if (value) Answer = "Generator"; } }
+
+    [ObservableProperty]
+    public partial bool SkipOobe { get; set; } = true;
+
+    [ObservableProperty]
+    public partial string User { get; set; } = "Admin";
+
+    [ObservableProperty]
+    public partial string Password { get; set; } = "";
+
+    [RelayCommand]
+    public void OpenUnattend() => _navigator.Open("Install USB");
+
+    // ---- 4-6 the options
+
+    public IReadOnlyList<IsoGroupViewModel> Groups => _groups ??=
+        [.. GroupTitles.Select(g => new IsoGroupViewModel(g.Group, g.Title,
+            [.. Options.Where(o => o.Group == g.Group).Select(o => new IsoOptionViewModel(o, UpdateOptions))], g.Group == "Apps" ? this : null))];
+
+    private IEnumerable<IsoOptionViewModel> AllOptions => Groups.SelectMany(g => g.Options);
+
+    public IsoOptionViewModel Option(string id) => AllOptions.Single(o => string.Equals(o.Id, id, StringComparison.OrdinalIgnoreCase));
+
+    private bool _updating;
+
+    // options that rule each other out: the other one unticked and greyed (Update-AkariIsoOptions)
+    private void UpdateOptions()
+    {
+        if (_updating) return;
+        _updating = true;
+        try
+        {
+            var blocked = IsoData.Blocked(PickedOptions(), Options);
+            foreach (var o in AllOptions)
+            {
+                var off = blocked.Contains(o.Id, StringComparer.OrdinalIgnoreCase);
+                if (off) o.IsChecked = false;
+                o.IsEnabled = !off;
+            }
+        }
+        finally { _updating = false; }
+    }
+
+    private string[] PickedOptions() => [.. AllOptions.Where(o => o.IsChecked).Select(o => o.Id)];
+
+    // ---- 6 the image's lists
+
+    public IReadOnlyList<ImageListViewModel> Lists { get; } =
+        [new("Apps", "Store apps"), new("Capabilities", "Optional features"), new("Features", "Windows features"), new("Packages", "OS packages (advanced)")];
+
+    public ImageListViewModel List(string kind) => Lists.Single(l => l.Kind == kind);
+
+    [ObservableProperty]
+    public partial string ListNote { get; private set; } = "Open the ISO first: the lists come from the edition itself (mounting it takes a few minutes).";
+
+    private sealed record ImageLists(IReadOnlyList<ImageApp> Apps, IReadOnlyList<DismItem> Capabilities, IReadOnlyList<DismItem> Features, IReadOnlyList<DismItem> Packages);
+
+    /// <summary>Read the image's apps (Start-AkariIsoRead): the edition mounted, its four lists read.</summary>
+    [RelayCommand]
+    public async Task ReadImageAsync()
+    {
+        if (Edition is not { } ed) { ListNote = "Open the ISO and pick an edition first."; return; }
+        if (_tools.Build is not { } build) return;
+        var outDir = OutDir.Trim();
+        var image = _image;
+        await StartAsync("IsoRead", $"Reading the apps in {ed.Name}", () =>
+        {
+            try
+            {
+                var w = IsoWork.Of(outDir);
+                build.MountEdition(w, image, ed.Index);
+                return new ImageLists(build.Apps(w.Mount), build.Capabilities(w.Mount),
+                    [.. build.Features(w.Mount).Where(f => !f.State.Contains("Disabled", StringComparison.OrdinalIgnoreCase))], build.Packages(w.Mount));
+            }
+            catch (Exception e) { return e.Message; }
+        }, r =>
+        {
+            if (r is not ImageLists l) { ListNote = $"Not read: {r as string ?? "see the log"}"; return; }
+            _imageApps = l.Apps;
+            List("Apps").Set(l.Apps.Select(a => (a.Name, a.Package)));
+            List("Capabilities").Set(l.Capabilities.Select(c => (c.Name, c.Name)));
+            List("Features").Set(l.Features.Select(f => (f.Name, f.Name)));
+            List("Packages").Set(l.Packages.Select(p => (p.Name, p.Name)));
+            ListNote = "Tick what to remove. Frameworks are left out of the list (apps need them).";
+        });
+    }
+
+    private void ResetLists()
+    {
+        _imageApps = null;
+        foreach (var l in Lists) l.Reset();
+    }
+
+    /// <summary>Select recommended: the image's apps Win11Debloat rates Safe that aren't on FR33THY's keep-list.</summary>
+    [RelayCommand]
+    public void SelectRecommended()
+    {
+        if (_imageApps is null) { ListNote = "Read the image's apps first."; return; }
+        var rec = IsoPlan.Recommended(_imageApps, _engine.Loaded.Tweaks.Select(t => (t.Id, (string?)t.Risk.ToString(), t.Keep))).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var i in List("Apps").Items) i.IsChecked = rec.Contains(i.Value);
+    }
+
+    [RelayCommand]
+    public void ClearLists()
+    {
+        foreach (var i in Lists.SelectMany(l => l.Items)) i.IsChecked = false;
+    }
+
+    // ---- 7 AkariOS
+
+    [ObservableProperty]
+    public partial bool AkariOS { get; set; } = true;
+
+    public bool AkariOSEnabled { get; } = true;
+
+    public string AkariOSNote { get; } = "";
+
+    public bool HasAkariOSNote => AkariOSNote.Length > 0;
+
+    // ---- Build
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasBuildError))]
+    public partial string BuildError { get; private set; } = "";
+
+    public bool HasBuildError => BuildError.Length > 0;
+
+    /// <summary>The ISO built ("" = none yet): the page offers its folder.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasResult))]
+    public partial string ResultPath { get; private set; } = "";
+
+    public bool HasResult => ResultPath.Length > 0;
+
+    [RelayCommand]
+    public void OpenOutFolder() => _open.Folder(OutDir.Trim());
+
+    /// <summary>Build ISO (Start-AkariIsoBuild): the choices checked, the answer file made, asked, then built with its
+    /// steps on the busy toast; done = a toast with Open folder.</summary>
+    [RelayCommand]
+    public async Task BuildAsync()
+    {
+        BuildError = "";
+        ResultPath = "";
+        if (Edition is not { } ed) { BuildError = "Open the ISO and pick an edition first (step 1 and 2)."; return; }
+        if (_tools.Build is not { } build) return;
+        var picked = PickedOptions();
+        if (IsoData.Check(picked, Options) is { } bad) { BuildError = bad; return; }
+        byte[]? answer = null;
+        try
+        {
+            if (Answer == "Local") answer = UnattendFile.Make(IsoPlan.AnswerFields(_unattend.Start(), User, Password, SkipOobe));
+            else if (Answer == "Generator")
+            {
+                var (bytes, error) = await _unattend.IsoAnswerAsync();
+                if (bytes is null)
+                {
+                    if (error is not null) BuildError = $"The Unattend Generator's choices have a problem: {error}";
+                    return;
+                }
+                answer = bytes;
+            }
+        }
+        catch (UnattendException e) { BuildError = $"The answer file could not be made: {e.Message}"; return; }
+        var outDir = OutDir.Trim();
+        var iso = IsoPath.Trim();
+        var lists = Lists.ToDictionary(l => l.Kind, l => l.Ticked());
+        var choices = new IsoChoices
+        {
+            OutDir = outDir, Iso = iso, Image = _image, Index = ed.Index, Edition = ed.Name, Options = picked,
+            Apps = lists["Apps"], Capabilities = lists["Capabilities"], Features = lists["Features"], Packages = lists["Packages"],
+            AkariExe = AkariOS ? _tools.AkariExe : null, Unattend = answer,
+        };
+        var name = IsoPlan.OutName(iso);
+        var n = lists.Values.Sum(l => l.Length);
+        var q = $"Build {name} from {ed.Name}?\n\n{picked.Length} options, {n} apps and features to remove. It takes 20 to 40 minutes and AkariOS can't be used meanwhile.";
+        if (!await _dialogs.ConfirmAsync("Build the ISO?", q, "Build ISO")) return;
+        var progress = new PostedProgress(_background, p => { if (_busy is { } b) _shell.Report(b, p); });
+        await StartAsync("IsoBuild", $"Building {name}", () =>
+        {
+            try { return build.Build(choices, progress); }
+            catch (Exception e) { return new IsoResult(false, null, e.Message); }
+        }, r =>
+        {
+            if (r is IsoResult { Ok: true, Path: { } path })
+            {
+                ResultPath = path;
+                _image = "";
+                ResetLists();
+                _editions = [];
+                Editions = [];
+                EditionIndex = -1;
+                OpenNote = "The work folder was removed: open the ISO again to build another.";
+                _shell.Toast("Your ISO is ready", path, InfoBarSeverity.Success, "Open folder", OpenOutFolder);
+            }
+            else
+            {
+                var why = (r as IsoResult)?.Message ?? "see the log";
+                BuildError = $"Not built: {why}";
+                _shell.Toast("ISO not built", why, InfoBarSeverity.Error);
+            }
+        });
+    }
+}

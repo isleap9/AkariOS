@@ -42,7 +42,7 @@ WPF views to ADR 0008's look, the native app's UI is rebuilt on WinUI 3 and the 
 | W5 | Downloads (the PowerShell app's card grid: categories, search, Install queued one app at a time with no restore point, Installed / Failed on the card, Uninstall from an installed card's menu, Update all apps, what is installed read once a session) and Remove apps (the four lists one at a time, Remove (n): one Run after the restore point, rows go as it passes them, the lists read again); app icons (bundled `src/Assets/Apps`, an installed Store app's logo, black-or-white ones tinted, else a glyph) on Guided's Apps step too | done 2026-11-20 |
 | W6 | Dialogs and toasts everywhere: `AkariDialogs` (ContentDialog: main action accent and first, "- " lines a list) for every confirmation (Advanced, Safe Mode's Restart and apply / Later / Cancel, critical services, One-click); result toasts (Guided run with Restart now, Downloads' install / uninstall / update all, Remove apps, Export with Open folder, Import, Waiting for Safe Mode), stacked at the bottom right; the busy toast with each page's own work and its progress ("n of m"); one closing question naming everything running or waiting (`ClosingGuard`) | done 2026-11-20 |
 | W7 | Install USB (the Unattend Generator form on `UnattendForm`): the drive bar (setup USB found, Refresh, Save to a folder…, Save to USB), his check under it, Open file… / Reset to defaults (asks), his sections as Expanders saying "Default" / "Changed from the default", the questions before a disk wipe, a drive without setup, an existing file; `IsoAnswerAsync` for W8 | done 2026-11-20 |
-| W8 | ISO Builder | |
+| W8 | ISO Builder (zISO's cards on `IsoBuilderViewModel`: the ISO from a file, UUP Dump or Massgrave (Downloads watched every 3 s), the work folder, Open ISO; the edition; the answer file (none, a local account, Install USB's choices); the options greying what they rule out; the image's four lists; AkariOS (off in a developer build); Build with its steps on the busy toast, done as a toast with Open folder). The long jobs lock the shell; a leftover mount is cleared on launch | done 2026-11-20 |
 | W9 | Release: `release.yml` publishes `AkariOS-Native.exe` again, ProductVersion check; VM check on Windows 10 22H2 and 11 24H2 (elevated, 100 % and 150 %) | |
 
 ## Notes
@@ -85,3 +85,11 @@ WPF views to ADR 0008's look, the native app's UI is rebuilt on WinUI 3 and the 
   the bloatware list and 15-row tables would otherwise slow the first visit).
 - Downloads and Remove apps follow the PowerShell app's current pages (cards that install right away; Remove (n)),
   not the WPF app's table flows with their own Review step.
+- ISO Builder (W8): its long jobs (Open ISO, Read the image's apps, Build, the UUP download) set `ShellState.Locked`,
+  the W6 rule for a Run: Optimize's changes and Downloads' installs made meanwhile wait and run when the job ends (the
+  WPF app refused them). Install AkariOS, Remove apps, One-click and the update are refused while the shell is busy, as
+  for any work; Restart now (the Catalogue's bar) is refused while locked. UUP Dump's and Massgrave's lists only ask a
+  website: they don't lock and run beside other work. One ISO job at a time.
+- The Massgrave watch is an `ITimers` (a DispatcherQueueTimer; tests tick a fake by hand), not a timer in the view.
+- An option ruled out is greyed, so a click can't tick two that exclude each other: test option rules with the clicks
+  the page allows (ticking a greyed one in a test clears both, as Update-AkariIsoOptions does).

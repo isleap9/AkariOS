@@ -55,6 +55,15 @@ internal sealed record AppTest(Engine Engine, CatalogueViewModel Catalogue, Shel
     private UnattendViewModel? _unattend;
     public UnattendViewModel Unattend => _unattend ??= new UnattendViewModel(Engine, Dialogs, Picker, Open, Shell, Drives, Region);
 
+    /// <summary>The ISO Builder's engine parts (none until AppHarness.Iso / Downloads put the recording fakes in) and its
+    /// timers (ticked by hand).</summary>
+    public IsoTools IsoTools { get; set; } = new(null, null, null);
+    public AppHarness.FakeTimers Timers { get; } = new();
+
+    private IsoBuilderViewModel? _iso;
+    public IsoBuilderViewModel Iso => _iso ??= new IsoBuilderViewModel(Engine, IsoTools, Work, Dialogs, Shell, Picker, Open, Timers, Catalogue, Unattend,
+        new Navigator(Navigated));
+
     /// <summary>The window's closing question.</summary>
     public ClosingGuard Closing => new(Shell, Downloads, Catalogue, Dialogs);
 
@@ -116,6 +125,7 @@ internal sealed class AppHarness : IDisposable
 
     public void Dispose()
     {
+        foreach (var side in _sides) side.Dispose();
         using var hkcu = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, RegistryView.Registry64);
         hkcu.DeleteSubKeyTree(_root, throwOnMissingSubKey: false);
         if (Directory.Exists(Dir)) Directory.Delete(Dir, recursive: true);
@@ -177,6 +187,13 @@ internal sealed class AppHarness : IDisposable
         {
             if (Hold) Held.Enqueue(() => done(work()));
             else done(work());
+        }
+
+        /// <summary>Runs the held work (and any it starts), with Hold off.</summary>
+        public void Release()
+        {
+            Hold = false;
+            while (Held.TryDequeue(out var run)) run();
         }
 
         public void Post(Action action) => action();
@@ -304,11 +321,66 @@ internal sealed class AppHarness : IDisposable
         public string? OpenPath { get; set; }
         public string? XmlPath { get; set; }
         public string? FolderPath { get; set; }
+        public string? IsoPath { get; set; }
         public List<string> Suggested { get; } = [];
         public Task<string?> SaveJsonAsync(string suggestedName) { Suggested.Add(suggestedName); return Task.FromResult(SavePath); }
         public Task<string?> OpenJsonAsync() => Task.FromResult(OpenPath);
         public Task<string?> OpenXmlAsync() => Task.FromResult(XmlPath);
         public Task<string?> FolderAsync() => Task.FromResult(FolderPath);
+        public Task<string?> OpenIsoAsync() => Task.FromResult(IsoPath);
+    }
+
+    /// <summary>The timers started (the Massgrave watch): Tick calls every one still running.</summary>
+    internal sealed class FakeTimers : ITimers
+    {
+        private readonly List<Timer> _all = [];
+
+        public sealed class Timer(TimeSpan interval, Action tick) : IDisposable
+        {
+            public TimeSpan Interval { get; } = interval;
+            public Action OnTick { get; } = tick;
+            public bool Stopped { get; private set; }
+            public void Dispose() => Stopped = true;
+        }
+
+        public IReadOnlyList<Timer> All => _all;
+
+        public IDisposable Every(TimeSpan interval, Action tick)
+        {
+            var t = new Timer(interval, tick);
+            _all.Add(t);
+            return t;
+        }
+
+        public void Tick()
+        {
+            foreach (var t in _all.Where(t => !t.Stopped).ToList()) t.OnTick();
+        }
+    }
+
+    private readonly List<IDisposable> _sides = [];
+
+    /// <summary>The ISO Builder's engine on the Core tests' recording fakes (IsoShared.cs): a case's ISO drive,
+    /// output folder and test key, kept until the harness is disposed. The ISO file is the side's Win11.iso.</summary>
+    public (Core.Tests.IsoBuildOracleTests.Side Side, Core.Tests.IsoFakes Fakes) Iso(AppTest t, Dictionary<string, object>? c = null, string? akariExe = null)
+    {
+        c ??= Core.Tests.IsoBuildOracleTests.Case();
+        var side = new Core.Tests.IsoBuildOracleTests.Side(c);
+        _sides.Add(side);
+        File.WriteAllText(Path.Combine(side.Root, "Win11.iso"), "iso");
+        var f = new Core.Tests.IsoFakes(side, c);
+        t.IsoTools = t.IsoTools with { Build = new Core.Iso.IsoBuild(f.Parts with { Log = t.Engine.Log }), AkariExe = akariExe };
+        return (side, f);
+    }
+
+    /// <summary>The ISO Builder's downloads on the Core tests' recording fakes: a case's answers, its own folders.</summary>
+    public (Core.Tests.IsoDownloadOracleTests.Side Side, Core.Tests.DownloadFakes Fakes) Downloads(AppTest t, Dictionary<string, object> c)
+    {
+        var side = new Core.Tests.IsoDownloadOracleTests.Side(c);
+        _sides.Add(side);
+        var f = new Core.Tests.DownloadFakes(side.Root, c);
+        t.IsoTools = t.IsoTools with { Download = new Core.Iso.IsoDownload(f.Parts with { Log = t.Engine.Log }) };
+        return (side, f);
     }
 
     /// <summary>The drives a setup file can go on (the test's temp folders as roots); Fail = the read fails.</summary>

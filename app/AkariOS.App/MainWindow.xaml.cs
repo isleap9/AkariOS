@@ -118,6 +118,7 @@ public sealed partial class MainWindow : Window, IShellNavigator
             case NavPage.Downloads: _navigation.NavigateTo<DownloadsPage>(); break;
             case NavPage.RemoveApps: _navigation.NavigateTo<RemoveAppsPage>(); break;
             case NavPage.Unattend: _navigation.NavigateTo<UnattendPage>(); break;
+            case NavPage.Iso: _navigation.NavigateTo<IsoBuilderPage>(); break;
             case NavPage.Catalogue: _navigation.NavigateTo<CataloguePage>(new CatalogueQuery(route.Key, route.Query)); break;
             default:
                 var entry = NavTable.Find(key);

@@ -16,6 +16,32 @@ public interface IBackground
     void Post(Action action);
 }
 
+/// <summary>Repeating timers on the UI thread (the ISO Builder's Massgrave watch): disposing one stops it. Tests tick
+/// them by hand.</summary>
+public interface ITimers
+{
+    IDisposable Every(TimeSpan interval, Action tick);
+}
+
+/// <summary>The real one: a DispatcherQueueTimer on the window's queue.</summary>
+public sealed class DispatcherTimers(DispatcherQueue queue) : ITimers
+{
+    public IDisposable Every(TimeSpan interval, Action tick)
+    {
+        var timer = queue.CreateTimer();
+        timer.Interval = interval;
+        timer.IsRepeating = true;
+        timer.Tick += (_, _) => tick();
+        timer.Start();
+        return new Stop(timer);
+    }
+
+    private sealed class Stop(DispatcherQueueTimer timer) : IDisposable
+    {
+        public void Dispose() => timer.Stop();
+    }
+}
+
 /// <summary>A Run's progress, handed to the UI thread.</summary>
 public sealed class PostedProgress(IBackground background, Action<Core.Runs.RunProgress> show) : IProgress<Core.Runs.RunProgress>
 {

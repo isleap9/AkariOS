@@ -311,7 +311,8 @@ public sealed partial class CatalogueViewModel : ObservableObject
     [RelayCommand]
     public void RestartExplorer()
     {
-        if (Running) return;
+        // a Run or the ISO Builder working: Explorer restarts with it later (the bar stays)
+        if (Running || _shell.Locked) return;
         Running = true;
         _busy = _shell.Begin("Restarting Explorer");
         _background.Run(() => { _engine.Explorer.Restart(); return null; }, _ =>
@@ -328,6 +329,11 @@ public sealed partial class CatalogueViewModel : ObservableObject
     public async Task RestartPcAsync()
     {
         if (Running || _engine.Shutdown is not { } shutdown) return;
+        if (_shell.Locked)
+        {
+            await _dialogs.ShowInfoAsync("Restart", $"{_shell.Work.LastOrDefault()?.Label ?? "A Run"} is still running. Restart when it is done.");
+            return;
+        }
         if (!await _dialogs.ConfirmAsync("Restart", "Restart the PC now? Save your work first.", "Restart now", "Cancel")) return;
         Running = true;
         _busy = _shell.Begin("Restarting the PC");

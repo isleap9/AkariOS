@@ -15,8 +15,11 @@ public interface IFilePicker
     /// <summary>An answer file to open (*.xml).</summary>
     Task<string?> OpenXmlAsync();
 
-    /// <summary>A folder (Install USB's "Save to a folder…").</summary>
+    /// <summary>A folder (Install USB's "Save to a folder…", the ISO Builder's work folder).</summary>
     Task<string?> FolderAsync();
+
+    /// <summary>A Windows ISO (the ISO Builder's "Browse…").</summary>
+    Task<string?> OpenIsoAsync();
 }
 
 /// <summary>
@@ -51,6 +54,13 @@ public sealed class WindowFilePicker : IFilePicker
     {
         var picker = new Microsoft.Windows.Storage.Pickers.FileOpenPicker(_window());
         picker.FileTypeFilter.Add(".xml");
+        return (await picker.PickSingleFileAsync())?.Path;
+    }
+
+    public async Task<string?> OpenIsoAsync()
+    {
+        var picker = new Microsoft.Windows.Storage.Pickers.FileOpenPicker(_window());
+        picker.FileTypeFilter.Add(".iso");
         return (await picker.PickSingleFileAsync())?.Path;
     }
 

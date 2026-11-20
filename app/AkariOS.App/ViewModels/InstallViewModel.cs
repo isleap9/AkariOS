@@ -407,7 +407,8 @@ public sealed partial class InstallViewModel : ObservableObject
     private async Task<bool> FreeAsync()
     {
         if (!_catalogue.Running && !_shell.IsBusy) return true;
-        await _dialogs.ShowInfoAsync("Install AkariOS", "A change from Optimize is still running. Apply these when it is done.");
+        var what = _shell.Work.LastOrDefault()?.Label ?? "A change from Optimize";
+        await _dialogs.ShowInfoAsync("Install AkariOS", $"{what} is still running. Apply these when it is done.");
         return false;
     }
 

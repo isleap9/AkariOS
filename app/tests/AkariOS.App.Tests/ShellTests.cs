@@ -48,15 +48,12 @@ public sealed class ShellTests
     }
 
     [Fact]
-    public void Every_placeholder_names_its_batch()
+    public void Every_nav_entry_has_its_page()
     {
-        foreach (var e in NavTable.All)
-        {
-            var placeholder = NavTable.Route(e.Key).Page == NavPage.Placeholder;
-            Assert.Equal(placeholder, NavTable.ComingWith(e.Key) is not null);
-        }
-        Assert.Equal(["ISO Builder"],
-            NavTable.All.Where(e => NavTable.Route(e.Key).Page == NavPage.Placeholder).Select(e => e.Key));
+        // W8 brought the last one: no placeholder is left
+        Assert.Empty(NavTable.All.Where(e => NavTable.Route(e.Key).Page == NavPage.Placeholder).Select(e => e.Key));
+        Assert.All(NavTable.All, e => Assert.Null(NavTable.ComingWith(e.Key)));
+        Assert.Equal(new NavRoute(NavPage.Iso, "ISO Builder", "ISO Builder", ""), NavTable.Route("ISO Builder"));
     }
 
     [Fact]
