@@ -48,6 +48,13 @@ internal sealed record AppTest(Engine Engine, CatalogueViewModel Catalogue, Shel
     private DownloadsViewModel? _downloads;
     public DownloadsViewModel Downloads => _downloads ??= new DownloadsViewModel(Engine, Work, Dialogs, Shell, Activity, Icons);
 
+    /// <summary>Install USB's drives (none until the test adds them) and this PC's language (an Italian PC).</summary>
+    public AppHarness.FakeDrives Drives { get; } = new();
+    public AppHarness.FakeRegion Region { get; } = new();
+
+    private UnattendViewModel? _unattend;
+    public UnattendViewModel Unattend => _unattend ??= new UnattendViewModel(Engine, Dialogs, Picker, Open, Shell, Drives, Region);
+
     /// <summary>The window's closing question.</summary>
     public ClosingGuard Closing => new(Shell, Downloads, Catalogue, Dialogs);
 
@@ -295,9 +302,28 @@ internal sealed class AppHarness : IDisposable
     {
         public string? SavePath { get; set; }
         public string? OpenPath { get; set; }
+        public string? XmlPath { get; set; }
+        public string? FolderPath { get; set; }
         public List<string> Suggested { get; } = [];
         public Task<string?> SaveJsonAsync(string suggestedName) { Suggested.Add(suggestedName); return Task.FromResult(SavePath); }
         public Task<string?> OpenJsonAsync() => Task.FromResult(OpenPath);
+        public Task<string?> OpenXmlAsync() => Task.FromResult(XmlPath);
+        public Task<string?> FolderAsync() => Task.FromResult(FolderPath);
+    }
+
+    /// <summary>The drives a setup file can go on (the test's temp folders as roots); Fail = the read fails.</summary>
+    internal sealed class FakeDrives : Core.Unattend.ISetupDrives
+    {
+        public List<Core.Unattend.SetupDrive> Drives { get; } = [];
+        public bool Fail { get; set; }
+        public IReadOnlyList<Core.Unattend.SetupDrive> All() => Fail ? throw new IOException("no drives") : [.. Drives];
+    }
+
+    /// <summary>This PC's language settings (an Italian PC unless the test says otherwise).</summary>
+    internal sealed class FakeRegion : Core.Unattend.IPcRegion
+    {
+        public Core.Unattend.PcRegion Pc { get; set; } = new("it-IT", "it-IT", "00000410", "118", "W. Europe Standard Time");
+        public Core.Unattend.PcRegion Read() => Pc;
     }
 
     /// <summary>What the app opened outside itself: links, folders, programs (recorded only).</summary>

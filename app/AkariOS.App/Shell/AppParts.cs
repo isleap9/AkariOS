@@ -6,11 +6,17 @@ using Windows.UI;
 
 namespace AkariOS.App.Shell;
 
-/// <summary>The file dialogs, as paths (null = cancelled): the AkariOS settings files (*.json).</summary>
+/// <summary>The file dialogs, as paths (null = cancelled): the AkariOS settings files (*.json), answer files, folders.</summary>
 public interface IFilePicker
 {
     Task<string?> SaveJsonAsync(string suggestedName);
     Task<string?> OpenJsonAsync();
+
+    /// <summary>An answer file to open (*.xml).</summary>
+    Task<string?> OpenXmlAsync();
+
+    /// <summary>A folder (Install USB's "Save to a folder…").</summary>
+    Task<string?> FolderAsync();
 }
 
 /// <summary>
@@ -39,6 +45,19 @@ public sealed class WindowFilePicker : IFilePicker
         var picker = new Microsoft.Windows.Storage.Pickers.FileOpenPicker(_window());
         picker.FileTypeFilter.Add(".json");
         return (await picker.PickSingleFileAsync())?.Path;
+    }
+
+    public async Task<string?> OpenXmlAsync()
+    {
+        var picker = new Microsoft.Windows.Storage.Pickers.FileOpenPicker(_window());
+        picker.FileTypeFilter.Add(".xml");
+        return (await picker.PickSingleFileAsync())?.Path;
+    }
+
+    public async Task<string?> FolderAsync()
+    {
+        var picker = new Microsoft.Windows.Storage.Pickers.FolderPicker(_window());
+        return (await picker.PickSingleFolderAsync())?.Path;
     }
 }
 

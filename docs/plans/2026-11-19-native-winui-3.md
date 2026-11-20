@@ -41,7 +41,7 @@ WPF views to ADR 0008's look, the native app's UI is rebuilt on WinUI 3 and the 
 | W4 | Install AkariOS: chooser, Guided (Apps, Tweaks, Review & Apply), run page, result, restore point rule, One-click hand-off; Settings › Import (a preset into Guided's Tweaks step). The Apps step is Guided's only: its Remove and Install tables, row picks, Select recommended / AkariOS / Clear, Only installed, the features read, Quick select's apps; no icons | done 2026-11-20 |
 | W5 | Downloads (the PowerShell app's card grid: categories, search, Install queued one app at a time with no restore point, Installed / Failed on the card, Uninstall from an installed card's menu, Update all apps, what is installed read once a session) and Remove apps (the four lists one at a time, Remove (n): one Run after the restore point, rows go as it passes them, the lists read again); app icons (bundled `src/Assets/Apps`, an installed Store app's logo, black-or-white ones tinted, else a glyph) on Guided's Apps step too | done 2026-11-20 |
 | W6 | Dialogs and toasts everywhere: `AkariDialogs` (ContentDialog: main action accent and first, "- " lines a list) for every confirmation (Advanced, Safe Mode's Restart and apply / Later / Cancel, critical services, One-click); result toasts (Guided run with Restart now, Downloads' install / uninstall / update all, Remove apps, Export with Open folder, Import, Waiting for Safe Mode), stacked at the bottom right; the busy toast with each page's own work and its progress ("n of m"); one closing question naming everything running or waiting (`ClosingGuard`) | done 2026-11-20 |
-| W7 | Install USB (the Unattend Generator form on `UnattendForm`) | |
+| W7 | Install USB (the Unattend Generator form on `UnattendForm`): the drive bar (setup USB found, Refresh, Save to a folder…, Save to USB), his check under it, Open file… / Reset to defaults (asks), his sections as Expanders saying "Default" / "Changed from the default", the questions before a disk wipe, a drive without setup, an existing file; `IsoAnswerAsync` for W8 | done 2026-11-20 |
 | W8 | ISO Builder | |
 | W9 | Release: `release.yml` publishes `AkariOS-Native.exe` again, ProductVersion check; VM check on Windows 10 22H2 and 11 24H2 (elevated, 100 % and 150 %) | |
 
@@ -79,5 +79,9 @@ WPF views to ADR 0008's look, the native app's UI is rebuilt on WinUI 3 and the 
   into `%LOCALAPPDATA%\AkariOS.Native\Assets\<version>` (`Shell/AssetFiles.cs`): a single-file publish has no Assets
   folder next to the exe, so the W1-W4 logos read from `AppContext.BaseDirectory` were missing from the published exe.
 - A mono app icon is a `BitmapIcon ShowAsMonochrome` in the text colour (WinUI has no OpacityMask).
+- Install USB's form is built in code (`Views/UnattendFormView`), not XAML templates: his items nest branches inside
+  branches. The values live in Core's `UnattendForm` (a singleton view model owns it), so the page is made again on
+  each visit and drops its handlers on Unloaded; a section's controls are made the first time it opens (29 sections,
+  the bloatware list and 15-row tables would otherwise slow the first visit).
 - Downloads and Remove apps follow the PowerShell app's current pages (cards that install right away; Remove (n)),
   not the WPF app's table flows with their own Review step.

@@ -150,6 +150,10 @@ public partial class App : Application
         services.AddSingleton<InstallViewModel>();
         services.AddSingleton<RemoveAppsViewModel>();
         services.AddSingleton<DownloadsViewModel>();
+        // Install USB: this PC's drives and language (guarded: tests give their own)
+        services.AddSingleton<Core.Unattend.ISetupDrives>(_ => new Core.Unattend.LiveSetupDrives());
+        services.AddSingleton<Core.Unattend.IPcRegion>(sp => Core.Unattend.RegistryPcRegion.Live(sp.GetRequiredService<Engine>().Registry));
+        services.AddSingleton<UnattendViewModel>();
         services.AddSingleton<ITextDialog>(_ => new ContentTextDialog(() => MainWindow?.Content?.XamlRoot));
         // One-click: Program runs the preset in a console once the window has closed
         services.AddSingleton(_ => new OneClickHandoff(p =>

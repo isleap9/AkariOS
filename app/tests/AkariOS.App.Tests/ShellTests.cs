@@ -55,7 +55,7 @@ public sealed class ShellTests
             var placeholder = NavTable.Route(e.Key).Page == NavPage.Placeholder;
             Assert.Equal(placeholder, NavTable.ComingWith(e.Key) is not null);
         }
-        Assert.Equal(["Install USB", "ISO Builder"],
+        Assert.Equal(["ISO Builder"],
             NavTable.All.Where(e => NavTable.Route(e.Key).Page == NavPage.Placeholder).Select(e => e.Key));
     }
 
@@ -70,6 +70,8 @@ public sealed class ShellTests
         Assert.Equal(NavPage.Settings, NavTable.Route("Settings").Page);
         Assert.Equal(NavPage.Install, NavTable.Route("Install AkariOS").Page);
         Assert.Equal((NavPage.Downloads, NavPage.RemoveApps), (NavTable.Route("Downloads").Page, NavTable.Route("Remove apps").Page));
+        // 'Unattend Generator' (the PowerShell app's old name) opens Install USB
+        Assert.Equal(new NavRoute(NavPage.Unattend, "Install USB", "Install USB", ""), NavTable.Route("Unattend Generator"));
     }
 
     [Fact]
