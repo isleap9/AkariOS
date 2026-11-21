@@ -49,7 +49,7 @@ public static class CategoryInfo
         ("Advanced", "Features", new("Security and features", ".NET 3.5, Hyper-V, Sandbox, WSL, OpenSSH Server, F8 recovery")),
 
         ("Tools", "Setup", new("Keep it running", "A restore point, activation, Home to Pro, updating every app")),
-        ("Tools", "Drivers", new("Keep it running", "The latest NVIDIA, AMD and Intel drivers, a DDU clean, controller overclock")),
+        ("Tools", "Drivers", new("Keep it running", "The latest NVIDIA, AMD and Intel drivers, a DDU clean, Snappy Driver Installer, controller overclock")),
         ("Tools", "Cleanup", new("Keep it running", "Temporary files, Windows.old, logs, old drivers, startup entries")),
         ("Tools", "Fixes", new("Keep it running", "Windows Update reset, network reset, corruption scan, WinGet reinstall")),
         ("Tools", "Check", new("Check and recover", "BIOS, storage, RAM, GPU and polling rate tests, O&O ShutUp10++")),

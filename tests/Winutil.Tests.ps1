@@ -345,6 +345,16 @@ Describe 'winutil W3 tweaks' {
                 Assert-MockCalled Open-AkariWingetTool -Exactly 1 -Scope It -ParameterFilter { $Id -eq 'OO-Software.ShutUp10' -and $Exe -eq 'OOSU10.exe' }
             }
         }
+
+        Context 'Snappy Driver Installer' {
+            Mock Open-AkariWingetTool { }
+            It 'is a Caution Tools Drivers button that opens the tool, installed through winget when missing' {
+                $t = Load 'Tools\Drivers\SnappyDriverInstaller.ps1'
+                "$($t.Id) $($t.Section) $($t.Category) $($t.Kind) $($t.Button) $($t.Risk) $([bool]$t.AkariOS)" | Should Be 'tools-snappy-driver-installer Tools Drivers Action Open Caution False'
+                (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
+                Assert-MockCalled Open-AkariWingetTool -Exactly 1 -Scope It -ParameterFilter { $Id -eq 'GlennDelahoy.SnappyDriverInstallerOrigin' -and $Exe -eq 'SDIO_x64_*.exe' }
+            }
+        }
     } finally {
         Remove-Item -LiteralPath $tk -Recurse -Force -ErrorAction SilentlyContinue
     }

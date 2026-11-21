@@ -113,6 +113,7 @@ public sealed partial class ToolsTests : IDisposable
     [InlineData("tools-ram-check", @"%ProgramFiles%\CPUID\CPU-Z\cpuz.exe")]
     [InlineData("tools-occt", @"%LOCALAPPDATA%\Microsoft\WinGet\Packages\OCBase.OCCT.Personal_Microsoft.Winget.Source_8wekyb3d8bbwe\OCCTPersonal.exe")]
     [InlineData("tools-oosu10", @"%LOCALAPPDATA%\Microsoft\WinGet\Packages\OO-Software.ShutUp10_Microsoft.Winget.Source_8wekyb3d8bbwe\OOSU10.exe")]
+    [InlineData("tools-snappy-driver-installer", @"%LOCALAPPDATA%\Microsoft\WinGet\Packages\GlennDelahoy.SnappyDriverInstallerOrigin_Microsoft.Winget.Source_8wekyb3d8bbwe\SDIO_x64_R785.exe")]
     public void A_winget_tool_opens_where_it_is(string id, string exe)
     {
         // deeper than two folders down: not looked at
@@ -126,6 +127,7 @@ public sealed partial class ToolsTests : IDisposable
     [Theory]
     [InlineData("tools-ram-check", "CPUID.CPU-Z", "cpuz.exe")]
     [InlineData("tools-occt", "OCBase.OCCT.Personal", "OCCT*.exe")]
+    [InlineData("tools-snappy-driver-installer", "GlennDelahoy.SnappyDriverInstallerOrigin", "SDIO_x64_*.exe")]
     public void A_missing_winget_tool_is_installed_first(string id, string package, string exe)
     {
         Files(@"%ProgramFiles%\A\B\C\cpuz.exe");
