@@ -26,8 +26,13 @@ public sealed class IsoBuilderTests : IDisposable
         Assert.Equal(["Current", "", "", "", "", ""], iso.Stepper.Select(s => s.State));
         Assert.Equal(("Start", true, false), (iso.NextText, iso.CanNext, iso.CanBack));
         Assert.Equal(["AkariOS", "Lite", "Minimal", "Custom"], iso.Modes.Select(m => m.Id));
-        Assert.Equal(["Custom"], iso.Modes.Where(m => m.Available).Select(m => m.Id));
+        Assert.Equal(["AkariOS", "Lite", "Custom"], iso.Modes.Where(m => m.Available).Select(m => m.Id));
         Assert.Equal(["Custom"], iso.Modes.Where(m => m.IsSelected).Select(m => m.Id));
+        Assert.Equal(["Recommended", "Update-safe", "Coming soon", "Choose yourself"], iso.Modes.Select(m => m.Tag));
+        // Custom starts with the hardware checks skipped, every group editable
+        Assert.True(iso.IsCustom);
+        Assert.Equal([IsoBuilderViewModel.CustomStartGroup], iso.RemovalGroups.Where(g => g.IsChecked).Select(g => g.Id));
+        Assert.All(iso.RemovalGroups, g => Assert.True(g.IsEditable));
         Assert.Equal("No image yet", iso.ImageSummary);
         Assert.Equal(["Store apps", "Optional features", "Windows features", "OS packages (advanced)"], iso.Lists.Select(l => l.Title));
         Assert.All(iso.Lists, l => Assert.False(l.Shown));
@@ -222,7 +227,7 @@ public sealed class IsoBuilderTests : IDisposable
         await iso.BuildAsync();
 
         Assert.Equal("", iso.BuildError);
-        Assert.Equal("Build Win11-Akari.iso from Windows 11 Pro?\n\n3 apps and features to remove. It takes 20 to 40 minutes and AkariOS can't be used meanwhile.",
+        Assert.Equal("Build Win11-Akari.iso from Windows 11 Pro?\n\n1 removal group, 3 apps and features picked from the image. It takes 20 to 40 minutes and AkariOS can't be used meanwhile.",
             t.Dialogs.Asked.Single());
         Assert.NotNull(during);
         Assert.StartsWith("True|False|Building Win11-Akari.iso (", during);
@@ -288,6 +293,93 @@ public sealed class IsoBuilderTests : IDisposable
         var report = Core.Iso.IsoReport.FromJson(File.ReadAllText(Path.Combine(side.Root, "out", "Win11-Akari.report.json")))!;
         Assert.Equal(iso.Settings, report.Settings);
     }
+
+    // ---- the modes (batch I4)
+
+    [Fact]
+    public async Task The_akarios_mode_fixes_its_groups_reads_no_lists_and_bakes_the_preset_with_the_first_sign_in()
+    {
+        var exe = Path.Combine(_h.Dir, "AkariOS-Native.exe");
+        Directory.CreateDirectory(_h.Dir);
+        File.WriteAllText(exe, "exe");
+        var (t, iso, side, fakes) = Picked(akariExe: exe);
+        iso.PickModeCommand.Execute("AkariOS");
+        Assert.Equal(("AkariOS", false, true), (iso.Mode, iso.IsCustom, iso.IsAkariOSMode));
+        Assert.Equal(["SkipHardwareChecks", "NoSponsoredApps", "StoreAppsAkariOS", "Edge", "OneDrive"],
+            iso.RemovalGroups.Where(g => g.IsChecked).Select(g => g.Id));
+        Assert.All(iso.RemovalGroups, g => Assert.False(g.IsEditable));
+        Assert.Equal("5 removal groups", iso.PlanText);
+        Assert.True(iso.AkariOS);
+        await iso.OpenIsoAsync();
+        iso.EditionIndex = 1;
+
+        // Components: the plan only, the image's lists not read
+        await iso.NextAsync();
+        Assert.Equal(IsoBuilderViewModel.ComponentsStep, iso.Step);
+        Assert.False(iso.List("Apps").Shown);
+        await iso.NextAsync();
+        await iso.NextAsync();
+        var plan = iso.ReviewCards.Single(c => c.Title == "AkariOS").Lines;
+        Assert.Contains("- Microsoft Edge", plan);
+        Assert.Matches(@"AkariOS settings written into the image: [1-9]", plan);
+        Assert.Contains("The rest at the first sign-in: ", plan);
+
+        iso.Answer = "None";
+        t.Dialogs.Answers.Enqueue("Build ISO");
+        await iso.BuildAsync();
+        Assert.True(iso.HasResult, iso.BuildError);
+        Assert.Contains("AkariOS: 5 removal groups.", t.Dialogs.Asked.Single());
+        var reg = fakes.Parts.Registry;
+        Assert.Equal(1u, reg.GetValue(@"HKLM:\AkariIso_SYSTEM\Setup\LabConfig", "BypassTPMCheck"));
+        Assert.Equal(Core.Iso.IsoWizard.FirstSignInCommand,
+            reg.GetValue(Core.Iso.IsoData.HiveRoot + Core.Iso.IsoWizard.RunOnceKey, Core.Iso.IsoWizard.RunOnceName));
+        // the AkariOS pick removed the image's non-keep Store apps; the stage of the bake ran
+        Assert.Contains(iso.Stages.SelectMany(s => s.Operations), o => o.Name == "App Microsoft.BingNews");
+        Assert.Contains(iso.Stages, s => s.Text == "Writing the AkariOS settings into the image" && s.State == "Done");
+        Assert.Contains(iso.Stages.SelectMany(s => s.Operations), o => o.Name.StartsWith("Tweak ", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task The_lite_mode_removes_windows_ai_and_bakes_nothing()
+    {
+        var (t, iso, _, fakes) = await Opened();
+        iso.PickModeCommand.Execute("Lite");
+        Assert.False(iso.IsAkariOSMode);
+        Assert.Contains("WindowsAI", iso.RemovalGroups.Where(g => g.IsChecked).Select(g => g.Id));
+        iso.Answer = "None";
+        t.Dialogs.Answers.Enqueue("Build ISO");
+        await iso.BuildAsync();
+        Assert.True(iso.HasResult, iso.BuildError);
+        Assert.Contains(@"Remove Feature <root>\out\AkariIso\Mount Recall", fakes.Calls);
+        Assert.DoesNotContain(iso.Stages, s => s.Text == "Writing the AkariOS settings into the image");
+        Assert.Equal(0u, fakes.Parts.Registry.GetValue(@"HKLM:\AkariIso_SOFTWARE\Microsoft\Windows\CurrentVersion\ReservedStorage", "ShippedWithReserves"));
+    }
+
+    [Fact]
+    public async Task Custom_with_no_groups_skips_the_settings_files_and_boot_steps()
+    {
+        var (t, iso, _, _) = await Opened();
+        iso.PickModeCommand.Execute("Custom");
+        iso.RemovalGroups.Single(g => g.Id == IsoBuilderViewModel.CustomStartGroup).IsChecked = false;
+        Assert.Equal("0 removal groups", iso.PlanText);
+        // a mode and back: Custom starts again
+        iso.PickModeCommand.Execute("Lite");
+        iso.PickModeCommand.Execute("Custom");
+        Assert.Equal([IsoBuilderViewModel.CustomStartGroup], iso.RemovalGroups.Where(g => g.IsChecked).Select(g => g.Id));
+        iso.RemovalGroups[0].IsChecked = false;
+        iso.Answer = "None";
+        t.Dialogs.Answers.Enqueue("Build ISO");
+        await iso.BuildAsync();
+        Assert.True(iso.HasResult, iso.BuildError);
+        Assert.DoesNotContain(iso.Stages, s => s.Text.StartsWith("Skipping the Windows 11 requirements", StringComparison.Ordinal));
+        Assert.DoesNotContain(iso.Stages, s => s.Text == "Removing files from the image");
+    }
+
+    [Theory]
+    [InlineData("10.0.26100.1742", 26100)]
+    [InlineData("10.0.22631", 22631)]
+    [InlineData("", 0)]
+    public void Reads_an_editions_build(string version, int build) => Assert.Equal(build, IsoBuilderViewModel.BuildOf(version));
 
     [Fact]
     public async Task Build_cancelled_at_the_question_builds_nothing()

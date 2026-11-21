@@ -174,10 +174,14 @@ public sealed partial class IsoBuild(IsoParts p)
         var all = IsoData.Options(p.Files);
         if (IsoData.Check(IsoPlan.List(c.Options), all) is { } bad) return new IsoResult(false, null, bad);
         var picked = IsoData.Picked(c.Options, all);
+        IReadOnlyList<IsoGroup> groups;
+        try { groups = c.Groups is null ? [] : IsoWizard.Picked(c.Groups, IsoWizard.Groups(p.Files)); }
+        catch (IsoException e) { return new IsoResult(false, null, e.Message); }
         var w = IsoWork.Of(c.OutDir);
         var output = Path.Combine(c.OutDir, IsoPlan.OutName(c.Iso));
-        var always = IsoData.Always(p.Files);
-        var steps = IsoPlan.Steps(c, picked);
+        // the wizard's groups stand in for zISO's always-on data
+        var always = c.Groups is null ? IsoData.Always(p.Files) : new IsoAlways([], [], [], []);
+        var steps = IsoPlan.Steps(c, picked, groups);
         string? oscdimg = null;
         var sha = "";
         try
@@ -197,34 +201,36 @@ public sealed partial class IsoBuild(IsoParts p)
                     case "Apps":
                         {
                             // the user's picks plus the image's apps an option names (Defender's Security app, the AI apps)
-                            var patterns = picked.SelectMany(o => o.Apps).ToList();
+                            var patterns = picked.SelectMany(o => o.Apps).Concat(IsoPlan.List(c.AppPatterns)).ToList();
                             var fromOptions = Apps(w.Mount).Where(a => patterns.Any(x => PsLike(a.Name, x))).Select(a => a.Package);
                             RemoveApps(w.Mount, IsoData.Resolve([.. IsoPlan.List(c.Apps), .. fromOptions], [], []));
                             break;
                         }
                     case "Features":
                         {
-                            var patterns = picked.SelectMany(o => o.Features).ToList();
+                            var patterns = picked.SelectMany(o => o.Features).Concat(groups.SelectMany(x => x.Features)).ToList();
                             IReadOnlyList<string> have = patterns.Count > 0 ? [.. p.Image.Features(w.Mount).Select(f => f.Name)] : [];
                             var features = IsoData.Resolve(IsoPlan.List(c.Features), patterns, have);
                             if (c.Settings.Turbo) RemoveFeaturesAtOnce(w.Mount, features);
                             else RemoveItems(w.Mount, "Feature", features);
                             break;
                         }
-                    case "Capabilities": RemoveItems(w.Mount, "Capability", IsoPlan.List(c.Capabilities)); break;
-                    case "Packages": RemoveItems(w.Mount, "Package", IsoPlan.List(c.Packages)); break;
+                    case "Capabilities": RemoveItems(w.Mount, "Capability", Names(IsoPlan.List(c.Capabilities), groups.SelectMany(x => x.Capabilities))); break;
+                    case "Packages": RemoveItems(w.Mount, "Package", Names(IsoPlan.List(c.Packages), groups.SelectMany(x => x.Packages))); break;
                     case "Registry":
                         {
-                            IReadOnlyList<Data.PsHashtable> rows = [.. always.Requirements, .. always.Registry, .. picked.SelectMany(o => o.Registry)];
+                            IReadOnlyList<Data.PsHashtable> rows =
+                                [.. always.Requirements, .. always.Registry, .. picked.SelectMany(o => o.Registry), .. groups.SelectMany(x => x.Registry)];
                             Op($"Write {rows.Count} settings", () =>
                             {
-                                WriteImageRegistry(w.Mount, rows, [.. picked.SelectMany(o => o.RemoveKeys)]);
+                                WriteImageRegistry(w.Mount, rows, [.. picked.SelectMany(o => o.RemoveKeys), .. groups.SelectMany(x => x.RemoveKeys)]);
                                 return (IsoOpState.Done, "");
                             });
                             break;
                         }
+                    case "Bake": BakeAkariOS(w.Mount, c); break;
                     case "Files":
-                        foreach (var path in always.Remove.Concat(picked.SelectMany(o => o.Remove)))
+                        foreach (var path in always.Remove.Concat(picked.SelectMany(o => o.Remove)).Concat(groups.SelectMany(x => x.Remove)))
                             Op(path, () => RemovePaths(w.Mount, [path]) is var n and > 0 ? (IsoOpState.Done, $"{n} removed") : (IsoOpState.Skipped, "Not in this image"));
                         break;
                     case "AkariOS": Op("AkariOS-Native.exe and its shortcuts", () => { CopyAkariOS(w.Mount, c.AkariExe!); return (IsoOpState.Done, ""); }); break;
@@ -272,7 +278,7 @@ public sealed partial class IsoBuild(IsoParts p)
                             var boot = Path.Combine(w.Media, @"sources\boot.wim");
                             if (!Exists(boot) || p.Image.Images(boot).Count < 2) { p.Log.Write("No setup image in boot.wim: left as it is"); break; }
                             p.Image.Mount(boot, 2, w.Mount);
-                            WriteImageRegistry(w.Mount, [.. always.Requirements, .. always.Boot], []);
+                            WriteImageRegistry(w.Mount, [.. always.Requirements, .. always.Boot, .. groups.SelectMany(x => x.Boot)], []);
                             p.Image.Commit(w.Mount);
                             ClearMarker();
                             break;

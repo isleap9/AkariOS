@@ -36,6 +36,7 @@ foreach ($section in Get-ChildItem $tweaks -Directory) {
     $files += Get-ChildItem $section.FullName -Recurse -File -Filter *.psd1
 }
 $files += Get-ChildItem (Join-Path $Src 'Core\Iso\Data') -Recurse -File -Filter *.psd1
+$files += Get-ChildItem (Join-Path $Src 'Core\Iso\Wizard') -Recurse -File -Filter *.psd1
 $files += Get-ChildItem (Join-Path $Src 'UI') -File -Filter *.psd1
 
 $result = [ordered]@{}

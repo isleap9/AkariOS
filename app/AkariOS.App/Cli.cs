@@ -13,10 +13,15 @@ namespace AkariOS.App;
 public static class Cli
 {
     public const string Usage = "Options: --list | --apply id,id | --revert id,id | --preset <name|file.json> | --revert-preset <name|file.json> | --version"
-        + " (--resume: a Run in phases goes on after a restart; RunOnce starts it)";
+        + " (--resume: a Run in phases goes on after a restart; --first-sign-in: an AkariOS ISO's first sign-in; RunOnce starts both)";
 
     /// <summary>A Run in phases going on after a restart: its own console window (Program).</summary>
     public static bool IsResume(string[] args) => args.Length > 0 && string.Equals(args[0], "--resume", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>An AkariOS ISO's first sign-in (the Default user's RunOnce, Core.Iso.IsoWizard): the AkariOS preset in
+    /// One-click's console (Program).</summary>
+    public static bool IsFirstSignIn(string[] args) =>
+        args.Length > 0 && string.Equals(args[0], Core.Iso.IsoWizard.FirstSignInArgument, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>True when the arguments ask for the console instead of the window.</summary>
     public static bool IsCli(string[] args) => args.Length > 0;

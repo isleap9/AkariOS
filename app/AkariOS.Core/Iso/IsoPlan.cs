@@ -28,6 +28,24 @@ public sealed record IsoChoices
 
     /// <summary>The wizard's build settings (batch I3, native only so far); the defaults build as the port does.</summary>
     public IsoBuildSettings Settings { get; init; } = new();
+
+    /// <summary>The wizard's removal groups (batch I4, <see cref="IsoWizard.Groups"/> ids): null = the port's build,
+    /// zISO's always-on data (Always.psd1); set = these groups instead, and nothing else always on.</summary>
+    public string[]? Groups { get; init; }
+
+    /// <summary>App names or wildcards matched on the image's apps when it is built (the groups' apps, 'appx:' tokens
+    /// already expanded: <see cref="IsoWizard.AppPatterns"/>).</summary>
+    public string[]? AppPatterns { get; init; }
+
+    /// <summary>The AkariOS mode's Tweaks written into the image's hives (<see cref="IsoWizard.Bake"/>).</summary>
+    public IReadOnlyList<IsoBakeItem>? Bake { get; init; }
+
+    /// <summary>The rest of the AkariOS preset at each new account's first sign-in (a RunOnce entry in the Default
+    /// user's hive); needs <see cref="AkariExe"/>.</summary>
+    public bool FirstSignIn { get; init; }
+
+    /// <summary>The edition's build (26100…), for the baked Tweaks' per-OS rows; 0 = unknown (Windows 11).</summary>
+    public int ImageBuild { get; init; }
 }
 
 /// <summary>How install.wim leaves the build: Recovery = install.esd (/Compress:recovery, smallest, slowest),
@@ -93,18 +111,23 @@ public static partial class IsoPlan
     public const long MinFree = 25L << 30;
 
     /// <summary>The build's ordered steps (New-AkariIsoPlan); <paramref name="picked"/> = the picked options.</summary>
-    public static IReadOnlyList<IsoStep> Steps(IsoChoices c, IReadOnlyList<IsoOption> picked)
+    /// <remarks>The wizard (<see cref="IsoChoices.Groups"/> set) passes its picked <paramref name="groups"/>: their
+    /// lists add the removal steps, and the settings, files and boot.wim steps come only when a group has some.</remarks>
+    public static IReadOnlyList<IsoStep> Steps(IsoChoices c, IReadOnlyList<IsoOption> picked, IReadOnlyList<IsoGroup>? groups = null)
     {
         var s = new List<IsoStep>();
         void Add(string id, string text) => s.Add(new IsoStep(id, text));
+        var wizard = c.Groups is not null;
+        var g = groups ?? [];
         Add("Adk", "Getting the ISO tool ready (Windows ADK)");
         Add("Mount", $"Mounting {c.Edition}");
-        if (List(c.Apps).Count > 0 || picked.Any(o => o.Apps.Count > 0)) Add("Apps", "Removing apps");
-        if (List(c.Features).Count > 0 || picked.Any(o => o.Features.Count > 0)) Add("Features", "Removing Windows features");
-        if (List(c.Capabilities).Count > 0) Add("Capabilities", "Removing optional features (capabilities)");
-        if (List(c.Packages).Count > 0) Add("Packages", "Removing OS packages");
-        Add("Registry", "Writing settings into the image's registry");
-        Add("Files", "Removing files from the image");
+        if (List(c.Apps).Count > 0 || picked.Any(o => o.Apps.Count > 0) || List(c.AppPatterns).Count > 0) Add("Apps", "Removing apps");
+        if (List(c.Features).Count > 0 || picked.Any(o => o.Features.Count > 0) || g.Any(x => x.Features.Count > 0)) Add("Features", "Removing Windows features");
+        if (List(c.Capabilities).Count > 0 || g.Any(x => x.Capabilities.Count > 0)) Add("Capabilities", "Removing optional features (capabilities)");
+        if (List(c.Packages).Count > 0 || g.Any(x => x.Packages.Count > 0)) Add("Packages", "Removing OS packages");
+        if (!wizard || g.Any(x => x.Registry.Count > 0 || x.RemoveKeys.Count > 0)) Add("Registry", "Writing settings into the image's registry");
+        if (c.Bake is { Count: > 0 } || (c.FirstSignIn && !string.IsNullOrEmpty(c.AkariExe))) Add("Bake", "Writing the AkariOS settings into the image");
+        if (!wizard || g.Any(x => x.Remove.Count > 0)) Add("Files", "Removing files from the image");
         if (!string.IsNullOrEmpty(c.AkariExe)) Add("AkariOS", "Adding AkariOS to the image");
         Add("NetFx3", "Adding .NET Framework 3.5");
         Add("Cleanup", "Cleaning up the component store");
@@ -116,7 +139,7 @@ public static partial class IsoPlan
             IsoCompression.Fast => "Compressing install.wim (fast compression)",
             _ => "Compressing install.wim",
         });
-        Add("Boot", "Skipping the Windows 11 requirements in setup (boot.wim)");
+        if (!wizard || g.Any(x => x.Boot.Count > 0)) Add("Boot", "Skipping the Windows 11 requirements in setup (boot.wim)");
         if (c.Unattend is { Length: > 0 }) Add("Answer", "Adding the answer file (autounattend.xml)");
         if (c.Settings.LeaveOutNetFx3Files) Add("NoSxs", "Leaving .NET Framework 3.5's setup files off the ISO");
         Add("Iso", "Building the ISO");

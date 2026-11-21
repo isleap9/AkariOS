@@ -85,6 +85,24 @@ public sealed class RunConsole(TextWriter output, TextReader input, IConsoleLook
     public int OneClick(Engine e, Preset preset)
     {
         Banner("AkariOS One-click is running...");
+        return RunPreset(e, preset);
+    }
+
+    /// <summary>An AkariOS ISO's first sign-in: the AkariOS preset as One-click runs it (what the image already has comes
+    /// back Already), with no restore point: the PC is new.</summary>
+    public int FirstSignIn(Engine e)
+    {
+        Banner("AkariOS is finishing setting up Windows...");
+        if (e.Presets.Find(Core.Iso.IsoWizard.Preset) is not { } preset)
+        {
+            output.WriteLine("The AkariOS preset is missing: open AkariOS from the Start menu and run One-click.");
+            return Wait(1);
+        }
+        return RunPreset(e, preset);
+    }
+
+    private int RunPreset(Engine e, Preset preset)
+    {
         e.Log.Write("Reading the apps and features on this PC...");
         var made = PresetRuns.Make(preset, e.Loaded, e.Services.Apps, revert: false, e.Services.UserSid ?? "");
         foreach (var u in made.Unknown) e.Log.WriteFile($"Warning: preset {preset.Name}: '{u}' is not a Tweak here");

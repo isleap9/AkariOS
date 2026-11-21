@@ -27,6 +27,7 @@ public class PsDataOracleTests
             files.AddRange(Directory.GetFiles(section, "*.psd1", SearchOption.AllDirectories));
         }
         files.AddRange(Directory.GetFiles(Path.Combine(src, "Core", "Iso", "Data"), "*.psd1", SearchOption.AllDirectories));
+        files.AddRange(Directory.GetFiles(Path.Combine(src, "Core", "Iso", "Wizard"), "*.psd1", SearchOption.AllDirectories));
         files.AddRange(Directory.GetFiles(Path.Combine(src, "UI"), "*.psd1"));
         return files.Select(f => "src/" + Path.GetRelativePath(src, f).Replace('\\', '/')).Order(StringComparer.Ordinal).ToList();
     }

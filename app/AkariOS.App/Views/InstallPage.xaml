@@ -207,7 +207,7 @@
                          checkbox; a click anywhere on the card ticks it -->
                     <ItemsRepeater ItemsSource="{x:Bind ViewModel.Apps.InstallItems, Mode=OneWay}">
                         <ItemsRepeater.Layout>
-                            <UniformGridLayout MinItemWidth="220" MinColumnSpacing="8" MinRowSpacing="8" ItemsStretch="Fill" />
+                            <local:CardGridLayout MinItemWidth="220" ColumnSpacing="8" RowSpacing="8" />
                         </ItemsRepeater.Layout>
                         <ItemsRepeater.ItemTemplate>
                             <DataTemplate x:DataType="vm:AppRowViewModel">

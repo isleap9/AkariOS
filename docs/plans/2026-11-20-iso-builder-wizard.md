@@ -1,6 +1,6 @@
 # ISO Builder as a wizard (native app first)
 
-Status: I1 and I2 done 2026-11-20 (VM-checked); I3 done 2026-11-20 (VM check pending); I4 next. Native app (`app/`) first; the PowerShell app (`src/UI/IsoBuilder.ps1`) follows once the
+Status: I1 and I2 done 2026-11-20 (VM-checked); I3 done 2026-11-20; I4 done 2026-11-20 (I3 + I4 VM-checked 2026-11-21); I5 next. Native app (`app/`) first; the PowerShell app (`src/UI/IsoBuilder.ps1`) follows once the
 native one is done and checked on the VM.
 
 ## Why

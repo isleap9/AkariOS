@@ -200,6 +200,63 @@ public sealed partial class IsoBuild
         }
     }
 
+    /// <summary>The picked names and the groups' own, once each, in that order.</summary>
+    private static IReadOnlyList<string> Names(IEnumerable<string> picked, IEnumerable<string> fromGroups) =>
+        [.. picked.Concat(fromGroups).Distinct(StringComparer.OrdinalIgnoreCase)];
+
+    // ---- the AkariOS mode: the preset's settings in the image, the rest at the first sign-in
+
+    /// <summary>
+    /// The baked Tweaks (<see cref="IsoChoices.Bake"/>) written into the loaded hives, one operation each (a row an
+    /// admin can't write goes as TrustedInstaller; a Tweak whose hive the image lacks is skipped), then the Default
+    /// user's RunOnce entry that runs the rest of the preset at each new account's first sign-in.
+    /// </summary>
+    private void BakeAkariOS(string mount, IsoChoices c)
+    {
+        var loaded = LoadHives(mount);
+        try
+        {
+            var build = c.ImageBuild > 0 ? c.ImageBuild : 22000;
+            foreach (var item in c.Bake ?? [])
+                Op($"Tweak {item.Tweak.Name}", () => BakeOne(item, build, loaded));
+            if (c.FirstSignIn && !string.IsNullOrEmpty(c.AkariExe))
+                Op("The rest of AkariOS at the first sign-in", () =>
+                {
+                    if (!loaded.Contains("NTUSER", StringComparer.OrdinalIgnoreCase)) return (IsoOpState.Skipped, "The image has no Default user hive");
+                    p.Registry.SetValue(IsoData.HiveRoot + IsoWizard.RunOnceKey, IsoWizard.RunOnceName, IsoWizard.FirstSignInCommand, "String");
+                    return (IsoOpState.Done, "A RunOnce entry for each new account: one UAC prompt, then One-click's console");
+                });
+        }
+        finally { UnloadHives(loaded); }
+    }
+
+    private (IsoOpState, string) BakeOne(IsoBakeItem item, int build, IReadOnlyList<string> loaded)
+    {
+        var t = item.Tweak;
+        var rows = t.Registry!.Select(r => r with { Path = IsoWizard.ImagePath(r.Path)! }).ToList();
+        // a hive the image doesn't have: nothing written (it would land in the real HKLM)
+        if (rows.Select(r => HiveOf(r.Path)).FirstOrDefault(h => !loaded.Contains(h, StringComparer.OrdinalIgnoreCase)) is { } missing)
+            return (IsoOpState.Skipped, $"The image has no {missing} hive");
+        if (t.Kind == TweakKind.Choice)
+        {
+            var row = rows[0];
+            try { p.Registry.SetValue(row.Path, row.Name!, item.Value!, row.Type ?? "DWord"); }
+            catch (Exception e) when (Refused(e)) { p.Trusted.Run(() => p.Registry.SetValue(row.Path, row.Name!, item.Value!, row.Type ?? "DWord")); }
+            return (IsoOpState.Done, $"{item.Value}");
+        }
+        try { p.Registry.Invoke(rows, TweakMode.Apply, build); }
+        catch (Exception e) when (Refused(e)) { p.Registry.Invoke(rows, TweakMode.Apply, build, asTrusted: true); }
+        return (IsoOpState.Done, "");
+    }
+
+    // HKLM:\AkariIso_SOFTWARE\... → SOFTWARE
+    private static string HiveOf(string path)
+    {
+        var rest = path[IsoData.HiveRoot.Length..];
+        var cut = rest.IndexOf('\\');
+        return cut < 0 ? rest : rest[..cut];
+    }
+
     /// <summary>Turbo: the Windows features out in one dism /Disable-Feature with a /FeatureName each (payload
     /// removed), then each one's state read back: Done when it is disabled or gone, Failed when it isn't.</summary>
     private void RemoveFeaturesAtOnce(string mount, IReadOnlyList<string> names)

@@ -48,7 +48,8 @@ public sealed partial class IsoBuildOracleTests
             Strings(r.GetProperty("Progress")), [.. r.GetProperty("Results").EnumerateArray().Select(Show)], r.GetProperty("Marker").GetString() ?? "");
     }
 
-    internal static Output Cs(Side s, Dictionary<string, object> c, Action<IsoFakes>? tune = null)
+    /// <param name="wizard">native only: the choices changed before the build (the wizard's groups, the AkariOS bake)</param>
+    internal static Output Cs(Side s, Dictionary<string, object> c, Action<IsoFakes>? tune = null, Func<IsoChoices, IsoChoices>? wizard = null)
     {
         var f = new IsoFakes(s, c);
         tune?.Invoke(f);
@@ -90,6 +91,7 @@ public sealed partial class IsoBuildOracleTests
                         // native only (batch I3): the port has no build settings yet
                         Settings = ch.TryGetValue("Settings", out var st) ? (IsoBuildSettings)st : new(),
                     };
+                    if (wizard is not null) choices = wizard(choices);
                     var r = b.Build(choices, f.Progress, f.Operations);
                     f.Report = r.Report;
                     results.Add($"Action=Build;Ok={(r.Ok ? "true" : "false")};Path={f.Norm(r.Path ?? "")};Message={f.Norm(r.Message)}");

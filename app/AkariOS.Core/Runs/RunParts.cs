@@ -112,8 +112,9 @@ public sealed class RunBoot(RegistryEngine registry, IBcdEdit bcd, IShutdown shu
     public const string SafeName = "*!akari-native-resume";
     public const string NormalName = "!akari-native-resume";
 
-    public static string Command(string exe) =>
-        $"powershell.exe -NoProfile -WindowStyle Hidden -Command \"Start-Process -FilePath '{exe.Replace("'", "''")}' -ArgumentList '--resume' -Verb RunAs\"";
+    /// <summary>A RunOnce command that starts the exe elevated (one UAC prompt): --resume, or the ISO's first sign-in.</summary>
+    public static string Command(string exe, string argument = "--resume") =>
+        $"powershell.exe -NoProfile -WindowStyle Hidden -Command \"Start-Process -FilePath '{exe.Replace("'", "''")}' -ArgumentList '{argument}' -Verb RunAs\"";
 
     public void Next(string boot)
     {

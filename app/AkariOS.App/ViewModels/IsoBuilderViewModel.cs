@@ -623,9 +623,10 @@ public sealed partial class IsoBuilderViewModel : ObservableObject
         catch (UnattendException e) { BuildError = $"The answer file could not be made: {e.Message}"; return; }
         var choices = Choices(ed, answer);
         var name = IsoPlan.OutName(choices.Iso);
-        var q = $"Build {name} from {ed.Name}?\n\n{RemovalCount} apps and features to remove. It takes 20 to 40 minutes and AkariOS can't be used meanwhile.";
+        var what = IsCustom ? $"{PlanText}, {RemovalCount} apps and features picked from the image" : $"{CurrentMode!.Name}: {PlanText}";
+        var q = $"Build {name} from {ed.Name}?\n\n{what}. It takes 20 to 40 minutes and AkariOS can't be used meanwhile.";
         if (!await _dialogs.ConfirmAsync("Build the ISO?", q, "Build ISO")) return;
-        StartStages(IsoPlan.Steps(choices, []));
+        StartStages(IsoPlan.Steps(choices, [], PickedGroups));
         var progress = new PostedProgress(_background, p =>
         {
             if (_busy is { } b) _shell.Report(b, p);
@@ -668,14 +669,22 @@ public sealed partial class IsoBuilderViewModel : ObservableObject
     /// <summary>The image's lists' ticks, counted for the question and Review.</summary>
     public int RemovalCount => Lists.Sum(l => l.Ticked().Length);
 
+    // the wizard's choices: the picked groups (never zISO's always-on data), the image's own lists in Custom only, the
+    // AkariOS mode's bake and first sign-in
     private IsoChoices Choices(IsoEdition ed, byte[]? answer)
     {
-        var lists = Lists.ToDictionary(l => l.Kind, l => l.Ticked());
+        var lists = Lists.ToDictionary(l => l.Kind, l => IsCustom ? l.Ticked() : []);
+        var groups = PickedGroups;
+        var build = BuildOf(ed.Version);
+        var exe = AkariOS ? _tools.AkariExe : null;
         return new IsoChoices
         {
             OutDir = OutDir.Trim(), Iso = IsoPath.Trim(), Image = _image, Index = ed.Index, Edition = ed.Name, Options = [],
             Apps = lists["Apps"], Capabilities = lists["Capabilities"], Features = lists["Features"], Packages = lists["Packages"],
-            AkariExe = AkariOS ? _tools.AkariExe : null, Unattend = answer, Settings = Settings,
+            AkariExe = exe, Unattend = answer, Settings = Settings,
+            Groups = [.. groups.Select(g => g.Id)],
+            AppPatterns = [.. IsoWizard.AppPatterns(groups, _engine.Loaded.Tweaks.Select(t => (t.Id, (string?)t.Risk.ToString(), t.Keep)))],
+            Bake = BakeFor(build)?.InImage, FirstSignIn = IsAkariOSMode && FirstSignIn && exe is not null, ImageBuild = build,
         };
     }
 }

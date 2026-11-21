@@ -23,6 +23,27 @@ public sealed partial class IsoModeViewModel(string id, string name, string desc
     public partial bool IsSelected { get; set; }
 }
 
+/// <summary>A removal group on the Components step: ticked by the mode and fixed, or by hand in Custom.</summary>
+public sealed partial class IsoGroupItemViewModel(IsoGroup group, bool isChecked, bool isEditable, Action changed) : ObservableObject
+{
+    public IsoGroup Group { get; } = group;
+    public string Id => Group.Id;
+    public string Name => Group.Name;
+    public string Description => Group.Description;
+
+    /// <summary>A Caution group says so; a Safe one shows nothing.</summary>
+    public string RiskText => Group.Risk.Equals("Safe", StringComparison.OrdinalIgnoreCase) ? "" : Group.Risk;
+    public bool HasRisk => RiskText.Length > 0;
+
+    [ObservableProperty]
+    public partial bool IsChecked { get; set; } = isChecked;
+
+    [ObservableProperty]
+    public partial bool IsEditable { get; set; } = isEditable;
+
+    partial void OnIsCheckedChanged(bool value) => changed();
+}
+
 /// <summary>A stage of the build on the Create ISO step: Waiting, Running, Done, Failed or Not run, and how long it
 /// took.</summary>
 public sealed partial class IsoStageViewModel(string text) : ObservableObject
@@ -118,14 +139,90 @@ public sealed partial class IsoBuilderViewModel
         "Allow 20 to 40 minutes. Optimize's changes and installs wait meanwhile.",
     ];
 
-    /// <summary>The modes (Start and Components). Only Custom until the modes batch (I4).</summary>
+    /// <summary>The modes (Start and Components): the data's (AkariOS, Lite), Minimal (batch I6) and Custom.</summary>
     public IReadOnlyList<IsoModeViewModel> Modes => _modes ??=
     [
-        new("AkariOS", "AkariOS", "The AkariOS setup out of the box: its apps removed, its Tweaks applied, AkariOS on it.", "Coming soon", "\uE945", false, PickMode),
-        new("Lite", "Lite", "A smaller Windows that keeps Windows Update, Defender, recovery and the Store.", "Coming soon", "\uE7F8", false, PickMode),
-        new("Minimal", "Minimal", "The smallest image, for test VMs: no updates, recovery or Defender afterwards.", "Coming soon", "\uE74C", false, PickMode),
-        new("Custom", "Custom", "Pick what to remove from the image's own apps and features.", "Choose yourself", "\uE713", true, PickMode),
+        .. ModeData.Select(m => new IsoModeViewModel(m.Id, m.Name, m.Description, m.Tag, ModeGlyph(m.Id), true, PickMode)),
+        new("Minimal", "Minimal", "The smallest image, for test VMs: no updates, recovery or Defender afterwards.", "Coming soon", ModeGlyph("Minimal"), false, PickMode),
+        new("Custom", "Custom", "Pick the removal groups and the image's own apps and features yourself.", "Choose yourself", ModeGlyph("Custom"), true, PickMode),
     ];
+
+    private IReadOnlyList<IsoMode>? _modeData;
+
+    /// <summary>The modes' data (src/Core/Iso/Wizard/Modes).</summary>
+    private IReadOnlyList<IsoMode> ModeData => _modeData ??= IsoWizard.Modes(_engine.Files);
+
+    private static string ModeGlyph(string id) => id switch
+    {
+        "AkariOS" => "\uE945",
+        "Lite" => "\uE7F8",
+        "Minimal" => "\uE74C",
+        _ => "\uE713",
+    };
+
+    /// <summary>The picked mode's data; null for Custom.</summary>
+    public IsoMode? CurrentMode => ModeData.FirstOrDefault(m => m.Id == Mode);
+
+    public bool IsCustom => CurrentMode is null;
+
+    /// <summary>The AkariOS mode: the AkariOS preset baked in (its settings in the image, the rest at the first sign-in).</summary>
+    public bool IsAkariOSMode => CurrentMode?.AkariOS == true;
+
+    /// <summary>The group Custom starts with: setup's hardware checks skipped, as every build did before the modes.</summary>
+    public const string CustomStartGroup = "SkipHardwareChecks";
+
+    private IReadOnlyList<IsoGroupItemViewModel>? _groupItems;
+
+    /// <summary>The removal groups on Components: the mode's ticked and fixed; in Custom, ticked by hand.</summary>
+    public IReadOnlyList<IsoGroupItemViewModel> RemovalGroups => _groupItems ??=
+        [.. IsoWizard.Groups(_engine.Files).Select(g => new IsoGroupItemViewModel(g, g.Id == CustomStartGroup, true, UpdatePlan))];
+
+    /// <summary>"n removal groups" over the plan.</summary>
+    public string PlanText => RemovalGroups.Count(g => g.IsChecked) is var n && n == 1 ? "1 removal group" : $"{n} removal groups";
+
+    private void UpdatePlan() => OnPropertyChanged(nameof(PlanText));
+
+    /// <summary>The AkariOS mode's second part: the rest of the preset at the first sign-in (off = only what can be
+    /// done in the image).</summary>
+    [ObservableProperty]
+    public partial bool FirstSignIn { get; set; } = true;
+
+    // a mode picked: its groups ticked and fixed, its build settings; Custom: Custom's start, groups by hand
+    private void ApplyMode()
+    {
+        var m = CurrentMode;
+        foreach (var g in RemovalGroups)
+        {
+            g.IsChecked = m is null ? g.Id == CustomStartGroup : m.Groups.Contains(g.Id, StringComparer.OrdinalIgnoreCase);
+            g.IsEditable = m is null;
+        }
+        var settings = m?.Settings ?? new IsoBuildSettings();
+        CompressionIndex = Math.Max(0, Compressions.ToList().IndexOf(settings.Compression));
+        Turbo = settings.Turbo;
+        CleanLeftovers = settings.CleanLeftovers;
+        LeaveOutNetFx3Files = settings.LeaveOutNetFx3Files;
+        if (m?.AkariOS == true && AkariOSEnabled) AkariOS = true;
+        UpdatePlan();
+    }
+
+    partial void OnModeChanged(string value)
+    {
+        OnPropertyChanged(nameof(CurrentMode));
+        OnPropertyChanged(nameof(IsCustom));
+        OnPropertyChanged(nameof(IsAkariOSMode));
+        ApplyMode();
+    }
+
+    /// <summary>The picked groups.</summary>
+    public IReadOnlyList<IsoGroup> PickedGroups => [.. RemovalGroups.Where(g => g.IsChecked).Select(g => g.Group)];
+
+    /// <summary>The AkariOS preset split for the picked edition (null outside the AkariOS mode or without the preset).</summary>
+    public IsoBake? BakeFor(int build) =>
+        IsAkariOSMode && _engine.Presets.Find(IsoWizard.Preset) is { } preset ? IsoWizard.Bake(preset, _engine.Loaded.Tweaks, build) : null;
+
+    /// <summary>An edition's build from its version (10.0.26100.1742 → 26100), 0 when it has none.</summary>
+    public static int BuildOf(string version) =>
+        version.Split('.') is { Length: > 2 } parts && int.TryParse(parts[2], System.Globalization.CultureInfo.InvariantCulture, out var b) ? b : 0;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsStart), nameof(IsImage), nameof(IsComponents), nameof(IsSettings), nameof(IsReview), nameof(IsBuild),
@@ -308,7 +405,22 @@ public sealed partial class IsoBuilderViewModel
     private IReadOnlyList<IsoReviewCard> MakeReview()
     {
         var mode = Modes.First(m => m.Id == Mode);
-        var counts = Lists.Where(l => l.Shown).Select(l => $"{l.Title}: {l.Ticked().Length} of {l.Items.Count}").ToList();
+        var lines = new List<string> { PlanText };
+        lines.AddRange(PickedGroups.Select(g => $"- {g.Name}"));
+        if (IsCustom)
+        {
+            var read = Lists.Where(l => l.Shown).Select(l => $"{l.Title}: {l.Ticked().Length} of {l.Items.Count}").ToList();
+            lines.Add("");
+            lines.AddRange(read.Count > 0 ? read : ["The image's own lists weren't read: nothing picked from them."]);
+        }
+        if (BakeFor(BuildOf(Edition?.Version ?? "")) is { } bake)
+        {
+            lines.Add("");
+            lines.Add($"AkariOS settings written into the image: {bake.InImage.Count}");
+            lines.Add(FirstSignIn && AkariOS && _tools.AkariExe is not null
+                ? $"The rest at the first sign-in: {bake.Later.Count} changes, one UAC prompt"
+                : "The rest left out: run One-click from the Start menu later");
+        }
         var answer = Answer switch
         {
             "None" => "None: setup asks everything as usual",
@@ -318,7 +430,7 @@ public sealed partial class IsoBuilderViewModel
         return
         [
             new("\uE7F8", "Windows image", $"{ImageSummary}\n{IsoPath.Trim()}"),
-            new(mode.Glyph, mode.Name, counts.Count > 0 ? string.Join("\n", counts) : "Nothing removed: the image's lists weren't read."),
+            new(mode.Glyph, mode.Name, string.Join("\n", lines)),
             new("\uE8B7", "Output and workspace", $"ISO\n{Path.Combine(OutDir.Trim(), IsoPlan.OutName(IsoPath.Trim()))}\n\nWork folder\n{IsoWork.Of(OutDir.Trim()).Root}"),
             new("\uE713", "Installation options", $"Answer file: {answer}\nAkariOS on the new Windows: {(AkariOS ? "Yes" : "No")}"),
             new("\uE9F5", "Build settings", string.Join("\n", Settings.Lines())),

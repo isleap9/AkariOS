@@ -77,6 +77,10 @@ public static partial class Program
             return InConsole((console, log) => console.Resume(new Core.Runs.RunStore(Core.Runs.RunStore.Default, () => { }).Get,
                 sid => Engine.Live(TweaksAssembly.Codes, log, sid)));
 
+        // an AkariOS ISO's first sign-in: the rest of the AkariOS preset, in One-click's console
+        if (Cli.IsFirstSignIn(args))
+            return InConsole((console, log) => console.FirstSignIn(Engine.Live(TweaksAssembly.Codes, log)));
+
         if (Cli.IsCli(args))
         {
             // a WinExe has no console: write to the one it was started from

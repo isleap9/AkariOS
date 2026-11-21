@@ -2,6 +2,7 @@
     x:Class="AkariOS.App.Views.DownloadsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:views="using:AkariOS.App.Views"
     xmlns:vm="using:AkariOS.App.ViewModels">
 
     <Page.Resources>
@@ -57,7 +58,7 @@
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 <ItemsRepeater ItemsSource="{x:Bind ViewModel.Windows.Apps.CurrentRemove.ShownRows, Mode=OneWay}">
                     <ItemsRepeater.Layout>
-                        <UniformGridLayout MinItemWidth="280" MinColumnSpacing="8" MinRowSpacing="8" ItemsStretch="Fill" />
+                        <views:CardGridLayout MinItemWidth="280" ColumnSpacing="8" RowSpacing="8" />
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:AppRowViewModel">
@@ -159,7 +160,7 @@
             <!-- the store cards (picked from mockups): at least 280 px a column -->
             <ItemsRepeater ItemsSource="{x:Bind ViewModel.Shown, Mode=OneWay}">
                 <ItemsRepeater.Layout>
-                    <UniformGridLayout MinItemWidth="280" MinColumnSpacing="8" MinRowSpacing="8" ItemsStretch="Fill" />
+                    <views:CardGridLayout MinItemWidth="280" ColumnSpacing="8" RowSpacing="8" />
                 </ItemsRepeater.Layout>
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate x:DataType="vm:AppCardViewModel">
