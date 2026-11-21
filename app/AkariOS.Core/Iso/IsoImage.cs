@@ -249,6 +249,31 @@ public sealed partial class IsoBuild
         return (IsoOpState.Done, "");
     }
 
+    /// <summary>
+    /// Tiny11 Core's pruning (ADR 0010): every WinSxS folder but the store's metadata and the runtimes Windows loads
+    /// from it removed, ownership taken once for the store. Refused (the build fails, nothing removed) while servicing
+    /// is pending or when the image's own runtimes can't be found.
+    /// </summary>
+    private void PruneComponentStore(string mount)
+    {
+        if (File.Exists(Path.Combine(mount, IsoPlan.PendingXml)))
+            throw new IsoException("The image has pending servicing (pending.xml): Minimal can't prune its component store. Nothing was pruned.");
+        var store = Path.Combine(mount, @"Windows\WinSxS");
+        if (!Directory.Exists(store)) throw new IsoException("The image has no Windows\\WinSxS folder: nothing to prune.");
+        var folders = Directory.EnumerateDirectories(store).Select(Path.GetFileName).OfType<string>().ToList();
+        foreach (var family in IsoWizard.RequiredRuntimes)
+            if (!folders.Any(f => f.Contains(family, StringComparison.OrdinalIgnoreCase) && IsoWizard.KeepInComponentStore(f)))
+                throw new IsoException($"Minimal can't find the image's {family} runtime in WinSxS: nothing was pruned.");
+        var removable = folders.Where(f => !IsoWizard.KeepInComponentStore(f)).ToList();
+        Op($"{removable.Count} component folders", () =>
+        {
+            Own(store);
+            var n = removable.Sum(f => Machine.SystemPaths.Remove([Path.Combine(store, f)]));
+            p.Log.Write($"Pruned {n} of {removable.Count} component folders");
+            return (IsoOpState.Done, $"{n} removed; {folders.Count - removable.Count} kept");
+        });
+    }
+
     // HKLM:\AkariIso_SOFTWARE\... → SOFTWARE
     private static string HiveOf(string path)
     {

@@ -26,9 +26,9 @@ public sealed class IsoBuilderTests : IDisposable
         Assert.Equal(["Current", "", "", "", "", ""], iso.Stepper.Select(s => s.State));
         Assert.Equal(("Start", true, false), (iso.NextText, iso.CanNext, iso.CanBack));
         Assert.Equal(["AkariOS", "Lite", "Minimal", "Custom"], iso.Modes.Select(m => m.Id));
-        Assert.Equal(["AkariOS", "Lite", "Custom"], iso.Modes.Where(m => m.Available).Select(m => m.Id));
+        Assert.Equal(["AkariOS", "Lite", "Minimal", "Custom"], iso.Modes.Where(m => m.Available).Select(m => m.Id));
         Assert.Equal(["Custom"], iso.Modes.Where(m => m.IsSelected).Select(m => m.Id));
-        Assert.Equal(["Recommended", "Update-safe", "Coming soon", "Choose yourself"], iso.Modes.Select(m => m.Tag));
+        Assert.Equal(["Recommended", "Update-safe", "For test VMs only", "Choose yourself"], iso.Modes.Select(m => m.Tag));
         // Custom starts with the hardware checks skipped, every group editable
         Assert.True(iso.IsCustom);
         Assert.Equal([IsoBuilderViewModel.CustomStartGroup], iso.RemovalGroups.Where(g => g.IsChecked).Select(g => g.Id));
@@ -340,19 +340,42 @@ public sealed class IsoBuilderTests : IDisposable
     }
 
     [Fact]
-    public async Task The_lite_mode_removes_windows_ai_and_bakes_nothing()
+    public async Task The_lite_mode_is_tiny11s_set_on_recovery_esd_and_bakes_nothing()
     {
         var (t, iso, _, fakes) = await Opened();
         iso.PickModeCommand.Execute("Lite");
         Assert.False(iso.IsAkariOSMode);
-        Assert.Contains("WindowsAI", iso.RemovalGroups.Where(g => g.IsChecked).Select(g => g.Id));
+        Assert.Contains("EdgeWebView", iso.RemovalGroups.Where(g => g.IsChecked).Select(g => g.Id));
+        Assert.Equal(Core.Iso.IsoCompression.Recovery, iso.Settings.Compression);
         iso.Answer = "None";
         t.Dialogs.Answers.Enqueue("Build ISO");
         await iso.BuildAsync();
         Assert.True(iso.HasResult, iso.BuildError);
         Assert.Contains(@"Remove Feature <root>\out\AkariIso\Mount Recall", fakes.Calls);
         Assert.DoesNotContain(iso.Stages, s => s.Text == "Writing the AkariOS settings into the image");
-        Assert.Equal(0u, fakes.Parts.Registry.GetValue(@"HKLM:\AkariIso_SOFTWARE\Microsoft\Windows\CurrentVersion\ReservedStorage", "ShippedWithReserves"));
+        Assert.Equal(0u, fakes.Parts.Registry.GetValue(@"HKLM:\AkariIso_SOFTWARE\Microsoft\Windows\CurrentVersion\ReserveManager", "ShippedWithReserves"));
+        Assert.Contains(fakes.Calls, c => c.StartsWith("Export ", StringComparison.Ordinal) && c.EndsWith("install.esd recovery", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Minimal_asks_for_the_agreement_before_it_is_picked()
+    {
+        var t = _h.Make();
+        var iso = t.Iso;
+        // refused: Custom stays
+        t.Dialogs.Answers.Enqueue("Cancel");
+        iso.PickModeCommand.Execute("Minimal");
+        Assert.Equal(IsoBuilderViewModel.MinimalAgreement, t.Dialogs.Asked.Single());
+        Assert.Equal(("Custom", IsoBuilderViewModel.StartStep), (iso.Mode, iso.Step));
+        // agreed: its groups, fixed, Core's among them
+        t.Dialogs.Answers.Enqueue("I understand");
+        iso.PickModeCommand.Execute("Minimal");
+        Assert.Equal(("Minimal", IsoBuilderViewModel.ImageStep), (iso.Mode, iso.Step));
+        Assert.Contains("Tiny11Core", iso.RemovalGroups.Where(g => g.IsChecked).Select(g => g.Id));
+        Assert.All(iso.RemovalGroups, g => Assert.False(g.IsEditable));
+        // picked again: no second question
+        iso.PickModeCommand.Execute("Minimal");
+        Assert.Equal(2, t.Dialogs.Asked.Count);
     }
 
     [Fact]
@@ -630,6 +653,80 @@ public sealed class IsoBuilderTests : IDisposable
         iso.IsMassgrave = true;
         Assert.Equal(2, iso.MassgraveProducts.Count);
         Assert.Equal(pages, fakes.Calls.Count);
+    }
+
+    // ---- Microsoft (batch I5)
+
+    private (AppTest T, IsoBuilderViewModel Iso, string Downloads, DownloadFakes Fakes) Microsoft(string? page)
+    {
+        var t = _h.Make();
+        var c = IsoDownloadOracleTests.Case();
+        c["Pages"] = new Dictionary<string, string?> { [Core.Iso.MicrosoftIso.Page] = page };
+        var (side, fakes) = _h.Downloads(t, c);
+        var iso = t.Iso;
+        iso.IsMicrosoft = true;
+        return (t, iso, Path.Combine(side.Root, "downloads"), fakes);
+    }
+
+    private static string Sha(string text) =>
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text)));
+
+    [Fact]
+    public void Microsoft_opens_its_page_finds_the_download_and_checks_it_against_microsofts_sha256()
+    {
+        var (t, iso, downloads, fakes) = Microsoft($"<table><tr><td>English International 64-bit</td><td>{Sha("iso")}</td></tr></table>");
+        // the hash list read once, when the source is picked
+        Assert.Equal([$"Page {Core.Iso.MicrosoftIso.Page}"], fakes.Calls);
+        Assert.Equal(IsoBuilderViewModel.MicrosoftHint, iso.MicrosoftNote);
+
+        iso.OpenMicrosoftPageCommand.Execute(null);
+        Assert.Equal([Core.Iso.MicrosoftIso.Page], t.Open.Opened);
+        Assert.StartsWith("Waiting for the Windows 11 ISO in Downloads", iso.MicrosoftNote);
+        var timer = t.Timers.All.Single();
+        // a partial download and another ISO don't count
+        File.WriteAllText(Path.Combine(downloads, "Win11_25H2_EnglishInternational_x64.iso.crdownload"), "part");
+        File.WriteAllText(Path.Combine(downloads, "other.iso"), "iso");
+        t.Timers.Tick();
+        Assert.False(timer.Stopped);
+
+        var file = Path.Combine(downloads, "Win11_25H2_EnglishInternational_x64.iso");
+        File.WriteAllText(file, "iso");
+        t.Timers.Tick();
+        Assert.True(timer.Stopped);
+        Assert.Equal(file, iso.IsoPath);
+        Assert.Equal("File", iso.Source);
+        Assert.Equal($"Downloaded and checked against Microsoft's SHA-256 (English International 64-bit): {file}. Press Open ISO.", iso.OpenNote);
+        Assert.Equal($"ISO found and checked: {file}", t.Toasts.Single());
+        // picked again: the list isn't read twice
+        iso.IsMicrosoft = true;
+        Assert.Single(fakes.Calls);
+    }
+
+    [Fact]
+    public void Microsoft_leaves_a_download_that_matches_none_of_its_hashes_unused()
+    {
+        var (t, iso, downloads, _) = Microsoft($"<table><tr><td>English 64-bit</td><td>{new string('A', 64)}</td></tr></table>");
+        iso.OpenMicrosoftPageCommand.Execute(null);
+        File.WriteAllText(Path.Combine(downloads, "Win11_25H2_English_x64.iso"), "tampered");
+        t.Timers.Tick();
+        Assert.Equal("", iso.IsoPath);
+        Assert.Equal("Microsoft", iso.Source);
+        Assert.StartsWith("Win11_25H2_English_x64.iso doesn't match any SHA-256 value Microsoft publishes", iso.MicrosoftNote);
+        Assert.Equal("ISO not used: Its SHA-256 doesn't match Microsoft's.", t.Toasts.Single());
+        Assert.Contains(((Core.MemoryLog)t.Engine.Log).FileLines, l => l.Contains("matches no SHA-256 on Microsoft's page", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Microsoft_uses_the_download_unchecked_when_its_list_cant_be_read_and_says_so()
+    {
+        var (t, iso, downloads, _) = Microsoft(null);
+        Assert.Contains(((Core.MemoryLog)t.Engine.Log).FileLines, l => l.Contains("Couldn't read Microsoft's SHA-256 list", StringComparison.Ordinal));
+        iso.OpenMicrosoftPageCommand.Execute(null);
+        var file = Path.Combine(downloads, "Win11_25H2_English_x64.iso");
+        File.WriteAllText(file, "iso");
+        t.Timers.Tick();
+        Assert.Equal(file, iso.IsoPath);
+        Assert.Equal($"Downloaded: {file} (not checked: Couldn't read Microsoft's SHA-256 list: 404 Not Found). Press Open ISO.", iso.OpenNote);
     }
 
     [Fact]

@@ -215,7 +215,14 @@ public sealed partial class IsoBuild(IsoParts p)
                             else RemoveItems(w.Mount, "Feature", features);
                             break;
                         }
-                    case "Capabilities": RemoveItems(w.Mount, "Capability", Names(IsoPlan.List(c.Capabilities), groups.SelectMany(x => x.Capabilities))); break;
+                    case "Capabilities":
+                        {
+                            // the groups' capabilities are patterns, matched on what the image has installed
+                            var patterns = groups.SelectMany(x => x.Capabilities).ToList();
+                            IReadOnlyList<string> have = patterns.Count > 0 ? [.. Capabilities(w.Mount).Select(x => x.Name)] : [];
+                            RemoveItems(w.Mount, "Capability", IsoData.Resolve(IsoPlan.List(c.Capabilities), patterns, have));
+                            break;
+                        }
                     case "Packages": RemoveItems(w.Mount, "Package", Names(IsoPlan.List(c.Packages), groups.SelectMany(x => x.Packages))); break;
                     case "Registry":
                         {
@@ -256,6 +263,7 @@ public sealed partial class IsoBuild(IsoParts p)
                         });
                         break;
                     case "Leftovers": RemoveLeftovers(w.Mount); break;
+                    case "Prune": PruneComponentStore(w.Mount); break;
                     case "Commit": p.Image.Commit(w.Mount); break;
                     case "Compress":
                         {

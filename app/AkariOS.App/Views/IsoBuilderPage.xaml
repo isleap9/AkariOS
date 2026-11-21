@@ -181,6 +181,18 @@
                                 <Button Content="Browse…" Command="{x:Bind ViewModel.PickIsoCommand}" />
                             </StackPanel>
 
+                            <RadioButton GroupName="IsoSource" Content="Download the latest Windows 11 from Microsoft (checked against Microsoft's SHA-256)"
+                                         IsChecked="{x:Bind ViewModel.IsMicrosoft, Mode=TwoWay}" />
+                            <StackPanel Style="{StaticResource Branch}" Visibility="{x:Bind ViewModel.IsMicrosoft, Mode=OneWay}">
+                                <Button Command="{x:Bind ViewModel.OpenMicrosoftPageCommand}">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE8A7;" FontSize="14" />
+                                        <TextBlock Text="Open Microsoft's download page" />
+                                    </StackPanel>
+                                </Button>
+                                <TextBlock Text="{x:Bind ViewModel.MicrosoftNote, Mode=OneWay}" Style="{StaticResource Note}" />
+                            </StackPanel>
+
                             <RadioButton GroupName="IsoSource" Content="Download with UUP Dump (23H2 to 26H2, any language, Home to IoT Enterprise)"
                                          IsChecked="{x:Bind ViewModel.IsUup, Mode=TwoWay}" />
                             <StackPanel Style="{StaticResource Branch}" Visibility="{x:Bind ViewModel.IsUup, Mode=OneWay}">

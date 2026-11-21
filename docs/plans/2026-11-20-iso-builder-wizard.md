@@ -1,6 +1,6 @@
 # ISO Builder as a wizard (native app first)
 
-Status: I1 and I2 done 2026-11-20 (VM-checked); I3 done 2026-11-20; I4 done 2026-11-20 (I3 + I4 VM-checked 2026-11-21); I5 next. Native app (`app/`) first; the PowerShell app (`src/UI/IsoBuilder.ps1`) follows once the
+Status: I1 and I2 done 2026-11-20 (VM-checked); I3 done 2026-11-20; I4 done 2026-11-20 (I3 + I4 VM-checked 2026-11-21); I5 done 2026-11-21; I6 (Minimal = Tiny11 Core) and Lite = Tiny11 done 2026-11-21 (ADR 0010; VM check of I5 + I6 pending); then the PowerShell app. Native app (`app/`) first; the PowerShell app (`src/UI/IsoBuilder.ps1`) follows once the
 native one is done and checked on the VM.
 
 ## Why
@@ -9,11 +9,10 @@ The ISO Builder is one long page of zISO's cards. Tiny11 Builder (ntdevlabs, Win
 better shape: a step-by-step wizard, mode cards with a readable removal plan, build settings as switch cards, a
 review, and a build page that shows each stage and operation as it runs.
 
-**Licence: Tiny11 Builder has no licence** (its own NOTICE says redistribution rights are not granted). It is
-treated like Winhance (rule 9): its flow, layout and ideas only; no code, removal lists, strings or images copied.
-Its README and usage guide were read for the ideas; its source is not to be read while writing ours. Our removal
-lists come from sources we already credit (FR33THY, Win11Debloat, MIT) and Microsoft's documentation. Our modes
-don't carry the Tiny11 name.
+**Tiny11 Builder** has no licence file. It was first treated like Winhance (ideas only); since 2026-11-21 its
+developers allow AkariOS to use it (ADR 0010, `docs/permissions/tiny11builder.md`), so Lite is its Tiny11 set and
+Minimal its Tiny11 Core, ported as data into `Wizard/Groups/` (headers name the file and commit). Our modes keep
+AkariOS's names.
 
 **zISO is dropped** (decided 2026-11-20): no zISO cards or options in the native ISO Builder. What the build still
 needs from `Iso/Data/Always.psd1` (setup's hardware checks skipped in install.wim and boot.wim) becomes our own
@@ -99,10 +98,12 @@ setting up" moment. Declining it leaves part 1 in place; AkariOS stays on the St
 
 ## Microsoft's download
 
-"Latest Windows 11 from Microsoft": the product edition, language and architecture of this PC, through Microsoft's
-software-download site (the same flow its page uses), Microsoft's hosts only, the download resumable, the
-published SHA-256 checked when there is one. Region or availability blocks are reported, not worked around; the
-other sources stay. Network only through one interface (`IHttp`), faked in tests.
+"Latest Windows 11 from Microsoft" (decided 2026-11-21, after a look at the site: its download service sits behind
+bot protection that refuses automated requests): the browser downloads from Microsoft's own page (the language
+picked there), as Massgrave's links already work; AkariOS reads the SHA-256 table the same page publishes, watches
+Downloads for a new `Win11*.iso`, and uses it only when its SHA-256 matches a row (the list unreadable: used, saying
+it wasn't checked). AkariOS never calls Microsoft's download service, so a block is never worked around. Network only
+through `IHttp`, faked in tests.
 
 ## Batches
 

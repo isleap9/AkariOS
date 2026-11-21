@@ -183,6 +183,35 @@ public sealed class IsoDownload(IsoDownloadParts p)
         catch (Exception e) { return No<IReadOnlyList<MassgraveIso>>($"Couldn't read Massgrave's list: {e.Message}"); }
     }
 
+    /// <summary>Microsoft's published SHA-256 table (<see cref="MicrosoftIso.Page"/>); never throws.</summary>
+    public UupAnswer<IReadOnlyList<MicrosoftHash>> MicrosoftHashes()
+    {
+        try
+        {
+            var rows = MicrosoftIso.Hashes(p.Http.Text(MicrosoftIso.Page));
+            return rows.Count == 0
+                ? No<IReadOnlyList<MicrosoftHash>>("Microsoft's page lists no SHA-256 values (its layout may have changed).")
+                : new(true, rows, "");
+        }
+        catch (Exception e) { return No<IReadOnlyList<MicrosoftHash>>($"Couldn't read Microsoft's SHA-256 list: {e.Message}"); }
+    }
+
+    /// <summary>The newest ISO matching <paramref name="pattern"/> in the real user's Downloads (or
+    /// <paramref name="folder"/>) written after <paramref name="sinceUtc"/>: a browser's finished download (it renames
+    /// its partial file to .iso only at the end); null while there is none.</summary>
+    public string? FindNew(string pattern, DateTime sinceUtc, string? folder = null)
+    {
+        folder ??= p.Downloads();
+        if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder)) return null;
+        return new DirectoryInfo(folder).EnumerateFiles(pattern)
+            .Where(f => f.Extension.Equals(".iso", StringComparison.OrdinalIgnoreCase) && f.LastWriteTimeUtc >= sinceUtc)
+            .OrderByDescending(f => f.LastWriteTimeUtc)
+            .FirstOrDefault()?.FullName;
+    }
+
+    /// <summary>The ISO checked against Microsoft's table: the row it matches, null when it matches none.</summary>
+    public MicrosoftHash? Check(string iso, IReadOnlyList<MicrosoftHash> hashes) => MicrosoftIso.Match(hashes, IsoReport.Sha256Of(iso));
+
     /// <summary>The file a browser saved in the real user's Downloads (or <paramref name="folder"/>): the file itself
     /// or a copy it renamed ("name (1).iso"), the newest; null while it isn't there (Find-AkariDownloadedIso).</summary>
     public string? FindDownloaded(string file, string? folder = null)

@@ -186,18 +186,21 @@ public sealed partial class IsoBuilderViewModel : ObservableObject
 
     // ---- 1 the ISO
 
-    /// <summary>The ISO's source: File, Uup or Massgrave (Massgrave's list is read the first time).</summary>
+    /// <summary>The ISO's source: File, Microsoft, Uup or Massgrave (Microsoft's hash list and Massgrave's list are
+    /// read the first time).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsFile), nameof(IsUup), nameof(IsMassgrave))]
+    [NotifyPropertyChangedFor(nameof(IsFile), nameof(IsMicrosoft), nameof(IsUup), nameof(IsMassgrave))]
     public partial string Source { get; set; } = "File";
 
     public bool IsFile { get => Source == "File"; set { if (value) Source = "File"; } }
+    public bool IsMicrosoft { get => Source == "Microsoft"; set { if (value) Source = "Microsoft"; } }
     public bool IsUup { get => Source == "Uup"; set { if (value) Source = "Uup"; } }
     public bool IsMassgrave { get => Source == "Massgrave"; set { if (value) Source = "Massgrave"; } }
 
     partial void OnSourceChanged(string value)
     {
         if (value == "Massgrave" && _massgrave.Count == 0 && Job != "IsoMassgrave") _ = MassgraveListAsync();
+        if (value == "Microsoft" && _msHashes is null && Job != "IsoMicrosoft") _ = MicrosoftHashesAsync();
     }
 
     [ObservableProperty]
@@ -437,6 +440,7 @@ public sealed partial class IsoBuilderViewModel : ObservableObject
 
     private void CheckDownload()
     {
+        if (_msWaiting) { CheckMicrosoftDownload(); return; }
         if (_waiting.Length == 0 || _tools.Download is not { } dl) { StopWatch(); return; }
         if (dl.FindDownloaded(_waiting) is not { } hit) return;
         StopWatch();
@@ -449,6 +453,96 @@ public sealed partial class IsoBuilderViewModel : ObservableObject
     {
         _watch?.Dispose();
         _watch = null;
+    }
+
+    // ---- Microsoft (batch I5): the browser downloads from Microsoft's page, AkariOS finds the ISO and checks it
+
+    public const string MicrosoftHint = "Microsoft's page downloads the latest Windows 11 in your browser (pick the language there); AkariOS then finds it in Downloads and checks it against the SHA-256 values Microsoft publishes.";
+
+    private IReadOnlyList<MicrosoftHash>? _msHashes;
+    private string _msHashError = "";
+    private bool _msWaiting;
+    private DateTime _msSince;
+
+    [ObservableProperty]
+    public partial string MicrosoftNote { get; private set; } = MicrosoftHint;
+
+    // Microsoft's hash table, read once (a question to a website: not a long job)
+    private async Task MicrosoftHashesAsync()
+    {
+        if (_tools.Download is not { } dl) return;
+        await StartAsync("IsoMicrosoft", "Reading Microsoft's SHA-256 list", () => dl.MicrosoftHashes(), r =>
+        {
+            if (r is UupAnswer<IReadOnlyList<MicrosoftHash>> { Ok: true, Value: { } rows })
+            {
+                _msHashes = rows;
+                _msHashError = "";
+            }
+            else
+            {
+                _msHashError = (r as UupAnswer<IReadOnlyList<MicrosoftHash>>)?.Message ?? "Microsoft's SHA-256 list could not be read.";
+                _engine.Log.WriteFile($"ISO Builder: {_msHashError}");
+            }
+        });
+    }
+
+    /// <summary>Opens Microsoft's page in the browser, then looks for a new Win11*.iso in Downloads every 3 seconds.</summary>
+    [RelayCommand]
+    public void OpenMicrosoftPage()
+    {
+        _open.Url(MicrosoftIso.Page);
+        _msWaiting = true;
+        // a file the browser finishes from now on (a few seconds' slack for the clocks)
+        _msSince = DateTime.UtcNow.AddSeconds(-5);
+        MicrosoftNote = "Waiting for the Windows 11 ISO in Downloads… (choose the language and download it in the browser that just opened)";
+        _watch ??= _timers.Every(TimeSpan.FromSeconds(3), CheckDownload);
+    }
+
+    private void CheckMicrosoftDownload()
+    {
+        if (_tools.Download is not { } dl) { StopWatch(); return; }
+        if (Job is not null || dl.FindNew(MicrosoftIso.FilePattern, _msSince) is not { } hit) return;
+        // the hash list not read yet (its read was refused while another job ran): read it, check on the next tick
+        if (_msHashes is null && _msHashError.Length == 0) { _ = MicrosoftHashesAsync(); return; }
+        StopWatch();
+        _msWaiting = false;
+        _ = CheckMicrosoftIsoAsync(dl, hit);
+    }
+
+    // the download checked against Microsoft's table: a match becomes the source; none = it isn't used
+    private async Task CheckMicrosoftIsoAsync(IsoDownload dl, string iso)
+    {
+        var hashes = _msHashes;
+        if (hashes is null)
+        {
+            SetSource(iso, $"Downloaded: {iso} (not checked: {_msHashError.TrimEnd('.')})");
+            MicrosoftNote = MicrosoftHint;
+            return;
+        }
+        MicrosoftNote = $"Checking {Path.GetFileName(iso)} against Microsoft's SHA-256 values…";
+        await StartAsync("IsoVerify", "Checking the ISO's SHA-256", () =>
+        {
+            try { return dl.Check(iso, hashes) ?? (object)"none"; }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return e; }
+        }, r =>
+        {
+            switch (r)
+            {
+                case MicrosoftHash h:
+                    MicrosoftNote = MicrosoftHint;
+                    SetSource(iso, $"Downloaded and checked against Microsoft's SHA-256 ({h.Language}): {iso}");
+                    _shell.Toast("ISO found and checked", iso, InfoBarSeverity.Success);
+                    break;
+                case Exception e:
+                    MicrosoftNote = $"{Path.GetFileName(iso)} could not be read: {e.Message}";
+                    break;
+                default:
+                    MicrosoftNote = $"{Path.GetFileName(iso)} doesn't match any SHA-256 value Microsoft publishes: it may be damaged or not Microsoft's. Delete it and download it again.";
+                    _engine.Log.WriteFile($"ISO Builder: {iso} matches no SHA-256 on Microsoft's page");
+                    _shell.Toast("ISO not used", "Its SHA-256 doesn't match Microsoft's.", InfoBarSeverity.Warning);
+                    break;
+            }
+        });
     }
 
     // ---- 2 the edition

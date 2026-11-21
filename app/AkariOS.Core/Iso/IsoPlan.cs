@@ -132,6 +132,7 @@ public static partial class IsoPlan
         Add("NetFx3", "Adding .NET Framework 3.5");
         Add("Cleanup", "Cleaning up the component store");
         if (c.Settings.CleanLeftovers) Add("Leftovers", "Removing leftover image data");
+        if (g.Any(x => x.PruneComponentStore)) Add("Prune", "Pruning the component store (Minimal: no updates or repairs afterwards)");
         Add("Commit", "Saving the image");
         Add("Compress", c.Settings.Compression switch
         {

@@ -23,10 +23,14 @@ public sealed class IsoWizardTests
     {
         var groups = IsoWizard.Groups(Files);
         var modes = IsoWizard.Modes(Files);
-        Assert.Equal(["AkariOS", "Lite"], modes.Select(m => m.Id));
-        Assert.Equal([true, false], modes.Select(m => m.AkariOS));
-        Assert.Equal(["Recommended", "Update-safe"], modes.Select(m => m.Tag));
-        Assert.All(modes, m => Assert.Equal(IsoCompression.Maximum, m.Settings.Compression));
+        Assert.Equal(["AkariOS", "Lite", "Minimal"], modes.Select(m => m.Id));
+        Assert.Equal([true, false, false], modes.Select(m => m.AkariOS));
+        Assert.Equal([false, false, true], modes.Select(m => m.Minimal));
+        Assert.Equal(["Recommended", "Update-safe", "For test VMs only"], modes.Select(m => m.Tag));
+        // Tiny11 Builder's default: the smallest ISO
+        Assert.All(modes, m => Assert.Equal(IsoCompression.Recovery, m.Settings.Compression));
+        // only Minimal prunes the component store (Tiny11 Core)
+        Assert.Equal(["Minimal"], modes.Where(m => IsoWizard.Picked(m.Groups, groups).Any(g => g.PruneComponentStore)).Select(m => m.Id));
         // every mode's groups exist, both skip the hardware checks
         Assert.All(modes, m => Assert.Equal(m.Groups.Count, IsoWizard.Picked(m.Groups, groups).Count));
         Assert.All(modes, m => Assert.Contains("SkipHardwareChecks", m.Groups));
@@ -35,6 +39,95 @@ public sealed class IsoWizardTests
         // rows name a hive the build loads
         Assert.All(groups.SelectMany(g => g.Registry.Concat(g.Boot)), r => IsoData.Rows([r], IsoData.HiveRoot));
         Assert.Throws<IsoException>(() => IsoWizard.Picked(["Nope"], groups));
+    }
+
+    [Fact]
+    public void Lite_and_minimal_are_tiny11_and_tiny11_core()
+    {
+        var groups = IsoWizard.Groups(Files);
+        var modes = IsoWizard.Modes(Files).ToDictionary(m => m.Id);
+        IReadOnlyList<string> Apps(string mode) => [.. IsoWizard.Picked(modes[mode].Groups, groups).SelectMany(g => g.Apps)];
+        // Tiny11 removes Paint, Camera and Terminal; Core keeps them
+        Assert.Contains("Microsoft.WindowsTerminal", Apps("Lite"));
+        Assert.DoesNotContain("Microsoft.WindowsTerminal", Apps("Minimal"));
+        Assert.Contains("Microsoft.XboxGamingOverlay", Apps("Minimal"));
+        // both remove Edge with WebView2; AkariOS keeps WebView2
+        Assert.Contains("EdgeWebView", modes["Lite"].Groups);
+        Assert.Contains("EdgeWebView", modes["Minimal"].Groups);
+        Assert.DoesNotContain("EdgeWebView", modes["AkariOS"].Groups);
+        var edge = groups.Single(g => g.Id == "EdgeWebView");
+        Assert.Contains(@"Program Files (x86)\Microsoft\EdgeWebView", edge.Remove);
+        Assert.Contains(@"Windows\WinSxS\*microsoft-edge-webview*", edge.Remove);
+        // reserved storage: the key Microsoft documents
+        Assert.Equal(@"SOFTWARE\Microsoft\Windows\CurrentVersion\ReserveManager", groups.Single(g => g.Id == "ReservedStorage").Registry.Single().Get("Path"));
+    }
+
+    [Theory]
+    [InlineData("Manifests", true)]
+    [InlineData("Catalogs", true)]
+    [InlineData("amd64_microsoft.windows.common-controls_6595b64144ccf1df_6.0.26100.1_none_1", true)]
+    [InlineData("amd64_microsoft.windows.gdiplus_6595b64144ccf1df_1.1.26100.1_none_1", true)]
+    [InlineData("amd64_microsoft-windows-servicingstack_31bf3856ad364e35_10.0.26100.1_none_1", true)]
+    [InlineData("amd64_microsoft-windows-s..stack-msg.resources_31bf3856ad364e35_10.0.26100.1_en-us_1", true)]
+    [InlineData("x86_microsoft.vc90.crt_1fc8b3b9a1e18e3b_9.0.30729.9635_none_1", true)]
+    [InlineData("amd64_microsoft-windows-notepad_31bf3856ad364e35_10.0.26100.1_none_1", false)]
+    [InlineData("amd64_microsoft-edge-webview_31bf3856ad364e35_10.0.26100.1_none_1", false)]
+    public void Prunes_the_component_store_but_its_metadata_and_runtimes(string folder, bool keep) =>
+        Assert.Equal(keep, IsoWizard.KeepInComponentStore(folder));
+
+    private static readonly string[] StoreFiles =
+    [
+        @"Windows\WinSxS\Manifests\a.manifest",
+        @"Windows\WinSxS\amd64_microsoft.windows.common-controls_6595b64144ccf1df_6.0_none_1\comctl32.dll",
+        @"Windows\WinSxS\amd64_microsoft.windows.gdiplus_6595b64144ccf1df_1.1_none_1\gdiplus.dll",
+        @"Windows\WinSxS\amd64_microsoft-windows-servicingstack_31bf3856ad364e35_10.0_none_1\a.dll",
+        @"Windows\WinSxS\amd64_microsoft-windows-notepad_31bf3856ad364e35_10.0_none_1\notepad.exe",
+        @"Windows\System32\Recovery\winre.wim",
+    ];
+
+    [Fact]
+    public void Minimal_prunes_the_store_removes_winre_and_matches_capabilities_by_pattern()
+    {
+        var c = Case(x =>
+        {
+            x["ImageFiles"] = (string[])[.. ImageFiles, .. StoreFiles];
+            x["ImageCapabilities"] = new object[]
+            {
+                new { Name = "Language.Speech~~~en-US~0.0.1.0", State = "Installed" },
+                new { Name = "Language.Basic~~~en-US~0.0.1.0", State = "Installed" },
+                new { Name = "Microsoft.Windows.WordPad~~~~0.0.1.0", State = "Installed" },
+            };
+        });
+        using var s = new Side(c);
+        IsoFakes? fakes = null;
+        var left = new List<string>();
+        var mode = IsoWizard.Modes(Files).Single(m => m.Id == "Minimal");
+        var o = Cs(s, c, f =>
+        {
+            fakes = f;
+            f.OnCommit = m => { if (left.Count == 0) left.AddRange(StoreFiles.Where(x => File.Exists(Path.Combine(m, x)))); };
+        }, ch => ch with { Groups = [.. mode.Groups], Settings = mode.Settings });
+        Assert.StartsWith("Action=Build;Ok=true", o.Results[1]);
+        // the runtimes and metadata stay; notepad's component and WinRE go
+        Assert.Equal(StoreFiles.Take(4), left);
+        Assert.Contains("Pruned 1 of 1 component folders", o.Log);
+        // the language payloads and WordPad by pattern; basic language support stays
+        Assert.Contains(fakes!.Calls, x => x.EndsWith("Language.Speech~~~en-US~0.0.1.0", StringComparison.Ordinal) && x.StartsWith("Remove Capability", StringComparison.Ordinal));
+        Assert.Contains(fakes.Calls, x => x.EndsWith("Microsoft.Windows.WordPad~~~~0.0.1.0", StringComparison.Ordinal) && x.StartsWith("Remove Capability", StringComparison.Ordinal));
+        Assert.DoesNotContain(fakes.Calls, x => x.Contains("Language.Basic", StringComparison.Ordinal));
+        // Update and Defender off
+        Assert.Equal(4u, fakes.Parts.Registry.GetValue(@"HKLM:\AkariIso_SYSTEM\ControlSet001\Services\wuauserv", "Start"));
+        Assert.Contains(fakes.Calls, x => x.StartsWith("Export ", StringComparison.Ordinal) && x.EndsWith("install.esd recovery", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Minimal_refuses_to_prune_an_image_with_pending_servicing()
+    {
+        var c = Case(x => x["ImageFiles"] = (string[])[.. ImageFiles, .. StoreFiles, IsoPlan.PendingXml]);
+        using var s = new Side(c);
+        var o = Cs(s, c, null, ch => ch with { Groups = ["Tiny11Core"] });
+        Assert.StartsWith("Action=Build;Ok=false", o.Results[1]);
+        Assert.Contains("pending servicing (pending.xml): Minimal can't prune its component store", o.Results[1]);
     }
 
     [Fact]

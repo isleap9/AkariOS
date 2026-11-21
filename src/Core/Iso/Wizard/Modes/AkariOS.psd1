@@ -9,5 +9,5 @@
     Order       = 1
     Groups      = @('SkipHardwareChecks', 'NoSponsoredApps', 'StoreAppsAkariOS', 'Edge', 'OneDrive')
     AkariOS     = $true
-    Settings    = @{ Compression = 'Maximum' }
+    Settings    = @{ Compression = 'Recovery' }
 }

@@ -7,6 +7,6 @@
     Risk        = 'Safe'
     Order       = 8
     Registry    = @(
-        @{ Path = 'SOFTWARE\Microsoft\Windows\CurrentVersion\ReservedStorage'; Name = 'ShippedWithReserves'; Type = 'DWord'; Value = 0 }
+        @{ Path = 'SOFTWARE\Microsoft\Windows\CurrentVersion\ReserveManager'; Name = 'ShippedWithReserves'; Type = 'DWord'; Value = 0 }
     )
 }

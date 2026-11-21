@@ -11,17 +11,20 @@ namespace AkariOS.Core.Iso;
 /// <summary>
 /// A removal group of the ISO Builder's wizard (src/Core/Iso/Wizard/Groups/&lt;Id&gt;.psd1): its text, Kind (Apps,
 /// Features, Capabilities, Settings, Files, Setup), Risk, Order, and what it does to the image: Store apps (patterns,
-/// or 'appx:Safe' / 'appx:AkariOS' = the appx Group's rows), features (patterns), capabilities and OS packages (names),
-/// install.wim's registry rows and keys, paths removed, boot.wim's rows.
+/// or 'appx:Safe' / 'appx:AkariOS' = the appx Group's rows), features and capabilities (patterns, matched on the
+/// image), OS packages (names), install.wim's registry rows and keys, paths removed, boot.wim's rows, and
+/// PruneComponentStore (Tiny11 Core: the component store pruned to what boots, irreversible).
 /// </summary>
 public sealed record IsoGroup(string Id, string Name, string Description, string Kind, string Risk, int Order,
     IReadOnlyList<string> Apps, IReadOnlyList<string> Features, IReadOnlyList<string> Capabilities, IReadOnlyList<string> Packages,
-    IReadOnlyList<PsHashtable> Registry, IReadOnlyList<string> RemoveKeys, IReadOnlyList<string> Remove, IReadOnlyList<PsHashtable> Boot);
+    IReadOnlyList<PsHashtable> Registry, IReadOnlyList<string> RemoveKeys, IReadOnlyList<string> Remove, IReadOnlyList<PsHashtable> Boot,
+    bool PruneComponentStore = false);
 
 /// <summary>A mode of the wizard (src/Core/Iso/Wizard/Modes/&lt;Id&gt;.psd1): its card's text and Tag, Order, its removal
-/// groups, its build settings, and AkariOS = the AkariOS preset baked in.</summary>
+/// groups, its build settings, AkariOS = the AkariOS preset baked in, and Minimal = irreversible (for test VMs: the
+/// page asks for an agreement before it can be picked).</summary>
 public sealed record IsoMode(string Id, string Name, string Description, string Tag, int Order, IReadOnlyList<string> Groups,
-    IsoBuildSettings Settings, bool AkariOS);
+    IsoBuildSettings Settings, bool AkariOS, bool Minimal = false);
 
 /// <summary>One Tweak written into the image's hives: the AkariOS preset's registry-only Tweaks (Value = a Choice's).</summary>
 public sealed record IsoBakeItem(Tweak Tweak, object? Value);
@@ -30,7 +33,7 @@ public sealed record IsoBakeItem(Tweak Tweak, object? Value);
 public sealed record IsoBake(IReadOnlyList<IsoBakeItem> InImage, IReadOnlyList<string> Later);
 
 /// <summary>The wizard's data and its pure helpers (plan docs/plans/2026-11-20-iso-builder-wizard.md, I4).</summary>
-public static class IsoWizard
+public static partial class IsoWizard
 {
     public const string Folder = "src/Core/Iso/Wizard/";
 
@@ -52,7 +55,7 @@ public static class IsoWizard
     private static IsoGroup Group(string id, PsHashtable h) => new(id, Text(h.Get("Name")) ?? id, Text(h.Get("Description")) ?? "",
         Text(h.Get("Kind")) ?? "", Text(h.Get("Risk")) ?? "Safe", Number(h.Get("Order")), Strings(h.Get("Apps")), Strings(h.Get("Features")),
         Strings(h.Get("Capabilities")), Strings(h.Get("Packages")), Tables(h.Get("Registry")), Strings(h.Get("RemoveKeys")),
-        Strings(h.Get("Remove")), Tables(h.Get("Boot")));
+        Strings(h.Get("Remove")), Tables(h.Get("Boot")), Truthy(h.Get("PruneComponentStore")));
 
     private static IsoMode Mode(string id, PsHashtable h)
     {
@@ -65,7 +68,7 @@ public static class IsoWizard
             LeaveOutNetFx3Files = Truthy(s.Get("LeaveOutNetFx3Files")),
         };
         return new(id, Text(h.Get("Name")) ?? id, Text(h.Get("Description")) ?? "", Text(h.Get("Tag")) ?? "", Number(h.Get("Order")),
-            Strings(h.Get("Groups")), settings, Truthy(h.Get("AkariOS")));
+            Strings(h.Get("Groups")), settings, Truthy(h.Get("AkariOS")), Truthy(h.Get("Minimal")));
     }
 
     private static int Number(object? v) => Convert.ToInt32(v ?? 0, CultureInfo.InvariantCulture);
@@ -103,6 +106,24 @@ public static class IsoWizard
         }
         return output;
     }
+
+    // ---- Tiny11 Core's component store pruning (ADR 0010: Tiny11 Builder's ImageOperations.TrimCore)
+
+    /// <summary>The WinSxS folders pruning keeps: the store's own metadata, and the runtimes Windows still loads from it
+    /// (common controls, GDI+, isolation automation, the VC 8 / 9 CRTs, the servicing stack).</summary>
+    public static bool KeepInComponentStore(string folder) =>
+        StoreMetadata.Contains(folder) || StoreRuntimes().IsMatch(folder);
+
+    private static readonly HashSet<string> StoreMetadata = new(StringComparer.OrdinalIgnoreCase)
+        { "Catalogs", "FileMaps", "Fusion", "InstallTemp", "Manifests", "SettingsManifests", "Temp" };
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"(?:common-controls|c\.\.-controls|gdiplus|isolationautomation|utomation\.proxystub|microsoft\.vc\d+\.crt|servicing|s\.\.(?:ngstack|stack))",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant)]
+    private static partial System.Text.RegularExpressions.Regex StoreRuntimes();
+
+    /// <summary>The runtime families pruning must find for the image's architecture first, or it refuses (a store it
+    /// can't read is never pruned).</summary>
+    public static IReadOnlyList<string> RequiredRuntimes { get; } = ["common-controls", "gdiplus", "servicing"];
 
     // ---- the AkariOS preset baked into the image
 

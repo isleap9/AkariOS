@@ -139,11 +139,10 @@ public sealed partial class IsoBuilderViewModel
         "Allow 20 to 40 minutes. Optimize's changes and installs wait meanwhile.",
     ];
 
-    /// <summary>The modes (Start and Components): the data's (AkariOS, Lite), Minimal (batch I6) and Custom.</summary>
+    /// <summary>The modes (Start and Components): the data's (AkariOS, Lite, Minimal), then Custom.</summary>
     public IReadOnlyList<IsoModeViewModel> Modes => _modes ??=
     [
         .. ModeData.Select(m => new IsoModeViewModel(m.Id, m.Name, m.Description, m.Tag, ModeGlyph(m.Id), true, PickMode)),
-        new("Minimal", "Minimal", "The smallest image, for test VMs: no updates, recovery or Defender afterwards.", "Coming soon", ModeGlyph("Minimal"), false, PickMode),
         new("Custom", "Custom", "Pick the removal groups and the image's own apps and features yourself.", "Choose yourself", ModeGlyph("Custom"), true, PickMode),
     ];
 
@@ -325,12 +324,25 @@ public sealed partial class IsoBuilderViewModel
         CurrentOperation = op.State == IsoOpState.Running ? op.Name : "";
     }
 
-    /// <summary>A mode's card clicked: picked; on Start, also the next step.</summary>
+    /// <summary>The agreement Minimal asks for before it is picked (Tiny11 Core's warning, ADR 0010).</summary>
+    public const string MinimalAgreement =
+        "Minimal is for test virtual machines only. The Windows it builds:\n" +
+        "- never gets Windows Update, so no security fixes\n" +
+        "- has Microsoft Defender turned off\n" +
+        "- has no recovery environment, and can't be repaired, reset or have features or languages added\n" +
+        "- loses Edge, WebView2 and most bundled apps\n\n" +
+        "Don't install it on a PC you use.";
+
+    /// <summary>A mode's card clicked: picked (Minimal only after its agreement); on Start, also the next step.</summary>
     [RelayCommand]
-    public void PickMode(string id)
+    public void PickMode(string id) => _ = PickModeAsync(id);
+
+    public async Task PickModeAsync(string id)
     {
         var m = Modes.FirstOrDefault(x => x.Id == id);
         if (m is not { Available: true }) return;
+        if (id != Mode && ModeData.FirstOrDefault(x => x.Id == id) is { Minimal: true } &&
+            !await _dialogs.ConfirmAsync("Build a Minimal image?", MinimalAgreement, "I understand")) return;
         Mode = id;
         foreach (var x in Modes) x.IsSelected = x.Id == id;
         if (Step == StartStep) Step = ImageStep;
