@@ -112,7 +112,10 @@ public static partial class IsoPlan
 
     /// <summary>The build's ordered steps (New-AkariIsoPlan); <paramref name="picked"/> = the picked options.</summary>
     /// <remarks>The wizard (<see cref="IsoChoices.Groups"/> set) passes its picked <paramref name="groups"/>: their
-    /// lists add the removal steps, and the settings, files and boot.wim steps come only when a group has some.</remarks>
+    /// lists add the removal steps, and the settings, files and boot.wim steps come only when a group has some. Its
+    /// .NET 3.5 and component store cleanup come right after the apps, before any feature, capability or package is
+    /// removed: those leave operations pending, and DISM refuses the cleanup then (a report showed it skipped, the
+    /// image gigabytes larger).</remarks>
     public static IReadOnlyList<IsoStep> Steps(IsoChoices c, IReadOnlyList<IsoOption> picked, IReadOnlyList<IsoGroup>? groups = null)
     {
         var s = new List<IsoStep>();
@@ -122,6 +125,11 @@ public static partial class IsoPlan
         Add("Adk", "Getting the ISO tool ready (Windows ADK)");
         Add("Mount", $"Mounting {c.Edition}");
         if (List(c.Apps).Count > 0 || picked.Any(o => o.Apps.Count > 0) || List(c.AppPatterns).Count > 0) Add("Apps", "Removing apps");
+        if (wizard)
+        {
+            Add("NetFx3", "Adding .NET Framework 3.5");
+            Add("Cleanup", "Cleaning up the component store");
+        }
         if (List(c.Features).Count > 0 || picked.Any(o => o.Features.Count > 0) || g.Any(x => x.Features.Count > 0)) Add("Features", "Removing Windows features");
         if (List(c.Capabilities).Count > 0 || g.Any(x => x.Capabilities.Count > 0)) Add("Capabilities", "Removing optional features (capabilities)");
         if (List(c.Packages).Count > 0 || g.Any(x => x.Packages.Count > 0)) Add("Packages", "Removing OS packages");
@@ -129,8 +137,11 @@ public static partial class IsoPlan
         if (c.Bake is { Count: > 0 } || (c.FirstSignIn && !string.IsNullOrEmpty(c.AkariExe))) Add("Bake", "Writing the AkariOS settings into the image");
         if (!wizard || g.Any(x => x.Remove.Count > 0)) Add("Files", "Removing files from the image");
         if (!string.IsNullOrEmpty(c.AkariExe)) Add("AkariOS", "Adding AkariOS to the image");
-        Add("NetFx3", "Adding .NET Framework 3.5");
-        Add("Cleanup", "Cleaning up the component store");
+        if (!wizard)
+        {
+            Add("NetFx3", "Adding .NET Framework 3.5");
+            Add("Cleanup", "Cleaning up the component store");
+        }
         if (c.Settings.CleanLeftovers) Add("Leftovers", "Removing leftover image data");
         if (g.Any(x => x.PruneComponentStore)) Add("Prune", "Pruning the component store (Minimal: no updates or repairs afterwards)");
         Add("Commit", "Saving the image");

@@ -195,7 +195,8 @@ public sealed partial class IsoBuilderViewModel
             g.IsChecked = m is null ? g.Id == CustomStartGroup : m.Groups.Contains(g.Id, StringComparer.OrdinalIgnoreCase);
             g.IsEditable = m is null;
         }
-        var settings = m?.Settings ?? new IsoBuildSettings();
+        // Custom: the smallest ISO too (Tiny11 Builder's default), the other switches off
+        var settings = m?.Settings ?? new IsoBuildSettings { Compression = IsoCompression.Recovery };
         CompressionIndex = Math.Max(0, Compressions.ToList().IndexOf(settings.Compression));
         Turbo = settings.Turbo;
         CleanLeftovers = settings.CleanLeftovers;
@@ -288,9 +289,9 @@ public sealed partial class IsoBuilderViewModel
 
     public static IReadOnlyList<string> CompressionNames { get; } = [.. Compressions.Select(IsoBuildSettings.CompressionText)];
 
-    /// <summary>The final compression: Maximum WIM at first (the port's).</summary>
+    /// <summary>The final compression: Recovery ESD at first (the smallest ISO, Tiny11 Builder's default; every mode starts on it).</summary>
     [ObservableProperty]
-    public partial int CompressionIndex { get; set; } = 1;
+    public partial int CompressionIndex { get; set; }
 
     /// <summary>Turbo: the Windows features removed in one DISM call.</summary>
     [ObservableProperty]

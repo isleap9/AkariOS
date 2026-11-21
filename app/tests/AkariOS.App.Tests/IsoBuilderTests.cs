@@ -138,7 +138,7 @@ public sealed class IsoBuilderTests : IDisposable
         await iso.NextAsync();
         Assert.Equal((IsoBuilderViewModel.ReviewStep, "Build ISO"), (iso.Step, iso.NextText));
         Assert.Equal(["Windows image", "Custom", "Output and workspace", "Installation options", "Build settings"], iso.ReviewCards.Select(c => c.Title));
-        Assert.Equal(string.Join("\n", new Core.Iso.IsoBuildSettings().Lines()), iso.ReviewCards[4].Lines);
+        Assert.Equal(string.Join("\n", new Core.Iso.IsoBuildSettings { Compression = Core.Iso.IsoCompression.Recovery }.Lines()), iso.ReviewCards[4].Lines);
         Assert.Contains(Path.Combine(side.Root, "out", "Win11-Akari.iso"), iso.ReviewCards[2].Lines);
         Assert.Contains($"Store apps: {iso.List("Apps").Ticked().Length} of 4", iso.ReviewCards[1].Lines);
         Assert.Equal(["Done", "Done", "Done", "Done", "Current", ""], iso.Stepper.Select(s => s.State));
@@ -263,12 +263,12 @@ public sealed class IsoBuilderTests : IDisposable
     }
 
     [Fact]
-    public async Task The_build_settings_start_off_but_maximum_wim_and_go_to_review_the_build_and_its_report()
+    public async Task The_build_settings_start_off_but_recovery_esd_and_go_to_review_the_build_and_its_report()
     {
         var (t, iso, side, fakes) = await Opened();
-        Assert.Equal(new Core.Iso.IsoBuildSettings(), iso.Settings);
+        Assert.Equal(new Core.Iso.IsoBuildSettings { Compression = Core.Iso.IsoCompression.Recovery }, iso.Settings);
         Assert.Equal(["Recovery ESD (smallest, slowest)", "Maximum WIM", "Fast WIM (largest, quickest)"], IsoBuilderViewModel.CompressionNames);
-        Assert.Equal(1, iso.CompressionIndex);
+        Assert.Equal(0, iso.CompressionIndex);
 
         await iso.ReadImageAsync();
         iso.List("Features").Items.Single(i => i.Label == "Recall").IsChecked = true;
