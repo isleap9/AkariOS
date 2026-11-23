@@ -288,6 +288,62 @@ Describe 'Invoke-AkariIsoBuild' {
         Test-Path (Join-Path $out 'Win11-Akari.report.json') | Should Be $true
         Mock Invoke-AkariDism { $script:calls.Add('Dism:' + ($Arguments[1])); 0 }
     }
+
+    It 'builds with the build settings: recovery ESD, Turbo, leftover data, sources\sxs left off' {
+        New-Media; $script:calls.Clear()
+        Remove-Item (Join-Path $out 'Win11-Akari.iso') -ErrorAction SilentlyContinue
+        New-Item (Join-Path $w.Mount 'Windows\Temp\t.tmp') -ItemType File -Force | Out-Null
+        Mock Get-AkariImageFeatures { @{ Name = 'Recall'; State = 'DisabledWithPayloadRemoved' }, @{ Name = 'Stuck'; State = 'Enabled' } }
+        $cs = $c.Clone()
+        $cs.Features = @('Recall', 'Stuck', 'Gone')
+        $cs.Settings = @{ Compression = 'Recovery'; Turbo = $true; CleanLeftovers = $true; LeaveOutNetFx3Files = $true }
+        $AkariShared = @{ IsoOps = [Collections.ArrayList]::new() }
+        $r = Invoke-AkariIsoBuild $cs
+        $ops = @($AkariShared.IsoOps | Where-Object { $_.State -ne 'Running' } | ForEach-Object { "$($_.Name)|$($_.State)|$($_.Note)" })
+        Remove-Variable AkariShared
+        $r.Ok | Should Be $true
+        # the features in one call, each read back
+        Assert-MockCalled Invoke-AkariDism -Times 1 -Exactly -Scope It -ParameterFilter { ($Arguments -join ' ') -eq "/Image:$($w.Mount) /Disable-Feature /FeatureName:Recall /FeatureName:Stuck /FeatureName:Gone /Remove /NoRestart" }
+        Assert-MockCalled Invoke-AkariDism -Times 1 -Exactly -Scope It -ParameterFilter { $Arguments[1] -eq '/Disable-Feature' }
+        $ops -contains 'Windows feature Recall|Done|' | Should Be $true
+        $ops -contains 'Windows feature Stuck|Failed|Still Enabled (DISM exit code 0)' | Should Be $true
+        $ops -contains 'Windows feature Gone|Done|Not in the image any more' | Should Be $true
+        # the leftovers on the allow-list, one operation each
+        $ops -contains 'Windows\Temp\*|Done|1 removed' | Should Be $true
+        $ops -contains 'Windows\Minidump\*|Skipped|Nothing there' | Should Be $true
+        # install.esd, recovery compression; .NET 3.5 added first, then its files left off
+        Assert-MockCalled Export-AkariWim -Times 1 -Exactly -Scope It -ParameterFilter { $Dest -eq (Join-Path $w.Media 'sources\install.esd') -and $Compression -eq 'recovery' }
+        ($script:calls -contains 'Dism:/Enable-Feature') | Should Be $true
+        $ops -contains 'sources\sxs|Done|' | Should Be $true
+        $ids = @($r.Report.stages | ForEach-Object { $_.id }) -join ','
+        $ids | Should Match 'Cleanup,Leftovers,Commit,Compress,Boot,NoSxs,Iso'
+        $s = $r.Report.settings
+        "$($s.compression)|$($s.turbo)|$($s.cleanLeftovers)|$($s.leaveOutNetFx3Files)" | Should Be 'Recovery|True|True|True'
+    }
+
+    It 'keeps the leftover data while the image has pending servicing' {
+        New-Media
+        New-Item (Join-Path $w.Mount 'Windows\Temp\t.tmp'), (Join-Path $w.Mount $AkariIsoPendingXml) -ItemType File -Force | Out-Null
+        $cs = $c.Clone(); $cs.Settings = @{ CleanLeftovers = $true }
+        $AkariShared = @{ IsoOps = [Collections.ArrayList]::new() }
+        [void](Invoke-AkariIsoBuild $cs)
+        $ops = @($AkariShared.IsoOps | Where-Object { $_.State -ne 'Running' })
+        Remove-Variable AkariShared
+        $mine = @($ops | Where-Object { $_.Name -like '*leftover*' -or $AkariIsoLeftovers -contains $_.Name })
+        @($mine | ForEach-Object { "$($_.Name)|$($_.State)" }) -join ',' | Should Be 'Leftover image data|Skipped'
+        Assert-MockCalled Write-Log -Scope It -ParameterFilter { $m -eq 'The image has pending servicing (pending.xml): leftover data kept' }
+    }
+}
+
+Describe 'Export-AkariWim' {
+    . Initialize-IsoTest
+    It 'exports a recovery-compressed install.esd through dism.exe, a split image''s parts too' {
+        Mock Invoke-AkariDism { 0 }
+        Export-AkariWim 'X:\s\install.swm' 6 'Y:\install.esd' 'recovery'
+        Assert-MockCalled Invoke-AkariDism -Times 1 -Exactly -Scope It -ParameterFilter { ($Arguments -join ' ') -eq '/Export-Image /SourceImageFile:X:\s\install.swm /SWMFile:X:\s\install*.swm /SourceIndex:6 /DestinationImageFile:Y:\install.esd /Compress:recovery' }
+        Mock Invoke-AkariDism { 2 }
+        { Export-AkariWim 'X:\install.wim' 1 'Y:\install.esd' 'recovery' } | Should Throw 'DISM could not export the image (exit code 2)'
+    }
 }
 
 Describe 'Clear-AkariIsoLeftover' {
@@ -651,10 +707,12 @@ Describe 'ISO Builder page helpers (UI\IsoBuilder.ps1)' {
         Get-AkariIsoResultDetails $null $true | Should Be ''
     }
 
-    It 'reviews the image, what goes, where the ISO goes and the installation options' {
+    It 'reviews the image, what goes, where the ISO goes, the installation options and the build settings' {
         $cards = Get-AkariIsoReviewCards @{ Summary = 'Windows 11 Pro'; Iso = 'D:\Win11.iso'; ModeName = 'Custom'; ModeIcon = 'settings-2'
-            Lists = @(@{ Title = 'Store apps'; Ticked = 3; Count = 40 }); OutDir = 'E:\Out'; Answer = 'Local'; SkipOobe = $true; User = 'Gamer'; AkariOS = $true }
-        ($cards | ForEach-Object { $_.Title }) -join ',' | Should Be 'Windows image,Custom,Output and workspace,Installation options'
+            Lists = @(@{ Title = 'Store apps'; Ticked = 3; Count = 40 }); OutDir = 'E:\Out'; Answer = 'Local'; SkipOobe = $true; User = 'Gamer'; AkariOS = $true
+            Settings = @{ Compression = 'Recovery'; Turbo = $true } }
+        ($cards | ForEach-Object { $_.Title }) -join ',' | Should Be 'Windows image,Custom,Output and workspace,Installation options,Build settings'
+        $cards[4].Lines | Should Be "Compression: Recovery ESD (smallest, slowest)`nTurbo feature removal: On`nRemove leftover image data: Off`n.NET 3.5's setup files on the ISO: Kept"
         $cards[0].Lines | Should Be "Windows 11 Pro`nD:\Win11.iso"
         $cards[1].Lines | Should Be 'Store apps: 3 of 40'
         $cards[2].Lines | Should Be "ISO`nE:\Out\Win11-Akari.iso`n`nWork folder`nE:\Out\AkariIso"
@@ -662,6 +720,27 @@ Describe 'ISO Builder page helpers (UI\IsoBuilder.ps1)' {
         $none = Get-AkariIsoReviewCards @{ Summary = 'x'; Iso = 'D:\a.iso'; ModeName = 'Custom'; Lists = @(); OutDir = 'E:\'; Answer = 'None'; AkariOS = $false }
         $none[1].Lines | Should Be 'Nothing removed: the image''s lists weren''t read.'
         $none[3].Lines | Should Be "Answer file: None: setup asks everything as usual`nAkariOS on the new Windows: No"
+    }
+
+    It 'reads the build settings, the defaults when they are missing' {
+        $d = Get-AkariIsoSettings @{}
+        "$($d.Compression)|$($d.Turbo)|$($d.CleanLeftovers)|$($d.LeaveOutNetFx3Files)" | Should Be 'Maximum|False|False|False'
+        # a JSON case's object, any case
+        $j = Get-AkariIsoSettings @{ Settings = [pscustomobject]@{ Compression = 'fast'; LeaveOutNetFx3Files = $true } }
+        "$($j.Compression)|$($j.Turbo)|$($j.LeaveOutNetFx3Files)" | Should Be 'Fast|False|True'
+        (Get-AkariIsoSettings @{ Settings = @{ Compression = 'Zip' } }).Compression | Should Be 'Maximum'
+        (Get-AkariIsoSettingsLines (Get-AkariIsoSettings @{ Settings = @{ CleanLeftovers = $true; LeaveOutNetFx3Files = $true } })) -join '|' |
+            Should Be "Compression: Maximum WIM|Turbo feature removal: Off|Remove leftover image data: On|.NET 3.5's setup files on the ISO: Left out"
+    }
+
+    It 'plans the build settings'' steps' {
+        $ids = { param($s) $p = New-AkariIsoPlan @{ Edition = 'W'; Settings = $s }; @($p | ForEach-Object { $_.Id }) -join ',' }
+        $text = { param($s) $p = New-AkariIsoPlan @{ Edition = 'W'; Settings = $s }; @($p | Where-Object { $_.Id -eq 'Compress' })[0].Text }
+        & $ids $null | Should Be 'Adk,Mount,Registry,Files,NetFx3,Cleanup,Commit,Compress,Boot,Iso,Tidy'
+        & $text $null | Should Be 'Compressing install.wim'
+        & $ids @{ CleanLeftovers = $true; LeaveOutNetFx3Files = $true } | Should Be 'Adk,Mount,Registry,Files,NetFx3,Cleanup,Leftovers,Commit,Compress,Boot,NoSxs,Iso,Tidy'
+        & $text @{ Compression = 'Recovery' } | Should Be 'Compressing install.esd (recovery compression)'
+        & $text @{ Compression = 'Fast' } | Should Be 'Compressing install.wim (fast compression)'
     }
 
     It 'lists Massgrave''s products in page order and a product''s languages' {

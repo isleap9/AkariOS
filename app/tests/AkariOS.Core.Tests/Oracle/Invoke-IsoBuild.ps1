@@ -6,9 +6,11 @@
 # <root>\iso-mount.json. Nothing real is mounted, loaded or run.
 # Case: Actions (Open, Mount, Build, Leftover, in order), Drive @{ Free; Format }, Wims @{ '<root>\...wim' = images },
 # ImageFiles / BootFiles (made under the mount when install.wim / boot.wim is mounted), ImageApps @{ Name; Package },
-# ImageFeatures (names), DismCodes @{ verb = exit code }, Fail (Mount | Trusted | Oscdimg), Denied (hive paths an
-# admin can't change: rows and keys under them throw unless written as TrustedInstaller), Marker (left at the start),
-# Choices @{ Index; Edition; Options; Apps; Features; Capabilities; Packages; AkariOS (bool); Unattend (text) }.
+# ImageFeatures (names; one DISM disabled reads back DisabledWithPayloadRemoved, but StuckFeatures), DismCodes
+# @{ verb = exit code }, Fail (Mount | Trusted | Oscdimg), Denied (hive paths an admin can't change: rows and keys
+# under them throw unless written as TrustedInstaller), Marker (left at the start), Choices @{ Index; Edition;
+# Options; Apps; Features; Capabilities; Packages; AkariOS (bool); Unattend (text); Settings (the native
+# IsoBuildSettings: Compression; Turbo; CleanLeftovers; LeaveOutNetFx3Files) }.
 # Writes @{ Calls; Log; ErrLog; Progress; Ops; Results; Marker } as JSON to -Out; paths start <root>. Ops = each
 # operation the build reports ('<stage index>|<name>|<state>|<note>'); its report.json is left in <root>\out.
 param([Parameter(Mandatory)][string]$Src, [Parameter(Mandatory)][string]$Out, [Parameter(Mandatory)][string]$Case,
@@ -29,6 +31,7 @@ $script:Progress = [Collections.Generic.List[string]]::new()
 $script:Ops = [Collections.Generic.List[string]]::new()
 $script:InTrusted = $false
 $script:Denied = @($c.Denied | Where-Object { $_ })
+$script:Disabled = @{}
 
 # the script's own roots ($Root alone would be the caller's: Open-AkariIsoSource has a $root of its own)
 $script:TestRoot = $Root
@@ -84,7 +87,11 @@ function Invoke-AkariDism {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
     $verb = $Arguments[1].TrimStart('/')
     $kinds = @{ 'Disable-Feature' = 'Feature'; 'Remove-Capability' = 'Capability'; 'Remove-Package' = 'Package' }
-    if ($kinds.ContainsKey($verb)) { Rec "Remove $($kinds[$verb]) $($Arguments[0].Substring(7)) $($Arguments[2].Split(':', 2)[1])" }
+    if ($verb -eq 'Disable-Feature') { foreach ($x in $Arguments) { if ($x -like '/FeatureName:*') { $script:Disabled[$x.Substring(13)] = $true } } }
+    # Turbo's one call is a DISM call on the native side (IImage.Dism), one feature's an IImage.Remove
+    $set = $script:CaseData.Choices.Settings
+    if ($verb -eq 'Disable-Feature' -and $set -and $set.Turbo) { Rec ('Dism ' + ($Arguments -join ' ')) }
+    elseif ($kinds.ContainsKey($verb)) { Rec "Remove $($kinds[$verb]) $($Arguments[0].Substring(7)) $($Arguments[2].Split(':', 2)[1])" }
     else { Rec ('Dism ' + ($Arguments -join ' ')) }
     $code = $script:CaseData.DismCodes.PSObject.Properties | Where-Object { $_.Name -eq $verb }
     if ($code) { [int]$code.Value } else { 0 }
@@ -134,7 +141,10 @@ function Read-AkariImageApps([string]$Mount) {
 }
 function Get-AkariImageFeatures([string]$Mount) {
     Rec "Read Features $Mount"
-    foreach ($n in @($script:CaseData.ImageFeatures | Where-Object { $_ })) { @{ Name = [string]$n; State = 'Enabled' } }
+    $stuck = @($script:CaseData.StuckFeatures | Where-Object { $_ })
+    foreach ($n in @($script:CaseData.ImageFeatures | Where-Object { $_ })) {
+        @{ Name = [string]$n; State = $(if ($script:Disabled.ContainsKey([string]$n) -and $stuck -notcontains $n) { 'DisabledWithPayloadRemoved' } else { 'Enabled' }) }
+    }
 }
 
 # ---- the case
@@ -169,6 +179,7 @@ foreach ($a in @($c.Actions)) {
             }
             if ($ch.AkariOS) { $choices.AkariDir = Join-Path $Root 'akari' }
             if ($ch.Unattend) { $choices.Unattend = [Text.Encoding]::UTF8.GetBytes([string]$ch.Unattend) }
+            if ($ch.Settings) { $choices.Settings = $ch.Settings }
             $r = Invoke-AkariIsoBuild $choices
             $results.Add([ordered]@{ Action = 'Build'; Ok = [bool]$r.Ok; Path = (Norm "$($r.Path)"); Message = (Norm "$($r.Message)") })
         }

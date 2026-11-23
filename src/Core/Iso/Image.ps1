@@ -154,6 +154,45 @@ function Remove-AkariImageItems([string]$Mount, [ValidateSet('Feature', 'Capabil
     }
 }
 
+# Turbo (the Build settings): the Windows features out in one dism /Disable-Feature with a /FeatureName each (payload
+# removed), then each one's state read back: Done when it is disabled or gone, Failed when it isn't
+function Remove-AkariImageFeaturesAtOnce([string]$Mount, [string[]]$Names) {
+    $Names = @($Names | Where-Object { $_ })
+    if (-not $Names.Count) { return }
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    $kind = $AkariIsoKindNames['Feature']
+    foreach ($n in $Names) { Add-AkariIsoOperation @{ Stage = $script:AkariIsoStage; Name = "$kind $n"; State = 'Running'; Seconds = 0; Note = '' } }
+    Write-Log "Removing $($Names.Count) Windows features at once"
+    $a = @("/Image:$Mount", '/Disable-Feature') + @($Names | ForEach-Object { "/FeatureName:$_" }) + @('/Remove', '/NoRestart')
+    $code = Invoke-AkariDism @a
+    if ($code -ne 0 -and $code -ne 3010) { Write-Log "  DISM exit code $($code): each feature's state read back" }
+    $states = @{}
+    foreach ($f in @(Get-AkariImageFeatures $Mount)) { $states[[string]$f.Name] = [string]$f.State }
+    $each = $clock.Elapsed.TotalSeconds / $Names.Count
+    foreach ($n in $Names) {
+        if (-not $states.ContainsKey($n)) { $state = 'Done'; $note = 'Not in the image any more' }
+        elseif ($states[$n] -like '*Disabled*') { $state = 'Done'; $note = if ($code -eq 3010) { 'Finishes when the new Windows first starts' } else { '' } }
+        else { $state = 'Failed'; $note = "Still $($states[$n]) (DISM exit code $code)"; Write-Log "  $n is still $($states[$n])" }
+        Complete-AkariIsoOp "$kind $n" $state $each $note
+    }
+}
+
+# Remove leftover image data (the Build settings): $AkariIsoLeftovers, one operation each; all kept while the image
+# has pending servicing
+function Remove-AkariIsoLeftovers([string]$Mount) {
+    if (Test-Path -LiteralPath (Join-Path $Mount $AkariIsoPendingXml)) {
+        Write-Log 'The image has pending servicing (pending.xml): leftover data kept'
+        Invoke-AkariIsoOp 'Leftover image data' { @{ State = 'Skipped'; Note = 'The image has pending servicing (pending.xml): kept' } }
+        return
+    }
+    foreach ($path in $AkariIsoLeftovers) {
+        Invoke-AkariIsoOp $path {
+            $gone = Remove-AkariImagePaths $Mount @($path)
+            if ($gone -gt 0) { @{ State = 'Done'; Note = "$gone removed" } } else { @{ State = 'Skipped'; Note = 'Nothing there' } }
+        }
+    }
+}
+
 # ---- AkariOS in the image
 
 # a .lnk file (wrapper: tests mock it)

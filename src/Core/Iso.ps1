@@ -44,8 +44,17 @@ function Get-AkariWimImages([string]$Path) {
     }
 }
 
-# one image of $Source into a new $Dest (.swm: all its parts read)
+# one image of $Source into a new $Dest (.swm: all its parts read); $Compression max / fast / recovery (install.esd:
+# dism.exe /Export-Image, as the native app exports)
 function Export-AkariWim([string]$Source, [int]$Index, [string]$Dest, [string]$Compression) {
+    if ($Compression -eq 'recovery') {
+        $a = @('/Export-Image', "/SourceImageFile:$Source")
+        if ($Source -like '*.swm') { $a += "/SWMFile:$([IO.Path]::Combine([IO.Path]::GetDirectoryName($Source), 'install*.swm'))" }
+        $a += "/SourceIndex:$Index", "/DestinationImageFile:$Dest", '/Compress:recovery'
+        $code = Invoke-AkariDism @a
+        if ($code -ne 0) { throw "DISM could not export the image (exit code $code)" }
+        return
+    }
     $p = @{ SourceImagePath = $Source; SourceIndex = $Index; DestinationImagePath = $Dest; CompressionType = $Compression }
     if ($Source -like '*.swm') { $p.SplitImageFilePattern = Join-Path (Split-Path $Source) 'install*.swm' }
     Export-WindowsImage @p -ErrorAction Stop | Out-Null
@@ -114,6 +123,40 @@ function ConvertTo-AkariIsoRows($Rows) {
 
 function Get-AkariIsoData([string]$Name) { Import-PowerShellDataFile (Join-Path $AkariIsoData "$Name.psd1") }
 
+# ---- the Build settings (the native IsoBuildSettings)
+
+# the final compression: Recovery = install.esd (/Compress:recovery), Maximum = install.wim max (the default), Fast
+$AkariIsoCompressions = [ordered]@{ Recovery = 'Recovery ESD (smallest, slowest)'; Maximum = 'Maximum WIM'; Fast = 'Fast WIM (largest, quickest)' }
+# Remove leftover image data's allow-list, paths under the mounted image (the last part may hold wildcards): downloaded
+# updates, temp files, archived CBS and DISM logs, Windows Error Reporting's queues, crash dumps. Kept whole while the
+# image has pending servicing ($AkariIsoPendingXml).
+$AkariIsoLeftovers = @(
+    'Windows\SoftwareDistribution\Download\*', 'Windows\Temp\*', 'Windows\Logs\CBS\*.cab', 'Windows\Logs\CBS\CbsPersist_*.log'
+    'Windows\Logs\DISM\*.bak', 'ProgramData\Microsoft\Windows\WER\ReportQueue\*', 'ProgramData\Microsoft\Windows\WER\ReportArchive\*'
+    'ProgramData\Microsoft\Windows\WER\Temp\*', 'Windows\Minidump\*', 'Windows\MEMORY.DMP', 'Windows\LiveKernelReports\*.dmp'
+)
+$AkariIsoPendingXml = 'Windows\WinSxS\pending.xml'
+
+# $Choices.Settings as @{ Compression (a key of $AkariIsoCompressions); Turbo (the Windows features in one DISM call,
+# each read back); CleanLeftovers ($AkariIsoLeftovers removed); LeaveOutNetFx3Files (sources\sxs off the ISO) };
+# missing = the defaults: Maximum, all off. Pure.
+function Get-AkariIsoSettings([hashtable]$Choices) {
+    $s = $Choices.Settings
+    $comp = 'Maximum'
+    if ($s) { foreach ($k in $AkariIsoCompressions.Keys) { if ($k -eq "$($s.Compression)") { $comp = $k } } }
+    @{ Compression = $comp; Turbo = [bool]($s -and $s.Turbo); CleanLeftovers = [bool]($s -and $s.CleanLeftovers); LeaveOutNetFx3Files = [bool]($s -and $s.LeaveOutNetFx3Files) }
+}
+# the settings as Review's lines (the native IsoBuildSettings.Lines). Pure.
+function Get-AkariIsoSettingsLines([hashtable]$Settings) {
+    $on = { param($b) if ($b) { 'On' } else { 'Off' } }
+    @(
+        "Compression: $($AkariIsoCompressions[$Settings.Compression])"
+        "Turbo feature removal: $(& $on $Settings.Turbo)"
+        "Remove leftover image data: $(& $on $Settings.CleanLeftovers)"
+        ".NET 3.5's setup files on the ISO: $(if ($Settings.LeaveOutNetFx3Files) { 'Left out' } else { 'Kept' })"
+    )
+}
+
 # the build's ordered steps: @{ Id; Text }. $Picked = the picked options' data (Get-AkariIsoPicked). Pure.
 function New-AkariIsoPlan([hashtable]$Choices, $Picked = @()) {
     $s = [System.Collections.Generic.List[object]]::new()
@@ -129,10 +172,17 @@ function New-AkariIsoPlan([hashtable]$Choices, $Picked = @()) {
     if ($Choices.AkariDir) { & $add 'AkariOS' 'Adding AkariOS to the image' }
     & $add 'NetFx3' 'Adding .NET Framework 3.5'
     & $add 'Cleanup' 'Cleaning up the component store'
+    $set = Get-AkariIsoSettings $Choices
+    if ($set.CleanLeftovers) { & $add 'Leftovers' 'Removing leftover image data' }
     & $add 'Commit' 'Saving the image'
-    & $add 'Compress' 'Compressing install.wim'
+    & $add 'Compress' $(switch ($set.Compression) {
+            'Recovery' { 'Compressing install.esd (recovery compression)' }
+            'Fast' { 'Compressing install.wim (fast compression)' }
+            default { 'Compressing install.wim' }
+        })
     & $add 'Boot' 'Skipping the Windows 11 requirements in setup (boot.wim)'
     if ($Choices.Unattend) { & $add 'Answer' 'Adding the answer file (autounattend.xml)' }
+    if ($set.LeaveOutNetFx3Files) { & $add 'NoSxs' 'Leaving .NET Framework 3.5''s setup files off the ISO' }
     & $add 'Iso' 'Building the ISO'
     & $add 'Tidy' 'Removing the work folder'
     , $s.ToArray()
@@ -329,11 +379,12 @@ function Invoke-AkariIsoOp([string]$AkariOpName, [scriptblock]$AkariOpWork) {
     $akariOpClock = [Diagnostics.Stopwatch]::StartNew()
     Add-AkariIsoOperation @{ Stage = $script:AkariIsoStage; Name = $AkariOpName; State = 'Running'; Seconds = 0; Note = '' }
     try { $akariOpEnd = @(& $AkariOpWork)[-1] }
-    catch { Complete-AkariIsoOp $AkariOpName 'Failed' $akariOpClock $_.Exception.Message; throw }
-    Complete-AkariIsoOp $AkariOpName $akariOpEnd.State $akariOpClock "$($akariOpEnd.Note)"
+    catch { Complete-AkariIsoOp $AkariOpName 'Failed' $akariOpClock.Elapsed.TotalSeconds $_.Exception.Message; throw }
+    Complete-AkariIsoOp $AkariOpName $akariOpEnd.State $akariOpClock.Elapsed.TotalSeconds "$($akariOpEnd.Note)"
 }
-function Complete-AkariIsoOp([string]$Name, [string]$State, $Clock, [string]$Note) {
-    $sec = [Math]::Round($Clock.Elapsed.TotalSeconds, 1)
+# how an operation ended: to the page and the running stage's report
+function Complete-AkariIsoOp([string]$Name, [string]$State, [double]$Seconds, [string]$Note) {
+    $sec = [Math]::Round($Seconds, 1)
     Add-AkariIsoOperation @{ Stage = $script:AkariIsoStage; Name = $Name; State = $State; Seconds = $sec; Note = $Note }
     if ($null -ne $script:AkariIsoStageOps) { $script:AkariIsoStageOps.Add([ordered]@{ name = $Name; state = $State; seconds = $sec; note = $Note }) }
 }
@@ -349,8 +400,9 @@ function New-AkariIsoReport([hashtable]$Choices, [string]$Out, [datetime]$Starte
     [ordered]@{
         akariOS = "$AkariVersion"; started = $Started.ToString('o'); finished = (Get-Date).ToString('o'); ok = $Ok; message = $Message
         source = "$($Choices.Iso)"; edition = "$($Choices.Edition)"; iso = $Out
-        # the build settings (the native app's; the PowerShell build has the defaults until P6)
-        settings = [ordered]@{ compression = 'Maximum'; turbo = $false; cleanLeftovers = $false; leaveOutNetFx3Files = $false }
+        settings = $(
+            $set = Get-AkariIsoSettings $Choices
+            [ordered]@{ compression = $set.Compression; turbo = $set.Turbo; cleanLeftovers = $set.CleanLeftovers; leaveOutNetFx3Files = $set.LeaveOutNetFx3Files })
         size = $Size; sha256 = $Sha; stages = @($Stages)
     }
 }
@@ -381,7 +433,8 @@ function Get-AkariFileSha256([string]$Path) {
 
 # $Choices: @{ OutDir; Iso (the source file, for the name); Image (from Open-AkariIsoSource); Index; Edition;
 # Options (option ids); Apps (provisioned package names); Features; Capabilities; Packages (names); AkariDir (this
-# AkariOS's folder, to copy into the image; none = left out); Unattend ([byte[]] autounattend.xml; none = left out) }.
+# AkariOS's folder, to copy into the image; none = left out); Unattend ([byte[]] autounattend.xml; none = left out);
+# Settings (the Build settings, Get-AkariIsoSettings) }.
 # Returns @{ Ok; Path; Message; Report }; on a failure the image is discarded, never left mounted. Each step's
 # operations go to the page (Add-AkariIsoOperation); either way a report goes next to the ISO and on the result.
 function Invoke-AkariIsoBuild([hashtable]$Choices) {
@@ -393,6 +446,7 @@ function Invoke-AkariIsoBuild([hashtable]$Choices) {
     $out = Join-Path $Choices.OutDir (Get-AkariIsoOutName $Choices.Iso)
     $always = Get-AkariIsoData 'Always'
     $steps = New-AkariIsoPlan $Choices $picked
+    $set = Get-AkariIsoSettings $Choices
     $oscdimg = $null
     $started = Get-Date
     $stages = [System.Collections.Generic.List[object]]::new()
@@ -421,7 +475,8 @@ function Invoke-AkariIsoBuild([hashtable]$Choices) {
                 'Features' {
                     $pats = @($picked | ForEach-Object { $_.Features } | Where-Object { $_ })
                     $have = if ($pats) { @(Get-AkariImageFeatures $w.Mount | ForEach-Object { $_.Name }) } else { @() }
-                    Remove-AkariImageItems $w.Mount 'Feature' (Resolve-AkariIsoNames (Get-AkariIsoList $Choices.Features) $pats $have)
+                    $names = Resolve-AkariIsoNames (Get-AkariIsoList $Choices.Features) $pats $have
+                    if ($set.Turbo) { Remove-AkariImageFeaturesAtOnce $w.Mount $names } else { Remove-AkariImageItems $w.Mount 'Feature' $names }
                 }
                 'Capabilities' { Remove-AkariImageItems $w.Mount 'Capability' (Get-AkariIsoList $Choices.Capabilities) }
                 'Packages' { Remove-AkariImageItems $w.Mount 'Package' (Get-AkariIsoList $Choices.Packages) }
@@ -461,12 +516,14 @@ function Invoke-AkariIsoBuild([hashtable]$Choices) {
                         @{ State = 'Skipped'; Note = "Pending operations (DISM exit code $code): the image may be larger" }
                     }
                 }
+                'Leftovers' { Remove-AkariIsoLeftovers $w.Mount }
                 'Commit' { Save-AkariWim $w.Mount }
                 'Compress' {
                     foreach ($old in @(Get-ChildItem -LiteralPath (Join-Path $w.Media 'sources') -Filter 'install*' -File -ErrorAction SilentlyContinue)) {
                         if ($old.Extension -in '.wim', '.esd', '.swm') { Remove-Item -LiteralPath $old.FullName -Force }
                     }
-                    Export-AkariWim $w.Wim 1 (Join-Path $w.Media 'sources\install.wim') 'max'
+                    $file, $mode = switch ($set.Compression) { 'Recovery' { 'install.esd', 'recovery' } 'Fast' { 'install.wim', 'fast' } default { 'install.wim', 'max' } }
+                    Export-AkariWim $w.Wim 1 (Join-Path $w.Media "sources\$file") $mode
                     Remove-Item -LiteralPath $w.Wim -Force -ErrorAction SilentlyContinue
                 }
                 'Boot' {
@@ -476,6 +533,14 @@ function Invoke-AkariIsoBuild([hashtable]$Choices) {
                     Invoke-AkariIsoRegistry $w.Mount (@($always.Requirements) + @($always.Boot))
                     Save-AkariWim $w.Mount
                     Clear-AkariIsoMarker
+                }
+                'NoSxs' {
+                    Invoke-AkariIsoOp 'sources\sxs' {
+                        $sxs = Join-Path $w.Media 'sources\sxs'
+                        if (-not (Test-Path -LiteralPath $sxs -PathType Container)) { return @{ State = 'Skipped'; Note = 'Not on this ISO' } }
+                        Remove-Item -LiteralPath $sxs -Recurse -Force
+                        @{ State = 'Done'; Note = '' }
+                    }
                 }
                 'Iso' {
                     Remove-Item -LiteralPath $out -Force -ErrorAction SilentlyContinue

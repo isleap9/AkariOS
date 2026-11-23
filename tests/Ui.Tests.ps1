@@ -833,8 +833,10 @@ Complete-AkariIsoJob @{ Kind = 'IsoRead'; Shared = @{ Apps = @(@{ Name = 'Micros
 Show-Page; "isoRead=$($script:IsoParts.Current.IsEnabled)|$(Foot)|$($script:IsoParts.Lists.Apps.Tag.Head.Text)"
 $script:IsoParts.Lists.Apps.Children[0].IsChecked = $true
 Click $StepNext; Click $StepNext; "isoReview=$($script:IsoState.Step)|$(Crumbs)|$(Foot)"
+$script:IsoParts.Turbo.IsChecked = $true
 $script:Jobs = @(); Click $StepNext
 $c = $script:Jobs[-1].Shared.Choices
+"isoSettings=$($c.Settings.Compression)|$($c.Settings.Turbo)|$($c.Settings.CleanLeftovers)|$($script:IsoParts.Compression.Items.Count)"
 "isoBuild=$($script:Job.Kind)|$($c.Index)|$($c.Edition)|$(@($c.Options).Count)|$($c.Apps -join ',')|$($c.AkariDir -eq $Root)|$([Text.Encoding]::ASCII.GetString($c.Unattend) -match '<Name>Admin</Name>')|$($script:IsoState.Step)|$(Foot)"
 $n = @($script:IsoState.Stages).Count
 Update-AkariIsoStages @{ Done = 2; Total = $n }; "isoStages=$($n -gt 5)|$((@($script:IsoState.Stages)[0..3] | ForEach-Object { $_.State }) -join ',')"
@@ -979,6 +981,8 @@ function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My
         $out.isoComponents | Should Be '2|IsoRead|Next|False|False|False|True'
         $out.isoRead | Should Be 'True|Next|True|True|Store apps (1)'
         $out.isoReview | Should Be '4|ISO Builder>Review|Build ISO|True|True'
+        # the build settings: Recovery ESD at first, as the native app's
+        $out.isoSettings | Should Be 'Recovery|True|False|3'
         $out.isoBuild | Should Be 'IsoBuild|6|Windows 11 Pro|0|Microsoft.BingNews_1_x64__8wekyb3d8bbwe|True|True|5|Build another|False|False'
         $out.isoStages | Should Be 'True|Done,Done,Running,Waiting'
         $out.isoOps | Should Be 'Now: App Microsoft.BingNews|1 operation, 1 failed|True|Visible|1|DISM exit code 2|Collapsed'

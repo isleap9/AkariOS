@@ -139,7 +139,8 @@ function Get-AkariIsoResultDetails($Report, [bool]$Ok) {
 }
 
 # Review's cards: @{ Icon; Title; Lines }. $Info: Summary, Iso, ModeName, ModeIcon, Lists (@{ Title; Ticked; Count },
-# the lists read), OutDir, Answer (None / Local / Generator), SkipOobe, User, AkariOS. Pure.
+# the lists read), OutDir, Answer (None / Local / Generator), SkipOobe, User, AkariOS, Settings (the Build settings,
+# Get-AkariIsoSettings' shape; none = the defaults). Pure.
 function Get-AkariIsoReviewCards([hashtable]$Info) {
     $lists = @(@($Info.Lists) | Where-Object { $_ } | ForEach-Object { "$($_.Title): $($_.Ticked) of $($_.Count)" })
     $removed = if ($lists.Count) { $lists -join "`n" } else { 'Nothing removed: the image''s lists weren''t read.' }
@@ -154,6 +155,7 @@ function Get-AkariIsoReviewCards([hashtable]$Info) {
         @{ Icon = $Info.ModeIcon; Title = $Info.ModeName; Lines = $removed }
         @{ Icon = 'folder'; Title = 'Output and workspace'; Lines = "ISO`n$([IO.Path]::Combine($out, (Get-AkariIsoOutName "$($Info.Iso)".Trim())))`n`nWork folder`n$([IO.Path]::Combine($out, 'AkariIso'))" }
         @{ Icon = 'settings'; Title = 'Installation options'; Lines = "Answer file: $answer`nAkariOS on the new Windows: $(if ($Info.AkariOS) { 'Yes' } else { 'No' })" }
+        @{ Icon = 'sliders-horizontal'; Title = 'Build settings'; Lines = (Get-AkariIsoSettingsLines (Get-AkariIsoSettings @{ Settings = $Info.Settings })) -join "`n" }
     )
 }
 
@@ -400,10 +402,37 @@ function Get-AkariIsoView {
     $p.AkariOS = New-AkariIsoCheck 'Put AkariOS on the new Windows (C:\AkariOS, a Start menu and a desktop shortcut; nothing runs by itself)' $true
     [void]$c.Panel.Children.Add($p.AkariOS)
     [void]$s.Children.Add($c.Card)
+    # the build settings (the native app's): the final compression (Recovery ESD at first), three switches
+    $c = New-AkariIsoCard 'Build settings'
+    $r = New-AkariIsoRow
+    [void]$r.Children.Add((New-AkariUaFormLabel 'Final compression '))
+    $p.Compression = New-AkariIsoCombo 260
+    Set-AkariComboItems $p.Compression @($AkariIsoCompressions.Keys) { param($k) $AkariIsoCompressions[$k] }
+    [void]$r.Children.Add($p.Compression); [void]$c.Panel.Children.Add($r)
+    [void]$c.Panel.Children.Add((New-AkariText 'Recovery ESD makes the smallest ISO but takes much longer to build. Maximum WIM is the usual choice; Fast WIM builds quickest and is the largest.' 12 'Mu'))
+    foreach ($o in @(
+            @{ Key = 'Turbo'; Text = 'Turbo feature removal'; Note = 'The Windows features you picked go in one DISM call instead of one each, then each one is checked.' }
+            @{ Key = 'CleanLeftovers'; Text = 'Remove leftover image data'; Note = 'Downloaded updates, temp files, archived logs, error reports and crash dumps inside the image. Nothing is removed while the image has updates waiting to finish.' }
+            @{ Key = 'LeaveOutNetFx3Files'; Text = 'Leave .NET 3.5''s setup files off the ISO'; Note = 'The ISO''s sources\sxs folder. .NET Framework 3.5 is still added to the image first; the ISO just can''t serve as an offline source for it later.' }
+        )) {
+        $p[$o.Key] = New-AkariIsoCheck $o.Text
+        $p[$o.Key].Margin = [Windows.Thickness]::new(0, 10, 0, 0)
+        [void]$c.Panel.Children.Add($p[$o.Key])
+        $t = New-AkariText $o.Note 12 'Mu'; $t.Margin = [Windows.Thickness]::new(28, 0, 0, 0)
+        [void]$c.Panel.Children.Add($t)
+    }
+    [void]$s.Children.Add($c.Card)
     $p.Steps[3] = $s
 
     Update-AkariIsoModeLook
     $p
+}
+
+# the Build settings step's picks, as Choices.Settings
+function Get-AkariIsoPickedSettings {
+    $p = $script:IsoParts
+    @{ Compression = [string](Get-AkariComboTag $p.Compression); Turbo = [bool]$p.Turbo.IsChecked
+        CleanLeftovers = [bool]$p.CleanLeftovers.IsChecked; LeaveOutNetFx3Files = [bool]$p.LeaveOutNetFx3Files.IsChecked }
 }
 
 # the edition picked (an opened ISO's), else $null
@@ -512,7 +541,8 @@ function New-AkariIsoReview {
     })
     $answer = if ($p.AnsNone.IsChecked) { 'None' } elseif ($p.AnsLocal.IsChecked) { 'Local' } else { 'Generator' }
     $cards = Get-AkariIsoReviewCards @{ Summary = (Get-AkariIsoSummary (Get-AkariIsoEdition)); Iso = $p.IsoPath.Text; ModeName = $m.Name; ModeIcon = $m.Icon
-        Lists = $lists; OutDir = $p.OutDir.Text; Answer = $answer; SkipOobe = [bool]$p.SkipOobe.IsChecked; User = $p.User.Text.Trim(); AkariOS = [bool]$p.AkariOS.IsChecked }
+        Lists = $lists; OutDir = $p.OutDir.Text; Answer = $answer; SkipOobe = [bool]$p.SkipOobe.IsChecked; User = $p.User.Text.Trim(); AkariOS = [bool]$p.AkariOS.IsChecked
+        Settings = (Get-AkariIsoPickedSettings) }
     $g = New-AkariCardGrid 320
     foreach ($c in $cards) {
         $b = [Windows.Controls.Border]::new()
@@ -754,7 +784,7 @@ function Start-AkariIsoBuild {
     $choices = @{
         OutDir = $p.OutDir.Text.Trim(); Iso = $p.IsoPath.Text.Trim(); Image = $st.Image; Index = [int]$ed.Index; Edition = $ed.Name
         Options = @(); Apps = (& $sel 'Apps'); Capabilities = (& $sel 'Capabilities'); Features = (& $sel 'Features'); Packages = (& $sel 'Packages')
-        AkariDir = $(if ($p.AkariOS.IsChecked) { $Root } else { '' }); Unattend = $answer
+        AkariDir = $(if ($p.AkariOS.IsChecked) { $Root } else { '' }); Unattend = $answer; Settings = (Get-AkariIsoPickedSettings)
     }
     $name = Get-AkariIsoOutName $choices.Iso
     $n = $choices.Apps.Count + $choices.Capabilities.Count + $choices.Features.Count + $choices.Packages.Count

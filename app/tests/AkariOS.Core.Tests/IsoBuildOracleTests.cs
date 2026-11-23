@@ -131,7 +131,6 @@ public sealed partial class IsoBuildOracleTests
                         Options = List("Options"), Apps = List("Apps"), Features = List("Features"), Capabilities = List("Capabilities"), Packages = List("Packages"),
                         AkariExe = ch.TryGetValue("AkariOS", out var ak) && ak is true ? f.MakeExe() : null,
                         Unattend = ch.TryGetValue("Unattend", out var u) ? System.Text.Encoding.UTF8.GetBytes((string)u) : null,
-                        // native only (batch I3): the port has no build settings yet
                         Settings = ch.TryGetValue("Settings", out var st) ? (IsoBuildSettings)st : new(),
                     };
                     if (wizard is not null) choices = wizard(choices);
@@ -284,6 +283,59 @@ public sealed partial class IsoBuildOracleTests
 
     [Fact]
     public void Boots_uefi_only_without_etfsboot() => Same(Case(c => c["NoEtfs"] = true));
+
+    // ---- the build settings (native batch I3, PowerShell P6)
+
+    private static Dictionary<string, object> WithSettings(IsoBuildSettings settings, Action<Dictionary<string, object>>? change = null) =>
+        Case(x => { Choices(x)["Settings"] = settings; change?.Invoke(x); });
+
+    [Theory]
+    [InlineData(IsoCompression.Recovery)]
+    [InlineData(IsoCompression.Fast)]
+    public void Compresses_as_picked(IsoCompression compression)
+    {
+        var o = Same(WithSettings(new() { Compression = compression }));
+        Assert.Contains($".settings.compression={compression}", o.Report);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3010)]
+    [InlineData(50)]
+    public void Removes_the_features_in_one_dism_call_with_turbo(int code)
+    {
+        var o = Same(WithSettings(new() { Turbo = true }, x =>
+        {
+            Choices(x)["Features"] = new[] { "Recall", "Printing-PrintToPDFServices-Features", "Gone-Feature" };
+            x["StuckFeatures"] = new[] { "Printing-PrintToPDFServices-Features" };
+            ((Dictionary<string, int>)x["DismCodes"])["Disable-Feature"] = code;
+        }));
+        Assert.Contains(o.Ops, x => x.EndsWith($"|Windows feature Printing-PrintToPDFServices-Features|Failed|Still Enabled (DISM exit code {code})"));
+        Assert.Contains(o.Ops, x => x.EndsWith("|Windows feature Gone-Feature|Done|Not in the image any more"));
+    }
+
+    [Fact]
+    public void Removes_the_leftover_image_data_on_the_allow_list()
+    {
+        var o = Same(WithSettings(new() { CleanLeftovers = true }, x => x["ImageFiles"] = (string[])[.. ImageFiles,
+            @"Windows\SoftwareDistribution\Download\abc\x.cab", @"Windows\Temp\t.tmp", @"Windows\Logs\CBS\CbsPersist_1.log", @"Windows\Logs\CBS\CBS.log", @"Windows\MEMORY.DMP"]));
+        Assert.Contains(o.Ops, x => x.EndsWith(@"|Windows\Temp\*|Done|1 removed"));
+        Assert.Contains(o.Ops, x => x.EndsWith(@"|Windows\Minidump\*|Skipped|Nothing there"));
+    }
+
+    [Fact]
+    public void Keeps_the_leftover_data_while_servicing_is_pending() => Same(WithSettings(new() { CleanLeftovers = true },
+        x => x["ImageFiles"] = (string[])[.. ImageFiles, @"Windows\Temp\t.tmp", IsoPlan.PendingXml]));
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Leaves_the_net35_setup_files_off_the_iso(bool noSxs) => Same(WithSettings(new() { LeaveOutNetFx3Files = true }, x => { if (noSxs) x["NoSxs"] = true; }));
+
+    [Fact]
+    public void Builds_with_every_setting_on() => Same(WithSettings(
+        new() { Compression = IsoCompression.Recovery, Turbo = true, CleanLeftovers = true, LeaveOutNetFx3Files = true },
+        x => Choices(x)["Features"] = new[] { "Recall" }));
 
     [Fact]
     public void Logs_the_dism_calls_that_fail_and_goes_on()
