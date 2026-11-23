@@ -246,7 +246,7 @@
                         <CheckBox Content="Show current state" IsChecked="{x:Bind ViewModel.Tweaks.UseState, Mode=TwoWay}" MinWidth="0" Margin="8,0,0,0"
                                   ToolTipService.ToolTip="Check the Tweaks already applied on this PC. Unchecking one of them reverts it." />
                     </StackPanel>
-                    <!-- native only: the PowerShell app filters from the window's search box, which here is Optimize's -->
+                    <!-- the filter box (the PowerShell app has it too): the window's search box is Optimize's -->
                     <TextBox PlaceholderText="Filter tweaks" Text="{x:Bind ViewModel.Tweaks.Query, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="280" HorizontalAlignment="Left" />
                     <ProgressRing IsActive="{x:Bind ViewModel.Tweaks.IsReading, Mode=OneWay}" HorizontalAlignment="Left"
                                   Visibility="{x:Bind ViewModel.Tweaks.IsReading, Mode=OneWay}" />

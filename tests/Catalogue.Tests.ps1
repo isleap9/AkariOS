@@ -82,6 +82,26 @@ Describe 'Catalogue (Optimize > Advanced)' {
         Set-AkariSafePending $p $ch 'Custom' 'Apply' 'Light' 'Light'
         $p.Count | Should Be 0
     }
+    It 'a Section''s page lists its Categories in the order and groups of Categories.psd1, the unknown ones under More' {
+        $more = @(
+            T @{ Id = 'bar2'; Section = 'Customize'; Category = 'Start' }
+            T @{ Id = 'z1'; Section = 'Customize'; Category = 'Zany'; Name = 'One' }
+            T @{ Id = 'z2'; Section = 'Customize'; Category = 'Zany'; Name = 'Two' }
+            T @{ Id = 'z3'; Section = 'Customize'; Category = 'Zany'; Name = 'Three' }
+            T @{ Id = 'z4'; Section = 'Customize'; Category = 'Zany'; Name = 'Four' }
+        )
+        $info = @(
+            @{ Section = 'Customize'; Category = 'Start'; Group = 'Desktop'; Line = 'Pins' }
+            @{ Section = 'Optimize'; Category = 'Gaming'; Group = 'Speed'; Line = 'Games' }
+            @{ Section = 'Customize'; Category = 'Taskbar'; Group = 'Desktop'; Line = 'The bar' }
+        )
+        $rows = @(Get-AkariCategoryRows (New-AkariCatalogue ($all + $more)) 'Customize' $info)
+        ($rows | ForEach-Object { "$($_.Category):$($_.Group):$($_.Count):$($_.Key)" }) -join ',' |
+            Should Be 'Start:Desktop:1:Catalogue:Customize/Start,Taskbar:Desktop:2:Catalogue:Customize/Taskbar,Zany:More:4:Catalogue:Customize/Zany'
+        $rows[2].Line | Should Be ('One, Two, Three, ' + [char]0x2026)
+        $rows[0].Line | Should Be 'Pins'
+        @(Get-AkariCategoryRows (New-AkariCatalogue $all) 'Nowhere' $info).Count | Should Be 0
+    }
     It 'words the restart bar by count' {
         (Get-AkariRestartBarText 1 0) -join '|' | Should Be 'Explorer needs a restart to show 1 change.'
         (Get-AkariRestartBarText 3 2) -join '|' | Should Be 'Explorer needs a restart to show 3 changes.|A restart finishes 2 changes.'
@@ -106,5 +126,24 @@ Describe 'Catalogue (Optimize > Advanced)' {
         $ids -contains 'check' | Should Be $false
         $ids -contains 'only' | Should Be $false
         $ids -contains 'bar' | Should Be $true
+    }
+}
+
+# UI\Categories.psd1 (shared with the native app's Shell/CategoryInfo): every Category of every Catalogue Section has its
+# row, so none falls under "More"
+Describe 'Categories.psd1' {
+    foreach ($f in 'Registry', 'Loader', 'System') { . "$Core\$f.ps1" }
+    . "$Root\UI\Catalogue.ps1"
+    Mock Test-AkariRequirement { $null }
+    $info = @((Import-PowerShellDataFile "$Root\UI\Categories.psd1").Categories)
+    $cat = New-AkariCatalogue (Get-AkariTweaks "$Root\Tweaks").Tweaks
+    It 'has a row for every Category, with a line' {
+        $missing = @(foreach ($s in $cat.Pages) { foreach ($r in @(Get-AkariCategoryRows $cat $s.Section $info)) { if ($r.Group -eq $AkariCategoryMore) { "$($s.Section)/$($r.Category)" } } })
+        $missing -join ',' | Should Be ''
+        @($info | Where-Object { -not $_.Line -or -not $_.Section -or -not $_.Category -or $null -eq $_.Group }).Count | Should Be 0
+    }
+    It 'names only Sections and Categories that exist' {
+        $have = @(foreach ($s in $cat.Pages) { foreach ($p in $s.Pages) { "$($s.Section)/$($p.Category)" } })
+        (@($info | ForEach-Object { "$($_.Section)/$($_.Category)" } | Where-Object { $_ -notin $have }) -join ',') | Should Be ''
     }
 }

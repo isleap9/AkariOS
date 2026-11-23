@@ -758,11 +758,15 @@ Click $StepBack; "cancel=$script:Cat|$script:Mode|$(Crumbs)|$($StepFooter.Visibi
 Invoke-AkariNav 'Optimize'; "optimize=$script:Cat|$(NavOn)|$($script:KidsOpen)|$(Crumbs)"
 Invoke-AkariNav 'Optimize'; "kidsToggle=$($script:KidsOpen)"
 Invoke-AkariNav 'Catalogue:Customize'
-"section=$script:Cat|$(NavOn)|$(Crumbs)|$(($script:CatSelector.Items.Children | ForEach-Object { $_.Tag }) -join ',')|$(@($script:CatHeads.Keys) -join ',')"
+function CatRows { @($Rows.Children | Where-Object { $_ -is [Windows.Controls.Button] }) }
+"section=$script:Cat|$(NavOn)|$(Crumbs)|$((CatRows | ForEach-Object { $_.Tag }) -join ',')|$(($Rows.Children | Where-Object { $_ -is [Windows.Controls.TextBlock] -and $_.FontWeight -eq 'SemiBold' } | ForEach-Object { $_.Text }) -join ',')|$($Crumbs.Visibility)"
+"catRow=$((CatRows)[0].Content.Children[2].Children[1].Text)|$((CatRows)[0].Content.Children[1].Children[0].Child.Text)"
+Click (CatRows)[0]
+"category=$script:Cat|$(NavOn)|$(Crumbs)|$($null -ne $script:CatCards['cat-tog'].Card.Parent)|$($null -eq $script:CatCards['cat-tog2'].Card.Parent -or -not $script:CatCards['cat-tog2'].Card.IsDescendantOf($Rows))"
 $tog = $script:CatCards['cat-tog']
 "reading=$($tog.StateText.Text -replace '[^ -~]', '.')|$($tog.Control.IsEnabled)|$($null -ne $script:Skeletons.Parent)"
 Set-AkariCatalogueStates @{ 'cat-tog' = @{ State = 'Default'; Current = $null } }
-"read=$($tog.StateText.Text)|$($tog.Control.IsChecked)|$($tog.Control.IsEnabled)|$($null -eq $script:Skeletons.Parent)|$($script:SectionsRead['Customize'])"
+"read=$($tog.StateText.Text)|$($tog.Control.IsChecked)|$($tog.Control.IsEnabled)|$($null -eq $script:Skeletons.Parent)|$($script:SectionsRead['Catalogue:Customize/Taskbar'])"
 # a change applies right away in the job; a second queues; an Explorer change goes to the restart InfoBar
 function Confirm-AkariDialog { $true }
 function Add-AkariRestoreFirst($Code, $Button) { $Code }
@@ -776,7 +780,7 @@ Complete-AkariCatalogueJob $j; Start-AkariCatalogueNext
 $j = $script:Job; $j.Shared.Outcome = [pscustomobject]@{ Outcome = 'Applied'; Message = '' }; $script:Job = $null; Complete-AkariCatalogueJob $j
 "action=$($script:CatCards['tuning'].Done)|$(@(Get-AkariActivity).Count)"
 # a Safe Mode Toggle asks Restart and apply / Later / Cancel; Later waits in the Safe Mode InfoBar
-Invoke-AkariNav 'Catalogue:Advanced'
+Select-AkariPage 'Catalogue:Advanced/Security'
 $safe = $script:CatCards['cat-safe']
 Set-AkariCatalogueStates @{ 'cat-safe' = @{ State = 'Default'; Current = $null } }
 function Show-AkariDialog { $script:Asked = @($args[2]) -join ','; 'Later' }
@@ -798,6 +802,7 @@ Select-AkariPage 'Check'; "legacy=$script:Cat|$(NavOn)|$(Crumbs)|$($Rows.Childre
 $h = $script:History.Count; Step-AkariHistoryBack; "back=$script:Cat|$($script:History.Count -eq $h - 1)"
 # the other pages
 Select-AkariPage 'Downloads'; "downloads=$script:Cat|$(NavOn)|$(Crumbs)"
+Open-AkariSuggestion 'cat-tog2'; "suggestOpen=$script:Cat|$(Crumbs)|$script:FlashId"
 Select-AkariPage 'Remove apps'; "remove=$script:Cat|$(NavOn)|$($script:AppsParts.RemoveGo.IsEnabled)|$($script:AppsParts.RemoveGo.Visibility)|$(($script:AppsParts.Selector.Items.Children | ForEach-Object { $_.Tag }) -join ',')"
 Select-AkariPage 'Install USB'; "usb=$script:Cat|$(NavOn)|$($script:UaSections.Count -eq $script:UnattendSpec.Sections.Count)|$($script:UaSections[0].Desc.Text)|$($script:UnattendParts.Usb.IsEnabled)|$($script:UnattendParts.DriveName.Text)"
 Select-AkariPage 'Unattend Generator'; "usbOld=$script:Cat"
@@ -891,8 +896,12 @@ function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My
         $out.optimize | Should Be 'Optimize|Optimize|True|Optimize'
         $out.kidsToggle | Should Be 'False'
     }
-    It 'a section page: its kid selected, a breadcrumb, a SelectorBar of its categories, a header per category' {
-        $out.section | Should Be 'Catalogue:Customize|Catalogue:Customize|Optimize>Customize|Start,Taskbar|Start,Taskbar'
+    It 'a section page: its kid selected, a crumb line over the heading, its categories as rows in their groups (Categories.psd1)' {
+        $out.section | Should Be 'Catalogue:Customize|Catalogue:Customize|Optimize>Customize|Catalogue:Customize/Taskbar,Catalogue:Customize/Start|Desktop|Visible'
+        $out.catRow | Should Be 'Alignment, the Search, Widgets and Copilot buttons, tray icons, Quick Settings|1'
+    }
+    It 'a category row opens its own page: its cards only, Optimize > Section > Category' {
+        $out.category | Should Be 'Catalogue:Customize/Taskbar|Catalogue:Customize|Optimize>Customize>Taskbar|True|True'
     }
     It 'reads States in the background: skeletons and a waiting switch until they arrive' {
         $out.reading | Should Be 'Reading.|False|True'
@@ -910,6 +919,7 @@ function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My
     }
     It 'search: suggestions as you type, the results grouped by Section > Category with the match highlighted' {
         $out.suggest | Should Be 'cat-tog,cat-tog2,cat-safe|0'
+        $out.suggestOpen | Should Be 'Catalogue:Customize/Start|Optimize>Customize>Start|cat-tog2'
         $out.search | Should Be 'Search|Optimize|Results for "Cat"|Customize > Start,Customize > Taskbar,Advanced > Security'
         $out.highlight | Should Be 'Cat'
         $out.searchNone | Should Be 'No Tweaks match "zzz"'

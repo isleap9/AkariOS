@@ -163,8 +163,12 @@ function Get-AkariCatalogueCard($t) {
     $script:CatCards[$t.Id]
 }
 
-# ---- the pages: a section ('Catalogue:<Section>': a SelectorBar of its categories, then a header and the cards of
-# each), a category ('Catalogue:<Section>/<Category>': its section, scrolled to it), or the search results
+# ---- the pages (a drill-down, Windows 11 Settings' pattern, as the native app): a section ('Catalogue:<Section>': its
+# categories as rows in groups, UI\Categories.psd1), a category ('Catalogue:<Section>/<Category>': its cards; Services
+# and Scheduled tasks their lists too; Optimize > Section > Category), or the search results
+
+# each Category's group and line on its Section's page (shared with the native app's Shell/CategoryInfo)
+$script:CategoryInfo = @((Import-PowerShellDataFile "$Root\UI\Categories.psd1").Categories)
 
 # the section and category of a Catalogue page key. Pure.
 function Split-AkariCatalogueKey([string]$Key) {
@@ -202,7 +206,7 @@ function New-AkariSkeletons {
     $sp
 }
 
-# the sections whose States were read once this session: their page opens with cards, not skeletons
+# the category pages whose States were read once this session: they open with cards, not skeletons
 $script:SectionsRead = @{}
 
 function Show-AkariCataloguePage([string]$Query) {
@@ -213,48 +217,71 @@ function Show-AkariCataloguePage([string]$Query) {
     $k = Split-AkariCatalogueKey $script:Cat
     $sec = $k.Section
     $script:CatShown = $script:Cat
-    Set-AkariHeader @(@('Optimize', 'Optimize'), $(if ($AkariCatalogueHeaders.ContainsKey($sec)) { $AkariCatalogueHeaders[$sec] } else { $sec }))
-    $page = @($cat.Pages | Where-Object { $_.Section -eq $sec })[0]
-    $cats = @($page.Pages | ForEach-Object { $_.Category })
-    if (-not $cats.Count) { [void]$Rows.Children.Add((New-AkariEmpty 'search' 'Nothing here yet' '')); return }
-    $first = if ($k.Category) { $k.Category } else { $cats[0] }
-    $script:CatSelector = New-AkariSelectorBar $cats $first { param($v) Move-AkariToCategory $v }
-    [void]$Rows.Children.Add($script:CatSelector.Bar)
+    $hs = if ($AkariCatalogueHeaders.ContainsKey($sec)) { $AkariCatalogueHeaders[$sec] } else { $sec }
+    if (-not $k.Category) { Show-AkariSectionPage $cat $sec $hs; return }
+    $key = "$AkariCataloguePrefix$sec/$($k.Category)"
+    Set-AkariHeader @(@('Optimize', 'Optimize'), @($hs, "$AkariCataloguePrefix$sec"), $k.Category)
+    $list = @(Find-AkariCatalogueList $cat $key '')
+    $extra = $AkariCatalogueLists[$key]
+    if (-not $list.Count -and -not $extra) { [void]$Rows.Children.Add((New-AkariEmpty 'search' 'Nothing here yet' '')); return }
+    [void]$Rows.Children.Add((New-AkariLead 'Each change applies right away.'))
     $body = [Windows.Controls.StackPanel]::new()
-    $script:CatHeads = [ordered]@{}
-    $all = @()
-    foreach ($c in $cats) {
-        $h = New-AkariSection $c -First:($c -eq $cats[0])
-        $script:CatHeads[$c] = $h
-        [void]$body.Children.Add($h)
-        $list = @(Find-AkariCatalogueList $cat "$AkariCataloguePrefix$sec/$c" '')
-        foreach ($t in $list) { $e = Get-AkariCatalogueCard $t; Set-AkariCardHighlight $e ''; Add-AkariCard $body $e; Set-AkariCatalogueCard $e }
-        $all += $list
-        # Services, Scheduled tasks: the category's Tweaks, then its list ($AkariCatalogueLists)
-        $extra = $AkariCatalogueLists["$AkariCataloguePrefix$sec/$c"]
-        if ($extra) {
-            $hold = $Rows
-            $Rows = $body
-            try { & $extra.Show '' } finally { $Rows = $hold }
-        }
+    foreach ($t in $list) { $e = Get-AkariCatalogueCard $t; Set-AkariCardHighlight $e ''; Add-AkariCard $body $e; Set-AkariCatalogueCard $e }
+    # Services, Scheduled tasks: the category's Tweaks, then its list ($AkariCatalogueLists)
+    if ($extra) {
+        $hold = $Rows
+        $Rows = $body
+        try { & $extra.Show '' } finally { $Rows = $hold }
     }
     [void]$Rows.Children.Add($body)
     # the States: skeletons until the first ones arrive (the first time this session), then the cards come in
-    if (-not $script:SectionsRead[$sec] -and @($all | Where-Object { $_.Kind -ne 'Action' }).Count) {
+    if (-not $script:SectionsRead[$key] -and @($list | Where-Object { $_.Kind -ne 'Action' }).Count) {
         $script:Skeletons = New-AkariSkeletons
         [void]$Rows.Children.Add($script:Skeletons)
         $body.Visibility = 'Collapsed'
         $script:SectionBody = $body
-        $script:SectionLoading = $sec
+        $script:SectionLoading = $key
     } else { $script:SectionLoading = '' }
-    if ($script:PageMoved -or -not $script:SectionsRead[$sec]) { Start-AkariCatalogueStates $all }
+    if ($script:PageMoved -or -not $script:SectionsRead[$key]) { Start-AkariCatalogueStates $list }
     Update-AkariCatalogueBars
-    if ($k.Category -and $k.Category -ne $cats[0]) {
-        [void]$window.Dispatcher.BeginInvoke([Windows.Threading.DispatcherPriority]::Loaded, [Action[object]]{ param($c) Move-AkariToCategory $c $false }, $k.Category)
-    }
 }
 
-# the first States of the section are in: the skeletons give way to the cards, which come in (Start-AkariPageEntrance)
+# a Section's own page: its Categories as Settings rows in their groups (Get-AkariCategoryRows), each opening the
+# Category's page
+function Show-AkariSectionPage($Catalogue, [string]$Section, [string]$Header) {
+    $script:SectionLoading = ''
+    Set-AkariHeader @(@('Optimize', 'Optimize'), $Header)
+    $list = @(Get-AkariCategoryRows $Catalogue $Section $script:CategoryInfo)
+    if (-not $list.Count) { [void]$Rows.Children.Add((New-AkariEmpty 'search' 'Nothing here yet' '')); return }
+    [void]$Rows.Children.Add((New-AkariLead 'Pick a category. Each change applies right away.'))
+    $groups = [ordered]@{}
+    foreach ($r in $list) { if (-not $groups.Contains($r.Group)) { $groups[$r.Group] = [Collections.Generic.List[object]]::new() }; $groups[$r.Group].Add($r) }
+    $first = $true
+    foreach ($g in $groups.Keys) {
+        if ($g) { [void]$Rows.Children.Add((New-AkariSection $g -First:$first)) }
+        $first = $false
+        foreach ($r in $groups[$g]) { [void]$Rows.Children.Add((New-AkariCategoryRow $r)) }
+    }
+    Update-AkariCatalogueBars
+}
+
+# a Category's row: its icon, name and line, the count in a badge, a chevron; a click opens its page
+function New-AkariCategoryRow($Row) {
+    $badge = [Windows.Controls.Border]::new()
+    $badge.CornerRadius = [Windows.CornerRadius]::new(10); $badge.Padding = [Windows.Thickness]::new(8, 2, 8, 2)
+    $badge.Margin = [Windows.Thickness]::new(0, 0, 12, 0); $badge.VerticalAlignment = 'Center'
+    $badge.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, 'Sub')
+    $badge.Child = New-AkariText "$($Row.Count)" 12 'Mu'
+    $badge.ToolTip = "$($Row.Count) tweak$(if ($Row.Count -ne 1) { 's' })"
+    $chev = New-AkariIcon 'chevron-right' 12 'Mu'
+    $c = New-AkariSettingsCard (Get-AkariCategoryIcon $Row.Category) $Row.Category $Row.Line @($badge, $chev) 'CardButton'
+    $c.Desc.TextWrapping = 'Wrap'
+    $c.Card.Tag = $Row.Key
+    $c.Card.Add_Click({ param($x, $e) Select-AkariPage ([string]$x.Tag) })
+    $c.Card
+}
+
+# the first States of the category are in: the skeletons give way to the cards, which come in (Start-AkariPageEntrance)
 function Show-AkariSectionBody {
     if (-not $script:SectionLoading) { return }
     $script:SectionsRead[$script:SectionLoading] = $true
@@ -264,36 +291,10 @@ function Show-AkariSectionBody {
     Start-AkariPageEntrance @($script:SectionBody.Children)
 }
 
-# the SelectorBar picked a category: the page scrolls to its header (16 px under the top)
-function Move-AkariToCategory([string]$Category, [bool]$Smooth = $true) {
-    $h = $script:CatHeads[$Category]
-    if (-not $h -or -not $h.IsVisible) { return }
-    $p = $h.TranslatePoint([Windows.Point]::new(0, 0), $PageScroll)
-    $script:CatScrolling = $true
-    $to = [Math]::Max(0, $PageScroll.VerticalOffset + $p.Y - 16)
-    if ($Smooth) { Start-AkariScrollTo $PageScroll $to } else { $PageScroll.ScrollToVerticalOffset($to) }
-    if ($script:CatSelector) { Set-AkariSelectorValue $script:CatSelector $Category }
-}
-
-# scrolling moves the SelectorBar's selection: the last category whose header is within 80 px of the top
-function Update-AkariCategoryFromScroll {
-    if (-not $script:CatSelector -or -not $script:CatHeads -or $script:Cat -notlike "$AkariCataloguePrefix*") { return }
-    $cur = @($script:CatHeads.Keys)[0]
-    if ($PageScroll.VerticalOffset -ge 8) {
-        foreach ($c in $script:CatHeads.Keys) {
-            $h = $script:CatHeads[$c]
-            if (-not $h.IsVisible) { continue }
-            if ($h.TranslatePoint([Windows.Point]::new(0, 0), $PageScroll).Y -le 80) { $cur = $c }
-        }
-    }
-    Set-AkariSelectorValue $script:CatSelector $cur
-}
-
 # the search results page: every match, grouped by Section › Category, each name with the match highlighted; no match =
 # an empty state with examples
 function Show-AkariSearchResults([string]$Query) {
     $script:CatShown = ''
-    $script:CatSelector = $null; $script:CatHeads = $null
     Set-AkariHeader @("Results for `"$Query`"")
     $list = @(Find-AkariCatalogueList (Get-AkariCatalogueOf $script:Tweaks) $AkariCatalogueSearch $Query)
     if (-not $list.Count) {

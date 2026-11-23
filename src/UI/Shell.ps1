@@ -39,9 +39,8 @@ foreach ($n in 'Shell', 'Body', 'TopBar', 'BackBtn', 'PaneBtn', 'Logo', 'TitleTe
                'StepLabel', 'StepBar', 'StepFill', 'Toasts', 'BusyToast', 'BusyLogo', 'StatusText', 'StatusBar', 'StatusFill', 'StatusLoop',
                'ModalOverlay') { Set-Variable $n $window.FindName($n) }
 $AppVersionText.Text = $AkariVersion
-# the page glides on the mouse wheel (UI\Motion.ps1); scrolling a section page moves its SelectorBar's selection
+# the page glides on the mouse wheel (UI\Motion.ps1)
 Enable-AkariSmoothScroll $PageScroll
-$PageScroll.Add_ScrollChanged({ Update-AkariCategoryFromScroll })
 
 # ---- theme: UI\Theme.Dark.xaml or UI\Theme.Light.xaml, merged first into the window's resources (every brush is a
 # DynamicResource, so swapping the dictionary repaints the window); System follows Windows' app mode and changes with it
@@ -421,8 +420,9 @@ $Layer.Add_SizeChanged({ param($s, $e) Update-AkariHomeWidth $e.NewSize.Width })
 
 # ---- pages and history
 
-# the page header: a title, or a breadcrumb whose earlier parts are links (Mu, Tx on hover) with a chevron between.
-# $Parts: strings, or @(label, page) for a link. $Parts empty = no header (Home).
+# the page header (the native app's rule): the last part is the heading; the parts before it, when there are any, are a
+# small line of links above it (Mu, Tx on hover) with a chevron after each. $Parts: strings, or @(label, page) for a
+# link. $Parts empty = no header (Home).
 function Set-AkariHeader($Parts) {
     $Crumbs.Children.Clear()
     $parts = @($Parts)
@@ -436,10 +436,11 @@ function Set-AkariHeader($Parts) {
         $b.Tag = if ($p -is [array]) { $p[1] } else { $p }
         $b.Add_Click({ param($s, $e) Open-AkariCrumb ([string]$s.Tag) })
         [void]$Crumbs.Children.Add($b)
-        $c = New-AkariIcon 'chevron-right' 16 'Mu'
-        $c.Margin = [Windows.Thickness]::new(12, 2, 12, 0); $c.VerticalAlignment = 'Center'
+        $c = New-AkariIcon 'chevron-right' 12 'Mu'
+        $c.Margin = [Windows.Thickness]::new(6, 1, 6, 0); $c.VerticalAlignment = 'Center'
         [void]$Crumbs.Children.Add($c)
     }
+    $Crumbs.Visibility = if ($parts.Count -gt 1) { 'Visible' } else { 'Collapsed' }
     $last = $parts[-1]
     $Heading.Text = if ($last -is [array]) { $last[0] } else { $last }
 }
@@ -483,7 +484,6 @@ function Show-AkariPageNow {
     Update-AkariNav
     $Rows.Children.Clear(); $StepBody.Children.Clear()
     $StepsPanel.Visibility = 'Collapsed'; $HomePanel.Visibility = 'Collapsed'
-    $script:CatSelector = $null; $script:CatHeads = $null
     Set-AkariFooter $false
     switch -Wildcard ($script:Cat) {
         'Home' { Set-AkariHeader @(); $HomePanel.Visibility = 'Visible'; Show-AkariHome }
@@ -779,7 +779,7 @@ function Open-AkariSuggestion([string]$Id) {
     $t = Find-AkariTweak $Id
     if (-not $t) { return }
     $script:SearchQuiet = $true; try { $Search.Text = '' } finally { $script:SearchQuiet = $false }
-    Select-AkariPage "$AkariCataloguePrefix$($t.Section)"
+    Select-AkariPage "$AkariCataloguePrefix$($t.Section)/$($t.Category)"
     $script:FlashId = $Id
     [void]$window.Dispatcher.BeginInvoke([Windows.Threading.DispatcherPriority]::ContextIdle, [Action]{
         $e = $script:CatCards[$script:FlashId]

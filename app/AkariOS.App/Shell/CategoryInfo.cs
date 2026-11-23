@@ -1,3 +1,5 @@
+using AkariOS.Core.Data;
+using AkariOS.Core.Sources;
 using CommunityToolkit.Mvvm.Input;
 
 namespace AkariOS.App.Shell;
@@ -8,54 +10,27 @@ public sealed record CategoryNote(string Group, string Description);
 
 /// <summary>
 /// The lines under each Category on a Section's page, and the groups they sit in, per Section (presentation only, like
-/// <see cref="CategoryGlyphs"/>; the Categories themselves come from the loaded Tweaks). A Category missing here goes
-/// in the last group, <see cref="More"/>, its line made from its first Tweaks' names (<see cref="FromNames"/>).
+/// <see cref="CategoryGlyphs"/>; the Categories themselves come from the loaded Tweaks), read from the shared
+/// src/UI/Categories.psd1 (the PowerShell app's CataloguePage.ps1 reads it too). A Category missing there goes in the
+/// last group, <see cref="More"/>, its line made from its first Tweaks' names (<see cref="FromNames"/>).
 /// </summary>
 public static class CategoryInfo
 {
     public const string More = "More";
 
+    public const string File = "src/UI/Categories.psd1";
+
     /// <summary>Every Section's Categories, in the order they show on its page.</summary>
-    public static IReadOnlyList<(string Section, string Category, CategoryNote Note)> All { get; } =
-    [
-        ("Optimize", "Gaming", new("Speed", "Game Mode, Game DVR and Game Bar, GPU scheduling, windowed games")),
-        ("Optimize", "Performance", new("Speed", "Background apps, visual effects, timer resolution, memory compression, temporary files")),
-        ("Optimize", "Power", new("Speed", "Ultimate Performance plan, hibernate and fast startup, device power saving, sleep")),
-        ("Optimize", "Network", new("Speed", "DNS server, IPv6, network throttling, vendor download servers")),
-        ("Optimize", "Privacy", new("Windows", "Ads and suggestions, Copilot and AI, activity history, app permissions, location")),
-        ("Optimize", "Update", new("Windows", "Pause or defer updates, no driver updates, Store app updates, stay on this version")),
+    public static IReadOnlyList<(string Section, string Category, CategoryNote Note)> All { get; } = Read(new EmbeddedSourceFiles());
 
-        ("Customize", "Taskbar", new("Desktop", "Alignment, the Search, Widgets and Copilot buttons, tray icons, Quick Settings")),
-        ("Customize", "Start", new("Desktop", "AkariOS pins, Recommended, All apps, recent files and suggestions")),
-        ("Customize", "Explorer", new("Desktop", "Classic right-click menu, file extensions, hidden files, the navigation pane")),
-        ("Customize", "Context menu", new("Desktop", "Right-click entries to add or remove: Take Ownership, Run as administrator, Print, Cast")),
-        ("Customize", "Theme", new("Desktop", "Dark mode, the AkariOS wallpaper, lock and sign-in screens, transparency")),
-        ("Customize", "System", new("Behaviour", "Alt+Tab, consoles, snapping, shut down, display scaling, the clock")),
-        ("Customize", "Notifications", new("Behaviour", "Do not disturb, the notification center, Windows' own notifications")),
-        ("Customize", "Input", new("Behaviour", "Mouse pointers and precision, key repeat, touch keyboard, autocorrect")),
-        ("Customize", "Sound", new("Behaviour", "Call ducking, loudness equalization, Windows and startup sounds")),
-        ("Customize", "Accessibility", new("Behaviour", "Filter Keys, Narrator, scroll bars, accessibility shortcuts")),
-        ("Customize", "Apps", new("Behaviour", "Edge, Brave, Notepad, Photos, Microsoft Store, Windows Terminal, Outlook")),
-
-        ("Hardware", "Graphics", new("", "NVIDIA, AMD and Intel settings, MSI mode, full GPU clocks, Resizable BAR")),
-        ("Hardware", "Input", new("", "Mouse polling in background windows")),
-
-        ("Advanced", "System", new("System", "Prefetch, reserved storage, the NVMe driver, the Start and Search hosts")),
-        ("Advanced", "Services", new("System", "Every Windows service's startup type, or most of them off at once")),
-        ("Advanced", "Scheduled tasks", new("System", "Every scheduled task on or off, or all of them removed")),
-        ("Advanced", "Tuning", new("System", "Processor scheduling and the service host split")),
-        ("Advanced", "Display", new("System", "Flip models and multiplane overlay")),
-        ("Advanced", "Security", new("Security and features", "Microsoft Defender, the firewall, SmartScreen, Spectre and Meltdown, core isolation")),
-        ("Advanced", "Features", new("Security and features", ".NET 3.5, Hyper-V, Sandbox, WSL, OpenSSH Server, F8 recovery")),
-
-        ("Tools", "Setup", new("Keep it running", "A restore point, activation, Home to Pro, updating every app")),
-        ("Tools", "Drivers", new("Keep it running", "The latest NVIDIA, AMD and Intel drivers, a DDU clean, Snappy Driver Installer, controller overclock")),
-        ("Tools", "Cleanup", new("Keep it running", "Temporary files, Windows.old, logs, old drivers, startup entries")),
-        ("Tools", "Fixes", new("Keep it running", "Windows Update reset, network reset, corruption scan, WinGet reinstall")),
-        ("Tools", "Check", new("Check and recover", "BIOS, storage, RAM, GPU and polling rate tests, O&O ShutUp10++")),
-        ("Tools", "Refresh", new("Check and recover", "Reinstall Windows, factory reset, Gaming Services repair, restart to BIOS")),
-        ("Tools", "Panels", new("Check and recover", "Control Panel, Network Connections, Power Options and the other classic panels")),
-    ];
+    /// <summary>The rows of <see cref="File"/>: <c>Categories = @(@{ Section; Category; Group; Line })</c>.</summary>
+    public static IReadOnlyList<(string Section, string Category, CategoryNote Note)> Read(ISourceFiles files)
+    {
+        var h = (PsHashtable)PsData.Parse(files.ReadText(File)).Value!;
+        static string S(PsHashtable t, string k) => PsSemantics.Text(t.Get(k)) ?? "";
+        return [.. PsSemantics.AsList(h.Get("Categories")).OfType<PsHashtable>()
+            .Select(r => (S(r, "Section"), S(r, "Category"), new CategoryNote(S(r, "Group"), S(r, "Line"))))];
+    }
 
     private static int IndexOf(string section, string category)
     {

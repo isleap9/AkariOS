@@ -82,6 +82,32 @@ function Find-AkariCatalogueList($Catalogue, [string]$Key, [string]$Query) {
     if ($null -ne $hit) { @($hit) }
 }
 
+# a Section's page (the drill-down, Windows 11 Settings' look): its Categories as rows, ordered and grouped as $Info
+# says (UI\Categories.psd1's Categories: @{ Section; Category; Group; Line }, shared with the native app). A Category
+# missing from $Info goes last, under $AkariCategoryMore, its line its first three Tweaks' names. Pure.
+# Returns @(@{ Key; Category; Group ('' = the Section's only group, no heading); Line; Count })
+$AkariCategoryMore = 'More'
+function Get-AkariCategoryRows($Catalogue, [string]$Section, $Info) {
+    $page = @($Catalogue.Pages | Where-Object { $_.Section -eq $Section })[0]
+    if (-not $page) { return @() }
+    $known = @{}
+    $i = 0
+    foreach ($r in @($Info)) { if ($r.Section -eq $Section -and -not $known.ContainsKey([string]$r.Category)) { $known[[string]$r.Category] = @{ Order = $i; Row = $r } }; $i++ }
+    $rows = @(foreach ($p in $page.Pages) {
+        $list = @($Catalogue.ByPage[$p.Key])
+        $k = $known[[string]$p.Category]
+        $line = if ($k) { [string]$k.Row.Line } else {
+            (@($list | Select-Object -First 3 | ForEach-Object { $_.Name }) -join ', ') + $(if ($list.Count -gt 3) { ', ' + [char]0x2026 } else { '' })
+        }
+        [pscustomobject]@{
+            Key = $p.Key; Category = $p.Category; Line = $line; Count = $list.Count
+            Group = $(if ($k) { [string]$k.Row.Group } else { $AkariCategoryMore })
+            Order = $(if ($k) { $k.Order } else { [int]::MaxValue })
+        }
+    })
+    @($rows | Sort-Object Order, Category | Select-Object Key, Category, Group, Line, Count)
+}
+
 # a Safe Mode Tweak was switched to $Mode (Apply / Revert) while its State is $State: it waits for Safe Mode, or, when
 # that is where it already is (switched back before the restart), leaves the waiting list. $Pending: id -> @{ Mode;
 # Value }. $Value: a Choice value other than Recommended, $Current: the Choice's value now.

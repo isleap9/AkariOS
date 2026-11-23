@@ -8,7 +8,7 @@ $CatBars = [Windows.Controls.StackPanel]::new()
 $StepFooter = [Windows.Controls.Border]::new(); $StepFooter.Visibility = 'Collapsed'
 $StepBack = [Windows.Controls.Button]::new(); $StepNext = [Windows.Controls.Button]::new()
 $StepLabel = [Windows.Controls.TextBlock]::new(); $StepFill = [Windows.Shapes.Rectangle]::new()
-$Heading = [Windows.Controls.TextBlock]::new(); $Crumbs = [Windows.Controls.StackPanel]::new(); $PageHeader = [Windows.Controls.WrapPanel]::new()
+$Heading = [Windows.Controls.TextBlock]::new(); $Crumbs = [Windows.Controls.StackPanel]::new(); $PageHeader = [Windows.Controls.StackPanel]::new()
 $Search = [Windows.Controls.TextBox]::new()
 $Layer = [Windows.Controls.Border]::new()
 $script:History = [Collections.Generic.List[object]]::new()

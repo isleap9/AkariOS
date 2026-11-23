@@ -489,7 +489,7 @@
       <Setter.Value>
         <ControlTemplate TargetType="Button">
           <Border Background="Transparent" CornerRadius="4">
-            <TextBlock x:Name="T" Text="{TemplateBinding Content}" FontFamily="{DynamicResource FontDisplay}" FontSize="28" LineHeight="36" FontWeight="SemiBold"/>
+            <TextBlock x:Name="T" Text="{TemplateBinding Content}" FontFamily="{DynamicResource FontText}" FontSize="14" LineHeight="20"/>
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{DynamicResource Tx}"/></Trigger>

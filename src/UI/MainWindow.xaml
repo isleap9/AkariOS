@@ -432,11 +432,11 @@
           <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="1064"/></Grid.ColumnDefinitions>
           <StackPanel x:Name="Page" Margin="36,28,36,120">
             <!-- the page title, or a breadcrumb whose earlier parts are links (Set-AkariHeader) -->
-            <WrapPanel x:Name="PageHeader" Margin="0,0,0,20">
-              <StackPanel x:Name="Crumbs" Orientation="Horizontal"/>
+            <StackPanel x:Name="PageHeader" Margin="0,0,0,20">
+              <StackPanel x:Name="Crumbs" Orientation="Horizontal" Margin="0,0,0,4" Visibility="Collapsed"/>
               <TextBlock x:Name="Heading" FontFamily="{DynamicResource FontDisplay}" FontSize="28" LineHeight="36" FontWeight="SemiBold"
                          TextTrimming="CharacterEllipsis"/>
-            </WrapPanel>
+            </StackPanel>
             <!-- InfoBars at the top of a page: restart required, changes waiting for Safe Mode (UI\CataloguePage.ps1) -->
             <StackPanel x:Name="CatBars"/>
             <!-- Install AkariOS, its flows, Settings, Install USB, the ISO Builder and Optimize: built into StepBody -->
