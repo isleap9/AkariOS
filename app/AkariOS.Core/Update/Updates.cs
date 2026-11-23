@@ -17,6 +17,11 @@ public interface IGitHub
 /// (AssetUrl, Digest = GitHub's "sha256:…"; null when the release has none). Not Ok = Message says why.</summary>
 public sealed record Release(bool Ok, Version? Version, string Notes, string? PageUrl, string? AssetUrl, string? Digest, string? Message)
 {
+    /// <summary>The installer (AkariOS-Native-Setup.exe) and its "sha256:…": what an installed copy updates from.</summary>
+    public string? SetupUrl { get; init; }
+
+    public string? SetupDigest { get; init; }
+
     public static Release Failed(string message) => new(false, null, "", null, null, null, message);
 }
 
@@ -37,6 +42,16 @@ public static class Updates
     /// <summary>The native app's release asset (the PowerShell updater picks AkariOS-*.zip).</summary>
     public const string Asset = "AkariOS-Native.exe";
 
+    /// <summary>The native app's installer (build/AkariOS-Native.iss, Inno Setup), on the same release.</summary>
+    public const string SetupAsset = "AkariOS-Native-Setup.exe";
+
+    /// <summary>Inno Setup's uninstaller, next to an installed exe: that copy updates through the setup.</summary>
+    public const string Uninstaller = "unins000.exe";
+
+    /// <summary>The exe was put there by the setup (Program Files\AkariOS), not run as a portable copy.</summary>
+    public static bool IsInstalled(string exePath) =>
+        Path.GetDirectoryName(exePath) is { Length: > 0 } dir && File.Exists(Path.Combine(dir, Uninstaller));
+
     public const string ReleasesPage = $"https://github.com/{Repo}/releases";
 
     // PowerShell's -replace is case-insensitive
@@ -56,12 +71,20 @@ public static class Updates
         if (r.Status != 200 || r.Body is not { } b) return Release.Failed($"GitHub answered with error {r.Status}. Try again later.");
         var tag = Str(b, "tag_name") ?? "";
         if (!Version.TryParse(tag.TrimStart('v'), out var v)) return Release.Failed($"The latest release ({tag}) has no version number.");
-        JsonElement? asset = null;
-        if (b.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
-            asset = assets.EnumerateArray().Where(a => string.Equals(Str(a, "name"), Asset, StringComparison.OrdinalIgnoreCase)).Cast<JsonElement?>().FirstOrDefault();
+        var asset = AssetOf(b, Asset);
+        var setup = AssetOf(b, SetupAsset);
         return new Release(true, v, Str(b, "body") ?? "", Str(b, "html_url"),
-            asset is { } a1 ? Str(a1, "browser_download_url") : null, asset is { } a2 ? Str(a2, "digest") : null, null);
+            asset is { } a1 ? Str(a1, "browser_download_url") : null, asset is { } a2 ? Str(a2, "digest") : null, null)
+        {
+            SetupUrl = setup is { } s1 ? Str(s1, "browser_download_url") : null,
+            SetupDigest = setup is { } s2 ? Str(s2, "digest") : null,
+        };
     }
+
+    private static JsonElement? AssetOf(JsonElement release, string name) =>
+        release.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array
+            ? assets.EnumerateArray().Where(a => string.Equals(Str(a, "name"), name, StringComparison.OrdinalIgnoreCase)).Cast<JsonElement?>().FirstOrDefault()
+            : null;
 
     /// <summary>The release against the running version (Get-AkariUpdateStatus; a developer build in place of its
     /// git checkout).</summary>

@@ -197,6 +197,70 @@ public sealed class UpdaterTests : IDisposable
         Assert.Null(GitHubApi.ResetOf("soon"));
     }
 
+    // ---- a copy the setup installed: the release's setup, checked, then run silently
+
+    private string Installed()
+    {
+        File.WriteAllBytes(Path.Combine(_dir, Updates.Uninstaller), [0]);
+        var temp = Path.Combine(_dir, "temp");
+        Directory.CreateDirectory(temp);
+        return temp;
+    }
+
+    private static Release WithSetup(string? digest, string? url = "https://x/AkariOS-Native-Setup.exe") =>
+        Release(null, null) with { SetupUrl = url, SetupDigest = digest };
+
+    [Fact]
+    public void An_installed_copy_runs_the_release_setup_silently()
+    {
+        var temp = Installed();
+        _version = "1.4.0                                             ";
+        var r = new Updater(_http, _run, new MemoryLog(), _ => _version, temp).Install(WithSetup(Digest(NewExe)), _exe);
+
+        var setup = Path.Combine(temp, "AkariOS-Native-Setup-1.4.0.exe");
+        Assert.Equal(new UpdateResult(true, "Installing AkariOS 1.4.0. AkariOS will restart."), r);
+        Assert.Equal([("https://x/AkariOS-Native-Setup.exe", setup)], _http.Calls);
+        Assert.Equal([(setup, "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /RELAUNCH=1", false)], _run.Calls);
+        // the exe itself is the setup's to replace
+        Assert.Equal(OldExe, File.ReadAllBytes(_exe));
+        Assert.False(File.Exists(_exe + ".old"));
+    }
+
+    [Fact]
+    public void An_installed_copy_refuses_a_release_without_the_setup()
+    {
+        var temp = Installed();
+        var r = new Updater(_http, _run, new MemoryLog(), _ => _version, temp).Install(WithSetup(Digest(NewExe), url: null), _exe);
+        Assert.Equal(new UpdateResult(false, "The release has no AkariOS-Native-Setup.exe."), r);
+        Assert.Empty(_http.Calls);
+        Assert.Empty(_run.Calls);
+    }
+
+    [Theory]
+    [InlineData(new byte[] { 6, 6, 6 }, "1.4.0", "The download doesn't match GitHub's checksum. Not installing it.")]
+    [InlineData(new byte[] { 7, 8, 9, 10 }, "1.3.0", "The download is AkariOS-Native-Setup.exe 1.3.0, not 1.4.0. Not installing it.")]
+    public void An_installed_copy_deletes_a_setup_that_fails_its_checks(byte[] body, string version, string message)
+    {
+        var temp = Installed();
+        _http.Body = body;
+        _version = version;
+        var r = new Updater(_http, _run, new MemoryLog(), _ => _version, temp).Install(WithSetup(Digest(NewExe)), _exe);
+        Assert.Equal(new UpdateResult(false, message), r);
+        Assert.Empty(Directory.GetFiles(temp));
+        Assert.Empty(_run.Calls);
+    }
+
+    [Fact]
+    public void An_installed_copy_whose_setup_wont_start_changes_nothing()
+    {
+        var temp = Installed();
+        _run.Error = new InvalidOperationException("blocked");
+        var r = new Updater(_http, _run, new MemoryLog(), _ => _version, temp).Install(WithSetup(Digest(NewExe)), _exe);
+        Assert.Equal(new UpdateResult(false, "The setup didn't start (blocked). Nothing was changed."), r);
+        Assert.Empty(Directory.GetFiles(temp));
+        Assert.Equal(OldExe, File.ReadAllBytes(_exe));
+    }
+
     [Fact]
     public void Cleanup_gives_up_quietly()
     {

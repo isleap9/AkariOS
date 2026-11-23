@@ -33,48 +33,80 @@ public sealed record UpdateResult(bool Ok, string Message);
 /// exe is renamed to &lt;exe&gt;.old (Windows lets a running exe be renamed, not overwritten), the new one takes its
 /// name and is started. On Ok the caller closes the app; the new one removes the .old copy on launch
 /// (<see cref="Cleanup"/>). No helper process.
+/// A copy the setup installed (<see cref="Updates.IsInstalled"/>) updates through the release's
+/// AkariOS-Native-Setup.exe instead: downloaded to the temp folder, checked the same way, then started silently
+/// (<see cref="SetupArgs"/>: it closes this app, installs over it and opens the new one).
 /// </summary>
-public sealed class Updater(IHttp http, IExe exe, IAkariLog log, Func<string, string?>? versionOf = null)
+public sealed class Updater(IHttp http, IExe exe, IAkariLog log, Func<string, string?>? versionOf = null, string? temp = null)
 {
     private readonly Func<string, string?> _versionOf = versionOf ?? (f => FileVersionInfo.GetVersionInfo(f).ProductVersion);
+    private readonly string _temp = temp ?? Path.GetTempPath();
+
+    /// <summary>Inno Setup's silent install; /RELAUNCH=1 = the setup's [Run] opens AkariOS once it is done.</summary>
+    public const string SetupArgs = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /RELAUNCH=1";
 
     public UpdateResult Install(Release release, string exePath)
     {
-        var r = Try(release, exePath);
+        var r = Updates.IsInstalled(exePath) ? TrySetup(release) : Try(release, exePath);
         log.WriteFile($"Update: {r.Message}");
         return r;
     }
 
-    private UpdateResult Try(Release release, string exePath)
+    private UpdateResult TrySetup(Release release)
     {
-        if (string.IsNullOrEmpty(release.AssetUrl)) return new(false, $"The release has no {Updates.Asset}.");
-        var digest = Regex.Match(release.Digest ?? "", "^sha256:([0-9a-fA-F]{64})$", RegexOptions.IgnoreCase);
+        var setup = Path.Combine(_temp, $"AkariOS-Native-Setup-{release.Version}.exe");
+        if (Fetch(release.SetupUrl, release.SetupDigest, release.Version, setup, Updates.SetupAsset) is { } refused) return refused;
+        try
+        {
+            exe.Run(setup, SetupArgs, wait: false);
+            return new(true, $"Installing AkariOS {release.Version}. AkariOS will restart.");
+        }
+        catch (Exception e)
+        {
+            Delete(setup);
+            return new(false, $"The setup didn't start ({e.Message}). Nothing was changed.");
+        }
+    }
+
+    /// <summary>The asset downloaded to file and checked (GitHub's SHA-256, the release's version); null = ready, else
+    /// why not (the file deleted).</summary>
+    private UpdateResult? Fetch(string? url, string? digestText, Version? version, string file, string asset)
+    {
+        if (string.IsNullOrEmpty(url)) return new(false, $"The release has no {asset}.");
+        var digest = Regex.Match(digestText ?? "", "^sha256:([0-9a-fA-F]{64})$", RegexOptions.IgnoreCase);
         if (!digest.Success) return new(false, "GitHub gave no checksum for the download, so it can't be checked. Not installing it.");
 
-        var fresh = exePath + ".new";
-        var old = exePath + ".old";
-        Delete(fresh);
-        try { http.Download(release.AssetUrl, fresh); }
-        catch (Exception e) { Delete(fresh); return new(false, $"The download failed: {e.Message}"); }
+        Delete(file);
+        try { http.Download(url, file); }
+        catch (Exception e) { Delete(file); return new(false, $"The download failed: {e.Message}"); }
 
         string hash;
-        using (var f = File.OpenRead(fresh)) hash = Convert.ToHexString(SHA256.HashData(f));
+        using (var f = File.OpenRead(file)) hash = Convert.ToHexString(SHA256.HashData(f));
         if (!hash.Equals(digest.Groups[1].Value, StringComparison.OrdinalIgnoreCase))
         {
-            Delete(fresh);
+            Delete(file);
             return new(false, "The download doesn't match GitHub's checksum. Not installing it.");
         }
-        var got = _versionOf(fresh);
+        // Inno Setup pads the setup's ProductVersion with spaces
+        var got = _versionOf(file)?.Trim();
         if (!Version.TryParse(got, out var v))
         {
-            Delete(fresh);
-            return new(false, $"The download isn't an {Updates.Asset} with a version. Not installing it.");
+            Delete(file);
+            return new(false, $"The download isn't an {asset} with a version. Not installing it.");
         }
-        if (v != release.Version)
+        if (v != version)
         {
-            Delete(fresh);
-            return new(false, $"The download is {Updates.Asset} {v}, not {release.Version}. Not installing it.");
+            Delete(file);
+            return new(false, $"The download is {asset} {v}, not {version}. Not installing it.");
         }
+        return null;
+    }
+
+    private UpdateResult Try(Release release, string exePath)
+    {
+        var fresh = exePath + ".new";
+        var old = exePath + ".old";
+        if (Fetch(release.AssetUrl, release.Digest, release.Version, fresh, Updates.Asset) is { } refused) return refused;
 
         try
         {

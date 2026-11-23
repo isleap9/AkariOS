@@ -7,3 +7,5 @@ app/**/obj/
 *.user
 # the native exe built for a VM test (dotnet publish ... -o app\publish)
 app/publish/
+# the release files build\Native.ps1 makes
+dist/

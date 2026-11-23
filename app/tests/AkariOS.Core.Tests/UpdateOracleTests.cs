@@ -20,7 +20,8 @@ public sealed class UpdateOracleTests
 
     private const string Assets = """
         [{ "name": "AkariOS-1.4.0.zip", "browser_download_url": "https://x/zip", "digest": "sha256:aa" },
-         { "name": "AkariOS-Native.exe", "browser_download_url": "https://x/exe", "digest": "sha256:bb" }]
+         { "name": "AkariOS-Native.exe", "browser_download_url": "https://x/exe", "digest": "sha256:bb" },
+         { "name": "AkariOS-Native-Setup.exe", "browser_download_url": "https://x/setup", "digest": "sha256:cc" }]
         """;
 
     /// <summary>GitHub's answers: status, body (JSON or null), the rate limit's reset (local time).</summary>
@@ -120,9 +121,12 @@ public sealed class UpdateOracleTests
         Assert.Equal(["repos/isleap9/AkariOS/releases/latest"], github.Paths);
         Assert.Equal("https://x/exe", r.AssetUrl);
         Assert.Equal("sha256:bb", r.Digest);
+        Assert.Equal(("https://x/setup", "sha256:cc"), (r.SetupUrl, r.SetupDigest));
         var none = Updates.Latest(new FakeGitHub(Answer(Releases[1])));
         Assert.True(none.Ok);
         Assert.Null(none.AssetUrl);
         Assert.Null(none.Digest);
+        Assert.Null(none.SetupUrl);
+        Assert.Null(none.SetupDigest);
     }
 }
