@@ -11,6 +11,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot
 if (-not $Out) { $Out = Join-Path $root 'dist' }
+# absolute: ISCC reads a relative /DSource or /O from the .iss file's folder
+$Out = [IO.Path]::GetFullPath([IO.Path]::Combine((Get-Location).Path, $Out))
 $ver = ([regex]::Match((Get-Content (Join-Path $root 'src\Core\Version.ps1') -Raw), "AkariVersion = '([^']+)'")).Groups[1].Value
 if (-not $ver) { throw 'No $AkariVersion in src\Core\Version.ps1' }
 
