@@ -446,6 +446,8 @@ function Set-AkariHeader($Parts) {
 # a breadcrumb link: Install AkariOS goes back to its chooser
 function Open-AkariCrumb([string]$Page) {
     if ($Page -eq 'Install AkariOS' -and $script:Mode -ne 'Choose') { Push-AkariHistory; $script:Mode = 'Choose'; $script:Step = 0; Show-Page; return }
+    # the ISO Builder's crumb: its Start step, the picks kept (UI\IsoBuilder.ps1)
+    if ($Page -eq 'ISO Builder' -and $script:Cat -eq 'ISO Builder') { Open-AkariIsoStart; return }
     Select-AkariPage $Page
 }
 
@@ -476,7 +478,7 @@ function Show-Page {
 function Show-AkariPageNow {
     # a new page (or another search, or another step of a flow) comes in: scrolled to the top, each top-level child
     # rising from 28 px, staggered (Start-AkariPageEntrance)
-    $key = "$($script:Cat)|$($script:Query)|$($script:Mode)|$($script:Step)"
+    $key = "$($script:Cat)|$($script:Query)|$($script:Mode)|$($script:Step)|$(if ($script:Cat -eq 'ISO Builder') { $script:IsoState.Step })"
     $script:PageMoved = ($key -ne $script:PageMotionKey)
     $script:PageMotionKey = $key
     if ($script:PageMoved) { Reset-AkariScroll $PageScroll }
@@ -652,6 +654,8 @@ $timer.Add_Tick({
         # the run page's rows and the Remove apps rows follow the job (UI\Steps.ps1, UI\Apps.ps1)
         if ($j.Kind -eq 'Apply') { Update-AkariRunPage $j.Shared }
         if ($j.Kind -eq 'Remove') { Update-AkariRemoveProgress $j.Shared }
+        # the ISO Builder's Create ISO step: each stage's state (UI\IsoBuilder.ps1)
+        if ($j.Kind -eq 'IsoBuild') { Update-AkariIsoStages $j.Shared }
     }
     if ($j -and $j.Handle.IsCompleted) {
         try { [void]$j.Ps.EndInvoke($j.Handle) } catch { Add-Log "Error: $($_.Exception.Message)" }

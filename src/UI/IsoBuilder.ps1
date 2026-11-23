@@ -1,12 +1,33 @@
-# ISO Builder (its tab and Home tile; plan docs/plans/2026-10-31-iso-builder.md): a custom Windows 11 ISO, after
-# zoicware's zISO Tweaker. One long page in zISO's order: 1 the ISO (a file, UUP Dump, Massgrave), 2 the edition,
-# 3 the answer file, 4 Windows Update, 5 security and privacy, 6 apps, 7 AkariOS, then Build. Every slow step runs in
-# the background job (Kind Iso*, Complete-AkariIsoJob). Built once per session. Needs UI\Cards.ps1 (New-AkariText),
-# UI\Pages.ps1 (New-AkariLead) and UI\Unattend.ps1 (Get-AkariUnattendStart, the generator's page).
+# ISO Builder (its tab and Home tile; plans docs/plans/2026-10-31-iso-builder.md, 2026-11-20-iso-builder-wizard.md): a
+# custom Windows 11 ISO as a six-step wizard (the native app's IsoBuilderViewModel.Wizard.cs; after Tiny11 Builder's
+# layout): Start (the modes), Windows image (a file, UUP Dump, Massgrave; the work folder; the edition, Pro picked),
+# Components (Custom: the image's four lists), Build settings (the answer file, AkariOS), Review, Create ISO (the
+# stages). Guided's footer: Back, and Next only once a step is complete (Get-AkariIsoFooter). Every slow step runs in
+# the background job (Kind Iso*, Complete-AkariIsoJob); meanwhile the page's own controls are off and the rest of Akari
+# stays usable (Optimize's changes and installs wait for it). Built once per session. Needs UI\Cards.ps1, UI\Pages.ps1,
+# UI\Steps.ps1 (New-AkariStepsHeader), UI\Apps.ps1 (the card grid) and UI\Unattend.ps1 (the generator's page).
 
-$AkariIsoSub = 'A custom Windows 11 ISO: apps removed and settings written in before it installs, after zISO Tweaker'
-$AkariIsoGroupTitles = [ordered]@{ Update = '4  Windows Update'; Security = '5  Security and privacy'; Apps = '6  Apps' }
-$script:IsoState = @{ Image = ''; Editions = @(); Lists = $null; Massgrave = @(); Uup = $null; Waiting = '' }
+$AkariIsoStepNames = @('Start', 'Windows image', 'Components', 'Build settings', 'Review', 'Create ISO')
+$AkariIsoLeads = @(
+    'Make a Windows 11 ISO with what you don''t want left out and AkariOS on it. Your own Windows and your ISO are not changed.'
+    'An ISO you have, or one downloaded here. It is copied to a work folder, so the ISO itself is not changed.'
+    'What the new Windows leaves out. Items an image doesn''t have are skipped.'
+    'How the new Windows is set up.'
+    'Check the image, what goes and where the ISO is saved before building.'
+    'Allow 20 to 40 minutes. Optimize''s changes and installs wait meanwhile.'
+)
+# the modes (Start and Components): only Custom until the modes batch (P7)
+$AkariIsoModes = @(
+    @{ Id = 'AkariOS'; Name = 'AkariOS'; Icon = 'zap'; Tag = 'Coming soon'; Available = $false; Text = 'The AkariOS setup out of the box: its apps removed, its Tweaks applied, AkariOS on it.' }
+    @{ Id = 'Lite'; Name = 'Lite'; Icon = 'disc-3'; Tag = 'Coming soon'; Available = $false; Text = 'A smaller Windows that keeps Windows Update, Defender, recovery and the Store.' }
+    @{ Id = 'Minimal'; Name = 'Minimal'; Icon = 'flask-conical'; Tag = 'Coming soon'; Available = $false; Text = 'The smallest image, for test VMs: no updates, recovery or Defender afterwards.' }
+    @{ Id = 'Custom'; Name = 'Custom'; Icon = 'settings-2'; Tag = 'Choose yourself'; Available = $true; Text = 'Pick what to remove from the image''s own apps and features.' }
+)
+$AkariIsoListTitles = [ordered]@{ Apps = 'Store apps'; Capabilities = 'Optional features'; Features = 'Windows features'; Packages = 'OS packages (advanced)' }
+# Step: the wizard's step; Mode: the picked mode; Stages: the Create ISO step's @{ Text; State; Elapsed; Clock; Row };
+# ResultPath / BuildError: how the last build ended (BuildError also: why Review can't build)
+$script:IsoState = @{ Image = ''; Editions = @(); Lists = $null; Massgrave = @(); Uup = $null; Waiting = ''
+    Step = 0; Mode = 'Custom'; Stages = @(); ResultPath = ''; BuildError = '' }
 
 # ---- pure helpers (tests dot-source this file)
 
@@ -32,7 +53,8 @@ function Get-AkariIsoRecommendedApps($Apps, $Tweaks) {
     @($Apps | Where-Object { $safe.ContainsKey($_.Name) } | ForEach-Object { $_.Package })
 }
 
-# the options another picked one rules out (Disable all updates turns the other two off, as in zISO). Pure.
+# zISO's options another picked one rules out (Disable all updates turns the other two off). Not on the page any more;
+# the native oracle (IsoOracleTests) still compares it until zISO goes (P9). Pure.
 function Get-AkariIsoBlocked($Picked, $Options) {
     @(foreach ($o in @($Options)) { if (@($Picked) -contains $o.Id) { @($o.Excludes) | Where-Object { $_ } } }) | Sort-Object -Unique
 }
@@ -40,6 +62,68 @@ function Get-AkariIsoBlocked($Picked, $Options) {
 # Massgrave's products in page order, and a product's languages. Pure.
 function Get-AkariMassgraveProducts($Items) { @($Items | ForEach-Object { $_.Product } | Select-Object -Unique) }
 function Get-AkariMassgraveFiles($Items, [string]$Product) { @($Items | Where-Object { $_.Product -eq $Product }) }
+
+# the footer on step $Step: Next's text, why it waits ('' = it doesn't), whether Next and Back work. Next only once a
+# step is complete; neither while the page's job runs; no Back from a finished build. Pure.
+function Get-AkariIsoFooter([int]$Step, [bool]$HasEdition, [bool]$Busy, [bool]$HasResult, [bool]$HasError) {
+    $next, $hint = switch ($Step) {
+        0 { 'Start', '' }
+        1 { 'Next', $(if ($HasEdition) { '' } else { 'Open an ISO and pick an edition first.' }) }
+        2 { 'Next', '' }
+        3 { 'Review', '' }
+        4 { 'Build ISO', $(if ($HasEdition) { '' } else { 'Open an ISO first (Windows image).' }) }
+        default { 'Build another', $(if ($HasResult -or $HasError) { '' } else { "Building$([char]0x2026)" }) }
+    }
+    @{ Next = $next; Hint = $hint; CanNext = (-not $Busy -and -not $hint); CanBack = ($Step -gt 0 -and -not $Busy -and -not ($Step -ge 5 -and $HasResult)) }
+}
+
+# the edition picked when an ISO opens: its first Pro, else the first. Pure.
+function Get-AkariIsoEditionPick($Editions) {
+    $i = 0
+    foreach ($e in @($Editions)) { if ("$($e.Name)" -like '* Pro') { return $i }; $i++ }
+    0
+}
+
+# the image picked so far, beside every step. Pure.
+function Get-AkariIsoSummary($Edition) { if ($Edition) { "$($Edition.Name) $([char]0x00B7) $($Edition.Version)" } else { 'No image yet' } }
+
+# the stages' states while the build reports step $Done of $Total (each step as it starts): the ones before it Done,
+# it Running, the rest Waiting. Pure.
+function Get-AkariIsoStageStates([int]$Done, [int]$Total, [int]$Count) {
+    @(for ($i = 0; $i -lt $Count; $i++) { if ($i -lt $Done -or $Done -ge $Total) { 'Done' } elseif ($i -eq $Done) { 'Running' } else { 'Waiting' } })
+}
+# the build ended: the running stage Done or Failed, the waiting ones Done or Not run. Pure.
+function Get-AkariIsoEndStates($States, [bool]$Ok) {
+    @(foreach ($s in @($States)) {
+        if ($s -eq 'Running') { if ($Ok) { 'Done' } else { 'Failed' } }
+        elseif ($s -eq 'Waiting') { if ($Ok) { 'Done' } else { 'Not run' } }
+        else { $s }
+    })
+}
+# a stage's time: "3 min 4 s", "12 s". Pure.
+function Get-AkariIsoElapsedText([TimeSpan]$Time) {
+    if ($Time.TotalMinutes -ge 1) { return "$([int][Math]::Floor($Time.TotalMinutes)) min $($Time.Seconds) s" }
+    "$([Math]::Max(0, [int][Math]::Floor($Time.TotalSeconds))) s"
+}
+
+# Review's cards: @{ Icon; Title; Lines }. $Info: Summary, Iso, ModeName, ModeIcon, Lists (@{ Title; Ticked; Count },
+# the lists read), OutDir, Answer (None / Local / Generator), SkipOobe, User, AkariOS. Pure.
+function Get-AkariIsoReviewCards([hashtable]$Info) {
+    $lists = @(@($Info.Lists) | Where-Object { $_ } | ForEach-Object { "$($_.Title): $($_.Ticked) of $($_.Count)" })
+    $removed = if ($lists.Count) { $lists -join "`n" } else { 'Nothing removed: the image''s lists weren''t read.' }
+    $answer = switch ($Info.Answer) {
+        'None' { 'None: setup asks everything as usual' }
+        'Local' { if ($Info.SkipOobe) { "A local account ($($Info.User)), setup's questions skipped" } else { 'A local account, setup asks the rest' } }
+        default { 'Install USB''s choices' }
+    }
+    $out = "$($Info.OutDir)".Trim()
+    @(
+        @{ Icon = 'disc-3'; Title = 'Windows image'; Lines = "$($Info.Summary)`n$("$($Info.Iso)".Trim())" }
+        @{ Icon = $Info.ModeIcon; Title = $Info.ModeName; Lines = $removed }
+        @{ Icon = 'folder'; Title = 'Output and workspace'; Lines = "ISO`n$([IO.Path]::Combine($out, (Get-AkariIsoOutName "$($Info.Iso)".Trim())))`n`nWork folder`n$([IO.Path]::Combine($out, 'AkariIso'))" }
+        @{ Icon = 'settings'; Title = 'Installation options'; Lines = "Answer file: $answer`nAkariOS on the new Windows: $(if ($Info.AkariOS) { 'Yes' } else { 'No' })" }
+    )
+}
 
 # ---- pickers (tests stub them)
 
@@ -94,7 +178,7 @@ function New-AkariIsoRadio([string]$Group, [string]$Text) {
     $r.Margin = [Windows.Thickness]::new(0, 3, 0, 3)
     $r
 }
-# a numbered card: @{ Card; Panel }
+# a card with a heading: @{ Card; Panel }
 function New-AkariIsoCard([string]$Title, [string]$Sub = '') {
     $card = [Windows.Controls.Border]::new()
     $card.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
@@ -129,19 +213,44 @@ function Set-AkariComboItems($Combo, $Items, [scriptblock]$Label) {
 }
 function Get-AkariComboTag($Combo) { if ($Combo.SelectedItem) { $Combo.SelectedItem.Tag } else { $null } }
 
+# the build modes as tiles in a card grid (Start and Components each have their own); picked = the accent border
+function New-AkariIsoModes {
+    $g = New-AkariCardGrid 200
+    foreach ($m in $AkariIsoModes) {
+        $t = New-AkariTile $m.Icon $m.Name $m.Text $m.Tag { param($s, $e) Select-AkariIsoMode ([string]$s.Tag) }
+        $t.Tag = $m.Id
+        $t.IsEnabled = $m.Available
+        $script:IsoParts.ModeTiles.Add($t)
+        Add-AkariGridCard $g $t
+    }
+    Update-AkariCardGrid $g
+    $g
+}
+function Update-AkariIsoModeLook {
+    foreach ($t in $script:IsoParts.ModeTiles) {
+        if ($t.Tag -eq $script:IsoState.Mode) { $t.SetResourceReference([Windows.Controls.Control]::BorderBrushProperty, 'Acc') }
+        else { $t.ClearValue([Windows.Controls.Control]::BorderBrushProperty) }
+    }
+}
+
 # ---- the page
 
 function Get-AkariIsoView {
-    if ($script:IsoView) { return $script:IsoView }
-    $p = @{}
-    $col = [Windows.Controls.Grid]::new()
-    $cd = [Windows.Controls.ColumnDefinition]::new(); $cd.Width = [Windows.GridLength]::new(1, 'Star'); $cd.MaxWidth = 860
-    [void]$col.ColumnDefinitions.Add($cd)
-    $stack = [Windows.Controls.StackPanel]::new()
-    [void]$col.Children.Add($stack)
+    if ($script:IsoParts) { return $script:IsoParts }
+    $p = @{ ModeTiles = [Collections.Generic.List[object]]::new(); Steps = @{} }
+    $script:IsoParts = $p
 
-    # 1 the ISO
-    $c = New-AkariIsoCard '1  Windows 11 ISO' 'An ISO you have, or one downloaded here. Akari copies it to a work folder, so the ISO itself is not changed.'
+    # 1 Start: the modes
+    $s = [Windows.Controls.StackPanel]::new()
+    [void]$s.Children.Add((New-AkariSection 'Build modes' -First))
+    [void]$s.Children.Add((New-AkariIsoModes))
+    $n = New-AkariText 'Windows 11 only. Try a new ISO in a virtual machine first.' 12 'Mu'; $n.Margin = [Windows.Thickness]::new(0, 12, 0, 0)
+    [void]$s.Children.Add($n)
+    $p.Steps[0] = $s
+
+    # 2 Windows image: the ISO, the work folder, the edition
+    $s = [Windows.Controls.StackPanel]::new()
+    $c = New-AkariIsoCard 'Windows 11 ISO'
     $p.SrcFile = New-AkariIsoRadio 'iso-src' 'An ISO file I have'
     $p.SrcUup = New-AkariIsoRadio 'iso-src' 'Download with UUP Dump (23H2 to 26H2, any language, Home to IoT Enterprise)'
     $p.SrcMg = New-AkariIsoRadio 'iso-src' 'Download from Massgrave (LTSC, IoT LTSC, consumer and business media)'
@@ -192,20 +301,47 @@ function Get-AkariIsoView {
     [void]$c.Panel.Children.Add($r)
     $r = New-AkariIsoRow
     [void]$r.Children.Add((New-AkariIsoButton 'Open ISO' 'Accent' { Start-AkariIsoOpen }))
+    $p.OpenNote = New-AkariText '' 13 'Mu'; $p.OpenNote.VerticalAlignment = 'Center'
+    [void]$r.Children.Add($p.OpenNote)
     [void]$c.Panel.Children.Add($r)
-    $p.OpenNote = New-AkariText '' 13 'Mu'
-    [void]$c.Panel.Children.Add($p.OpenNote)
-    [void]$stack.Children.Add($c.Card)
-
-    # 2 the edition
-    $c = New-AkariIsoCard '2  Edition' 'The ISO keeps only this edition.'
-    $p.Edition = New-AkariIsoCombo 320
+    [void]$s.Children.Add($c.Card)
+    $c = New-AkariIsoCard 'Edition' 'The ISO keeps only this edition. Pro is picked when the ISO has it.'
+    $p.Edition = New-AkariIsoCombo 340
+    $p.Edition.HorizontalAlignment = 'Left'
     $p.Edition.IsEnabled = $false
+    $p.Edition.Add_SelectionChanged({ Update-AkariIsoWizard })
     [void]$c.Panel.Children.Add($p.Edition)
-    [void]$stack.Children.Add($c.Card)
+    [void]$s.Children.Add($c.Card)
+    $p.Steps[1] = $s
 
-    # 3 the answer file
-    $c = New-AkariIsoCard '3  Answer file' 'autounattend.xml at the root of the ISO: Windows setup reads it by itself.'
+    # 3 Components: the mode again, then Custom's lists (the image's own)
+    $s = [Windows.Controls.StackPanel]::new()
+    $m = New-AkariIsoModes; $m.Margin = [Windows.Thickness]::new(-4, -4, -4, 8)
+    [void]$s.Children.Add($m)
+    $c = New-AkariIsoCard 'Apps and features in the image' 'Tick what to remove. Frameworks are left out of the list (apps need them).'
+    $r = New-AkariIsoRow
+    [void]$r.Children.Add((New-AkariIsoButton 'Read the image''s apps again' 'Btn' { Start-AkariIsoRead }))
+    [void]$r.Children.Add((New-AkariIsoButton 'Select recommended' 'Btn' { Select-AkariIsoRecommended }))
+    [void]$r.Children.Add((New-AkariIsoButton 'Clear' 'Btn' { foreach ($l in $script:IsoParts.Lists.Values) { foreach ($x in $l.Children) { $x.IsChecked = $false } } }))
+    [void]$c.Panel.Children.Add($r)
+    $p.ListNote = New-AkariText 'The lists come from the edition itself: reading them mounts it, which takes a few minutes.' 13 'Mu'
+    [void]$c.Panel.Children.Add($p.ListNote)
+    $p.Lists = [ordered]@{}
+    foreach ($k in $AkariIsoListTitles.Keys) {
+        $h = New-AkariText $AkariIsoListTitles[$k] 13; $h.FontWeight = 'SemiBold'; $h.Margin = [Windows.Thickness]::new(0, 10, 0, 4)
+        $sv = [Windows.Controls.ScrollViewer]::new(); $sv.MaxHeight = 240; $sv.VerticalScrollBarVisibility = 'Auto'
+        $lp = [Windows.Controls.StackPanel]::new(); $sv.Content = $lp
+        $h.Visibility = 'Collapsed'; $sv.Visibility = 'Collapsed'
+        $lp.Tag = @{ Head = $h; View = $sv; Title = $AkariIsoListTitles[$k] }
+        [void]$c.Panel.Children.Add($h); [void]$c.Panel.Children.Add($sv)
+        $p.Lists[$k] = $lp
+    }
+    [void]$s.Children.Add($c.Card)
+    $p.Steps[2] = $s
+
+    # 4 Build settings: the answer file, AkariOS
+    $s = [Windows.Controls.StackPanel]::new()
+    $c = New-AkariIsoCard 'Answer file' 'autounattend.xml at the root of the ISO: Windows setup reads it by itself.'
     $p.AnsNone = New-AkariIsoRadio 'iso-ans' 'None: setup asks everything as usual'
     $p.AnsLocal = New-AkariIsoRadio 'iso-ans' 'A local account (this PC''s language, keyboard and time zone; setup still asks for the disk)'
     $p.AnsGen = New-AkariIsoRadio 'iso-ans' 'Install USB''s choices'
@@ -227,108 +363,224 @@ function Get-AkariIsoView {
     $b = New-AkariIsoBranch $p.AnsGen; $r = New-AkariIsoRow
     [void]$r.Children.Add((New-AkariIsoButton 'Open Install USB' 'Btn' { Select-AkariPage 'Install USB' }))
     [void]$b.Children.Add($r); [void]$c.Panel.Children.Add($b)
-    [void]$stack.Children.Add($c.Card)
-
-    # 4-6 zISO's options, by group; 6 also the image's own lists
-    $p.Options = @{}
-    $all = Get-AkariIsoOptions
-    foreach ($g in $AkariIsoGroupTitles.Keys) {
-        $c = New-AkariIsoCard $AkariIsoGroupTitles[$g]
-        foreach ($o in @($all | Where-Object { $_.Group -eq $g })) {
-            $cb = New-AkariIsoCheck $o.Name
-            $cb.Tag = $o.Id
-            $cb.ToolTip = $o.Description
-            $cb.Add_Click({ Update-AkariIsoOptions })
-            [void]$c.Panel.Children.Add($cb)
-            $d = New-AkariText $o.Description 12 'Mu'; $d.Margin = [Windows.Thickness]::new(30, 0, 0, 6)
-            [void]$c.Panel.Children.Add($d)
-            $p.Options[$o.Id] = $cb
-        }
-        if ($g -eq 'Apps') {
-            [void]$c.Panel.Children.Add((New-AkariUaFormLabel 'Apps and features in the image'))
-            $r = New-AkariIsoRow
-            [void]$r.Children.Add((New-AkariIsoButton 'Read the image''s apps' 'Btn' { Start-AkariIsoRead }))
-            [void]$r.Children.Add((New-AkariIsoButton 'Select recommended' 'Btn' { Select-AkariIsoRecommended }))
-            [void]$r.Children.Add((New-AkariIsoButton 'Clear' 'Btn' { foreach ($l in $script:IsoParts.Lists.Values) { foreach ($x in $l.Children) { $x.IsChecked = $false } } }))
-            [void]$c.Panel.Children.Add($r)
-            $p.ListNote = New-AkariText 'Open the ISO first: the lists come from the edition itself (mounting it takes a few minutes).' 13 'Mu'
-            [void]$c.Panel.Children.Add($p.ListNote)
-            $p.Lists = [ordered]@{}
-            foreach ($k in 'Apps', 'Capabilities', 'Features', 'Packages') {
-                $title = switch ($k) { 'Apps' { 'Store apps' } 'Capabilities' { 'Optional features' } 'Features' { 'Windows features' } 'Packages' { 'OS packages (advanced)' } }
-                $h = New-AkariText $title 13; $h.FontWeight = 'SemiBold'; $h.Margin = [Windows.Thickness]::new(0, 10, 0, 4)
-                $sv = [Windows.Controls.ScrollViewer]::new(); $sv.MaxHeight = 240; $sv.VerticalScrollBarVisibility = 'Auto'
-                $lp = [Windows.Controls.StackPanel]::new(); $sv.Content = $lp
-                $h.Visibility = 'Collapsed'; $sv.Visibility = 'Collapsed'
-                $lp.Tag = @{ Head = $h; View = $sv }
-                [void]$c.Panel.Children.Add($h); [void]$c.Panel.Children.Add($sv)
-                $p.Lists[$k] = $lp
-            }
-        }
-        [void]$stack.Children.Add($c.Card)
-    }
-
-    # 7 AkariOS
-    $c = New-AkariIsoCard '7  AkariOS'
+    [void]$s.Children.Add($c.Card)
+    $c = New-AkariIsoCard 'AkariOS'
     $p.AkariOS = New-AkariIsoCheck 'Put AkariOS on the new Windows (C:\AkariOS, a Start menu and a desktop shortcut; nothing runs by itself)' $true
     [void]$c.Panel.Children.Add($p.AkariOS)
-    [void]$stack.Children.Add($c.Card)
+    [void]$s.Children.Add($c.Card)
+    $p.Steps[3] = $s
 
-    # build
-    $c = New-AkariIsoCard 'Build' 'Allow 20 to 40 minutes. Akari can''t be used meanwhile; the status bar shows each step.'
-    $r = New-AkariIsoRow
-    [void]$r.Children.Add((New-AkariIsoButton 'Build ISO' 'Accent' { Start-AkariIsoBuild }))
-    $p.OpenOut = New-AkariIsoButton 'Open folder' 'Btn' { Open-AkariFolder $script:IsoParts.OutDir.Text }
-    $p.OpenOut.Visibility = 'Collapsed'
-    [void]$r.Children.Add($p.OpenOut)
-    [void]$c.Panel.Children.Add($r)
-    $p.Error = New-AkariText '' 13 'Bad'
-    [void]$c.Panel.Children.Add($p.Error)
-    $p.Result = New-AkariText '' 13 'Ok'
-    [void]$c.Panel.Children.Add($p.Result)
-    [void]$stack.Children.Add($c.Card)
-
-    $script:IsoParts = $p
-    $script:IsoView = $col
-    $col
+    Update-AkariIsoModeLook
+    $p
 }
+
+# the edition picked (an opened ISO's), else $null
+function Get-AkariIsoEdition {
+    if (-not $script:IsoState.Image -or -not $script:IsoParts) { return $null }
+    Get-AkariComboTag $script:IsoParts.Edition
+}
+# the page's own job runs (an ISO, a list, a download, the build): its controls are off meanwhile
+function Test-AkariIsoBusy { [bool]($script:Job -and "$($script:Job.Kind)" -like 'Iso*') }
 
 function Show-AkariIsoBuilder {
-    Set-AkariHeader @('ISO Builder')
-    [void]$StepBody.Children.Add((New-AkariLead $AkariIsoSub))
-    $view = Get-AkariIsoView
-    if ($view.Parent) { $view.Parent.Children.Remove($view) }
-    [void]$StepBody.Children.Add($view)
-}
-
-# options that rule each other out: the other one unticked and greyed
-function Update-AkariIsoOptions {
-    $o = $script:IsoParts.Options
-    $picked = @($o.Keys | Where-Object { $o[$_].IsChecked })
-    $blocked = Get-AkariIsoBlocked $picked (Get-AkariIsoOptions)
-    foreach ($id in @($o.Keys)) {
-        $off = $blocked -contains $id
-        if ($off) { $o[$id].IsChecked = $false }
-        $o[$id].IsEnabled = -not $off
+    $st = $script:IsoState
+    $p = Get-AkariIsoView
+    if ($st.Step -eq 0) { Set-AkariHeader @('ISO Builder') } else { Set-AkariHeader @(@('ISO Builder', 'ISO Builder'), $AkariIsoStepNames[$st.Step]) }
+    [void]$StepBody.Children.Add((New-AkariLead $AkariIsoLeads[$st.Step]))
+    $h = New-AkariStepsHeader $st.Step $AkariIsoStepNames
+    $h.Margin = [Windows.Thickness]::new(0, -8, 0, 12)
+    [void]$StepBody.Children.Add($h)
+    $sum = New-AkariIconText 'disc-3' (Get-AkariIsoSummary (Get-AkariIsoEdition)) 'Mu'
+    $sum.Margin = [Windows.Thickness]::new(0, 0, 0, 16)
+    $p.SummaryText = $sum.Children[1]
+    [void]$StepBody.Children.Add($sum)
+    $panel = switch ($st.Step) {
+        4 { New-AkariIsoReview }
+        5 { New-AkariIsoBuildView }
+        default { $p.Steps[$st.Step] }
     }
+    if ($panel.Parent) { $panel.Parent.Children.Remove($panel) }
+    $col = [Windows.Controls.Grid]::new()
+    $cd = [Windows.Controls.ColumnDefinition]::new(); $cd.Width = [Windows.GridLength]::new(1, 'Star'); $cd.MaxWidth = 860
+    [void]$col.ColumnDefinitions.Add($cd)
+    [void]$col.Children.Add($panel)
+    $p.Current = $panel
+    [void]$StepBody.Children.Add($col)
+    Update-AkariIsoModeLook
+    Set-AkariFooter $true
+    Update-AkariIsoWizard
 }
 
-# ---- background work (Start-AkariJob; the Shell timer calls Complete-AkariIsoJob)
+# the footer (Guided's: "Step n of 6 . Name", the bar, Back, Next) and the page's controls, from the step and the job
+function Update-AkariIsoWizard {
+    if ($script:Cat -ne 'ISO Builder' -or -not $script:IsoParts) { return }
+    $st = $script:IsoState
+    $p = $script:IsoParts
+    $busy = Test-AkariIsoBusy
+    $ed = Get-AkariIsoEdition
+    if ($p.SummaryText) { $p.SummaryText.Text = Get-AkariIsoSummary $ed }
+    $f = Get-AkariIsoFooter $st.Step ([bool]$ed) $busy ([bool]$st.ResultPath) ([bool]$st.BuildError)
+    $StepLabel.Text = "Step $($st.Step + 1) of $($AkariIsoStepNames.Count) $([char]0x00B7) $($AkariIsoStepNames[$st.Step])" + $(if ($f.Hint) { "`n$($f.Hint)" } else { '' })
+    Start-AkariMotion $StepFill Fill $null (($st.Step + 1) / $AkariIsoStepNames.Count) -Speed Slow
+    $StepBack.Content = 'Back'; $StepBack.IsEnabled = $f.CanBack
+    $StepNext.Content = $f.Next; $StepNext.IsEnabled = $f.CanNext
+    if ($p.Current -and $st.Step -lt 5) { $p.Current.IsEnabled = -not $busy }
+}
 
-function Start-AkariIsoJob([string]$Kind, [string]$Code, [hashtable]$Shared, [string]$Label, [bool]$Lock = $true) {
-    if ($script:Busy) { return $false }
+# the footer's Next: the next step (Components reads the image the first time, in Custom); Review builds; a finished
+# build starts again
+function Step-AkariIsoNext {
+    $st = $script:IsoState
+    $f = Get-AkariIsoFooter $st.Step ([bool](Get-AkariIsoEdition)) (Test-AkariIsoBusy) ([bool]$st.ResultPath) ([bool]$st.BuildError)
+    if (-not $f.CanNext) { return }
+    if ($st.Step -eq 4) { Start-AkariIsoBuild; return }
+    if ($st.Step -ge 5) { Reset-AkariIsoBuild; return }
+    $st.Step++
+    Show-Page
+    if ($st.Step -eq 2 -and $st.Mode -eq 'Custom' -and -not $st.Lists -and -not $script:Busy) { Start-AkariIsoRead }
+}
+function Step-AkariIsoBack {
+    $st = $script:IsoState
+    $f = Get-AkariIsoFooter $st.Step ([bool](Get-AkariIsoEdition)) (Test-AkariIsoBusy) ([bool]$st.ResultPath) ([bool]$st.BuildError)
+    if (-not $f.CanBack) { return }
+    $st.Step = if ($st.Step -ge 5) { 4 } else { $st.Step - 1 }
+    Show-Page
+}
+# the crumb "ISO Builder": back to Start, the picks kept (a finished build cleared first); not while a job runs
+function Open-AkariIsoStart {
+    if (Test-AkariIsoBusy) { return }
+    if ($script:IsoState.Step -ge 5) { Reset-AkariIsoBuild; return }
+    $script:IsoState.Step = 0
+    Show-Page
+}
+# a mode's tile: picked; on Start, also the next step
+function Select-AkariIsoMode([string]$Id) {
+    $m = @($AkariIsoModes | Where-Object { $_.Id -eq $Id })[0]
+    if (-not $m -or -not $m.Available) { return }
+    $script:IsoState.Mode = $Id
+    Update-AkariIsoModeLook
+    if ($script:IsoState.Step -eq 0) { $script:IsoState.Step = 1; Show-Page }
+}
+# Build another: back to Start, the mode kept
+function Reset-AkariIsoBuild {
+    $st = $script:IsoState
+    $st.Stages = @(); $st.ResultPath = ''; $st.BuildError = ''; $st.Step = 0
+    Show-Page
+}
+
+# Review: an InfoBar when it can't build, then the cards
+function New-AkariIsoReview {
+    $st = $script:IsoState
+    $p = $script:IsoParts
+    $sp = [Windows.Controls.StackPanel]::new()
+    if ($st.BuildError) { [void]$sp.Children.Add((New-AkariInfoBar 'Bad' 'Can''t build yet' $st.BuildError).Bar) }
+    $m = @($AkariIsoModes | Where-Object { $_.Id -eq $st.Mode })[0]
+    $lists = @(foreach ($lp in $p.Lists.Values) {
+        if ($lp.Tag.View.Visibility -eq 'Visible') { @{ Title = $lp.Tag.Title; Ticked = @($lp.Children | Where-Object { $_.IsChecked }).Count; Count = $lp.Children.Count } }
+    })
+    $answer = if ($p.AnsNone.IsChecked) { 'None' } elseif ($p.AnsLocal.IsChecked) { 'Local' } else { 'Generator' }
+    $cards = Get-AkariIsoReviewCards @{ Summary = (Get-AkariIsoSummary (Get-AkariIsoEdition)); Iso = $p.IsoPath.Text; ModeName = $m.Name; ModeIcon = $m.Icon
+        Lists = $lists; OutDir = $p.OutDir.Text; Answer = $answer; SkipOobe = [bool]$p.SkipOobe.IsChecked; User = $p.User.Text.Trim(); AkariOS = [bool]$p.AkariOS.IsChecked }
+    $g = New-AkariCardGrid 320
+    foreach ($c in $cards) {
+        $b = [Windows.Controls.Border]::new()
+        $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
+        $b.Padding = [Windows.Thickness]::new(20, 16, 20, 16); $b.Margin = [Windows.Thickness]::new(4); $b.MinHeight = 170
+        $v = [Windows.Controls.StackPanel]::new()
+        $ic = New-AkariIcon $c.Icon 24 'AccText'; $ic.HorizontalAlignment = 'Left'; $ic.Margin = [Windows.Thickness]::new(0, 0, 0, 8)
+        [void]$v.Children.Add($ic)
+        $t = New-AkariText $c.Title 20; $t.Margin = [Windows.Thickness]::new(0, 0, 0, 8)
+        [void]$v.Children.Add($t)
+        [void]$v.Children.Add((New-AkariText $c.Lines 12 'Mu'))
+        $b.Child = $v
+        Add-AkariGridCard $g $b
+    }
+    Update-AkariCardGrid $g
+    [void]$sp.Children.Add($g)
+    $sp
+}
+
+# Create ISO: how it ended (an InfoBar), then a row per stage (its state, text, time)
+function New-AkariIsoBuildView {
+    $st = $script:IsoState
+    $sp = [Windows.Controls.StackPanel]::new()
+    if ($st.ResultPath) {
+        $open = New-AkariBarButton 'Open folder' { Open-AkariFolder ([IO.Path]::GetDirectoryName($script:IsoState.ResultPath)) }
+        [void]$sp.Children.Add((New-AkariInfoBar 'Ok' 'Your ISO is ready' $st.ResultPath @($open)).Bar)
+    }
+    if ($st.BuildError) { [void]$sp.Children.Add((New-AkariInfoBar 'Bad' 'Not built' $st.BuildError).Bar) }
+    $card = [Windows.Controls.Border]::new()
+    $card.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
+    $card.Padding = [Windows.Thickness]::new(8, 6, 8, 6)
+    $rows = [Windows.Controls.StackPanel]::new()
+    foreach ($s in @($st.Stages)) {
+        $s.Row = New-AkariIsoStageRow $s
+        [void]$rows.Children.Add($s.Row)
+    }
+    $card.Child = $rows
+    [void]$sp.Children.Add($card)
+    $sp
+}
+function New-AkariIsoStageRow($Stage) {
+    $dp = [Windows.Controls.DockPanel]::new()
+    $dp.MinHeight = 32; $dp.Margin = [Windows.Thickness]::new(8, 2, 8, 2)
+    $ic = New-AkariIcon 'circle-minus' 16 'Mu'
+    $ic.Margin = [Windows.Thickness]::new(0, 0, 12, 0); $ic.VerticalAlignment = 'Center'
+    [Windows.Controls.DockPanel]::SetDock($ic, 'Left'); [void]$dp.Children.Add($ic)
+    $right = New-AkariText '' 12 'Mu'; $right.VerticalAlignment = 'Center'; $right.TextWrapping = 'NoWrap'
+    [Windows.Controls.DockPanel]::SetDock($right, 'Right'); [void]$dp.Children.Add($right)
+    $t = New-AkariText $Stage.Text 14; $t.VerticalAlignment = 'Center'
+    [void]$dp.Children.Add($t)
+    $dp.Tag = @{ Icon = $ic; Right = $right }
+    Set-AkariIsoStageLook $dp $Stage
+    $dp
+}
+function Set-AkariIsoStageLook($Row, $Stage) {
+    if (-not $Row) { return }
+    $icon, $brush = switch ($Stage.State) {
+        'Running' { 'refresh-cw', 'AccText' }
+        'Done' { 'circle-check', 'Ok' }
+        'Failed' { 'circle-x', 'Bad' }
+        'Not run' { 'circle-slash', 'Mu' }
+        default { 'circle-minus', 'Mu' }
+    }
+    Set-AkariIcon $Row.Tag.Icon $icon
+    $Row.Tag.Icon.Child.SetResourceReference([Windows.Shapes.Shape]::FillProperty, $brush)
+    $Row.Tag.Right.Text = "$($Stage.State)$(if ($Stage.Elapsed) { "  $($Stage.Elapsed)" })"
+}
+
+# the build's progress (the Shell timer, Done / Total from Set-AkariProgress): each stage's state, its time once done
+function Update-AkariIsoStages($Shared) {
+    $stages = @($script:IsoState.Stages)
+    if (-not $Shared -or -not $Shared.Total -or -not $stages.Count) { return }
+    $states = Get-AkariIsoStageStates ([int]$Shared.Done) ([int]$Shared.Total) $stages.Count
+    for ($i = 0; $i -lt $stages.Count; $i++) { Set-AkariIsoStageState $stages[$i] $states[$i] }
+}
+function Set-AkariIsoStageState($Stage, [string]$State) {
+    if ($Stage.State -eq $State) { return }
+    if ($State -eq 'Running') { $Stage.Clock = [Diagnostics.Stopwatch]::StartNew() }
+    elseif ($Stage.Clock -and $Stage.State -eq 'Running') { $Stage.Elapsed = Get-AkariIsoElapsedText $Stage.Clock.Elapsed }
+    $Stage.State = $State
+    Set-AkariIsoStageLook $Stage.Row $Stage
+}
+
+# ---- background work (Start-AkariJob; the Shell timer calls Complete-AkariIsoJob). One job at a time: another one
+# running refuses it, saying so. The page stays usable (no lock): its own controls are off (Update-AkariIsoWizard).
+
+function Start-AkariIsoJob([string]$Kind, [string]$Code, [hashtable]$Shared, [string]$Label) {
+    if ($script:Busy) { Show-AkariMessage "$($script:BusyLabel) is still running. Try again when it is done." 'Info' 'ISO Builder'; return $false }
     $Shared = [hashtable]::Synchronized($Shared)
-    Set-Busy $true $Label $Lock
+    Set-Busy $true $Label $false
     Add-Log $Label
     $script:Job = Start-AkariJob $Code $script:Queue "$Root\Core" $Shared
     $script:Job.Label = $Label
     $script:Job.Kind = $Kind
+    Update-AkariIsoWizard
     $true
 }
 
 function Start-AkariIsoOpen {
     $p = $script:IsoParts
-    $p.Error.Text = ''
     $iso = $p.IsoPath.Text.Trim()
     if (-not $iso -or -not (Test-Path -LiteralPath $iso)) { $p.OpenNote.Text = 'Pick an ISO file first (or download one above).'; return }
     if (-not $p.OutDir.Text.Trim()) { $p.OpenNote.Text = 'Pick a work and output folder.'; return }
@@ -338,8 +590,8 @@ function Start-AkariIsoOpen {
 
 function Start-AkariIsoRead {
     $p = $script:IsoParts
-    $ed = Get-AkariComboTag $p.Edition
-    if (-not $script:IsoState.Image -or -not $ed) { $p.ListNote.Text = 'Open the ISO and pick an edition first.'; return }
+    $ed = Get-AkariIsoEdition
+    if (-not $ed) { $p.ListNote.Text = 'Open the ISO and pick an edition first (Windows image).'; return }
     $code = @'
 try {
     $w = Get-AkariIsoWork $AkariShared.Out
@@ -350,17 +602,18 @@ try {
     $AkariShared.Packages = @(Get-AkariImagePackages $w.Mount)
 } catch { $AkariShared.Error = $_.Exception.Message }
 '@
-    [void](Start-AkariIsoJob 'IsoRead' $code @{ Out = $p.OutDir.Text.Trim(); Image = $script:IsoState.Image; Index = [int]$ed.Index } "Reading the apps in $($ed.Name)")
+    if (Start-AkariIsoJob 'IsoRead' $code @{ Out = $p.OutDir.Text.Trim(); Image = $script:IsoState.Image; Index = [int]$ed.Index } "Reading the apps in $($ed.Name)") {
+        $p.ListNote.Text = "Reading the apps in $($ed.Name)$([char]0x2026) (mounting it takes a few minutes)"
+    }
 }
 
+# Review's Build ISO: the answer file, one question, then the build in the background and the Create ISO step
 function Start-AkariIsoBuild {
+    $st = $script:IsoState
     $p = $script:IsoParts
-    $p.Error.Text = ''; $p.Result.Text = ''; $p.OpenOut.Visibility = 'Collapsed'
-    $ed = Get-AkariComboTag $p.Edition
-    if (-not $script:IsoState.Image -or -not $ed) { $p.Error.Text = 'Open the ISO and pick an edition first (step 1 and 2).'; return }
-    $picked = @($p.Options.Keys | Where-Object { $p.Options[$_].IsChecked })
-    $bad = Test-AkariIsoOptions $picked (Get-AkariIsoOptions)
-    if ($bad) { $p.Error.Text = $bad; return }
+    $st.BuildError = ''
+    $ed = Get-AkariIsoEdition
+    if (-not $ed) { $st.BuildError = 'Open the ISO and pick an edition first (Windows image).'; Show-Page; return }
     $answer = $null
     try {
         if ($p.AnsLocal.IsChecked) { $answer = New-AkariUnattend (Get-AkariIsoAnswerFields (Get-AkariUnattendStart) $p.User.Text $p.Password.Text ([bool]$p.SkipOobe.IsChecked)) }
@@ -368,21 +621,26 @@ function Start-AkariIsoBuild {
             [void](Get-AkariUnattendView)
             if (-not (Confirm-AkariUnattendWipe)) { return }
             $answer = Get-AkariUnattendBytes
-            if (-not $answer) { $p.Error.Text = 'Install USB''s choices have a problem: open it to see what.'; return }
+            if (-not $answer) { $st.BuildError = 'Install USB''s choices have a problem: open it to see what.'; Show-Page; return }
         }
-    } catch { $p.Error.Text = "The answer file could not be made: $($_.Exception.Message)"; return }
+    } catch { $st.BuildError = "The answer file could not be made: $($_.Exception.Message)"; Show-Page; return }
     $sel = { param($k) @(if ($p.Lists[$k]) { $p.Lists[$k].Children | Where-Object { $_.IsChecked } | ForEach-Object { [string]$_.Tag } }) }
     $choices = @{
-        OutDir = $p.OutDir.Text.Trim(); Iso = $p.IsoPath.Text.Trim(); Image = $script:IsoState.Image; Index = [int]$ed.Index; Edition = $ed.Name
-        Options = $picked; Apps = (& $sel 'Apps'); Capabilities = (& $sel 'Capabilities'); Features = (& $sel 'Features'); Packages = (& $sel 'Packages')
+        OutDir = $p.OutDir.Text.Trim(); Iso = $p.IsoPath.Text.Trim(); Image = $st.Image; Index = [int]$ed.Index; Edition = $ed.Name
+        Options = @(); Apps = (& $sel 'Apps'); Capabilities = (& $sel 'Capabilities'); Features = (& $sel 'Features'); Packages = (& $sel 'Packages')
         AkariDir = $(if ($p.AkariOS.IsChecked) { $Root } else { '' }); Unattend = $answer
     }
     $name = Get-AkariIsoOutName $choices.Iso
     $n = $choices.Apps.Count + $choices.Capabilities.Count + $choices.Features.Count + $choices.Packages.Count
-    $q = "Build $name from $($ed.Name)?`n`n$($picked.Count) options, $n apps and features to remove. It takes 20 to 40 minutes and Akari can't be used meanwhile."
+    $q = "Build $name from $($ed.Name)?`n`n$n apps and features to remove. It takes 20 to 40 minutes; Optimize's changes and installs wait meanwhile."
     if (-not (Confirm-AkariDialog $q 'Build ISO' 'Cancel' 'Question' 'ISO Builder')) { return }
+    $plan = New-AkariIsoPlan $choices @()
     $code = '$AkariShared.Result = Invoke-AkariIsoBuild $AkariShared.Choices'
-    [void](Start-AkariIsoJob 'IsoBuild' $code @{ Choices = $choices } "Building $name")
+    if (-not (Start-AkariIsoJob 'IsoBuild' $code @{ Choices = $choices } "Building $name")) { return }
+    $st.Stages = @(foreach ($s in $plan) { @{ Text = $s.Text; State = 'Waiting'; Elapsed = ''; Clock = $null; Row = $null } })
+    $st.ResultPath = ''
+    $st.Step = 5
+    Show-Page
 }
 
 function Start-AkariUupList([ValidateSet('Build', 'Editions')][string]$Step) {
@@ -392,12 +650,12 @@ function Start-AkariUupList([ValidateSet('Build', 'Editions')][string]$Step) {
     if ($Step -eq 'Build') {
         $p.UupLang.Items.Clear(); $p.UupEdition.Items.Clear()
         $code = '$b = Get-AkariUupBuild $AkariShared.Version; $AkariShared.Build = $b; if ($b.Ok) { $AkariShared.Langs = Get-AkariUupLanguages $b.Build.Id }'
-        [void](Start-AkariIsoJob 'IsoUupList' $code @{ Step = 'Build'; Version = $v } "Asking UUP Dump for Windows 11 $v" $false)
+        [void](Start-AkariIsoJob 'IsoUupList' $code @{ Step = 'Build'; Version = $v } "Asking UUP Dump for Windows 11 $v")
     } else {
         $lang = Get-AkariComboTag $p.UupLang
         if (-not $lang -or -not $script:IsoState.Uup) { return }
         $code = '$AkariShared.Editions = Get-AkariUupEditions $AkariShared.Id $AkariShared.Lang'
-        [void](Start-AkariIsoJob 'IsoUupList' $code @{ Step = 'Editions'; Id = $script:IsoState.Uup.Id; Lang = $lang.Code } 'Asking UUP Dump for its editions' $false)
+        [void](Start-AkariIsoJob 'IsoUupList' $code @{ Step = 'Editions'; Id = $script:IsoState.Uup.Id; Lang = $lang.Code } 'Asking UUP Dump for its editions')
     }
 }
 
@@ -406,7 +664,7 @@ function Start-AkariUupDownload {
     $v = Get-AkariComboTag $p.UupVersion; $lang = Get-AkariComboTag $p.UupLang; $t = Get-AkariComboTag $p.UupEdition
     if (-not $v -or -not $lang -or -not $t -or -not $script:IsoState.Uup) { $p.UupNote.Text = 'Pick a version, a language and an edition first.'; return }
     if (-not $p.OutDir.Text.Trim()) { $p.UupNote.Text = 'Pick a work and output folder below first.'; return }
-    $q = "Download Windows 11 $v $($t.Label) ($($lang.Name)) with UUP Dump?`n`nIt downloads several GB from Microsoft and builds the ISO: allow 20 to 60 minutes. Akari can't be used meanwhile."
+    $q = "Download Windows 11 $v $($t.Label) ($($lang.Name)) with UUP Dump?`n`nIt downloads several GB from Microsoft and builds the ISO: allow 20 to 60 minutes. Optimize's changes and installs wait meanwhile."
     if (-not (Confirm-AkariDialog $q 'Download' 'Cancel' 'Question' 'ISO Builder')) { return }
     $code = '$AkariShared.Result = Save-AkariUupIso $AkariShared.Version $AkariShared.Build $AkariShared.Lang $AkariShared.Target $AkariShared.Out'
     [void](Start-AkariIsoJob 'IsoUup' $code @{ Version = $v; Build = $script:IsoState.Uup; Lang = $lang.Code; Target = $t; Out = $p.OutDir.Text.Trim() } "Downloading Windows 11 $v $($t.Label)")
@@ -414,7 +672,7 @@ function Start-AkariUupDownload {
 
 function Start-AkariMassgraveList {
     $script:IsoParts.MgNote.Text = 'Reading Massgrave''s list' + [char]0x2026
-    [void](Start-AkariIsoJob 'IsoMassgrave' '$AkariShared.Result = Get-AkariMassgraveCatalogue' @{} 'Reading Massgrave''s list' $false)
+    [void](Start-AkariIsoJob 'IsoMassgrave' '$AkariShared.Result = Get-AkariMassgraveCatalogue' @{} 'Reading Massgrave''s list')
 }
 
 function Update-AkariMassgraveLanguages {
@@ -470,27 +728,30 @@ function Set-AkariIsoList([string]$Key, $Items, [scriptblock]$Label, [scriptbloc
         $cb.Tag = & $Value $i
         [void]$lp.Children.Add($cb)
     }
-    $lp.Tag.Head.Text = "$($lp.Tag.Head.Text -replace ' \(\d+\)$', '') ($($lp.Children.Count))"
+    $lp.Tag.Head.Text = "$($lp.Tag.Title) ($($lp.Children.Count))"
     $lp.Tag.Head.Visibility = 'Visible'; $lp.Tag.View.Visibility = 'Visible'
 }
 
 function Complete-AkariIsoJob($Job) {
     $p = $script:IsoParts
+    $st = $script:IsoState
     $s = $Job.Shared
     switch ($Job.Kind) {
         'IsoOpen' {
             $r = $s.Result
             if (-not $r -or $r.Error) { $p.OpenNote.Text = "Not opened: $(if ($r) { $r.Error } else { 'see the log' })"; return }
-            $script:IsoState.Image = $r.Image
-            $script:IsoState.Lists = $null
+            $st.Image = $r.Image
+            $st.Lists = $null
             foreach ($l in $p.Lists.Values) { $l.Children.Clear(); $l.Tag.Head.Visibility = 'Collapsed'; $l.Tag.View.Visibility = 'Collapsed' }
-            Set-AkariComboItems $p.Edition @($r.Editions | Where-Object { $_.Supported }) { param($e) "$($e.Name) ($($e.Version))" }
+            $sup = @($r.Editions | Where-Object { $_.Supported })
+            Set-AkariComboItems $p.Edition $sup { param($e) "$($e.Name) ($($e.Version))" }
+            if ($sup.Count) { $p.Edition.SelectedIndex = Get-AkariIsoEditionPick $sup }
             $p.Edition.IsEnabled = $true
-            $p.OpenNote.Text = "Opened: $(@($r.Editions | Where-Object { $_.Supported }).Count) Windows 11 editions."
+            $p.OpenNote.Text = "Opened: $($sup.Count) Windows 11 editions."
         }
         'IsoRead' {
             if ($s.Error) { $p.ListNote.Text = "Not read: $($s.Error)"; return }
-            $script:IsoState.Lists = @{ Apps = $s.Apps }
+            $st.Lists = @{ Apps = $s.Apps }
             Set-AkariIsoList 'Apps' $s.Apps { param($i) $i.Name } { param($i) $i.Package }
             Set-AkariIsoList 'Capabilities' $s.Capabilities { param($i) $i.Name } { param($i) $i.Name }
             Set-AkariIsoList 'Features' $s.Features { param($i) $i.Name } { param($i) $i.Name }
@@ -499,20 +760,26 @@ function Complete-AkariIsoJob($Job) {
         }
         'IsoBuild' {
             $r = $s.Result
-            if ($r -and $r.Ok) {
-                $p.Result.Text = "ISO ready: $($r.Path)"
-                $p.OpenOut.Visibility = 'Visible'
-                $script:IsoState.Image = ''; $script:IsoState.Lists = $null; $p.Edition.Items.Clear(); $p.Edition.IsEnabled = $false
+            $ok = [bool]($r -and $r.Ok)
+            # the last step the build reached, then how it ended
+            Update-AkariIsoStages $s
+            $stages = @($st.Stages)
+            $end = Get-AkariIsoEndStates @($stages | ForEach-Object { $_.State }) $ok
+            for ($i = 0; $i -lt $stages.Count; $i++) { Set-AkariIsoStageState $stages[$i] $end[$i] }
+            if ($ok) {
+                $st.ResultPath = $r.Path
+                $st.Image = ''; $st.Lists = $null; $p.Edition.Items.Clear(); $p.Edition.IsEnabled = $false
                 $p.OpenNote.Text = 'The work folder was removed: open the ISO again to build another.'
-                Show-AkariMessage "Your ISO is ready:`n`n$($r.Path)" 'Info' 'ISO Builder'
+                Show-AkariToast 'Your ISO is ready' $r.Path
             } else {
-                $p.Error.Text = "Not built: $(if ($r) { $r.Message } else { 'see the log' })"
+                $st.BuildError = "$(if ($r) { $r.Message } else { 'see the log' })"
+                Show-AkariToast 'The ISO was not built' $st.BuildError
             }
         }
         'IsoUupList' {
             if ($s.Step -eq 'Build') {
                 if (-not $s.Build.Ok) { $p.UupNote.Text = $s.Build.Message; return }
-                $script:IsoState.Uup = $s.Build.Build
+                $st.Uup = $s.Build.Build
                 if (-not $s.Langs.Ok) { $p.UupNote.Text = $s.Langs.Message; return }
                 $p.UupNote.Text = "$($s.Build.Build.Title). Pick a language and an edition."
                 Set-AkariComboItems $p.UupLang $s.Langs.Items { param($l) $l.Name }
@@ -533,7 +800,7 @@ function Complete-AkariIsoJob($Job) {
         'IsoMassgrave' {
             $r = $s.Result
             if (-not $r.Ok) { $p.MgNote.Text = $r.Message; return }
-            $script:IsoState.Massgrave = $r.Items
+            $st.Massgrave = $r.Items
             Set-AkariComboItems $p.MgProduct (Get-AkariMassgraveProducts $r.Items) { param($x) $x }
             Update-AkariMassgraveLanguages
             $p.MgNote.Text = 'Pick an ISO and open its page. Massgrave''s links go to file hosts Akari can''t download from: your browser does, then Akari finds the file in Downloads.'

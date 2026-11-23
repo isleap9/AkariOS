@@ -93,6 +93,8 @@ function Get-AkariLegacyList($Tweaks, [string]$Page, [string]$Query) {
 
 # the footer's Back: Cancel on the first step (the chooser again), else the step before
 function Step-AkariBack {
+    # the ISO Builder's wizard shares the footer (UI\IsoBuilder.ps1)
+    if ($script:Cat -eq 'ISO Builder') { Step-AkariIsoBack; return }
     if ($script:Mode -ne 'Guided') { Select-AkariPage 'Home'; return }
     Push-AkariHistory
     $prev = Get-AkariFlowStep $script:Mode $script:Step -1
@@ -102,6 +104,7 @@ function Step-AkariBack {
 
 # the footer's Next: the next step; on Review, Apply asks once, then runs
 function Step-AkariForward {
+    if ($script:Cat -eq 'ISO Builder') { Step-AkariIsoNext; return }
     switch ($script:Step) {
         2 {
             $n = $script:Sel.Count
@@ -483,6 +486,7 @@ function Update-AkariStepFooter {
     Update-AkariTweakCounts
     if ($script:Mode -ne 'Guided' -or $script:Step -gt 2) { return }
     $n = $script:Sel.Count
+    $StepBack.IsEnabled = $true
     $StepLabel.Text = "Step $($script:Step + 1) of 3 $([char]0x00B7) $($AkariStepNames[$script:Step])"
     Start-AkariMotion $StepFill Fill $null (($script:Step + 1) / 3) -Speed Slow
     $StepBack.Content = if ($script:Step -eq 0) { 'Cancel' } else { 'Back' }
@@ -563,19 +567,19 @@ function Show-AkariChooser {
 }
 
 # Guided's step header (.steps): numbered 20 px circles joined by 32 px lines, the current one Acc, done ones ticked
-# on AccSoft; the names in Caption (the current one in Tx)
-function New-AkariStepsHeader([int]$Step) {
+# on AccSoft; the names in Caption (the current one in Tx). $Names: Guided's steps, or another flow's (the ISO Builder)
+function New-AkariStepsHeader([int]$Step, $Names = $AkariStepNames) {
     $sp = [Windows.Controls.StackPanel]::new()
     $sp.Orientation = 'Horizontal'
     $sp.Margin = [Windows.Thickness]::new(0, -8, 0, 20)
-    for ($i = 0; $i -lt $AkariStepNames.Count; $i++) {
+    for ($i = 0; $i -lt @($Names).Count; $i++) {
         $state = if ($i -eq $Step) { 'Current' } elseif ($i -lt $Step) { 'Done' } else { '' }
         if ($i) {
             $l = [Windows.Controls.Border]::new(); $l.Width = 32; $l.Height = 1; $l.Margin = [Windows.Thickness]::new(8, 0, 8, 0); $l.VerticalAlignment = 'Center'
             $l.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, 'Div')
             [void]$sp.Children.Add($l)
         }
-        $s = New-AkariStepItem ($i + 1) $AkariStepNames[$i] $state
+        $s = New-AkariStepItem ($i + 1) @($Names)[$i] $state
         [void]$sp.Children.Add($s)
     }
     $sp

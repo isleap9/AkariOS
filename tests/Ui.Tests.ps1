@@ -817,18 +817,31 @@ Select-AkariPage 'Install USB'; "usb=$script:Cat|$(NavOn)|$($script:UaSections.C
 Select-AkariPage 'Unattend Generator'; "usbOld=$script:Cat"
 # the Catalogue's job above never ends here: free the job slot first
 $script:Job = $null; Set-Busy $false
-Select-AkariPage 'ISO Builder'; "iso=$script:Cat|$(NavOn)|$($script:IsoParts.Options.Count)|$($script:IsoParts.Edition.IsEnabled)"
-$o = $script:IsoParts.Options; $o.DisableUpdates.IsChecked = $true; Update-AkariIsoOptions
-"isoExclusive=$($o.SecurityOnly.IsEnabled)|$($o.DisableVersionUpgrade.IsEnabled)|$($o.DisableUpdates.IsEnabled)|$($o.RemoveAI.IsEnabled)"
-$o.DisableUpdates.IsChecked = $false; Update-AkariIsoOptions; "isoFreed=$($o.SecurityOnly.IsEnabled)"
-Complete-AkariIsoJob @{ Kind = 'IsoOpen'; Shared = @{ Result = @{ Image = 'X:\AkariIso\Media\sources\install.wim'; Editions = @(@{ Index = 1; Name = 'Windows 10 Pro'; Version = '10.0.19045.1'; Supported = $false }, @{ Index = 6; Name = 'Windows 11 Pro'; Version = '10.0.26200.1'; Supported = $true }) } } }
-"isoOpened=$($script:IsoParts.Edition.Items.Count)|$($script:IsoParts.Edition.IsEnabled)|$($script:IsoParts.Edition.SelectedItem.Content)"
-Complete-AkariIsoJob @{ Kind = 'IsoRead'; Shared = @{ Apps = @(@{ Name = 'Microsoft.BingNews'; Package = 'Microsoft.BingNews_1_x64__8wekyb3d8bbwe' }); Capabilities = @(@{ Name = 'App.StepsRecorder~~~~0.0.1.0' }); Features = @(); Packages = @() } }
-$script:IsoParts.Lists.Apps.Children[0].IsChecked = $true; $o.RemoveAI.IsChecked = $true
-$script:Jobs = @(); Start-AkariIsoBuild; "isoErr=$($script:IsoParts.Error.Text)"
-$c = $script:Jobs[-1].Shared.Choices
-"isoBuild=$($script:Job.Kind)|$($c.Index)|$($c.Edition)|$($c.Options -join ',')|$($c.Apps -join ',')|$($c.AkariDir -eq $Root)|$([Text.Encoding]::ASCII.GetString($c.Unattend) -match '<Name>Admin</Name>')"
+# the ISO Builder's wizard: Start (the modes), Windows image, Components, Build settings, Review, Create ISO
+function Foot { "$($StepNext.Content)|$($StepNext.IsEnabled)|$($StepBack.IsEnabled)" }
+Select-AkariPage 'ISO Builder'; "iso=$script:Cat|$(NavOn)|$($script:IsoState.Step)|$(Crumbs)|$($StepFooter.Visibility)|$(Foot)|$($script:IsoParts.ModeTiles.Count)|$((@($script:IsoParts.ModeTiles | Where-Object { $_.IsEnabled }) | ForEach-Object { $_.Tag } | Select-Object -Unique) -join ',')"
+Click $StepNext; "isoImage=$($script:IsoState.Step)|$(Crumbs)|$(Foot)|$($StepLabel.Text -replace '[^ -~]', '.')|$($script:IsoParts.SummaryText.Text)"
+Click $StepBack; Select-AkariIsoMode 'AkariOS'; "isoModeSoon=$($script:IsoState.Step)|$($script:IsoState.Mode)"
+Select-AkariIsoMode 'Custom'; "isoMode=$($script:IsoState.Step)|$($script:IsoState.Mode)"
+Complete-AkariIsoJob @{ Kind = 'IsoOpen'; Shared = @{ Result = @{ Image = 'X:\AkariIso\Media\sources\install.wim'; Editions = @(@{ Index = 1; Name = 'Windows 10 Pro'; Version = '10.0.19045.1'; Supported = $false }, @{ Index = 3; Name = 'Windows 11 Home'; Version = '10.0.26200.1'; Supported = $true }, @{ Index = 6; Name = 'Windows 11 Pro'; Version = '10.0.26200.1'; Supported = $true }) } } }
+Show-Page
+"isoOpened=$($script:IsoParts.Edition.Items.Count)|$($script:IsoParts.Edition.IsEnabled)|$($script:IsoParts.Edition.SelectedItem.Content)|$(Foot)|$($script:IsoParts.SummaryText.Text -replace '[^ -~]', '.')"
+# Components reads the image the first time (Custom): the page's controls and the footer wait, the page isn't locked
+$script:Jobs = @(); Click $StepNext; "isoComponents=$($script:IsoState.Step)|$($script:Job.Kind)|$(Foot)|$($script:IsoParts.Current.IsEnabled)|$($Page.IsEnabled)"
 $script:Job = $null; Set-Busy $false
+Complete-AkariIsoJob @{ Kind = 'IsoRead'; Shared = @{ Apps = @(@{ Name = 'Microsoft.BingNews'; Package = 'Microsoft.BingNews_1_x64__8wekyb3d8bbwe' }); Capabilities = @(@{ Name = 'App.StepsRecorder~~~~0.0.1.0' }); Features = @(); Packages = @() } }
+Show-Page; "isoRead=$($script:IsoParts.Current.IsEnabled)|$(Foot)|$($script:IsoParts.Lists.Apps.Tag.Head.Text)"
+$script:IsoParts.Lists.Apps.Children[0].IsChecked = $true
+Click $StepNext; Click $StepNext; "isoReview=$($script:IsoState.Step)|$(Crumbs)|$(Foot)"
+$script:Jobs = @(); Click $StepNext
+$c = $script:Jobs[-1].Shared.Choices
+"isoBuild=$($script:Job.Kind)|$($c.Index)|$($c.Edition)|$(@($c.Options).Count)|$($c.Apps -join ',')|$($c.AkariDir -eq $Root)|$([Text.Encoding]::ASCII.GetString($c.Unattend) -match '<Name>Admin</Name>')|$($script:IsoState.Step)|$(Foot)"
+$n = @($script:IsoState.Stages).Count
+Update-AkariIsoStages @{ Done = 2; Total = $n }; "isoStages=$($n -gt 5)|$((@($script:IsoState.Stages)[0..3] | ForEach-Object { $_.State }) -join ',')"
+$script:Job = $null; Set-Busy $false
+Complete-AkariIsoJob @{ Kind = 'IsoBuild'; Shared = @{ Done = 3; Total = $n; Result = @{ Ok = $true; Path = 'D:\Win11-Akari.iso' } } }
+Show-Page; "isoDone=$($script:IsoState.ResultPath)|$(@($script:IsoState.Stages | Where-Object { $_.State -ne 'Done' }).Count)|$(Foot)|$($script:IsoParts.Edition.IsEnabled)"
+Click $StepNext; "isoAgain=$($script:IsoState.Step)|$(@($script:IsoState.Stages).Count)|$($script:IsoState.Mode)"
 Complete-AkariIsoJob @{ Kind = 'IsoUup'; Shared = @{ Result = @{ Ok = $true; Path = 'D:\Windows11_25H2_Pro_en-us.iso' } } }
 "isoUupDone=$($script:IsoParts.IsoPath.Text)|$($script:IsoParts.SrcFile.IsChecked)"
 # Settings: theme, accent, animations, files, recovery, about
@@ -945,14 +958,20 @@ function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My
         $out.closingNone | Should Be '0'
         $out.usb | Should Be 'Install USB|Install USB|True|Default|False|No Windows setup USB found'
         $out.usbOld | Should Be 'Install USB'
-        $out.iso | Should Be 'ISO Builder|ISO Builder|10|False'
     }
-    It 'the ISO Builder greys out what Disable all updates rules out, lists the Windows 11 editions and hands its choices to the build' {
-        $out.isoExclusive | Should Be 'False|False|True|True'
-        $out.isoFreed | Should Be 'True'
-        $out.isoOpened | Should Be '1|True|Windows 11 Pro (10.0.26200.1)'
-        $out.isoErr | Should Be ''
-        $out.isoBuild | Should Be 'IsoBuild|6|Windows 11 Pro|RemoveAI|Microsoft.BingNews_1_x64__8wekyb3d8bbwe|True|True'
+    It 'the ISO Builder is a wizard: modes, the image (Pro picked), Components reading the image, Review, the stages, Build another' {
+        $out.iso | Should Be 'ISO Builder|ISO Builder|0|ISO Builder|Visible|Start|True|False|8|Custom'
+        $out.isoImage | Should Be '1|ISO Builder>Windows image|Next|False|True|Step 2 of 6 . Windows image.Open an ISO and pick an edition first.|No image yet'
+        $out.isoModeSoon | Should Be '0|Custom'
+        $out.isoMode | Should Be '1|Custom'
+        $out.isoOpened | Should Be '2|True|Windows 11 Pro (10.0.26200.1)|Next|True|True|Windows 11 Pro . 10.0.26200.1'
+        $out.isoComponents | Should Be '2|IsoRead|Next|False|False|False|True'
+        $out.isoRead | Should Be 'True|Next|True|True|Store apps (1)'
+        $out.isoReview | Should Be '4|ISO Builder>Review|Build ISO|True|True'
+        $out.isoBuild | Should Be 'IsoBuild|6|Windows 11 Pro|0|Microsoft.BingNews_1_x64__8wekyb3d8bbwe|True|True|5|Build another|False|False'
+        $out.isoStages | Should Be 'True|Done,Done,Running,Waiting'
+        $out.isoDone | Should Be 'D:\Win11-Akari.iso|0|Build another|True|False|False'
+        $out.isoAgain | Should Be '0|0|Custom'
         $out.isoUupDone | Should Be 'D:\Windows11_25H2_Pro_en-us.iso|True'
     }
     It 'Settings: Appearance, Settings files, Recovery, About, in place of the options menu and the About page' {

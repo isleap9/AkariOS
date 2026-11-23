@@ -542,11 +542,51 @@ Describe 'ISO Builder page helpers (UI\IsoBuilder.ps1)' {
         (Get-AkariIsoRecommendedApps $apps $tweaks) -join ',' | Should Be 'news'
     }
 
-    It 'rules out the options a picked one excludes' {
+    It 'rules out the options a picked one excludes (zISO''s, for the native oracle until P9)' {
         $all = Get-AkariIsoOptions
         (Get-AkariIsoBlocked @('DisableUpdates') $all) -join ',' | Should Be 'DisableVersionUpgrade,SecurityOnly'
         (Get-AkariIsoBlocked @('SecurityOnly', 'DisableVersionUpgrade') $all) -join ',' | Should Be 'DisableUpdates'
         @(Get-AkariIsoBlocked @('RemoveAI') $all).Count | Should Be 0
+    }
+
+    It 'lets Next go only once a step is complete, and neither Next nor Back while the page''s job runs' {
+        $f = Get-AkariIsoFooter 0 $false $false $false $false; "$($f.Next)|$($f.CanNext)|$($f.CanBack)" | Should Be 'Start|True|False'
+        $f = Get-AkariIsoFooter 1 $false $false $false $false; "$($f.Hint)|$($f.CanNext)|$($f.CanBack)" | Should Be 'Open an ISO and pick an edition first.|False|True'
+        $f = Get-AkariIsoFooter 1 $true $false $false $false; "$($f.Next)|$($f.CanNext)" | Should Be 'Next|True'
+        $f = Get-AkariIsoFooter 2 $true $true $false $false; "$($f.CanNext)|$($f.CanBack)" | Should Be 'False|False'
+        $f = Get-AkariIsoFooter 3 $true $false $false $false; $f.Next | Should Be 'Review'
+        $f = Get-AkariIsoFooter 4 $true $false $false $false; "$($f.Next)|$($f.CanNext)" | Should Be 'Build ISO|True'
+        $f = Get-AkariIsoFooter 5 $false $true $false $false; "$($f.Next)|$($f.CanNext)|$($f.CanBack)" | Should Be 'Build another|False|False'
+        $f = Get-AkariIsoFooter 5 $false $false $true $false; "$($f.CanNext)|$($f.CanBack)" | Should Be 'True|False'
+        $f = Get-AkariIsoFooter 5 $false $false $false $true; "$($f.CanNext)|$($f.CanBack)" | Should Be 'True|True'
+    }
+
+    It 'picks the first Pro edition, else the first' {
+        Get-AkariIsoEditionPick @(@{ Name = 'Windows 11 Home' }, @{ Name = 'Windows 11 Pro N' }, @{ Name = 'Windows 11 Pro' }) | Should Be 2
+        Get-AkariIsoEditionPick @(@{ Name = 'Windows 11 Home' }, @{ Name = 'Windows 11 Education' }) | Should Be 0
+        Get-AkariIsoSummary $null | Should Be 'No image yet'
+    }
+
+    It 'follows the build''s stages and ends them' {
+        (Get-AkariIsoStageStates 2 5 5) -join ',' | Should Be 'Done,Done,Running,Waiting,Waiting'
+        (Get-AkariIsoStageStates 5 5 5) -join ',' | Should Be 'Done,Done,Done,Done,Done'
+        (Get-AkariIsoEndStates @('Done', 'Running', 'Waiting') $false) -join ',' | Should Be 'Done,Failed,Not run'
+        (Get-AkariIsoEndStates @('Done', 'Running', 'Waiting') $true) -join ',' | Should Be 'Done,Done,Done'
+        Get-AkariIsoElapsedText ([TimeSpan]::FromSeconds(12.7)) | Should Be '12 s'
+        Get-AkariIsoElapsedText ([TimeSpan]::FromSeconds(184)) | Should Be '3 min 4 s'
+    }
+
+    It 'reviews the image, what goes, where the ISO goes and the installation options' {
+        $cards = Get-AkariIsoReviewCards @{ Summary = 'Windows 11 Pro'; Iso = 'D:\Win11.iso'; ModeName = 'Custom'; ModeIcon = 'settings-2'
+            Lists = @(@{ Title = 'Store apps'; Ticked = 3; Count = 40 }); OutDir = 'E:\Out'; Answer = 'Local'; SkipOobe = $true; User = 'Gamer'; AkariOS = $true }
+        ($cards | ForEach-Object { $_.Title }) -join ',' | Should Be 'Windows image,Custom,Output and workspace,Installation options'
+        $cards[0].Lines | Should Be "Windows 11 Pro`nD:\Win11.iso"
+        $cards[1].Lines | Should Be 'Store apps: 3 of 40'
+        $cards[2].Lines | Should Be "ISO`nE:\Out\Win11-Akari.iso`n`nWork folder`nE:\Out\AkariIso"
+        $cards[3].Lines | Should Be "Answer file: A local account (Gamer), setup's questions skipped`nAkariOS on the new Windows: Yes"
+        $none = Get-AkariIsoReviewCards @{ Summary = 'x'; Iso = 'D:\a.iso'; ModeName = 'Custom'; Lists = @(); OutDir = 'E:\'; Answer = 'None'; AkariOS = $false }
+        $none[1].Lines | Should Be 'Nothing removed: the image''s lists weren''t read.'
+        $none[3].Lines | Should Be "Answer file: None: setup asks everything as usual`nAkariOS on the new Windows: No"
     }
 
     It 'lists Massgrave''s products in page order and a product''s languages' {
