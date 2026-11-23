@@ -19,6 +19,9 @@ internal static class Oracle
             RedirectStandardOutput = true,
             UseShellExecute = false,
         };
+        // started from PowerShell 7 (GitHub's runner: shell pwsh), 5.1 inherits pwsh's PSModulePath and loads its
+        // modules, which lack Import-PowerShellDataFile; with none, 5.1 builds its own
+        psi.Environment.Remove("PSModulePath");
         foreach (var a in new[] { "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File",
                      Path.Combine(Repo.Root, "app", "tests", "AkariOS.Core.Tests", "Oracle", script) }.Concat(args).Concat(["-Out", out_]))
             psi.ArgumentList.Add(a);
