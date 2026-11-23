@@ -5,6 +5,9 @@
     <OutputType>WinExe</OutputType>
     <UseWinUI>true</UseWinUI>
     <AssemblyName>AkariOS-Native</AssemblyName>
+    <!-- CsWinRT1032 (SDK 10.0.404+): a collection expression typed as a read-only interface has no concrete type for
+         trimming / AOT. The app is neither trimmed nor AOT-compiled (a plain single-file publish), so it doesn't apply. -->
+    <NoWarn>$(NoWarn);CsWinRT1032</NoWarn>
     <RootNamespace>AkariOS.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>$(AkariSrc)Assets\AkariLogo.ico</ApplicationIcon>

@@ -60,3 +60,7 @@ jobs:
       - name: Test
         working-directory: app
         run: dotnet test --solution AkariOS.Native.sln -c Release
+      # the release's publish (build/Native.ps1), so a publish-only error shows here first, not at release time
+      - name: Publish
+        working-directory: app
+        run: dotnet publish AkariOS.App -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
