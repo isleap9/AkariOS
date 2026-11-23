@@ -552,7 +552,7 @@ $script:Cat = 'Install AkariOS'; $script:Mode = 'Guided'; $script:Step = 0; Show
 $p = $script:AppsParts
 "rows=$($script:AppRows.Count)"
 "visible=$(@($script:AppRows.Values | Where-Object { $_.Row.Visibility -eq 'Visible' }).Count)"
-"guidedParts=$($p.RemoveHead.Visibility),$($p.InstallHead.Visibility),$($p.QuickSelect.Visibility),$($p.RemoveGo.Visibility),$(($p.Selector.Items.Children | ForEach-Object { $_.Tag }) -join '/')"
+"guidedParts=$($p.RemoveHead.Visibility),$($p.InstallHead.Visibility),$($p.QuickSelect.Visibility),$(($p.Selector.Items.Children | ForEach-Object { $_.Tag }) -join '/')"
 Select-AkariApps { param($t) $t.Risk -eq 'Safe' }
 "recommended=$((Get-AkariPlanItems $script:Sel | ForEach-Object { $_.Id }) -join ',')|$($script:AppRows['appx/Akari.Test.Safe'].Row.Background -eq $res.FindResource('AccSoft'))"
 Select-AkariApps { param($t) -not $t.Keep }
@@ -595,39 +595,65 @@ Complete-AkariFeatureRead @('App.StepsRecorder~~~~0.0.1.0', 'WMIC~~~~') @('WorkF
 "wmic=$($script:AppRows['capability/WMIC~~~~'].Tweak.Keep),$($script:AppRows['capability/WMIC~~~~'].Tweak.Risk)"
 "lateSel=$((Get-AkariPlanItems $script:Sel | Where-Object { $_.Id -notlike 'appx/*' } | ForEach-Object { $_.Id } | Sort-Object) -join ',')"
 Clear-AkariSteps
-# Remove apps, a page of its own: the lists alone, Remove (n) asks, then removes in one job
+# Downloads > Windows apps (the Remove apps page before): the four lists as cards, its own Selection, Remove (n) asks,
+# then removes in one job; a removed app that can come back has Install
+function Click($b) { $b.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent)) }
 $script:Cat = 'Remove apps'; Show-Page
-"rmPage=$($Heading.Text)|$($p.InstallTables.Visibility),$($p.QuickSelect.Visibility),$($p.RemoveGo.Visibility),$($p.RemoveGo.IsEnabled)"
-$e = $script:AppRows['appx/Akari.Test.Opt']; $e.Control.IsChecked = $true; Step-AkariAppCheck 'appx/Akari.Test.Opt'
-"rmPicked=$($p.RemoveGo.IsEnabled),$($p.RemoveGoText.Text),$($script:AppsStatus.Text)"
+$w = $script:Win
+"winPage=$script:Cat|$script:DlSection|$($Heading.Text)|$(@($w.Rows.Keys) -join ',')|$($w.Go.IsEnabled)|$($w.Grids['Store apps'].Visibility),$($w.Grids['Legacy apps'].Visibility)"
+"winGone=$($w.Rows['appx/Akari.Test.Gone'].Row.Visibility)|$($w.Rows['appx/Akari.Test.Gone'].Act.Children[0].Text)|$($w.Rows['appx/Akari.Test.Gone'].Act.Children[1].Text)"
+$e = $w.Rows['appx/Akari.Test.Opt']; Click $e.Row
+"winPicked=$($w.Go.IsEnabled),$($w.GoText.Text),$($w.Count.Text)|$($e.Row.BorderThickness.Left)|$($script:WinSel.Contains('appx/Akari.Test.Opt'))|$($script:Sel.Contains('appx/Akari.Test.Opt'))"
+$w.Filter.Text = 'Safe'
+"winSearch=$(@($w.Rows.Values | Where-Object { $_.Row.Visibility -eq 'Visible' }).Count)|$($w.Grids['Store apps'].Children.Count)"
+$w.Filter.Text = ''
+Complete-AkariFeatureRead @('App.StepsRecorder~~~~0.0.1.0') @('WorkFolders-Client')
+"winFeatures=$($w.Grids['Optional features'].Tag.Cards.Count),$($w.Grids['Windows features'].Tag.Cards.Count)|$($w.Notes['Optional features'].Text)"
 function Get-AkariRestoreChoice { $false }
-$script:answer = $false; Start-AkariRemoveApps
+$script:answer = $false; Start-AkariWindowsRemove
 "rmCancel=$($null -eq $script:Job)|$script:askedTitle|$($script:asked -replace "`n", '/')"
-$script:answer = $true; Start-AkariRemoveApps
+$script:answer = $true; Start-AkariWindowsRemove
 "rmJob=$($script:Job.Kind),$($script:Job.Shared.Plan[0].Id),$($script:Job.Label)"
-# the job got to the first item: its row collapses
+# the job got to the first item: its card leaves the list
 Update-AkariRemoveProgress @{ Total = 1; Done = 1 }
-"rmGone=$script:RemovedCount|$($e.Row.Height)"
+"rmGone=$script:RemovedCount|$($e.Row.Visibility)|$($e.Gone)"
 $script:Busy = $false; $script:Job = $null
 Complete-AkariApply ([hashtable]::Synchronized(@{ Plan = @(@{ Id = 'appx/Akari.Test.Opt'; Mode = 'Apply' }); Outcomes = @([pscustomobject]@{ Id = 'appx/Akari.Test.Opt'; Outcome = 'Applied' }) })) 'Remove'
-"rmDone=$($script:Toasts[-1][0])|$($script:Sel.Count)|$($null -eq $script:AppsView)"
-# Downloads, a page of its own: the cards by category, Install queued one at a time, the installed ones marked
-$script:Cat = 'Downloads'; Show-Page
+"rmDone=$($script:Toasts[-1][0])|$($script:WinSel.Count)|$($null -eq $script:Win)"
+# a removed app's Install: queued as an install, the card "Installing..."; a failure puts the card back
+Show-Page
+$w = $script:Win
+$g = $w.Rows['appx/Akari.Test.Gone']; $g.Restore = Find-AkariTweak 'inst'; Set-AkariWindowsCardAction $g
+"restoreBtn=$($g.Act.Children[1].GetType().Name)|$($g.Act.Children[1].Tag)"
+Start-AkariWindowsRestore 'appx/Akari.Test.Gone'
+"restoring=$($g.Restoring)|$(@($script:InstallQueue) -join ',')|$($script:Job.Kind)|$($script:Job.Shared.Plan[0].Id)"
+$script:Busy = $false; $script:Job = $null
+Complete-AkariInstall ([hashtable]::Synchronized(@{ Outcomes = @([pscustomobject]@{ Id = 'inst'; Outcome = 'Failed'; Message = 'no network' }) }))
+"restoreFailed=$($g.Restoring)|$($g.Act.Children[1].GetType().Name)|$($script:Toasts[-1][0])|$($script:Toasts[-1][1])"
+# Downloads > External apps: the store cards by category, Install queued one at a time, the installed ones marked
+$script:DlSection = 'External'; Show-Page
 "dlPage=$($Heading.Text)|$(@($script:DlCards.Keys) -join ',')|$($script:Job.Kind)"
-"dlStart=$($script:DlCards['inst'].Act.Children[0].Children[0].GetType().Name)"
+"dlStart=$($script:DlCards['inst'].Act.Children[1].GetType().Name)|$($script:DlCards['inst'].Act.Children[0].Text)"
 $script:Busy = $false; $script:Job = $null
 Complete-AkariInstalledRead ([hashtable]::Synchronized(@{ Ids = @('inst') }))
-"dlMarked=$($script:DlCards['inst'].State)|$($script:DlCards['instc'].State)"
+"dlMarked=$($script:DlCards['inst'].State)|$($script:DlCards['instc'].State)|$($script:DlCards['inst'].Check.Visibility)|$($null -ne $script:DlCards['inst'].Row.ContextMenu)"
 $script:DlFilter = 'Gaming'; Set-AkariDownloadsFilter $false
-"dlGaming=$($script:DlCards['inst'].Row.Visibility),$($script:DlCards['instc'].Row.Visibility)"
+"dlGaming=$($script:DlCards['inst'].Row.Visibility),$($script:DlCards['instc'].Row.Visibility)|$($script:DlGrid.Children.Count)|$($script:DlGrid.Children[0].Children.Count)"
 $script:DlFilter = 'All'; $script:DlQuery = 'zz'; Set-AkariDownloadsFilter $false
 "dlNone=$($script:DlEmpty.Visibility)|$($script:DlEmpty.Tag.Text)"
 $script:DlQuery = ''; Set-AkariDownloadsFilter $false
-Add-AkariInstall 'instc'
-"dlInstalling=$($script:DlCards['instc'].State)|$($script:Job.Kind)|$($script:Job.Shared.Plan[0].Id)|$($script:Job.Shared.SkipRestore)"
+# several at once: a click on a card picks it (an installed one can't be), then Install (n)
+Click $script:DlCards['instc'].Row; Click $script:DlCards['inst'].Row
+"dlPicked=$($script:DlParts.GoText.Text)|$($script:DlParts.Count.Text)|$($script:DlCards['instc'].Selected),$($script:DlCards['inst'].Selected)|$($script:DlCards['instc'].Row.BorderThickness.Left)"
+Install-AkariSelected
+"dlInstalling=$($script:DlCards['instc'].State)|$($script:Job.Kind)|$($script:Job.Shared.Plan[0].Id)|$($script:Job.Shared.SkipRestore)|$($script:DlParts.GoText.Text)|$($script:DlCards['instc'].Check.Visibility)"
 $script:Busy = $false; $script:Job = $null
 Complete-AkariInstall ([hashtable]::Synchronized(@{ Outcomes = @([pscustomobject]@{ Id = 'instc'; Outcome = 'Applied' }) }))
-"dlInstalled=$($script:DlCards['instc'].State)|$($script:Activity[-1][0])|$($script:InstallQueue.Count)"
+"dlInstalled=$($script:DlCards['instc'].State)|$($script:Activity[-1][0])|$($script:InstallQueue.Count)|$($script:Toasts[-1][0])"
+# the way back for a removal (pure): a Store app's Store reinstall by package, a legacy app's install by RemoveWith
+$ix = New-AkariRestoreIndex @([pscustomobject]@{ Id = 'store/X'; Group = 'store'; Package = 'Pkg.X' }, [pscustomobject]@{ Id = 'install-od'; RemoveWith = 'apps-remove-onedrive' })
+"restoreIx=$((Get-AkariRestoreFor ([pscustomobject]@{ Id = 'appx/pkg.x'; Group = 'appx'; Package = 'pkg.x' }) $ix).Id)|$((Get-AkariRestoreFor ([pscustomobject]@{ Id = 'apps-remove-onedrive' }) $ix).Id)|$($null -eq (Get-AkariRestoreFor ([pscustomobject]@{ Id = 'feature/X'; Group = 'feature' }) $ix))"
+"gridCols=$(Get-AkariGridColumns 0 280),$(Get-AkariGridColumns 600 280),$(Get-AkariGridColumns 900 280),$(Get-AkariGridColumns 1000 220)"
 # Uninstall (an installed card's menu): asked with the names, one job, the card back to Install
 $script:answer = $true; Start-AkariUninstall @($script:DlCards['inst'].Tweak)
 "unJob=$($script:Job.Kind),$($script:Job.Shared.Ids -join ','),$($script:asked -replace "`n", '|')"
@@ -649,7 +675,7 @@ $script:answer = $true; Start-AkariUpdateApps
     It 'Guided''s Apps step: the Remove lists under a SelectorBar with Quick select, then the installs; Only installed hides the missing app' {
         $out.rows | Should Be '7'
         $out.visible | Should Be '6'
-        $out.guidedParts | Should Be 'Visible,Visible,Visible,Collapsed,Store apps/Optional features/Windows features/Legacy apps'
+        $out.guidedParts | Should Be 'Visible,Visible,Visible,Store apps/Optional features/Windows features/Legacy apps'
     }
     It 'Select recommended checks the installed Safe apps (Win11Debloat), their rows tinted' { $out.recommended | Should Be 'appx/Akari.Test.Safe|True' }
     It 'AkariOS checks every installed app but the keep-list (FR33THY)' { $out.removable | Should Be 'appx/Akari.Test.Extra,appx/Akari.Test.Opt,appx/Akari.Test.Safe|3 selected' }
@@ -683,28 +709,41 @@ $script:answer = $true; Start-AkariUpdateApps
     It 'gives the features that arrive late the last quick select (FR33THY: all but the keep-list)' {
         $out.lateSel | Should Be 'capability/App.StepsRecorder~~~~0.0.1.0,feature/WorkFolders-Client'
     }
-    It 'Remove apps: the lists alone, the accent Remove (n), disabled at 0' {
-        $out.rmPage | Should Be 'Remove apps|Collapsed,Collapsed,Visible,False'
-        $out.rmPicked | Should Be 'True,Remove (1),1 selected'
+    It 'Remove apps opens Downloads > Windows apps: the lists as cards, Remove (n) off at 0' {
+        $out.winPage | Should Be 'Downloads|Windows|Downloads|appx/Akari.Test.Extra,appx/Akari.Test.Gone,appx/Akari.Test.Kept,appx/Akari.Test.Opt,appx/Akari.Test.Safe|False|Visible,Collapsed'
+        $out.winGone | Should Be "Visible|Removed|Can't be put back here"
     }
-    It 'Remove asks with the names; Cancel starts nothing, Remove one job; each row collapses as the job gets to it' {
+    It 'a click on a card ticks its Remove, in Windows apps'' own Selection, outlined in the accent' {
+        $out.winPicked | Should Be 'True,Remove (1),1 selected|2|True|False'
+    }
+    It 'searches Windows apps and lays the shown cards out again' { $out.winSearch | Should Be '1|1' }
+    It 'gets the features from the one read, as cards' { $out.winFeatures | Should Be '1,1|' }
+    It 'Remove asks with the names; Cancel starts nothing, Remove one job; each card leaves as the job gets to it' {
         $out.rmCancel | Should Be 'True|Remove 1 app?|Optional app./Store apps can be reinstalled from the Microsoft Store or Downloads.'
         $out.rmJob | Should Be 'Remove,appx/Akari.Test.Opt,Removing 1 app'
-        $out.rmGone | Should Be '1|0'
+        $out.rmGone | Should Be '1|Collapsed|True'
         $out.rmDone | Should Be 'Removed|0|True'
     }
-    It 'Downloads: a card per install, Install at first, then Installed for what is on this PC' {
-        $out.dlPage | Should Be 'Downloads|inst,instc|AppsInstalled'
-        $out.dlStart | Should Be 'Button'
-        $out.dlMarked | Should Be 'Installed|'
+    It 'a removed app that can come back has Install: queued with the installs, the card back when it fails' {
+        $out.restoreBtn | Should Be 'Button|appx/Akari.Test.Gone'
+        $out.restoring | Should Be 'True|inst|Install|inst'
+        $out.restoreFailed | Should Be 'False|Button|Inst app was not installed|no network'
     }
-    It 'Downloads filters by category and search, with an empty state' {
-        $out.dlGaming | Should Be 'Visible,Collapsed'
+    It 'External apps: a store card per install (no Store reinstalls), Install at first, then Installed with its menu' {
+        $out.dlPage | Should Be 'Downloads|inst,instc|AppsInstalled'
+        $out.dlStart | Should Be 'Button|winget: Akari.Test.Inst'
+        $out.dlMarked | Should Be 'Installed||Collapsed|True'
+    }
+    It 'External apps filters by category and search, one grid row for the shown cards, with an empty state' {
+        $out.dlGaming | Should Be 'Visible,Collapsed|1|1'
         $out.dlNone | Should Be 'Visible|No apps match "zz"'
     }
-    It 'Install runs one job with no restore point, then the card says Installed' {
-        $out.dlInstalling | Should Be 'Installing|Install|instc|True'
-        $out.dlInstalled | Should Be 'Installed|Installed Paid app|0'
+    It 'finds the way back for a removal: the Store reinstall by package, a legacy app''s install, none for a feature' { $out.restoreIx | Should Be 'store/X|install-od|True' }
+    It 'fits as many columns of the minimum width as the grid''s width allows' { $out.gridCols | Should Be '1,2,3,4' }
+    It 'picks cards with a click (not an installed one); Install (n) queues them, no restore point' {
+        $out.dlPicked | Should Be 'Install (1)|1 selected|True,False|2'
+        $out.dlInstalling | Should Be 'Installing|Install|instc|True|Install|Collapsed'
+        $out.dlInstalled | Should Be 'Installed|Installed Paid app|0|Paid app is installed'
     }
     It 'Uninstall asks with the name, runs one job, and the card goes back to Install' {
         $out.unJob | Should Be 'Uninstall,inst,Uninstall these apps?||- Inst app'

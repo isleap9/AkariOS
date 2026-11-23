@@ -30,7 +30,7 @@ function Show-Page {
     switch ($script:Cat) {
         'Install AkariOS' { Show-AkariSteps }
         'Downloads' { Show-AkariDownloads }
-        'Remove apps' { Show-AkariRemoveApps }
+        'Remove apps' { $script:Cat = 'Downloads'; $script:DlSection = 'Windows'; Show-AkariDownloads }
         default { $script:shownPage = $script:Cat }
     }
 }

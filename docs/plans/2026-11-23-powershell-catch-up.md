@@ -89,7 +89,7 @@ AGENTS.md updated, this line marked done, one commit, then the VM check.
 | --- | --- | --- |
 | P1 | Guided: filter boxes on the Apps and Tweaks steps; crumbs naming the step | done 2026-11-23 |
 | P2 | Shell titles as a crumb line over the heading; Optimize's drill-down (Section page of Category rows, Category pages) |done 2026-11-23 |
-| P3 | Downloads: two sections, store cards, selection and Install (n), Install for removed apps; card grid rows; Remove apps page and nav item gone; changes and installs queue while a job runs; one closing question | |
+| P3 | Downloads: two sections, store cards, selection and Install (n), Install for removed apps; card grid rows; Remove apps page and nav item gone; changes and installs queue while a job runs; one closing question |done 2026-11-23 |
 | P4 | ISO I1: the wizard over today's engine | |
 | P5 | ISO I2: operations, the build page, report.json, size and SHA-256 | |
 | P6 | ISO I3: build settings | |

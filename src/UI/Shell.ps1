@@ -177,7 +177,6 @@ $Pages = [ordered]@{
     'Install AkariOS'   = @{ Glyph = 'zap' }
     Optimize            = @{ Glyph = 'sliders-horizontal' }
     Downloads           = @{ Glyph = 'download' }
-    'Remove apps'       = @{ Glyph = 'trash-2' }
     'Install USB'       = @{ Glyph = 'usb' }
     'ISO Builder'       = @{ Glyph = 'disc-3' }
     Settings            = @{ Glyph = 'settings' }
@@ -260,7 +259,7 @@ function Add-Log([string]$m) {
 
 # ---- the NavigationView: its items (a NavItem radio button each: the icon, regular and filled for the selected one in
 # AccText, the label, Optimize's chevron) and Optimize's sections indented under it (NavKids)
-$AkariNav = [ordered]@{ Home = 'house'; 'Install AkariOS' = 'zap'; Optimize = 'sliders-horizontal'; Downloads = 'download'; 'Remove apps' = 'trash-2'; 'Install USB' = 'usb'; 'ISO Builder' = 'disc-3' }
+$AkariNav = [ordered]@{ Home = 'house'; 'Install AkariOS' = 'zap'; Optimize = 'sliders-horizontal'; Downloads = 'download'; 'Install USB' = 'usb'; 'ISO Builder' = 'disc-3' }
 $script:NavItems = [ordered]@{}
 $script:NavSync = $false
 
@@ -495,7 +494,6 @@ function Show-AkariPageNow {
                 'Install AkariOS' { Show-AkariSteps }
                 'Optimize' { Show-AkariOptimize }
                 'Downloads' { Show-AkariDownloads }
-                'Remove apps' { Show-AkariRemoveApps }
                 'Install USB' { Show-AkariUnattend }
                 'ISO Builder' { Show-AkariIsoBuilder }
                 'Settings' { Show-AkariSettings }
@@ -521,6 +519,8 @@ function Show-AkariPageNow {
 function Open-AkariPage([string]$Name, [string]$From) {
     if ($Name -eq 'Unattend Generator') { $Name = 'Install USB' }
     if ($Name -eq 'About') { $Name = 'Settings' }
+    # the Remove apps page is Downloads' Windows apps now
+    if ($Name -eq 'Remove apps') { $Name = 'Downloads'; $script:DlSection = 'Windows' }
     if ($Name -ne $script:Cat -or $script:Query) { Push-AkariHistory }
     $script:Cat = $Name
     $script:Query = ''
@@ -887,4 +887,29 @@ $window.Dispatcher.Add_UnhandledException({
     Add-Log "Error: UI: $($ev.Exception.Message)"
     Set-Busy $false
 })
-$window.Add_Closing({ $timer.Stop() })
+# ---- closing while something runs or waits: one question naming it all (the native app's ClosingGuard), then, with
+# nothing running, the Safe Mode changes waiting (Request-AkariSafeModeClose, UI\CataloguePage.ps1)
+function Get-AkariRunningLines {
+    @(
+        if ($script:Job -and "$($script:Job.Kind)" -ne 'AppsInstalled') { if ($script:Job.Label) { [string]$script:Job.Label } else { [string]$script:BusyLabel } }
+        $w = @($script:InstallQueue).Count - $(if ($script:Installing) { 1 } else { 0 })
+        if ($w -gt 0) { "$w app$(if ($w -ne 1) { 's' }) waiting to install" }
+        $c = @($script:CatQueue).Count
+        if ($c -gt 0) { "$c change$(if ($c -ne 1) { 's' }) from Optimize waiting" }
+    )
+}
+# the question's text (pure)
+function Get-AkariClosingText([string[]]$Lines) {
+    "These are still running:`n" + ((@($Lines) | ForEach-Object { "- $_" }) -join "`n") +
+        "`n`nClose AkariOS anyway? What is running may be left half done, and what waits won't run."
+}
+$window.Add_Closing({
+    param($s, $ev)
+    $lines = @(Get-AkariRunningLines)
+    if ($lines.Count) {
+        if (-not (Confirm-AkariDialog (Get-AkariClosingText $lines) 'Close anyway' 'Wait' 'Warning' 'Close AkariOS?')) { $ev.Cancel = $true; return }
+    } elseif (Get-Command Request-AkariSafeModeClose -ErrorAction SilentlyContinue) {
+        if (Request-AkariSafeModeClose) { $ev.Cancel = $true; return }
+    }
+    $timer.Stop()
+})

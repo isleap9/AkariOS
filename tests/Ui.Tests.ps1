@@ -353,13 +353,13 @@ Describe 'Motion (UI\Motion.ps1, UI\Motion.xaml)' {
         @($ps | Where-Object { (Get-Content $_.FullName -Raw) -match '\.BeginAnimation\(' } | ForEach-Object Name) -join ', ' | Should Be ''
     }
     # ADR 0008: only the pane's width, an expander's body and an InfoBar animate a size, through Set-AkariSize
-    It 'animates a size only through Set-AkariSize (the pane, expanders, InfoBars) and the Remove apps rows' {
+    It 'animates a size only through Set-AkariSize (the pane, expanders, InfoBars)' {
         $hits = foreach ($f in Get-ChildItem "$Root\UI\*.ps1" | Where-Object Name -ne 'Motion.ps1') {
             Select-String -Path $f.FullName -Pattern 'Start-AkariMotion\s+\S+\s+(Width|Height)\b' | ForEach-Object { "$($_.Filename):$($_.LineNumber)" }
         }
         @($hits) -join ', ' | Should Be ''
         $calls = foreach ($f in Get-ChildItem "$Root\UI\*.ps1") { Select-String -Path $f.FullName -Pattern 'Set-AkariSize \$(\S+) (Width|Height)' | ForEach-Object { "$($_.Matches[0].Groups[1].Value) $($_.Matches[0].Groups[2].Value)" } }
-        (@($calls | Sort-Object -Unique) -join ',') | Should Be 'Bar Height,c.Head.Tag Height,Nav Width,r Height,s.Tag Height,script:NavKids Height'
+        (@($calls | Sort-Object -Unique) -join ',') | Should Be 'Bar Height,c.Head.Tag Height,Nav Width,s.Tag Height,script:NavKids Height'
     }
 
     It 'parses every UI XAML file with motion on and off; Start-AkariMotion animates, or sets the end values' {
@@ -803,7 +803,16 @@ $h = $script:History.Count; Step-AkariHistoryBack; "back=$script:Cat|$($script:H
 # the other pages
 Select-AkariPage 'Downloads'; "downloads=$script:Cat|$(NavOn)|$(Crumbs)"
 Open-AkariSuggestion 'cat-tog2'; "suggestOpen=$script:Cat|$(Crumbs)|$script:FlashId"
-Select-AkariPage 'Remove apps'; "remove=$script:Cat|$(NavOn)|$($script:AppsParts.RemoveGo.IsEnabled)|$($script:AppsParts.RemoveGo.Visibility)|$(($script:AppsParts.Selector.Items.Children | ForEach-Object { $_.Tag }) -join ',')"
+Select-AkariPage 'Remove apps'; "remove=$script:Cat|$(NavOn)|$script:DlSection|$($script:Win.Go.IsEnabled)|$(@($script:Win.Grids.Keys) -join ',')|$(($script:DlSections.Items.Children | ForEach-Object { $_.Tag }) -join ',')"
+# closing: one question naming what runs and waits (the job, installs waiting, Optimize's queue)
+$hold = @{ Job = $script:Job; Q = @($script:InstallQueue); C = @($script:CatQueue) }
+$script:Job = @{ Kind = 'Install'; Label = 'Installing Steam' }; $script:Installing = 'steam'
+$script:InstallQueue.Clear(); foreach ($x in 'steam', 'discord', 'brave') { $script:InstallQueue.Add($x) }
+$script:CatQueue.Clear(); $script:CatQueue.Add(@{ Id = 'x' })
+"closing=$((Get-AkariRunningLines) -join '|')"
+"closingText=$((Get-AkariClosingText @('Installing Steam', '2 apps waiting to install')) -replace "`n", '/')"
+$script:Job = $hold.Job; $script:Installing = $null; $script:InstallQueue.Clear(); $script:CatQueue.Clear()
+"closingNone=$(@(Get-AkariRunningLines).Count)"
 Select-AkariPage 'Install USB'; "usb=$script:Cat|$(NavOn)|$($script:UaSections.Count -eq $script:UnattendSpec.Sections.Count)|$($script:UaSections[0].Desc.Text)|$($script:UnattendParts.Usb.IsEnabled)|$($script:UnattendParts.DriveName.Text)"
 Select-AkariPage 'Unattend Generator'; "usbOld=$script:Cat"
 # the Catalogue's job above never ends here: free the job slot first
@@ -875,7 +884,7 @@ function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My
 
     It 'builds without errors' { $out['error'] | Should BeNullOrEmpty }
     It 'the nav pane: the pages, Optimize''s five sections, Settings at the bottom, 280 px' {
-        $out.nav | Should Be 'Home,Install AkariOS,Optimize,Catalogue:Optimize,Catalogue:Customize,Catalogue:Hardware,Catalogue:Advanced,Catalogue:Tools,Downloads,Remove apps,Install USB,ISO Builder,Settings'
+        $out.nav | Should Be 'Home,Install AkariOS,Optimize,Catalogue:Optimize,Catalogue:Customize,Catalogue:Hardware,Catalogue:Advanced,Catalogue:Tools,Downloads,Install USB,ISO Builder,Settings'
         $out.navFoot | Should Be 'Settings|280'
     }
     It 'Home: no header, its nav item selected, no history yet' { $out.home | Should Be 'Visible|Home|Collapsed|False' }
@@ -926,9 +935,14 @@ function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My
     }
     It 'the Legacy pages open from Optimize, legacy rows only' { $out.legacy | Should Be 'Check|Optimize|Optimize>Check|1' }
     It 'Back returns to the page before' { $out.back | Should Be 'Search|True' }
-    It 'Downloads, Remove apps, Install USB and the ISO Builder are pages of their own' {
+    It 'Downloads (Remove apps = its Windows apps), Install USB and the ISO Builder are pages of their own' {
         $out.downloads | Should Be 'Downloads|Downloads|Downloads'
-        $out.remove | Should Be 'Remove apps|Remove apps|False|Visible|Store apps,Optional features,Windows features,Legacy apps'
+        $out.remove | Should Be 'Downloads|Downloads|Windows|False|Store apps,Optional features,Windows features,Legacy apps|Windows apps,External apps'
+    }
+    It 'closing asks once, naming the job, the installs waiting and Optimize''s changes waiting' {
+        $out.closing | Should Be 'Installing Steam|2 apps waiting to install|1 change from Optimize waiting'
+        $out.closingText | Should Be "These are still running:/- Installing Steam/- 2 apps waiting to install//Close AkariOS anyway? What is running may be left half done, and what waits won't run."
+        $out.closingNone | Should Be '0'
         $out.usb | Should Be 'Install USB|Install USB|True|Default|False|No Windows setup USB found'
         $out.usbOld | Should Be 'Install USB'
         $out.iso | Should Be 'ISO Builder|ISO Builder|10|False'

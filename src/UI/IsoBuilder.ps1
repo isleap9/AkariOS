@@ -541,12 +541,5 @@ function Complete-AkariIsoJob($Job) {
     }
 }
 
-# closing while an ISO is being built or downloaded stops it: ask first (the next launch discards a half-built image)
-if ($window) {
-    $window.Add_Closing({
-        param($s, $e)
-        if ($script:Job -and "$($script:Job.Kind)" -in 'IsoBuild', 'IsoUup', 'IsoOpen', 'IsoRead') {
-            if (-not (Confirm-AkariDialog "The ISO Builder is still working ($($script:Job.Label)). Closing stops it; a half-built image is discarded the next time Akari starts.`n`nClose anyway?" 'Close' 'Keep working' 'Warning' 'ISO Builder')) { $e.Cancel = $true }
-        }
-    })
-}
+# closing while an ISO job runs: the Shell's one closing question names it (Get-AkariRunningLines; the next launch
+# discards a half-built image)

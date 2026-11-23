@@ -558,15 +558,13 @@ function Complete-AkariCatalogueSafeRun($Shared) {
 }
 
 # closing Akari with Safe Mode changes waiting: apply them (one restart) or discard them
-$window.Add_Closing({
-    param($s, $ev)
-    if (-not $script:SafePending.Count -or $script:Job) { return }
+# closing with changes waiting for Safe Mode (the Shell's closing question, once nothing runs): Restart and apply them
+# now (closing is cancelled: the Run restarts the PC) or discard them. $true = keep the window open
+function Request-AkariSafeModeClose {
+    if (-not $script:SafePending.Count -or $script:Job) { return $false }
     $n = $script:SafePending.Count
     $r = Show-AkariDialog "$n change$(if ($n -ne 1) { 's are' } else { ' is' }) waiting for Safe Mode. Restart and apply $(if ($n -ne 1) { 'them' } else { 'it' }) now, or discard $(if ($n -ne 1) { 'them' } else { 'it' })?" 'AkariOS' @('Discard', 'Restart and apply') 'Question'
-    if ($r -eq 'Restart and apply') {
-        $ev.Cancel = $true
-        # UI\Shell.ps1 stopped its timer on Closing: it must run to finish the job
-        $timer.Start()
-        Start-AkariCatalogueSafeRun
-    }
-})
+    if ($r -ne 'Restart and apply') { return $false }
+    Start-AkariCatalogueSafeRun
+    $true
+}

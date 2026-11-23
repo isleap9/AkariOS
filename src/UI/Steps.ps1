@@ -106,6 +106,7 @@ function Step-AkariForward {
         2 {
             $n = $script:Sel.Count
             if (-not $n) { return }
+            if ($script:Busy) { Show-AkariMessage "$($script:BusyLabel) is still running. Apply these when it is done." 'Info' 'Install AkariOS'; return }
             if (-not (Confirm-AkariDialog 'Akari makes a restore point first. You can switch any Tweak back later in Optimize.' 'Apply' 'Cancel' 'Question' "Apply $n change$(if ($n -ne 1) { 's' })?")) { return }
             Start-AkariApply
         }
@@ -506,7 +507,8 @@ function Confirm-AkariOneClick {
 function Start-AkariOneClick {
     $path = "$Root\Presets\AkariOS.json"
     if (-not (Test-Path $path)) { Show-AkariMessage "Missing: $path" 'Error'; return }
-    if ($script:Busy -or -not (Confirm-AkariOneClick)) { return }
+    if ($script:Busy) { Show-AkariMessage "$($script:BusyLabel) is still running. Start One-click when it is done." 'Info' 'One-click'; return }
+    if (-not (Confirm-AkariOneClick)) { return }
     # asked here, in the window; Akari.ps1 makes it in the console before phase 1
     $script:OneClickRestore = Get-AkariRestoreChoice 'OneClick'
     Write-ErrLog "One-click started: $path"
@@ -731,7 +733,7 @@ function Get-AkariRestoreChoice([string]$Flow) {
 
 # runs a plan in the job: the Selection (Guided: the run page, then the result), or $Plan under $Label (an install, Update
 # all apps, Remove apps). -Restore: the flow whose restore point rule applies (none given with a $Plan = no restore point).
-# -Kind: Apply (Guided's run page), Install (a Downloads card), Remove (Remove apps' rows).
+# -Kind: Apply (Guided's run page), Install (a Downloads card), Remove (Downloads' Windows apps cards).
 function Start-AkariApply($Plan = $null, [string]$Label = '', [string]$Restore = '', [string]$Kind = 'Apply') {
     if ($script:Busy -or -not ($Plan -or $script:Sel.Count)) { return }
     $q = { param($s) "'" + ([string]$s -replace "'", "''") + "'" }
@@ -753,7 +755,9 @@ if (-not `$AkariShared.SkipRestore) {
 "@
     $n = $items.Count
     $label = if ($Label) { $Label } else { 'Applying changes' }
-    Set-Busy $true $label $($Kind -ne 'Install')
+    # the page stays usable (the native app's rule): Optimize's changes and Downloads' installs made meanwhile wait for
+    # this job (Start-AkariCatalogueNext, Start-AkariInstallNext); Guided's run page has nothing to click
+    Set-Busy $true $label $false
     Add-Log "$label ($n)"
     $script:Job = Start-AkariJob $code $script:Queue "$Root\Core" $shared
     $script:Job.Label = $label
@@ -895,7 +899,7 @@ function Complete-AkariApply($Shared, [string]$Kind = 'Apply') {
     Clear-AkariAppsView
     if ($Kind -eq 'Remove') {
         $script:RemovingRows = $null
-        $script:Sel = New-AkariSelection
+        $script:WinSel = New-AkariSelection
         Add-AkariActivity "Removed $ok app$(if ($ok -ne 1) { 's' })" 'Remove apps' $ok 'trash-2'
         $bad = @($out | Where-Object { $_.Outcome -eq 'Failed' }).Count
         Show-AkariToast 'Removed' $("$ok app$(if ($ok -ne 1) { 's are' } else { ' is' }) gone." + $(if ($bad) { " $bad failed: see the log." } else { '' }))
