@@ -396,6 +396,11 @@ function New-AkariTweaksToolbar {
     $show.Margin = [Windows.Thickness]::new(8, 0, 0, 0)
     $show.Add_Click({ param($s, $a) $script:UseState = [bool]$s.IsChecked; Reset-AkariTweakRows })
     foreach ($x in $quick, $clear, $show) { [void]$bar.Children.Add($x) }
+    # the filter box (the native app's): rows by name and description, every Category it matches opened
+    $script:TweaksQuery = ''
+    $fb = New-AkariFilterBox 'Filter tweaks' 280 { param($q) Set-AkariTweaksFilter $q }
+    $fb.Box.Margin = [Windows.Thickness]::new(8, 0, 0, 0); $fb.Box.VerticalAlignment = 'Center'
+    [void]$bar.Children.Add($fb.Box)
     $bar
 }
 
@@ -433,7 +438,7 @@ function Get-AkariTweaksView {
                 $script:TweakRows[$id] = $e
                 [void]$ex.Body.Children.Add($e.Row)
             }
-            $script:TweakCards += @{ Card = $ex.Card; Count = $ex.Count; Ids = @($c.Ids); Section = $g.Section; Body = $ex.Body }
+            $script:TweakCards += @{ Card = $ex.Card; Head = $ex.Head; Count = $ex.Count; Ids = @($c.Ids); Section = $g.Section; Body = $ex.Body }
             [void]$view.Children.Add($ex.Card)
         }
         $script:TweakSections += $sec
@@ -451,8 +456,11 @@ function Update-AkariTweakCounts {
     }
 }
 
-# the search on the Tweaks step: hide rows that don't match, then expanders left empty, then empty Sections
-function Set-AkariTweaksFilter([string]$q) {
+# the filter box on the Tweaks step: hide rows that don't match, then expanders left empty, then empty Sections; a
+# filter opens every Category it matches. No argument = the box's query ($script:TweaksQuery)
+function Set-AkariTweaksFilter($q = $null) {
+    if ($null -ne $q) { $script:TweaksQuery = "$q".Trim() }
+    $q = $script:TweaksQuery
     if (-not $script:TweaksView) { return }
     foreach ($e in $script:TweakRows.Values) {
         $hit = (-not $q) -or ("$($e.Tweak.Name) $($e.Tweak.Description)" -like "*$q*")
@@ -461,6 +469,7 @@ function Set-AkariTweaksFilter([string]$q) {
     foreach ($c in $script:TweakCards) {
         $any = @($c.Body.Children | Where-Object { $_.Visibility -eq 'Visible' }).Count -gt 0
         $c.Card.Visibility = if ($any) { 'Visible' } else { 'Collapsed' }
+        if ($q -and $any -and -not $c.Head.IsChecked) { $c.Head.IsChecked = $true; Set-AkariSize $c.Head.Tag Height 'Auto' Base }
     }
     foreach ($sec in $script:TweakSections) {
         $any = @($script:TweakCards | Where-Object { $_.Section -eq $sec.Section -and $_.Card.Visibility -eq 'Visible' }).Count -gt 0
@@ -623,17 +632,17 @@ function Show-AkariSteps {
     if ($script:AppsView -and $script:AppsView.Parent) { $script:AppsView.Parent.Children.Remove($script:AppsView) }
     if ($script:Mode -ne 'Guided') { Show-AkariChooser; return }
     if ($script:Step -eq 3) { if ($script:Running) { Show-AkariRun } else { Show-AkariResult }; return }
-    Set-AkariHeader @(@('Install AkariOS', 'Install AkariOS'), 'Guided')
+    Set-AkariHeader @(@('Install AkariOS', 'Install AkariOS'), $AkariStepNames[$script:Step])
     [void]$StepBody.Children.Add((New-AkariStepsHeader $script:Step))
     Set-AkariFooter $true
     switch ($script:Step) {
         0 {
             [void]$StepBody.Children.Add((Get-AkariAppsView))
-            if ($script:AppsView) { Set-AkariAppsOnly ''; Set-AkariAppsFilter '' }
+            if ($script:AppsView) { Set-AkariAppsOnly ''; Set-AkariAppsFilter }
             # the Tweaks step's States are read meanwhile, so Next finds them in
             if (-not $AkariReadInline) { Start-AkariTweakStates }
         }
-        1 { [void]$StepBody.Children.Add((Get-AkariTweaksView)); Set-AkariTweaksFilter '' }
+        1 { [void]$StepBody.Children.Add((Get-AkariTweaksView)); Set-AkariTweaksFilter }
         2 { Show-AkariReview }
     }
     Update-AkariStepFooter

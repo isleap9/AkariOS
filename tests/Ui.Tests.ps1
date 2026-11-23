@@ -359,7 +359,7 @@ Describe 'Motion (UI\Motion.ps1, UI\Motion.xaml)' {
         }
         @($hits) -join ', ' | Should Be ''
         $calls = foreach ($f in Get-ChildItem "$Root\UI\*.ps1") { Select-String -Path $f.FullName -Pattern 'Set-AkariSize \$(\S+) (Width|Height)' | ForEach-Object { "$($_.Matches[0].Groups[1].Value) $($_.Matches[0].Groups[2].Value)" } }
-        (@($calls | Sort-Object -Unique) -join ',') | Should Be 'Bar Height,Nav Width,r Height,s.Tag Height,script:NavKids Height'
+        (@($calls | Sort-Object -Unique) -join ',') | Should Be 'Bar Height,c.Head.Tag Height,Nav Width,r Height,s.Tag Height,script:NavKids Height'
     }
 
     It 'parses every UI XAML file with motion on and off; Start-AkariMotion animates, or sets the end values' {
@@ -880,7 +880,7 @@ function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My
         $out.homeStatsDone | Should Be '12|34'
     }
     It 'Choose changes opens Guided on its first step, with the footer and a breadcrumb' {
-        $out.choose | Should Be 'Install AkariOS|Guided|0|Install AkariOS|Visible|Install AkariOS>Guided|Step 1 of 3 . Apps|Cancel|True'
+        $out.choose | Should Be 'Install AkariOS|Guided|0|Install AkariOS|Visible|Install AkariOS>Apps|Step 1 of 3 . Apps|Cancel|True'
         $out.next | Should Be '1|Step 2 of 3 . Tweaks'
     }
     It 'Back walks the steps of a flow, Cancel goes back to the chooser' {

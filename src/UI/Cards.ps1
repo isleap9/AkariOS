@@ -347,6 +347,22 @@ function Set-AkariSelectorValue($Bar, [string]$Value) {
     try { foreach ($rb in $Bar.Items.Children) { if ([string]$rb.Tag -eq $Value -and -not $rb.IsChecked) { $rb.IsChecked = $true } } } finally { $Bar.State.Quiet = $false }
 }
 
+# a filter box (Downloads' search, Guided's Apps and Tweaks steps): a Flat TextBox with its hint and a search icon.
+# $Changed gets the trimmed text on every key. Returns @{ Box (the Grid to add); Text (the TextBox) }
+function New-AkariFilterBox([string]$Hint, [double]$Width, [scriptblock]$Changed) {
+    $sb = [Windows.Controls.Grid]::new(); $sb.Width = $Width
+    $q = [Windows.Controls.TextBox]::new()
+    $q.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Flat')
+    $q.Padding = [Windows.Thickness]::new(10, 5, 32, 6)
+    $h = New-AkariText $Hint 14 'Ter'
+    $h.IsHitTestVisible = $false; $h.Margin = [Windows.Thickness]::new(12, 0, 0, 1); $h.VerticalAlignment = 'Center'
+    $ic = New-AkariIcon 'search' 14 'Mu'; $ic.HorizontalAlignment = 'Right'; $ic.Margin = [Windows.Thickness]::new(0, 0, 10, 0); $ic.IsHitTestVisible = $false
+    [void]$sb.Children.Add($q); [void]$sb.Children.Add($h); [void]$sb.Children.Add($ic)
+    $q.Tag = @{ Hint = $h; Changed = $Changed }
+    $q.Add_TextChanged({ param($s, $a) $s.Tag.Hint.Visibility = if ($s.Text) { 'Collapsed' } else { 'Visible' }; & $s.Tag.Changed $s.Text.Trim() })
+    @{ Box = $sb; Text = $q }
+}
+
 # a button with its text and click (an InfoBar's action, Open log, Done)
 function New-AkariBarButton([string]$Text, [scriptblock]$Click, [string]$Style = 'Btn') {
     $b = [Windows.Controls.Button]::new()

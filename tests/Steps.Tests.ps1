@@ -129,9 +129,14 @@ $script:UseState = $true; Reset-AkariTweakRows
 $script:TweakRows['tog'].Control.IsChecked = $true; Step-AkariCheck 'tog'
 $script:TweakRows['opt'].Control.IsChecked = $false; Step-AkariCheck 'opt'
 Set-AkariChoiceTarget 'ch' 0x28
-Set-AkariTweaksFilter 'Ch'
+# the filter box above the Tweaks: typing hides what doesn't match and opens the Categories that do
+$chCard = $script:TweakCards | Where-Object { $_.Ids -contains 'ch' }
+$chHead = $chCard.Head; $chHead.IsChecked = $false; $chBefore = [bool]$chHead.IsChecked
+$tweakBox = @($script:TweaksView.Children[1].Children | Where-Object { $_ -is [Windows.Controls.Grid] })[0].Children[0]
+$tweakBox.Text = 'Ch'
 "togHidden=$($script:TweakRows['tog'].Row.Visibility)"; "togCardHidden=$($script:TweakRows['tog'].Card.Visibility)"
-Set-AkariTweaksFilter ''
+"chOpened=$chBefore|$($chHead.IsChecked)|$script:TweaksQuery"
+$tweakBox.Text = ''
 Click $StepNext
 "review=$script:Step|$(($StepBody.Children | ForEach-Object { $_.GetType().Name }) -join ',')|$($StepNext.Content)|$($StepLabel.Text -replace '[^ -~]', '.')"
 "sums=$(($StepBody.Children[1].Children | ForEach-Object { $_.Child.Children[0].Text }) -join ',')"
@@ -163,7 +168,7 @@ Click $StepBack; Click $StepBack
         $out.closed | Should Be 'True'
     }
     It 'Guided starts on Apps: the footer slides up with Step 1 of 3, Cancel and Next, a breadcrumb' {
-        $out.mode | Should Be 'Guided|0|Visible|Next|Cancel|Step 1 of 3 . Apps|Install AkariOS>Guided'
+        $out.mode | Should Be 'Guided|0|Visible|Next|Cancel|Step 1 of 3 . Apps|Install AkariOS>Apps'
     }
     It 'Tweaks: a row per Tweak in an expander per Category, the step header numbers the steps, Apps done' {
         $out.s1 | Should Be '1|Next|True|4|3|Step 2 of 3 . Tweaks|Back'
@@ -180,9 +185,10 @@ Click $StepBack; Click $StepBack
         $out.plainSel | Should Be '0'
         $out.backOpt | Should Be 'True'
     }
-    It 'filters rows by search and hides emptied expanders' {
+    It 'filters rows from its filter box, hides emptied expanders and opens the matching ones' {
         $out.togHidden | Should Be 'Collapsed'
         $out.togCardHidden | Should Be 'Collapsed'
+        $out.chOpened | Should Be 'False|True|Ch'
     }
     It 'Review: three summary cards and the changes, Apply n changes; planned in order: Apply, Revert, Choice' {
         $out.review | Should Be '2|StackPanel,UniformGrid,Border,Border,Border|Apply 3 changes|Step 3 of 3 . Review & Apply'
@@ -558,9 +564,11 @@ $e = $script:AppRows['appx/Akari.Test.Opt']; $e.Control.IsChecked = $true; Step-
 "badges=$($e.Row.Child.Children[2].Children[0].Tag)|$($null -eq $script:AppRows['appx/Akari.Test.Safe'].Row.Child.Children[2].Children[0].Tag)"
 $script:OnlyInstalled = $false; Set-AkariAppsFilter ''
 "allVisible=$(@($script:AppRows.Values | Where-Object { $_.Row.Visibility -eq 'Visible' }).Count)"
-Set-AkariAppsFilter 'Optional'
-"searched=$(@($script:AppRows.Values | Where-Object { $_.Row.Visibility -eq 'Visible' }).Count)"
-Set-AkariAppsFilter ''
+$p.Filter.Text = 'Optional'
+"searched=$(@($script:AppRows.Values | Where-Object { $_.Row.Visibility -eq 'Visible' }).Count)|$script:AppsQuery"
+$script:OnlyInstalled = $true; Set-AkariAppsFilter
+"onlyKeepsQuery=$(@($script:AppRows.Values | Where-Object { $_.Row.Visibility -eq 'Visible' }).Count)|$script:AppsQuery"
+$script:OnlyInstalled = $false; $p.Filter.Text = ''
 # the Remove lists: one at a time under the SelectorBar
 Show-AkariRemoveList 'Optional features'
 "lists=$($p.StoreTable.Card.Visibility),$($p.CapTable.Card.Visibility)"
@@ -650,9 +658,10 @@ $script:answer = $true; Start-AkariUpdateApps
         $out.review | Should Be 'Optional app:Remove'
         $out.badges | Should Be 'Caution|True'
     }
-    It 'filters by Only installed and by search' {
+    It 'filters by Only installed and from its filter box, Only installed keeping the typed filter' {
         $out.allVisible | Should Be '7'
-        $out.searched | Should Be '1'
+        $out.searched | Should Be '1|Optional'
+        $out.onlyKeepsQuery | Should Be '1|Optional'
     }
     It 'shows one Remove list at a time' { $out.lists | Should Be 'Collapsed,Visible' }
     It 'installs: tickable cards, the winget id as source, a Caution one marked, reviewed as Install' {

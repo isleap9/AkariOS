@@ -8,6 +8,7 @@
 $script:AppRows = [ordered]@{}
 $script:AppsView = $null
 $script:OnlyInstalled = $true
+$script:AppsQuery = ''
 $script:AppTab = 'Remove'
 # the last quick select, applied again to the feature rows that arrive after it
 $script:AppsPick = $null
@@ -444,8 +445,10 @@ function Update-AkariAppsStatus {
     if ($StepNext) { Update-AkariStepFooter }
 }
 
-# search and "Only installed": hide the rows that don't match
-function Set-AkariAppsFilter([string]$q) {
+# the filter box and "Only installed": hide the rows that don't match. No argument = the box's query ($script:AppsQuery)
+function Set-AkariAppsFilter($q = $null) {
+    if ($null -ne $q) { $script:AppsQuery = "$q".Trim() }
+    $q = $script:AppsQuery
     foreach ($e in $script:AppRows.Values) {
         $hit = (-not $q) -or ("$($e.Tweak.Name) $($e.Tweak.Description) $(Get-AkariAppSource $e.Tweak)" -like "*$q*")
         if ($script:OnlyInstalled -and -not $e.Installed) { $hit = $false }
@@ -526,7 +529,7 @@ function Complete-AkariFeatureRead([string[]]$Capabilities, [string[]]$Features,
             Select-AkariApps $script:AppsPick @($script:AppRows.Values | Where-Object { $_.Tweak.Id -in $ids })
         }
     }
-    Set-AkariAppsFilter ''
+    Set-AkariAppsFilter
     Update-AkariAppsStatus
 }
 
@@ -670,8 +673,14 @@ function Get-AkariAppsView {
     $only.IsChecked = $script:OnlyInstalled
     $only.VerticalAlignment = 'Center'
     $only.Margin = [Windows.Thickness]::new(8, 0, 0, 0)
-    $only.Add_Click({ param($s, $a) $script:OnlyInstalled = [bool]$s.IsChecked; Set-AkariAppsFilter '' })
+    $only.Add_Click({ param($s, $a) $script:OnlyInstalled = [bool]$s.IsChecked; Set-AkariAppsFilter })
     [void]$left.Children.Add($only)
+    # the filter box (the native app's): Remove's lists and Install's cards, by name, description and source
+    $script:AppsQuery = ''
+    $fb = New-AkariFilterBox 'Filter apps' 240 { param($q) Set-AkariAppsFilter $q }
+    $fb.Box.Margin = [Windows.Thickness]::new(8, 0, 0, 0); $fb.Box.VerticalAlignment = 'Center'
+    $p.Filter = $fb.Text
+    [void]$left.Children.Add($fb.Box)
     [void]$bar.Children.Add($left)
     $p.RemoveBar = $bar
     [void]$view.Children.Add($bar)
@@ -719,7 +728,7 @@ function Get-AkariAppsView {
     $script:AppsNew = $true
     # the feature lists take seconds: read once the view is built
     Start-AkariFeatureRead
-    Set-AkariAppsFilter ''
+    Set-AkariAppsFilter
     Update-AkariAppsStatus
     $view
 }
@@ -773,17 +782,8 @@ function Get-AkariDownloadsView {
     $bar = [Windows.Controls.DockPanel]::new()
     $bar.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
     $right = [Windows.Controls.StackPanel]::new(); $right.Orientation = 'Horizontal'; $right.VerticalAlignment = 'Top'
-    $sb = [Windows.Controls.Grid]::new(); $sb.Width = 220
-    $q = [Windows.Controls.TextBox]::new()
-    $q.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Flat')
-    $q.Padding = [Windows.Thickness]::new(10, 5, 32, 6)
-    $hint = New-AkariText 'Search apps' 14 'Ter'
-    $hint.IsHitTestVisible = $false; $hint.Margin = [Windows.Thickness]::new(12, 0, 0, 1); $hint.VerticalAlignment = 'Center'
-    $ic = New-AkariIcon 'search' 14 'Mu'; $ic.HorizontalAlignment = 'Right'; $ic.Margin = [Windows.Thickness]::new(0, 0, 10, 0); $ic.IsHitTestVisible = $false
-    [void]$sb.Children.Add($q); [void]$sb.Children.Add($hint); [void]$sb.Children.Add($ic)
-    $q.Tag = $hint
-    $q.Add_TextChanged({ param($s, $a) $s.Tag.Visibility = if ($s.Text) { 'Collapsed' } else { 'Visible' }; $script:DlQuery = $s.Text.Trim(); Set-AkariDownloadsFilter $false })
-    [void]$right.Children.Add($sb)
+    $fb = New-AkariFilterBox 'Search apps' 220 { param($q) $script:DlQuery = $q; Set-AkariDownloadsFilter $false }
+    [void]$right.Children.Add($fb.Box)
     [Windows.Controls.DockPanel]::SetDock($right, 'Right'); [void]$bar.Children.Add($right)
     $cats = @('All') + @($AkariDownloadCategories.Keys)
     $sel = New-AkariSelectorBar $cats $script:DlFilter { param($v) $script:DlFilter = $v; Set-AkariDownloadsFilter $true }
