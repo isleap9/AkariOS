@@ -17,8 +17,9 @@ namespace AkariOS.Core.Tests;
 /// fakes answering the same case. Each side has its own temp folder (the ISO drive, the output) and test key (the
 /// image's hives). Compared: the ordered calls (one neutral vocabulary: DiskMount, WimImages, Export, Mount, Commit,
 /// Discard, HiveLoad / HiveUnload, Read, Remove, Dism, Own, Trusted, Oscdimg), the log and akari.log lines, the
-/// progress, each action's result, the marker left, the hives' registry state. The AkariOS step differs on purpose
-/// (an exe, not a folder) and is left out here (IsoBuildTests).
+/// progress, each operation the build reports (stage, name, state, note), its report.json without timings, each
+/// action's result, the marker left, the hives' registry state. The AkariOS step differs on purpose (an exe, not a
+/// folder) and is left out here, its operation too (IsoBuildTests).
 /// </summary>
 public sealed partial class IsoBuildOracleTests
 {
@@ -26,7 +27,45 @@ public sealed partial class IsoBuildOracleTests
 
     // ---- what a side gives back
 
-    internal sealed record Output(List<string> Calls, List<string> Log, List<string> ErrLog, List<string> Progress, List<string> Results, string Marker);
+    internal sealed record Output(List<string> Calls, List<string> Log, List<string> ErrLog, List<string> Progress, List<string> Results, string Marker)
+    {
+        public List<string> Ops { get; init; } = [];
+        public List<string> Report { get; init; } = [];
+    }
+
+    /// <summary>The AkariOS step's operation, named after what each app copies.</summary>
+    private static readonly HashSet<string> AkariOSOps = ["AkariOS and its shortcuts", "AkariOS-Native.exe and its shortcuts"];
+
+    /// <summary>A side's report.json as lines ('.stages[2].operations[0].state=Done'), without its times and the
+    /// AkariOS operation; "(none)" when the build wrote none.</summary>
+    internal static List<string> ReportLines(string root, Func<string, string> norm)
+    {
+        var file = Path.Combine(root, "out", "Win11-Akari.report.json");
+        if (!File.Exists(file)) return ["(none)"];
+        var lines = new List<string>();
+        void Walk(JsonElement e, string at)
+        {
+            switch (e.ValueKind)
+            {
+                case JsonValueKind.Object:
+                    if (e.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String && AkariOSOps.Contains(n.GetString()!)) return;
+                    foreach (var p in e.EnumerateObject())
+                        if (p.Name is not ("started" or "finished" or "seconds")) Walk(p.Value, $"{at}.{p.Name}");
+                    break;
+                case JsonValueKind.Array:
+                    var i = 0;
+                    foreach (var x in e.EnumerateArray()) Walk(x, $"{at}[{i++}]");
+                    if (i == 0) lines.Add($"{at}=[]");
+                    break;
+                case JsonValueKind.String: lines.Add($"{at}={norm(e.GetString()!)}"); break;
+                default: lines.Add($"{at}={e.GetRawText()}"); break;
+            }
+        }
+        Walk(JsonDocument.Parse(File.ReadAllText(file)).RootElement, "");
+        return lines;
+    }
+
+    private static bool NotAkariOS(string op) => !AkariOSOps.Contains(op.Split('|')[1]);
 
     private static string Show(JsonElement e) => string.Join(";", e.EnumerateObject().Select(p => $"{p.Name}=" + (p.Value.ValueKind switch
     {
@@ -45,7 +84,11 @@ public sealed partial class IsoBuildOracleTests
         File.WriteAllText(file, Json(c));
         var r = Oracle.Run("Invoke-IsoBuild.ps1", ["-Src", Repo.Src, "-Case", file, "-Root", s.Root, "-Reg", s.Key.Real("HKLM", "AkariIso_")]);
         return new Output(Strings(r.GetProperty("Calls")).Where(x => x != "AkariOS").ToList(), Strings(r.GetProperty("Log")), Strings(r.GetProperty("ErrLog")),
-            Strings(r.GetProperty("Progress")), [.. r.GetProperty("Results").EnumerateArray().Select(Show)], r.GetProperty("Marker").GetString() ?? "");
+            Strings(r.GetProperty("Progress")), [.. r.GetProperty("Results").EnumerateArray().Select(Show)], r.GetProperty("Marker").GetString() ?? "")
+        {
+            Ops = [.. Strings(r.GetProperty("Ops")).Where(NotAkariOS)],
+            Report = ReportLines(s.Root, x => x.Replace(s.Root, "<root>")),
+        };
     }
 
     /// <param name="wizard">native only: the choices changed before the build (the wizard's groups, the AkariOS bake)</param>
@@ -108,7 +151,11 @@ public sealed partial class IsoBuildOracleTests
             var j = JsonDocument.Parse(File.ReadAllText(f.Parts.Marker)).RootElement;
             marker = f.Norm($"{j.GetProperty("Mount").GetString()}|{j.GetProperty("Image").GetString()}|{j.GetProperty("Index").GetRawText()}");
         }
-        return new Output(f.Calls, [.. f.Log.Lines.Select(f.Norm)], [.. f.Log.FileLines.Select(f.Norm)], f.ProgressLines, results, marker);
+        return new Output(f.Calls, [.. f.Log.Lines.Select(f.Norm)], [.. f.Log.FileLines.Select(f.Norm)], f.ProgressLines, results, marker)
+        {
+            Ops = [.. f.Ops.Select(o => f.Norm($"{o.Stage}|{o.Name}|{o.State}|{o.Note}")).Where(NotAkariOS)],
+            Report = ReportLines(s.Root, f.Norm),
+        };
     }
 
     private static Output Same(Dictionary<string, object> c)
@@ -124,6 +171,8 @@ public sealed partial class IsoBuildOracleTests
         Assert.Equal(p.ErrLog, n.ErrLog);
         Assert.Equal(p.Progress, n.Progress);
         Assert.Equal(p.Marker, n.Marker);
+        Assert.Equal(p.Ops, n.Ops);
+        Assert.Equal(p.Report, n.Report);
         Assert.Equal(ps.Registry(), cs.Registry());
         return n;
     }
@@ -181,6 +230,11 @@ public sealed partial class IsoBuildOracleTests
     {
         var o = Same(Case());
         Assert.Equal(@"Action=Build;Ok=true;Path=<root>\out\Win11-Akari.iso;Message=", o.Results[1]);
+        // the ISO's hash, and the report's
+        var sha = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData("iso"u8.ToArray()));
+        Assert.Contains(o.Ops, x => x.EndsWith($"|SHA-256 of the ISO|Done|{sha}"));
+        Assert.Contains($".sha256={sha}", o.Report);
+        Assert.Contains(".size=3", o.Report);
         Assert.Contains(@"Oscdimg -m -o -u2 -udfver102 -bootdata:2#p0,e,b<root>\out\AkariIso\Media\boot\etfsboot.com#pEF,e,b<root>\out\AkariIso\Media\efi\microsoft\boot\efisys.bin <root>\out\AkariIso\Media <root>\out\Win11-Akari.iso", o.Calls);
         Assert.Contains(@"Mount <root>\out\AkariIso\Media\sources\boot.wim 2 <root>\out\AkariIso\Mount", o.Calls);
         Assert.Contains(@"Own <root>\out\AkariIso\Mount\Windows\InboxApps", o.Calls);
@@ -240,6 +294,8 @@ public sealed partial class IsoBuildOracleTests
         Assert.Contains(".NET Framework 3.5 was not added (DISM exit code 1)", o.Log);
         Assert.Contains("Removing capability Media.WindowsMediaPlayer~~~~0.0.12.0", o.Log);
         Assert.StartsWith("Action=Build;Ok=true", o.Results[1]);
+        Assert.Contains(o.Ops, x => x.EndsWith("|Optional feature Media.WindowsMediaPlayer~~~~0.0.12.0|Done|Finishes when the new Windows first starts"));
+        Assert.Contains(o.Ops, x => x.EndsWith("|.NET Framework 3.5|Failed|DISM exit code 1"));
     }
 
     private static Dictionary<string, object> DismFailures() => Case(c =>

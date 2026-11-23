@@ -121,24 +121,36 @@ function Remove-AkariImageApps([string]$Mount, [string[]]$Packages) {
     finally { Dismount-AkariOfflineHives $loaded }
     foreach ($p in $Packages) {
         $name = ($p -split '_')[0]
-        Write-Log "Removing $name"
-        [void](Invoke-AkariDism "/Image:$Mount" /Set-NonRemovableAppPolicy "/PackageFamily:$(Get-AkariAppFamily $p)" /NonRemovable:0)
-        $c = Invoke-AkariDism "/Image:$Mount" /Remove-ProvisionedAppxPackage "/PackageName:$p"
-        if ($c -ne 0) { Write-Log "  DISM could not remove it (exit code $c)" }
-        [void](Remove-AkariImagePaths $Mount @("Program Files\WindowsApps\$($name)_*", "Windows\SystemApps\$($name)_*"))
+        Invoke-AkariIsoOp "App $name" {
+            Write-Log "Removing $name"
+            [void](Invoke-AkariDism "/Image:$Mount" /Set-NonRemovableAppPolicy "/PackageFamily:$(Get-AkariAppFamily $p)" /NonRemovable:0)
+            $c = Invoke-AkariDism "/Image:$Mount" /Remove-ProvisionedAppxPackage "/PackageName:$p"
+            if ($c -ne 0) { Write-Log "  DISM could not remove it (exit code $c)" }
+            [void](Remove-AkariImagePaths $Mount @("Program Files\WindowsApps\$($name)_*", "Windows\SystemApps\$($name)_*"))
+            if ($c -eq 0) { @{ State = 'Done'; Note = '' } } else { @{ State = 'Failed'; Note = "DISM exit code $c; its files removed" } }
+        }
     }
 }
 
-# features, capabilities, OS packages: one DISM call each; a failure is logged and the build goes on (as zISO)
+# an item's kind as the build page names it. Pure.
+$AkariIsoKindNames = @{ Feature = 'Windows feature'; Capability = 'Optional feature'; Package = 'OS package' }
+
+# features, capabilities, OS packages: one DISM call each, an operation each; a failure is logged and the build goes
+# on (as zISO)
 function Remove-AkariImageItems([string]$Mount, [ValidateSet('Feature', 'Capability', 'Package')][string]$Kind, [string[]]$Names) {
     foreach ($n in $Names) {
-        Write-Log "Removing $($Kind.ToLower()) $n"
-        $c = switch ($Kind) {
-            'Feature' { Invoke-AkariDism "/Image:$Mount" /Disable-Feature "/FeatureName:$n" /Remove /NoRestart }
-            'Capability' { Invoke-AkariDism "/Image:$Mount" /Remove-Capability "/CapabilityName:$n" }
-            'Package' { Invoke-AkariDism "/Image:$Mount" /Remove-Package "/PackageName:$n" }
+        Invoke-AkariIsoOp "$($AkariIsoKindNames[$Kind]) $n" {
+            Write-Log "Removing $($Kind.ToLower()) $n"
+            $c = switch ($Kind) {
+                'Feature' { Invoke-AkariDism "/Image:$Mount" /Disable-Feature "/FeatureName:$n" /Remove /NoRestart }
+                'Capability' { Invoke-AkariDism "/Image:$Mount" /Remove-Capability "/CapabilityName:$n" }
+                'Package' { Invoke-AkariDism "/Image:$Mount" /Remove-Package "/PackageName:$n" }
+            }
+            if ($c -ne 0 -and $c -ne 3010) { Write-Log "  DISM could not remove it (exit code $c)" }
+            if ($c -eq 0) { @{ State = 'Done'; Note = '' } }
+            elseif ($c -eq 3010) { @{ State = 'Done'; Note = 'Finishes when the new Windows first starts' } }
+            else { @{ State = 'Failed'; Note = "DISM exit code $c" } }
         }
-        if ($c -ne 0 -and $c -ne 3010) { Write-Log "  DISM could not remove it (exit code $c)" }
     }
 }
 

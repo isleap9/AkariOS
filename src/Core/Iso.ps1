@@ -17,6 +17,8 @@ $AkariIsoHives = [ordered]@{
 $AkariIsoMinFree = 25GB
 # where the loaded hives are, as a provider path prefix (tests point it at a test key under HKCU)
 if (-not $AkariIsoRegRoot) { $AkariIsoRegRoot = 'HKLM:\AkariIso_' }
+# the report names the version that built the ISO (the background job doesn't load Version.ps1 itself)
+if (-not $AkariVersion) { . (Join-Path $PSScriptRoot 'Version.ps1') }
 . (Join-Path $PSScriptRoot 'Iso\Image.ps1')
 
 # ---- wrappers (tests mock these)
@@ -311,12 +313,77 @@ function Remove-AkariImagePaths([string]$Mount, [string[]]$Paths) {
     $n
 }
 
+# ---- the build's operations and report (the native IsoReport's JSON: <name>.report.json next to the ISO)
+
+# an operation reported to the page: @{ Stage (its step's index); Name; State Running|Done|Skipped|Failed; Seconds;
+# Note }, into the background job's $AkariShared.IsoOps (elsewhere nothing; the oracle records it)
+function Add-AkariIsoOperation([hashtable]$Operation) {
+    $s = Get-Variable AkariShared -ValueOnly -ErrorAction SilentlyContinue
+    if ($s -is [hashtable] -and $s.IsoOps -is [Collections.IList]) { [void]$s.IsoOps.Add($Operation) }
+}
+
+# one operation of the running stage: Running, then how $AkariOpWork ended (its last output, @{ State; Note }); a
+# throw = Failed, and the build fails as before. No log line of its own. (Odd names: $AkariOpWork runs in this
+# function's scope chain, so a name of its own would hide the caller's $name, $n...)
+function Invoke-AkariIsoOp([string]$AkariOpName, [scriptblock]$AkariOpWork) {
+    $akariOpClock = [Diagnostics.Stopwatch]::StartNew()
+    Add-AkariIsoOperation @{ Stage = $script:AkariIsoStage; Name = $AkariOpName; State = 'Running'; Seconds = 0; Note = '' }
+    try { $akariOpEnd = @(& $AkariOpWork)[-1] }
+    catch { Complete-AkariIsoOp $AkariOpName 'Failed' $akariOpClock $_.Exception.Message; throw }
+    Complete-AkariIsoOp $AkariOpName $akariOpEnd.State $akariOpClock "$($akariOpEnd.Note)"
+}
+function Complete-AkariIsoOp([string]$Name, [string]$State, $Clock, [string]$Note) {
+    $sec = [Math]::Round($Clock.Elapsed.TotalSeconds, 1)
+    Add-AkariIsoOperation @{ Stage = $script:AkariIsoStage; Name = $Name; State = $State; Seconds = $sec; Note = $Note }
+    if ($null -ne $script:AkariIsoStageOps) { $script:AkariIsoStageOps.Add([ordered]@{ name = $Name; state = $State; seconds = $sec; note = $Note }) }
+}
+
+# a stage of the report: its step, how it ended, its time, its operations
+function New-AkariIsoReportStage($Step, [string]$State, [double]$Seconds, $Operations) {
+    [ordered]@{ id = $Step.Id; text = $Step.Text; state = $State; seconds = [Math]::Round($Seconds, 1); operations = @($Operations) }
+}
+
+# the report (the native IsoReport's fields, camelCase): what was built from what, each stage, the ISO's size and
+# SHA-256, or why it failed
+function New-AkariIsoReport([hashtable]$Choices, [string]$Out, [datetime]$Started, [bool]$Ok, [string]$Message, $Stages, [long]$Size = 0, [string]$Sha = '') {
+    [ordered]@{
+        akariOS = "$AkariVersion"; started = $Started.ToString('o'); finished = (Get-Date).ToString('o'); ok = $Ok; message = $Message
+        source = "$($Choices.Iso)"; edition = "$($Choices.Edition)"; iso = $Out
+        # the build settings (the native app's; the PowerShell build has the defaults until P6)
+        settings = [ordered]@{ compression = 'Maximum'; turbo = $false; cleanLeftovers = $false; leaveOutNetFx3Files = $false }
+        size = $Size; sha256 = $Sha; stages = @($Stages)
+    }
+}
+
+# the report's file for an ISO: Win11-Akari.iso -> Win11-Akari.report.json. Pure.
+function Get-AkariIsoReportFile([string]$Iso) { [IO.Path]::ChangeExtension($Iso, '.report.json') }
+
+# the report next to the ISO; never fails the build (a folder that can't be written = no file)
+function Save-AkariIsoReport($Report) {
+    try {
+        $file = Get-AkariIsoReportFile $Report.iso
+        [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($file))
+        [IO.File]::WriteAllText($file, (ConvertTo-Json $Report -Depth 8), [Text.UTF8Encoding]::new($false))
+    }
+    catch { }
+    $Report
+}
+
+# a file's SHA-256 as lowercase hex ('' when it isn't there)
+function Get-AkariFileSha256([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return '' }
+    $s = [IO.File]::OpenRead($Path)
+    try { -join @([Security.Cryptography.SHA256]::Create().ComputeHash($s) | ForEach-Object { $_.ToString('x2') }) }
+    finally { $s.Dispose() }
+}
+
 # ---- the build
 
 # $Choices: @{ OutDir; Iso (the source file, for the name); Image (from Open-AkariIsoSource); Index; Edition;
 # Options (option ids); Apps (provisioned package names); Features; Capabilities; Packages (names); AkariDir (this
 # AkariOS's folder, to copy into the image; none = left out); Unattend ([byte[]] autounattend.xml; none = left out) }.
-# Returns @{ Ok; Path; Message }; on a failure the image is discarded, never left mounted.
+# Returns @{ Ok; Path; Message; Report }; on a failure the image is discarded, never left mounted. Each step's
+# operations go to the page (Add-AkariIsoOperation); either way a report goes next to the ISO and on the result.
 function Invoke-AkariIsoBuild([hashtable]$Choices) {
     $all = Get-AkariIsoOptions
     $bad = Test-AkariIsoOptions $Choices.Options $all
@@ -327,9 +394,19 @@ function Invoke-AkariIsoBuild([hashtable]$Choices) {
     $always = Get-AkariIsoData 'Always'
     $steps = New-AkariIsoPlan $Choices $picked
     $oscdimg = $null
+    $started = Get-Date
+    $stages = [System.Collections.Generic.List[object]]::new()
+    $stageClock = [Diagnostics.Stopwatch]::new()
+    $current = $null
+    # what an operation's block hands back (its own variables don't outlive it)
+    $hold = @{ Sha = '' }
     try {
         for ($i = 0; $i -lt $steps.Count; $i++) {
             $s = $steps[$i]
+            $current = $s
+            $script:AkariIsoStage = $i
+            $script:AkariIsoStageOps = [System.Collections.Generic.List[object]]::new()
+            $stageClock.Restart()
             Set-AkariProgress $i $steps.Count $s.Text
             Write-Log $s.Text
             switch ($s.Id) {
@@ -350,20 +427,39 @@ function Invoke-AkariIsoBuild([hashtable]$Choices) {
                 'Packages' { Remove-AkariImageItems $w.Mount 'Package' (Get-AkariIsoList $Choices.Packages) }
                 'Registry' {
                     $rows = @($always.Requirements) + @($always.Registry) + @($picked | ForEach-Object { $_.Registry } | Where-Object { $_ })
-                    Invoke-AkariIsoRegistry $w.Mount $rows @($picked | ForEach-Object { $_.RemoveKeys } | Where-Object { $_ })
+                    $keys = @($picked | ForEach-Object { $_.RemoveKeys } | Where-Object { $_ })
+                    Invoke-AkariIsoOp "Write $($rows.Count) settings" { Invoke-AkariIsoRegistry $w.Mount $rows $keys; @{ State = 'Done'; Note = '' } }
                 }
-                'Files' { [void](Remove-AkariImagePaths $w.Mount (@($always.Remove) + @($picked | ForEach-Object { $_['Remove'] } | Where-Object { $_ }))) }
-                'AkariOS' { Copy-AkariToImage $w.Mount $Choices.AkariDir }
-                'Answer' { [IO.File]::WriteAllBytes((Join-Path $w.Media 'autounattend.xml'), [byte[]]$Choices.Unattend) }
+                'Files' {
+                    foreach ($path in @(@($always.Remove) + @($picked | ForEach-Object { $_['Remove'] } | Where-Object { $_ }))) {
+                        Invoke-AkariIsoOp $path {
+                            $gone = Remove-AkariImagePaths $w.Mount @($path)
+                            if ($gone -gt 0) { @{ State = 'Done'; Note = "$gone removed" } } else { @{ State = 'Skipped'; Note = 'Not in this image' } }
+                        }
+                    }
+                }
+                'AkariOS' { Invoke-AkariIsoOp 'AkariOS and its shortcuts' { Copy-AkariToImage $w.Mount $Choices.AkariDir; @{ State = 'Done'; Note = '' } } }
+                'Answer' { Invoke-AkariIsoOp 'autounattend.xml' { [IO.File]::WriteAllBytes((Join-Path $w.Media 'autounattend.xml'), [byte[]]$Choices.Unattend); @{ State = 'Done'; Note = '' } } }
                 'NetFx3' {
-                    $sxs = Join-Path $w.Media 'sources\sxs'
-                    if (-not (Test-Path -LiteralPath $sxs)) { Write-Log 'No sources\sxs on the ISO: .NET Framework 3.5 left out'; break }
-                    $c = Invoke-AkariDism "/Image:$($w.Mount)" /Enable-Feature /FeatureName:NetFx3 /All /LimitAccess "/Source:$sxs"
-                    if ($c -ne 0) { Write-Log ".NET Framework 3.5 was not added (DISM exit code $c)" }
+                    Invoke-AkariIsoOp '.NET Framework 3.5' {
+                        $sxs = Join-Path $w.Media 'sources\sxs'
+                        if (-not (Test-Path -LiteralPath $sxs)) {
+                            Write-Log 'No sources\sxs on the ISO: .NET Framework 3.5 left out'
+                            return @{ State = 'Skipped'; Note = 'The ISO has no sources\sxs' }
+                        }
+                        $code = Invoke-AkariDism "/Image:$($w.Mount)" /Enable-Feature /FeatureName:NetFx3 /All /LimitAccess "/Source:$sxs"
+                        if ($code -eq 0) { return @{ State = 'Done'; Note = '' } }
+                        Write-Log ".NET Framework 3.5 was not added (DISM exit code $code)"
+                        @{ State = 'Failed'; Note = "DISM exit code $code" }
+                    }
                 }
                 'Cleanup' {
-                    $c = Invoke-AkariDism "/Image:$($w.Mount)" /Cleanup-Image /StartComponentCleanup /ResetBase
-                    if ($c -ne 0) { Write-Log "Component cleanup skipped (DISM exit code $($c), pending operations)" }
+                    Invoke-AkariIsoOp 'Component store cleanup' {
+                        $code = Invoke-AkariDism "/Image:$($w.Mount)" /Cleanup-Image /StartComponentCleanup /ResetBase
+                        if ($code -eq 0) { return @{ State = 'Done'; Note = '' } }
+                        Write-Log "Component cleanup skipped (DISM exit code $($code), pending operations)"
+                        @{ State = 'Skipped'; Note = "Pending operations (DISM exit code $code): the image may be larger" }
+                    }
                 }
                 'Commit' { Save-AkariWim $w.Mount }
                 'Compress' {
@@ -385,20 +481,31 @@ function Invoke-AkariIsoBuild([hashtable]$Choices) {
                     Remove-Item -LiteralPath $out -Force -ErrorAction SilentlyContinue
                     $c = Invoke-AkariExe $oscdimg (Get-AkariOscdimgArgs $w.Media $out)
                     if ($c -ne 0) { throw "oscdimg failed (exit code $c)" }
+                    Invoke-AkariIsoOp 'SHA-256 of the ISO' {
+                        $hold.Sha = Get-AkariFileSha256 $out
+                        if ($hold.Sha) { @{ State = 'Done'; Note = $hold.Sha } } else { @{ State = 'Skipped'; Note = 'No ISO to check' } }
+                    }
                 }
                 'Tidy' { Clear-AkariIsoMarker; Remove-Item -LiteralPath $w.Root -Recurse -Force -ErrorAction SilentlyContinue }
             }
+            $stages.Add((New-AkariIsoReportStage $s 'Done' $stageClock.Elapsed.TotalSeconds $script:AkariIsoStageOps))
         }
         Set-AkariProgress $steps.Count $steps.Count 'Done'
         Write-Log "ISO ready: $out"
-        @{ Ok = $true; Path = $out; Message = '' }
+        $size = if (Test-Path -LiteralPath $out -PathType Leaf) { (Get-Item -LiteralPath $out -Force).Length } else { 0 }
+        $report = Save-AkariIsoReport (New-AkariIsoReport $Choices $out $started $true '' $stages $size $hold.Sha)
+        @{ Ok = $true; Path = $out; Message = ''; Report = $report }
     }
     catch {
         $m = $_.Exception.Message
+        if ($current) { $stages.Add((New-AkariIsoReportStage $current 'Failed' $stageClock.Elapsed.TotalSeconds $script:AkariIsoStageOps)) }
+        for ($j = $stages.Count; $j -lt $steps.Count; $j++) { $stages.Add((New-AkariIsoReportStage $steps[$j] 'Not run' 0 @())) }
+        $report = Save-AkariIsoReport (New-AkariIsoReport $Choices $out $started $false $m $stages)
         Write-Log "ISO build failed: $m"
         Write-ErrLog "ISO Builder: $m"
         Dismount-AkariOfflineHives
         if (Get-AkariIsoMarker) { Undo-AkariWim $w.Mount; Clear-AkariIsoMarker }
-        @{ Ok = $false; Path = $null; Message = $m }
+        @{ Ok = $false; Path = $null; Message = $m; Report = $report }
     }
+    finally { $script:AkariIsoStageOps = $null; $script:AkariIsoStage = $null }
 }

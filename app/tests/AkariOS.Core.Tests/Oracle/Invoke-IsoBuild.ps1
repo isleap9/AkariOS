@@ -9,7 +9,8 @@
 # ImageFeatures (names), DismCodes @{ verb = exit code }, Fail (Mount | Trusted | Oscdimg), Denied (hive paths an
 # admin can't change: rows and keys under them throw unless written as TrustedInstaller), Marker (left at the start),
 # Choices @{ Index; Edition; Options; Apps; Features; Capabilities; Packages; AkariOS (bool); Unattend (text) }.
-# Writes @{ Calls; Log; ErrLog; Progress; Results; Marker } as JSON to -Out; paths start <root>.
+# Writes @{ Calls; Log; ErrLog; Progress; Ops; Results; Marker } as JSON to -Out; paths start <root>. Ops = each
+# operation the build reports ('<stage index>|<name>|<state>|<note>'); its report.json is left in <root>\out.
 param([Parameter(Mandatory)][string]$Src, [Parameter(Mandatory)][string]$Out, [Parameter(Mandatory)][string]$Case,
     [Parameter(Mandatory)][string]$Root, [Parameter(Mandatory)][string]$Reg)
 $ErrorActionPreference = 'Stop'
@@ -19,12 +20,13 @@ $c = [IO.File]::ReadAllText($Case).Replace('<root>', $Root.Replace('\', '\\')) |
 $script:CaseData = $c
 $AkariIsoMarker = Join-Path $Root 'iso-mount.json'
 $AkariIsoRegRoot = $Reg
-foreach ($f in 'Log', 'Registry', 'Trusted', 'AppSetup', 'System', 'Runner', 'Iso') { . (Join-Path $Src "Core\$f.ps1") }
+foreach ($f in 'Log', 'Version', 'Registry', 'Trusted', 'AppSetup', 'System', 'Runner', 'Iso') { . (Join-Path $Src "Core\$f.ps1") }
 
 $script:Calls = [Collections.Generic.List[string]]::new()
 $script:Log = [Collections.Generic.List[string]]::new()
 $script:ErrLog = [Collections.Generic.List[string]]::new()
 $script:Progress = [Collections.Generic.List[string]]::new()
+$script:Ops = [Collections.Generic.List[string]]::new()
 $script:InTrusted = $false
 $script:Denied = @($c.Denied | Where-Object { $_ })
 
@@ -55,6 +57,7 @@ function Clear-Mount([string]$Mount) {
 function Write-Log([string]$m) { if ($m -and $m.Trim()) { $script:Log.Add((Norm $m.TrimEnd())) } }
 function Write-ErrLog([string]$m) { $script:ErrLog.Add((Norm $m)) }
 function Set-AkariProgress([int]$Done, [int]$Total, [string]$Step = '') { $script:Progress.Add("$Done/$Total $Step") }
+function Add-AkariIsoOperation([hashtable]$Operation) { $script:Ops.Add((Norm "$($Operation.Stage)|$($Operation.Name)|$($Operation.State)|$($Operation.Note)")) }
 function Start-Sleep { param([int]$Milliseconds, [int]$Seconds) }
 
 function Mount-AkariDiskImage([string]$Path) { Rec "DiskMount $Path"; Join-Path $script:TestRoot 'drive\' }
@@ -120,7 +123,10 @@ function Copy-AkariToImage([string]$Mount, [string]$Source) { Rec 'AkariOS' }
 function Install-AkariAdk { 'C:\ADK\oscdimg.exe' }
 function Invoke-AkariExe([string]$Path, [string[]]$Arguments) {
     Rec ('Oscdimg ' + ($Arguments -join ' '))
-    if ($script:CaseData.Fail -eq 'Oscdimg') { 2 } else { 0 }
+    if ($script:CaseData.Fail -eq 'Oscdimg') { return 2 }
+    # the ISO (the build hashes it)
+    [IO.File]::WriteAllText($Arguments[-1], 'iso')
+    0
 }
 function Read-AkariImageApps([string]$Mount) {
     Rec "Read Apps $Mount"
@@ -171,5 +177,5 @@ foreach ($a in @($c.Actions)) {
 }
 $m = Get-AkariIsoMarker
 $marker = if ($m) { Norm "$($m.Mount)|$($m.Image)|$($m.Index)" } else { '' }
-$o = [ordered]@{ Calls = @($script:Calls); Log = @($script:Log); ErrLog = @($script:ErrLog); Progress = @($script:Progress); Results = @($results); Marker = $marker }
+$o = [ordered]@{ Calls = @($script:Calls); Log = @($script:Log); ErrLog = @($script:ErrLog); Progress = @($script:Progress); Ops = @($script:Ops); Results = @($results); Marker = $marker }
 [IO.File]::WriteAllText($Out, (ConvertTo-Json $o -Depth 6 -Compress), [Text.UTF8Encoding]::new($false))

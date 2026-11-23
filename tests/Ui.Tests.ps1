@@ -838,9 +838,20 @@ $c = $script:Jobs[-1].Shared.Choices
 "isoBuild=$($script:Job.Kind)|$($c.Index)|$($c.Edition)|$(@($c.Options).Count)|$($c.Apps -join ',')|$($c.AkariDir -eq $Root)|$([Text.Encoding]::ASCII.GetString($c.Unattend) -match '<Name>Admin</Name>')|$($script:IsoState.Step)|$(Foot)"
 $n = @($script:IsoState.Stages).Count
 Update-AkariIsoStages @{ Done = 2; Total = $n }; "isoStages=$($n -gt 5)|$((@($script:IsoState.Stages)[0..3] | ForEach-Object { $_.State }) -join ',')"
+# the build's operations: into their stage, the running one named, a click on the stage opens them
+$ops = [Collections.ArrayList]::new(); [void]$ops.Add(@{ Stage = 2; Name = 'App Microsoft.BingNews'; State = 'Running' })
+Update-AkariIsoStages @{ Done = 2; Total = $n; IsoOps = $ops }
+$s2 = @($script:IsoState.Stages)[2]
+$cur = $script:IsoParts.CurrentOp.Text
+[void]$ops.Add(@{ Stage = 2; Name = 'App Microsoft.BingNews'; State = 'Failed'; Seconds = 4; Note = 'DISM exit code 2' })
+Update-AkariIsoStages @{ Done = 2; Total = $n; IsoOps = $ops }
+$a = [Windows.Input.MouseButtonEventArgs]::new([Windows.Input.Mouse]::PrimaryDevice, 0, [Windows.Input.MouseButton]::Left); $a.RoutedEvent = [Windows.UIElement]::MouseLeftButtonUpEvent; $s2.Row.Children[0].RaiseEvent($a)
+"isoOps=$cur|$($s2.Row.Tag.Summary.Text)|$($s2.Open)|$($s2.Row.Tag.Ops.Visibility)|$($s2.Row.Tag.Ops.Children.Count)|$($s2.Ops[0].Row.Tag.Note.Text)|$($script:IsoParts.CurrentOp.Visibility)"
 $script:Job = $null; Set-Busy $false
-Complete-AkariIsoJob @{ Kind = 'IsoBuild'; Shared = @{ Done = 3; Total = $n; Result = @{ Ok = $true; Path = 'D:\Win11-Akari.iso' } } }
+$rs = @(for ($i = 0; $i -lt $n; $i++) { @{ state = 'Done'; seconds = 2 } })
+Complete-AkariIsoJob @{ Kind = 'IsoBuild'; Shared = @{ Done = 3; Total = $n; IsoOps = $ops; Result = @{ Ok = $true; Path = 'D:\Win11-Akari.iso'; Report = @{ iso = 'D:\Win11-Akari.iso'; size = 1GB; sha256 = 'ab12'; stages = $rs } } } }
 Show-Page; "isoDone=$($script:IsoState.ResultPath)|$(@($script:IsoState.Stages | Where-Object { $_.State -ne 'Done' }).Count)|$(Foot)|$($script:IsoParts.Edition.IsEnabled)"
+"isoDetails=$($script:IsoState.Details -replace '[^ -~]', '.')|$(@($script:IsoState.Stages)[0].Elapsed)"
 Click $StepNext; "isoAgain=$($script:IsoState.Step)|$(@($script:IsoState.Stages).Count)|$($script:IsoState.Mode)"
 Complete-AkariIsoJob @{ Kind = 'IsoUup'; Shared = @{ Result = @{ Ok = $true; Path = 'D:\Windows11_25H2_Pro_en-us.iso' } } }
 "isoUupDone=$($script:IsoParts.IsoPath.Text)|$($script:IsoParts.SrcFile.IsChecked)"
@@ -970,7 +981,9 @@ function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My
         $out.isoReview | Should Be '4|ISO Builder>Review|Build ISO|True|True'
         $out.isoBuild | Should Be 'IsoBuild|6|Windows 11 Pro|0|Microsoft.BingNews_1_x64__8wekyb3d8bbwe|True|True|5|Build another|False|False'
         $out.isoStages | Should Be 'True|Done,Done,Running,Waiting'
+        $out.isoOps | Should Be 'Now: App Microsoft.BingNews|1 operation, 1 failed|True|Visible|1|DISM exit code 2|Collapsed'
         $out.isoDone | Should Be 'D:\Win11-Akari.iso|0|Build another|True|False|False'
+        $out.isoDetails | Should Be ('{0:0.00} GB . SHA-256 ab12.Report: D:\Win11-Akari.report.json|2 s' -f 1)
         $out.isoAgain | Should Be '0|0|Custom'
         $out.isoUupDone | Should Be 'D:\Windows11_25H2_Pro_en-us.iso|True'
     }

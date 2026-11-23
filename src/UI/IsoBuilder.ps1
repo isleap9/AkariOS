@@ -24,10 +24,12 @@ $AkariIsoModes = @(
     @{ Id = 'Custom'; Name = 'Custom'; Icon = 'settings-2'; Tag = 'Choose yourself'; Available = $true; Text = 'Pick what to remove from the image''s own apps and features.' }
 )
 $AkariIsoListTitles = [ordered]@{ Apps = 'Store apps'; Capabilities = 'Optional features'; Features = 'Windows features'; Packages = 'OS packages (advanced)' }
-# Step: the wizard's step; Mode: the picked mode; Stages: the Create ISO step's @{ Text; State; Elapsed; Clock; Row };
-# ResultPath / BuildError: how the last build ended (BuildError also: why Review can't build)
+# Step: the wizard's step; Mode: the picked mode; Stages: the Create ISO step's @{ Text; State; Elapsed; Clock; Row;
+# Ops (its operations, Update-AkariIsoOpList); Open }; OpsSeen: the build's operations shown so far; Current: the
+# operation running; ResultPath / BuildError: how the last build ended (BuildError also: why Review can't build);
+# Details: the ISO's size, SHA-256 and the report's path
 $script:IsoState = @{ Image = ''; Editions = @(); Lists = $null; Massgrave = @(); Uup = $null; Waiting = ''
-    Step = 0; Mode = 'Custom'; Stages = @(); ResultPath = ''; BuildError = '' }
+    Step = 0; Mode = 'Custom'; Stages = @(); ResultPath = ''; BuildError = ''; OpsSeen = 0; Current = ''; Details = '' }
 
 # ---- pure helpers (tests dot-source this file)
 
@@ -104,6 +106,36 @@ function Get-AkariIsoEndStates($States, [bool]$Ok) {
 function Get-AkariIsoElapsedText([TimeSpan]$Time) {
     if ($Time.TotalMinutes -ge 1) { return "$([int][Math]::Floor($Time.TotalMinutes)) min $($Time.Seconds) s" }
     "$([Math]::Max(0, [int][Math]::Floor($Time.TotalSeconds))) s"
+}
+
+# an operation the build reported (@{ Stage; Name; State; Seconds; Note }) into its stage's list: a Running one adds a
+# row, an ending one ends the last Running row of that name (none: a row of its own). Returns the row. Pure.
+function Update-AkariIsoOpList([Collections.IList]$List, [hashtable]$Op) {
+    $row = $null
+    if ($Op.State -ne 'Running') {
+        for ($i = $List.Count - 1; $i -ge 0; $i--) { if ($List[$i].Name -eq $Op.Name -and $List[$i].State -eq 'Running') { $row = $List[$i]; break } }
+    }
+    if (-not $row) { $row = @{ Name = $Op.Name; State = 'Running'; Note = ''; Elapsed = '' }; [void]$List.Add($row) }
+    if ($Op.State -ne 'Running') {
+        $row.State = $Op.State; $row.Note = "$($Op.Note)"
+        $row.Elapsed = Get-AkariIsoElapsedText ([TimeSpan]::FromSeconds([double]$Op.Seconds))
+    }
+    $row
+}
+# a stage's operations in a line: "3 operations, 1 failed, 1 skipped" ('' with none). Pure.
+function Get-AkariIsoOpSummary($Ops) {
+    $all = @($Ops)
+    if (-not $all.Count) { return '' }
+    $failed = @($all | Where-Object { $_.State -eq 'Failed' }).Count
+    $skipped = @($all | Where-Object { $_.State -eq 'Skipped' }).Count
+    "$($all.Count) $(if ($all.Count -eq 1) { 'operation' } else { 'operations' })" + $(if ($failed) { ", $failed failed" }) + $(if ($skipped) { ", $skipped skipped" })
+}
+# under the result: the ISO's size and SHA-256 (built), the report's path either way. Pure.
+function Get-AkariIsoResultDetails($Report, [bool]$Ok) {
+    if (-not $Report) { return '' }
+    $file = [IO.Path]::ChangeExtension("$($Report.iso)", '.report.json')
+    if (-not $Ok) { return "Report: $file" }
+    ('{0:0.00} GB {1} SHA-256 {2}' -f ([double]$Report.size / 1GB), [char]0x00B7, $Report.sha256) + "`nReport: $file"
 }
 
 # Review's cards: @{ Icon; Title; Lines }. $Info: Summary, Iso, ModeName, ModeIcon, Lists (@{ Title; Ticked; Count },
@@ -464,7 +496,7 @@ function Select-AkariIsoMode([string]$Id) {
 # Build another: back to Start, the mode kept
 function Reset-AkariIsoBuild {
     $st = $script:IsoState
-    $st.Stages = @(); $st.ResultPath = ''; $st.BuildError = ''; $st.Step = 0
+    $st.Stages = @(); $st.ResultPath = ''; $st.BuildError = ''; $st.Step = 0; $st.OpsSeen = 0; $st.Current = ''; $st.Details = ''
     Show-Page
 }
 
@@ -500,15 +532,22 @@ function New-AkariIsoReview {
     $sp
 }
 
-# Create ISO: how it ended (an InfoBar), then a row per stage (its state, text, time)
+# Create ISO: how it ended (an InfoBar: the path, size, SHA-256, the report), the operation running, then a row per
+# stage (its state, text, time, its operations under it)
 function New-AkariIsoBuildView {
     $st = $script:IsoState
     $sp = [Windows.Controls.StackPanel]::new()
+    $details = if ($st.Details) { "`n$($st.Details)" } else { '' }
     if ($st.ResultPath) {
         $open = New-AkariBarButton 'Open folder' { Open-AkariFolder ([IO.Path]::GetDirectoryName($script:IsoState.ResultPath)) }
-        [void]$sp.Children.Add((New-AkariInfoBar 'Ok' 'Your ISO is ready' $st.ResultPath @($open)).Bar)
+        [void]$sp.Children.Add((New-AkariInfoBar 'Ok' 'Your ISO is ready' "$($st.ResultPath)$details" @($open)).Bar)
     }
-    if ($st.BuildError) { [void]$sp.Children.Add((New-AkariInfoBar 'Bad' 'Not built' $st.BuildError).Bar) }
+    if ($st.BuildError) { [void]$sp.Children.Add((New-AkariInfoBar 'Bad' 'Not built' "$($st.BuildError)$details").Bar) }
+    $cur = New-AkariText '' 12 'Mu'
+    $cur.Margin = [Windows.Thickness]::new(0, 0, 0, 8); $cur.TextTrimming = 'CharacterEllipsis'
+    $script:IsoParts.CurrentOp = $cur
+    Set-AkariIsoCurrentOp
+    [void]$sp.Children.Add($cur)
     $card = [Windows.Controls.Border]::new()
     $card.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
     $card.Padding = [Windows.Thickness]::new(8, 6, 8, 6)
@@ -521,40 +560,127 @@ function New-AkariIsoBuildView {
     [void]$sp.Children.Add($card)
     $sp
 }
-function New-AkariIsoStageRow($Stage) {
-    $dp = [Windows.Controls.DockPanel]::new()
-    $dp.MinHeight = 32; $dp.Margin = [Windows.Thickness]::new(8, 2, 8, 2)
-    $ic = New-AkariIcon 'circle-minus' 16 'Mu'
-    $ic.Margin = [Windows.Thickness]::new(0, 0, 12, 0); $ic.VerticalAlignment = 'Center'
-    [Windows.Controls.DockPanel]::SetDock($ic, 'Left'); [void]$dp.Children.Add($ic)
-    $right = New-AkariText '' 12 'Mu'; $right.VerticalAlignment = 'Center'; $right.TextWrapping = 'NoWrap'
-    [Windows.Controls.DockPanel]::SetDock($right, 'Right'); [void]$dp.Children.Add($right)
-    $t = New-AkariText $Stage.Text 14; $t.VerticalAlignment = 'Center'
-    [void]$dp.Children.Add($t)
-    $dp.Tag = @{ Icon = $ic; Right = $right }
-    Set-AkariIsoStageLook $dp $Stage
-    $dp
-}
-function Set-AkariIsoStageLook($Row, $Stage) {
-    if (-not $Row) { return }
-    $icon, $brush = switch ($Stage.State) {
+# a state's icon and brush (stages and operations)
+function Get-AkariIsoStateIcon([string]$State) {
+    switch ($State) {
         'Running' { 'refresh-cw', 'AccText' }
         'Done' { 'circle-check', 'Ok' }
         'Failed' { 'circle-x', 'Bad' }
-        'Not run' { 'circle-slash', 'Mu' }
+        { $_ -in 'Not run', 'Skipped' } { 'circle-slash', 'Mu' }
         default { 'circle-minus', 'Mu' }
     }
-    Set-AkariIcon $Row.Tag.Icon $icon
-    $Row.Tag.Icon.Child.SetResourceReference([Windows.Shapes.Shape]::FillProperty, $brush)
-    $Row.Tag.Right.Text = "$($Stage.State)$(if ($Stage.Elapsed) { "  $($Stage.Elapsed)" })"
+}
+# a stage: its row (a click opens its operations when it has some), then its operations' panel
+function New-AkariIsoStageRow($Stage) {
+    $box = [Windows.Controls.StackPanel]::new()
+    $dp = [Windows.Controls.DockPanel]::new()
+    $dp.MinHeight = 32; $dp.Margin = [Windows.Thickness]::new(8, 2, 8, 2); $dp.Background = [Windows.Media.Brushes]::Transparent
+    $ic = New-AkariIcon 'circle-minus' 16 'Mu'
+    $ic.Margin = [Windows.Thickness]::new(0, 0, 12, 0); $ic.VerticalAlignment = 'Center'
+    [Windows.Controls.DockPanel]::SetDock($ic, 'Left'); [void]$dp.Children.Add($ic)
+    $chev = New-AkariIcon 'chevron-right' 12 'Mu'
+    $chev.Margin = [Windows.Thickness]::new(12, 0, 0, 0); $chev.VerticalAlignment = 'Center'
+    [Windows.Controls.DockPanel]::SetDock($chev, 'Right'); [void]$dp.Children.Add($chev)
+    $right = New-AkariText '' 12 'Mu'; $right.VerticalAlignment = 'Center'; $right.TextWrapping = 'NoWrap'
+    [Windows.Controls.DockPanel]::SetDock($right, 'Right'); [void]$dp.Children.Add($right)
+    $mid = [Windows.Controls.StackPanel]::new(); $mid.VerticalAlignment = 'Center'
+    [void]$mid.Children.Add((New-AkariText $Stage.Text 14))
+    $sum = New-AkariText '' 12 'Mu'
+    [void]$mid.Children.Add($sum)
+    [void]$dp.Children.Add($mid)
+    $ops = [Windows.Controls.StackPanel]::new()
+    $ops.Margin = [Windows.Thickness]::new(36, 0, 8, 6)
+    [void]$box.Children.Add($dp); [void]$box.Children.Add($ops)
+    $box.Tag = @{ Icon = $ic; Right = $right; Summary = $sum; Chevron = $chev; Ops = $ops; Stage = $Stage }
+    $dp.Tag = $box
+    $dp.Add_MouseLeftButtonUp({
+            $b = $this.Tag; $s = $b.Tag.Stage
+            if (-not @($s.Ops).Count) { return }
+            $s.Open = -not $s.Open
+            Set-AkariIsoStageLook $b $s
+        })
+    foreach ($o in @($Stage.Ops)) { $o.Row = $null }
+    Set-AkariIsoStageLook $box $Stage
+    $box
+}
+# an operation's row: its icon, name, note, time
+function New-AkariIsoOpRow($Op) {
+    $dp = [Windows.Controls.DockPanel]::new()
+    $dp.Margin = [Windows.Thickness]::new(0, 2, 0, 2)
+    $ic = New-AkariIcon 'circle-minus' 14 'Mu'
+    $ic.Margin = [Windows.Thickness]::new(0, 2, 10, 0); $ic.VerticalAlignment = 'Top'
+    [Windows.Controls.DockPanel]::SetDock($ic, 'Left'); [void]$dp.Children.Add($ic)
+    $right = New-AkariText '' 12 'Mu'; $right.TextWrapping = 'NoWrap'; $right.Margin = [Windows.Thickness]::new(12, 0, 0, 0)
+    [Windows.Controls.DockPanel]::SetDock($right, 'Right'); [void]$dp.Children.Add($right)
+    $mid = [Windows.Controls.StackPanel]::new()
+    [void]$mid.Children.Add((New-AkariText $Op.Name 12))
+    $note = New-AkariText '' 12 'Mu'
+    [void]$mid.Children.Add($note)
+    [void]$dp.Children.Add($mid)
+    $dp.Tag = @{ Icon = $ic; Right = $right; Note = $note }
+    $dp
+}
+function Set-AkariIsoOpLook($Op) {
+    $r = $Op.Row
+    if (-not $r) { return }
+    $icon, $brush = Get-AkariIsoStateIcon $Op.State
+    Set-AkariIcon $r.Tag.Icon $icon
+    $r.Tag.Icon.Child.SetResourceReference([Windows.Shapes.Shape]::FillProperty, $brush)
+    $r.Tag.Right.Text = "$($Op.State)$(if ($Op.Elapsed) { "  $($Op.Elapsed)" })"
+    $r.Tag.Note.Text = $Op.Note
+    $r.Tag.Note.Visibility = if ($Op.Note) { 'Visible' } else { 'Collapsed' }
+}
+function Set-AkariIsoStageLook($Row, $Stage) {
+    if (-not $Row) { return }
+    $icon, $brush = Get-AkariIsoStateIcon $Stage.State
+    $t = $Row.Tag
+    Set-AkariIcon $t.Icon $icon
+    $t.Icon.Child.SetResourceReference([Windows.Shapes.Shape]::FillProperty, $brush)
+    $t.Right.Text = "$($Stage.State)$(if ($Stage.Elapsed) { "  $($Stage.Elapsed)" })"
+    $sum = Get-AkariIsoOpSummary $Stage.Ops
+    $t.Summary.Text = $sum
+    $t.Summary.Visibility = if ($sum) { 'Visible' } else { 'Collapsed' }
+    $t.Chevron.Visibility = if ($sum) { 'Visible' } else { 'Hidden' }
+    Set-AkariIcon $t.Chevron $(if ($Stage.Open) { 'chevron-down' } else { 'chevron-right' })
+    $t.Ops.Visibility = if ($Stage.Open -and $sum) { 'Visible' } else { 'Collapsed' }
+    if ($Stage.Open) {
+        foreach ($o in @($Stage.Ops)) {
+            if (-not $o.Row) { $o.Row = New-AkariIsoOpRow $o; [void]$t.Ops.Children.Add($o.Row) }
+            Set-AkariIsoOpLook $o
+        }
+    }
+}
+function Set-AkariIsoCurrentOp {
+    $c = $script:IsoParts.CurrentOp
+    if (-not $c) { return }
+    $c.Text = if ($script:IsoState.Current) { "Now: $($script:IsoState.Current)" } else { '' }
+    $c.Visibility = if ($script:IsoState.Current) { 'Visible' } else { 'Collapsed' }
 }
 
-# the build's progress (the Shell timer, Done / Total from Set-AkariProgress): each stage's state, its time once done
+# the build's progress (the Shell timer, Done / Total from Set-AkariProgress): each stage's state, its time once done;
+# the operations reported since (IsoOps) into their stages, the one running
 function Update-AkariIsoStages($Shared) {
-    $stages = @($script:IsoState.Stages)
-    if (-not $Shared -or -not $Shared.Total -or -not $stages.Count) { return }
-    $states = Get-AkariIsoStageStates ([int]$Shared.Done) ([int]$Shared.Total) $stages.Count
-    for ($i = 0; $i -lt $stages.Count; $i++) { Set-AkariIsoStageState $stages[$i] $states[$i] }
+    $st = $script:IsoState
+    $stages = @($st.Stages)
+    if (-not $Shared -or -not $stages.Count) { return }
+    if ($Shared.Total) {
+        $states = Get-AkariIsoStageStates ([int]$Shared.Done) ([int]$Shared.Total) $stages.Count
+        for ($i = 0; $i -lt $stages.Count; $i++) { Set-AkariIsoStageState $stages[$i] $states[$i] }
+    }
+    $ops = $Shared.IsoOps
+    if (-not $ops) { return }
+    while ($st.OpsSeen -lt $ops.Count) {
+        $op = $ops[$st.OpsSeen]
+        $st.OpsSeen++
+        $i = [int]$op.Stage
+        if ($null -eq $op.Stage -or $i -lt 0 -or $i -ge $stages.Count) { continue }
+        $s = $stages[$i]
+        $row = Update-AkariIsoOpList $s.Ops $op
+        $st.Current = if ($op.State -eq 'Running') { $op.Name } else { '' }
+        Set-AkariIsoStageLook $s.Row $s
+        if ($row.Row) { Set-AkariIsoOpLook $row }
+    }
+    Set-AkariIsoCurrentOp
 }
 function Set-AkariIsoStageState($Stage, [string]$State) {
     if ($Stage.State -eq $State) { return }
@@ -636,9 +762,12 @@ function Start-AkariIsoBuild {
     if (-not (Confirm-AkariDialog $q 'Build ISO' 'Cancel' 'Question' 'ISO Builder')) { return }
     $plan = New-AkariIsoPlan $choices @()
     $code = '$AkariShared.Result = Invoke-AkariIsoBuild $AkariShared.Choices'
-    if (-not (Start-AkariIsoJob 'IsoBuild' $code @{ Choices = $choices } "Building $name")) { return }
-    $st.Stages = @(foreach ($s in $plan) { @{ Text = $s.Text; State = 'Waiting'; Elapsed = ''; Clock = $null; Row = $null } })
-    $st.ResultPath = ''
+    $ops = [Collections.ArrayList]::Synchronized([Collections.ArrayList]::new())
+    if (-not (Start-AkariIsoJob 'IsoBuild' $code @{ Choices = $choices; IsoOps = $ops } "Building $name")) { return }
+    $st.Stages = @(foreach ($s in $plan) {
+            @{ Text = $s.Text; State = 'Waiting'; Elapsed = ''; Clock = $null; Row = $null; Ops = [Collections.ArrayList]::new(); Open = $false }
+        })
+    $st.ResultPath = ''; $st.OpsSeen = 0; $st.Current = ''; $st.Details = ''
     $st.Step = 5
     Show-Page
 }
@@ -766,6 +895,18 @@ function Complete-AkariIsoJob($Job) {
             $stages = @($st.Stages)
             $end = Get-AkariIsoEndStates @($stages | ForEach-Object { $_.State }) $ok
             for ($i = 0; $i -lt $stages.Count; $i++) { Set-AkariIsoStageState $stages[$i] $end[$i] }
+            # the report's states and times where it has them
+            $rep = if ($r) { $r.Report } else { $null }
+            $rs = if ($rep) { @($rep.stages) } else { @() }
+            if ($rs.Count -eq $stages.Count) {
+                for ($i = 0; $i -lt $stages.Count; $i++) {
+                    $stages[$i].State = $rs[$i].state
+                    $stages[$i].Elapsed = if ($rs[$i].state -eq 'Not run') { '' } else { Get-AkariIsoElapsedText ([TimeSpan]::FromSeconds([double]$rs[$i].seconds)) }
+                    Set-AkariIsoStageLook $stages[$i].Row $stages[$i]
+                }
+            }
+            $st.Current = ''
+            $st.Details = Get-AkariIsoResultDetails $rep $ok
             if ($ok) {
                 $st.ResultPath = $r.Path
                 $st.Image = ''; $st.Lists = $null; $p.Edition.Items.Clear(); $p.Edition.IsEnabled = $false

@@ -233,6 +233,61 @@ Describe 'Invoke-AkariIsoBuild' {
         Test-Path $AkariIsoMarker | Should Be $false
         Assert-MockCalled Invoke-AkariRegExe -Scope It -ParameterFilter { $Arguments[0] -eq 'unload' }
     }
+
+    It 'reports each operation to the page and writes the report, size and SHA-256 next to the ISO' {
+        New-Media
+        # the test before left Save-AkariWim throwing (a mock lasts the Describe)
+        Mock Save-AkariWim { $script:calls.Add('Save') }
+        $iso = Join-Path $out 'Win11-Akari.iso'
+        Mock Invoke-AkariExe { [IO.File]::WriteAllText((Join-Path $TestDrive 'out\Win11-Akari.iso'), 'iso'); 0 }
+        $AkariShared = @{ IsoOps = [Collections.ArrayList]::new() }
+        $r = Invoke-AkariIsoBuild $c
+        Remove-Variable AkariShared
+        $r.Message | Should Be ''
+        $r.Ok | Should Be $true
+        $sha = -join @([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::ASCII.GetBytes('iso')) | ForEach-Object { $_.ToString('x2') })
+        $r.Report.sha256 | Should Be $sha
+        $r.Report.size | Should Be 3
+        $steps = New-AkariIsoPlan $c @()
+        $j = Get-Content -LiteralPath (Join-Path $out 'Win11-Akari.report.json') -Raw | ConvertFrom-Json
+        $j.ok | Should Be $true
+        $j.iso | Should Be $iso
+        (@($j.stages | ForEach-Object { $_.id }) -join ',') | Should Be (@($steps | ForEach-Object { $_.Id }) -join ',')
+        @($j.stages | Where-Object { $_.state -ne 'Done' }).Count | Should Be 0
+        $clean = @($j.stages | Where-Object { $_.id -eq 'Cleanup' })[0]
+        "$($clean.operations[0].name)|$($clean.operations[0].state)" | Should Be 'Component store cleanup|Done'
+    }
+
+    It 'hands the page each operation as it starts and ends' {
+        New-Media
+        Mock Save-AkariWim { $script:calls.Add('Save') }
+        Mock Invoke-AkariExe { $script:calls.Add('Oscdimg'); 0 }
+        Remove-Item (Join-Path $out 'Win11-Akari.iso') -ErrorAction SilentlyContinue
+        $AkariShared = @{ IsoOps = [Collections.ArrayList]::new() }
+        (Invoke-AkariIsoBuild $c).Message | Should Be ''
+        $ops = @($AkariShared.IsoOps)
+        Remove-Variable AkariShared
+        $cleanup = [array]::IndexOf(@(New-AkariIsoPlan $c @() | ForEach-Object { $_.Id }), 'Cleanup')
+        $mine = @($ops | Where-Object { $_.Name -eq 'Component store cleanup' })
+        (@($mine | ForEach-Object { "$($_.Stage)|$($_.State)" }) -join ',') | Should Be "$cleanup|Running,$cleanup|Done"
+        # no ISO was made: its hash skipped
+        @($ops | Where-Object { $_.Name -eq 'SHA-256 of the ISO' })[-1].State | Should Be 'Skipped'
+    }
+
+    It 'reports the failed stage, its failed operation and what did not run' {
+        New-Media
+        Mock Invoke-AkariDism { if ($Arguments[1] -eq '/Cleanup-Image') { throw 'DISM crashed.' }; 0 }
+        $r = Invoke-AkariIsoBuild $c
+        $r.Ok | Should Be $false
+        $st = @($r.Report.stages)
+        $fail = @($st | Where-Object { $_.id -eq 'Cleanup' })[0]
+        $fail.state | Should Be 'Failed'
+        "$($fail.operations[0].state)|$($fail.operations[0].note)" | Should Be 'Failed|DISM crashed.'
+        @($st | Where-Object { $_.id -eq 'Tidy' })[0].state | Should Be 'Not run'
+        $st.Count | Should Be (New-AkariIsoPlan $c @()).Count
+        Test-Path (Join-Path $out 'Win11-Akari.report.json') | Should Be $true
+        Mock Invoke-AkariDism { $script:calls.Add('Dism:' + ($Arguments[1])); 0 }
+    }
 }
 
 Describe 'Clear-AkariIsoLeftover' {
@@ -574,6 +629,26 @@ Describe 'ISO Builder page helpers (UI\IsoBuilder.ps1)' {
         (Get-AkariIsoEndStates @('Done', 'Running', 'Waiting') $true) -join ',' | Should Be 'Done,Done,Done'
         Get-AkariIsoElapsedText ([TimeSpan]::FromSeconds(12.7)) | Should Be '12 s'
         Get-AkariIsoElapsedText ([TimeSpan]::FromSeconds(184)) | Should Be '3 min 4 s'
+    }
+
+    It 'follows each stage''s operations and sums them up' {
+        $l = [Collections.ArrayList]::new()
+        [void](Update-AkariIsoOpList $l @{ Name = 'App A'; State = 'Running' })
+        [void](Update-AkariIsoOpList $l @{ Name = 'App B'; State = 'Running' })
+        [void](Update-AkariIsoOpList $l @{ Name = 'App A'; State = 'Failed'; Seconds = 3.2; Note = 'DISM exit code 2' })
+        [void](Update-AkariIsoOpList $l @{ Name = 'App B'; State = 'Skipped'; Seconds = 0; Note = 'Not there' })
+        [void](Update-AkariIsoOpList $l @{ Name = 'App C'; State = 'Done'; Seconds = 61 })
+        (@($l | ForEach-Object { "$($_.Name)|$($_.State)|$($_.Note)|$($_.Elapsed)" }) -join ';') | Should Be 'App A|Failed|DISM exit code 2|3 s;App B|Skipped|Not there|0 s;App C|Done||1 min 1 s'
+        Get-AkariIsoOpSummary $l | Should Be '3 operations, 1 failed, 1 skipped'
+        Get-AkariIsoOpSummary @(@{ State = 'Done' }) | Should Be '1 operation'
+        Get-AkariIsoOpSummary @() | Should Be ''
+    }
+
+    It 'shows the ISO''s size, SHA-256 and the report''s path' {
+        $rep = @{ iso = 'D:\Win11-Akari.iso'; size = [long](5.5 * 1GB); sha256 = 'ab12' }
+        (Get-AkariIsoResultDetails $rep $true) -replace '[^ -~\n]', '.' | Should Be ("5.50 GB . SHA-256 ab12`nReport: D:\Win11-Akari.report.json" -replace '5\.50', ('{0:0.00}' -f 5.5))
+        Get-AkariIsoResultDetails $rep $false | Should Be 'Report: D:\Win11-Akari.report.json'
+        Get-AkariIsoResultDetails $null $true | Should Be ''
     }
 
     It 'reviews the image, what goes, where the ISO goes and the installation options' {

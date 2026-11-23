@@ -347,7 +347,10 @@ internal sealed class IsoFakes : IImage, IOfflineHives, IDiskImage, IExe, ITrust
             case "oscdimg.exe":
                 OnOscdimg?.Invoke();
                 Rec("Oscdimg " + string.Join(" ", args));
-                return new ExeResult(Fail == "Oscdimg" ? 2 : 0, "");
+                if (Fail == "Oscdimg") return new ExeResult(2, "");
+                // the ISO (the build hashes it), as the PowerShell recorder writes it
+                if (!File.Exists(args[^1])) File.WriteAllText(args[^1], "iso");
+                return new ExeResult(0, "");
             default: Rec($"Exe {name} {arguments}"); OnExe?.Invoke(path, arguments); return new ExeResult(0, "");
         }
     }
