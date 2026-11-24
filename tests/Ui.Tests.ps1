@@ -934,6 +934,10 @@ ${function:Show-AkariDialog} = $null
 . "$Root\UI\Dialog.ps1"
 function Invoke-AkariDialog($Dialog) { $script:Shown = $Dialog; 'Update now' }
 "confirm=$(Confirm-AkariDialog 'q' 'Update now' 'Later'),$(Confirm-AkariDialog 'q' 'Start One-click'),$($script:Shown.FindName('DlgTitle').Text)"
+function Invoke-AkariDialog($Dialog) { $script:Shown = $Dialog; foreach ($c in $Dialog.Tag.Choices) { $c.IsChecked = $false }; $Dialog.Tag.Choices[2].IsChecked = $true; 'Continue' }
+"choice=$(Select-AkariChoice 'q' @('A', 'B', 'C') 1 'Continue' 'T')|$($script:Shown.Tag.Choices.Count)|$($script:Shown.Tag.Choices[1].Content)|$($script:Shown.FindName('DlgButtons').Children[0].Content)"
+function Invoke-AkariDialog($Dialog) { 'Cancel' }
+"choiceCancel=$($null -eq (Select-AkariChoice 'q' @('A', 'B') 0 'Continue'))"
 function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My preset  '; 'Save' }
 "readText=$(Read-AkariText 'A name:' 'Save')|$($null -eq (Read-AkariText 'A name:' 'Keep'))"
 '@
@@ -1069,6 +1073,9 @@ function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My
     }
     It 'Confirm-AkariDialog is $true only for its main action; Read-AkariText trims, and is $null when cancelled' {
         $out.confirm | Should Be 'True,False,AkariOS'
+        # a choice from a list (One-click's browser): a radio each, the picked index, Cancel = $null
+        $out.choice | Should Be '2|3|B|Continue'
+        $out.choiceCancel | Should Be 'True'
         $out.readText | Should Be 'My preset|True'
     }
 }

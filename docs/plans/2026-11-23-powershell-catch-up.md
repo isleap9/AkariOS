@@ -96,7 +96,7 @@ AGENTS.md updated, this line marked done, one commit, then the VM check.
 | P7 | ISO I4: modes, removal groups, bake, first sign-in, image app icons | done 2026-11-24 |
 | P8 | ISO I5: Microsoft's download | done 2026-11-24 |
 | P9 | ISO I6: Minimal; zISO removed | done 2026-11-24 |
-| P10 | One-click: the native app's browser pick and laptop detection (`OneClickPicks`: Helium first or another browser, Edge keeps Edge, no Ultimate power plan on a laptop), in the window's One-click and the ISO's first sign-in | |
+| P10 | One-click: the native app's browser pick and laptop detection (`OneClickPicks`: Helium first or another browser, Edge keeps Edge, no Ultimate power plan on a laptop), in the window's One-click and the ISO's first sign-in | done 2026-11-24 (PowerShell side; its oracle against the native `OneClickPicks` comes with that file's commit) |
 | P11 | 1.5.0 | |
 
 ## Decisions (2026-11-23)

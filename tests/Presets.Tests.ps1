@@ -89,6 +89,64 @@ Describe 'Presets\AkariOS.json' {
     }
 }
 
+Describe 'One-click''s picks (the native OneClickPicks)' {
+    $AkariPresetDir = "$TestDrive\none"
+    foreach ($f in 'Log', 'Registry', 'Loader', 'Presets') { . "$Core\$f.ps1" }
+    $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
+    $loaded = Get-AkariTweaks (Join-Path $Root 'Tweaks')
+    $p = Find-AkariPreset 'AkariOS' (Join-Path $Root 'Presets')
+    $ids = { param($x) @($x.Entries | ForEach-Object { $_.Id }) }
+    $all = & $ids $p
+    $at = [array]::IndexOf($all, 'install-helium')
+
+    It 'lists the browser installs: the preset''s Helium first, then by name, Edge among them' {
+        $b = @(Get-AkariOneClickBrowsers $loaded.Tweaks)
+        $b[0].Id | Should Be 'install-helium'
+        @($b | Where-Object { $_.AppType -ne 'Browsers' -or $_.Kind -ne 'Action' }).Count | Should Be 0
+        @($b | ForEach-Object { $_.Id }) -contains 'install-microsoft-edge' | Should Be $true
+        $rest = @($b | Select-Object -Skip 1 | ForEach-Object { $_.Name })
+        ($rest -join ',') | Should Be (@($rest | Sort-Object) -join ',')
+    }
+
+    It 'leaves the preset as it is with Helium on a desktop' {
+        $at | Should BeGreaterThan -1
+        (& $ids (Get-AkariOneClickPreset $p 'install-helium' 'Desktop')) -join ',' | Should Be ($all -join ',')
+    }
+
+    It 'puts the picked browser in Helium''s place, in its phase, and leaves the preset itself alone' {
+        $q = Get-AkariOneClickPreset $p 'install-brave' 'Desktop'
+        (& $ids $q)[$at] | Should Be 'install-brave'
+        $q.Entries[$at].Phase | Should Be $p.Entries[$at].Phase
+        (& $ids $q) -contains 'install-helium' | Should Be $false
+        $p.Entries[$at].Id | Should Be 'install-helium'
+        @($q.Phases).Count | Should Be @($p.Phases).Count
+    }
+
+    It 'keeps Edge when Edge is picked, installs no browser for none, and leaves the power plan out on a laptop' {
+        $all -contains 'remove-edge' | Should Be $true
+        $all -contains 'power-ultimate-plan' | Should Be $true
+        $edge = & $ids (Get-AkariOneClickPreset $p 'install-microsoft-edge' 'Desktop')
+        "$($edge -contains 'remove-edge')|$($edge[$at])" | Should Be 'False|install-microsoft-edge'
+        $none = & $ids (Get-AkariOneClickPreset $p '' 'Desktop')
+        "$($none -contains 'install-helium')|$($none.Count)|$($none -contains 'remove-edge')" | Should Be "False|$($all.Count - 1)|True"
+        $laptop = & $ids (Get-AkariOneClickPreset $p 'install-helium' 'Laptop')
+        "$($laptop -contains 'power-ultimate-plan')|$($laptop.Count)" | Should Be "False|$($all.Count - 1)"
+    }
+
+    It 'adds a browser the preset lacks first, and keeps one it already has once, where it was' {
+        $s = @{ Name = 's'; Entries = @(@{ Id = 'a'; Phase = 0 }, @{ Id = 'install-brave'; Phase = 1 }, @{ Id = 'install-helium'; Phase = 1 }) }
+        (& $ids (Get-AkariOneClickPreset $s 'install-brave' 'Desktop')) -join ',' | Should Be 'a,install-brave'
+        $q = Get-AkariOneClickPreset @{ Name = 'x'; Entries = @(@{ Id = 'a'; Phase = 1 }) } 'install-x' 'Desktop'
+        "$((& $ids $q) -join ',')|$($q.Entries[0].Phase)|$($q.Entries[0].HasValue)" | Should Be 'install-x,a|0|False'
+    }
+
+    It 'says what the picks leave out, for akari.log' {
+        (Get-AkariOneClickNotes 'install-brave' 'Desktop') -join '/' | Should Be 'One-click: browser install-brave.'
+        (Get-AkariOneClickNotes '' 'Laptop') -join '/' | Should Be 'One-click: no browser installed./One-click: this PC is a laptop, the Ultimate Performance power plan is left out.'
+        (Get-AkariOneClickNotes 'install-microsoft-edge' 'Desktop') -join '/' | Should Be 'One-click: browser install-microsoft-edge./One-click: Microsoft Edge kept (remove-edge left out).'
+    }
+}
+
 Describe 'Akari.ps1 -Preset' {
     It 'refuses an unknown preset before anything runs (exit 2)' {
         $out = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root 'Akari.ps1') -Preset 'zz-no-such-preset' 2>&1 | ForEach-Object { "$_" }

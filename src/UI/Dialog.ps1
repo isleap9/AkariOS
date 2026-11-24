@@ -26,12 +26,14 @@ function Get-AkariDialogOrder([string[]]$Buttons) {
     , (@($Buttons[-1]) + @($mid) + @($Buttons[0]))
 }
 
-# builds the dialog without showing it: its window, Tag.Result = the pressed button's text ($null = cancelled)
-function New-AkariDialog([string]$Message, [string]$Title = 'AkariOS', [string[]]$Buttons = @('OK'), [string]$Icon = 'Info', [switch]$TextBox) {
+# builds the dialog without showing it: its window, Tag.Result = the pressed button's text ($null = cancelled);
+# -Choices: one radio each under the text (Tag.Choices), -Selected picked at first
+function New-AkariDialog([string]$Message, [string]$Title = 'AkariOS', [string[]]$Buttons = @('OK'), [string]$Icon = 'Info', [switch]$TextBox,
+    [string[]]$Choices = @(), [int]$Selected = 0) {
     $d = Get-AkariXaml "$Root\UI\Dialog.xaml"
     # the main window's brushes and button styles
     if ($window) { $d.Resources.MergedDictionaries.Add($window.Resources) }
-    $d.Tag = @{ Result = $null; Cancel = $Buttons[0]; Closing = $false }
+    $d.Tag = @{ Result = $null; Cancel = $Buttons[0]; Closing = $false; Choices = [Collections.Generic.List[object]]::new() }
     $d.FindName('DlgTitle').Text = $Title
     $text = $d.FindName('DlgText')
     foreach ($b in Get-AkariDialogBlocks $Message) {
@@ -48,6 +50,16 @@ function New-AkariDialog([string]$Message, [string]$Title = 'AkariOS', [string[]
         [void]$text.Children.Add($t)
     }
     if ($TextBox) { $d.FindName('DlgInput').Visibility = 'Visible' }
+    for ($i = 0; $i -lt $Choices.Count; $i++) {
+        $r = [Windows.Controls.RadioButton]::new()
+        $r.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Radio')
+        $r.GroupName = 'DlgChoice'
+        $r.Content = $Choices[$i]
+        $r.Margin = [Windows.Thickness]::new(0, $(if ($i) { 10 } else { 14 }), 0, 0)
+        $r.IsChecked = ($i -eq $Selected)
+        $d.Tag.Choices.Add($r)
+        [void]$text.Children.Add($r)
+    }
     $bar = $d.FindName('DlgButtons')
     $order = Get-AkariDialogOrder $Buttons
     foreach ($name in $order) {
@@ -131,6 +143,17 @@ function Confirm-AkariDialog([string]$Message, [string]$Yes, [string]$No = 'Canc
 # a message with one OK button
 function Show-AkariMessage([string]$Message, [string]$Icon = 'Info', [string]$Title = 'AkariOS') {
     [void](Show-AkariDialog $Message $Title @('OK') $Icon)
+}
+
+# one answer from a list (One-click's browser): the picked index, or $null (cancelled). If the dialog can't open,
+# $Selected (the recommended one).
+function Select-AkariChoice([string]$Message, [string[]]$Options, [int]$Selected = 0, [string]$Ok = 'OK', [string]$Title = 'AkariOS') {
+    try {
+        $d = New-AkariDialog $Message $Title @('Cancel', $Ok) 'None' -Choices $Options -Selected $Selected
+        if ((Invoke-AkariDialog $d) -ne $Ok) { return $null }
+        for ($i = 0; $i -lt $d.Tag.Choices.Count; $i++) { if ($d.Tag.Choices[$i].IsChecked) { return $i } }
+        $null
+    } catch { Write-ErrLog "Dialog: $($_.Exception.Message)"; $Selected }
 }
 
 # asks for a line of text; the trimmed text, or $null (cancelled or empty)

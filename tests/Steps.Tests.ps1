@@ -64,7 +64,7 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework
 $AkariStatePath = "$env:TEMP\akari-steps-test-state.json"
 $AkariLogFile = "$env:TEMP\akari-steps-test\akari.log"
-foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner') { . "$Root\Core\$f.ps1" }
+foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'Presets') { . "$Root\Core\$f.ps1" }
 $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
 New-Item $Key -Force | Out-Null; New-ItemProperty $Key -Name 'O' -Value 0 -PropertyType DWord | Out-Null
 $script:Tweaks = @(
@@ -101,12 +101,24 @@ function Write-ErrLog($m) { }
 function Start-Process { $script:newWindow = $true }
 function Get-AkariRestoreChoice { $false }
 $window = [pscustomobject]@{}; $window | Add-Member ScriptMethod Close { $script:closed = $true }
-function Confirm-AkariOneClick { $false }
+function Confirm-AkariOneClick { $script:Chassis = $args[0]; $false }
+function Get-AkariChassis { 'Laptop' }
 Click $tiles.Children[0]
-"declinedLaunch=$([bool]$script:OneClickPath)"
+"declinedLaunch=$([bool]$script:OneClickPath)|$script:Chassis"
 function Confirm-AkariOneClick { $true }
+# the browser question: Helium (recommended) first, then by name, No browser last; cancelled = nothing launched
+$hold = $script:Tweaks
+$script:Tweaks = @($hold) + @(
+    ConvertTo-AkariTweak @{ Id = 'install-vivaldi'; Name = 'Vivaldi'; Section = 'Apps'; Category = 'Install'; Kind = 'Action'; AppType = 'Browsers'; Apply = { } } 'x' $false
+    ConvertTo-AkariTweak @{ Id = 'install-helium'; Name = 'Helium'; Section = 'Apps'; Category = 'Install'; Kind = 'Action'; AppType = 'Browsers'; Apply = { } } 'x' $false
+    ConvertTo-AkariTweak @{ Id = 'install-brave'; Name = 'Brave'; Section = 'Apps'; Category = 'Install'; Kind = 'Action'; AppType = 'Browsers'; Apply = { } } 'x' $false)
+function Select-AkariChoice { $script:Asked = $args[1] -join ','; $null }
 Click $tiles.Children[0]
-"launched=$script:OneClickPath"; "closed=$script:closed"; "newWindow=$([bool]$script:newWindow)"
+"browserCancel=$script:Asked|$([bool]$script:OneClickPath)"
+function Select-AkariChoice { 2 }
+Click $tiles.Children[0]
+$script:Tweaks = $hold
+"launched=$script:OneClickPath"; "closed=$script:closed"; "newWindow=$([bool]$script:newWindow)"; "picks=$script:OneClickBrowser|$script:OneClickChassis"
 Remove-Item Function:\Test-Path; $Root = $realRoot
 Initialize-AkariSteps
 Click $tiles.Children[1]
@@ -161,7 +173,11 @@ Click $StepBack; Click $StepBack
         $out.chooser | Should Be '2|Install AkariOS|Collapsed|True'
         $out.chooserParts | Should Be 'TextBlock,UniformGrid,TextBlock,Border,Border|Warn'
     }
-    It 'One-click asks first; No launches nothing' { $out.declinedLaunch | Should Be 'False' }
+    It 'One-click asks first, saying when the PC is a laptop; No launches nothing' { $out.declinedLaunch | Should Be 'False|Laptop' }
+    It 'One-click asks for the browser next: Helium (recommended) first, then by name, No browser last; Cancel launches nothing' {
+        $out.browserCancel | Should Be 'Helium (recommended),Brave,Vivaldi,No browser|False'
+    }
+    It 'One-click hands the picked browser and the chassis to the console' { $out.picks | Should Be 'install-vivaldi|Laptop' }
     It 'One-click runs in Akari''s own console, no new window' { $out.newWindow | Should Be 'False' }
     It 'One-click Yes hands the AkariOS preset to the console and closes the window' {
         $out.launched | Should Match 'Presets\\AkariOS\.json'

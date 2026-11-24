@@ -167,3 +167,47 @@ function Get-AkariPresetPhases($Preset, $Items, [switch]$Revert) {
     }
     $out
 }
+
+# ---- One-click's own picks on the AkariOS preset (the native OneClickPicks): the browser the user chose in place of
+# the preset's Helium, and no Ultimate Performance plan on a laptop (no sleep, CPU always at 100%: too much on battery)
+
+$AkariOneClickBrowser = 'install-helium'
+$AkariOneClickEdge = 'install-microsoft-edge'
+$AkariOneClickRemoveEdge = 'remove-edge'
+$AkariOneClickPowerPlan = 'power-ultimate-plan'
+
+# the browsers One-click can install (installs of AppType Browsers): the preset's own first, then by name. Pure.
+function Get-AkariOneClickBrowsers($Tweaks) {
+    @($Tweaks) | Where-Object { $_.AppType -eq 'Browsers' -and $_.Kind -eq 'Action' } |
+        Sort-Object @{ Expression = { $_.Id -ne $AkariOneClickBrowser } }, @{ Expression = { $_.Name } }
+}
+
+# the preset with the picks: $Browser = an install Tweak's id, '' = none (the preset's browser left out); Edge picked
+# keeps Edge (its removal left out); $Chassis Laptop leaves the power plan out. A copy; its entries keep their phase.
+# Pure.
+function Get-AkariOneClickPreset($Preset, [string]$Browser, [string]$Chassis) {
+    $entries = [Collections.Generic.List[object]]::new()
+    $placed = $false
+    foreach ($e in @($Preset.Entries)) {
+        if ($e.Id -eq $AkariOneClickBrowser) {
+            if ($Browser -and -not $placed) { $x = $e.Clone(); $x.Id = $Browser; $entries.Add($x) }
+            $placed = $true
+            continue
+        }
+        if ($Browser -and $e.Id -eq $Browser) { if (-not $placed) { $entries.Add($e) }; $placed = $true; continue }
+        if ($e.Id -eq $AkariOneClickRemoveEdge -and $Browser -eq $AkariOneClickEdge) { continue }
+        if ($e.Id -eq $AkariOneClickPowerPlan -and $Chassis -eq 'Laptop') { continue }
+        $entries.Add($e)
+    }
+    if ($Browser -and -not $placed) { $entries.Insert(0, @{ Id = $Browser; HasValue = $false; Phase = 0 }) }
+    $p = $Preset.Clone()
+    $p.Entries = $entries.ToArray()
+    $p
+}
+
+# what the picks leave out, as lines for akari.log. Pure.
+function Get-AkariOneClickNotes([string]$Browser, [string]$Chassis) {
+    if ($Browser) { "One-click: browser $Browser." } else { 'One-click: no browser installed.' }
+    if ($Browser -eq $AkariOneClickEdge) { 'One-click: Microsoft Edge kept (remove-edge left out).' }
+    if ($Chassis -eq 'Laptop') { 'One-click: this PC is a laptop, the Ultimate Performance power plan is left out.' }
+}

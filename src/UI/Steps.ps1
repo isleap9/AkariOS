@@ -497,7 +497,8 @@ function Update-AkariStepFooter {
 # One-click: the AkariOS preset's Run (Presets\AkariOS.json: preparation, Safe Mode, then the debloat and tweaks, with
 # restarts in between: Core\Phases.ps1), in Akari's own console: the window closes and Akari.ps1 starts the Run there
 # after ShowDialog returns (no new window).
-function Confirm-AkariOneClick {
+# $Chassis Laptop adds the laptop note (the native LaptopNote)
+function Confirm-AkariOneClick([string]$Chassis = '') {
     $q = "AkariOS changes a lot of Windows, including security features.`n" +
          "- Run it on a fresh install or a PC you can reinstall. There is no uninstaller.`n" +
          "- Security is reduced on purpose (Defender settings, UAC, memory integrity).`n" +
@@ -505,14 +506,33 @@ function Confirm-AkariOneClick {
          "- Graphics and audio drivers are removed. Install a fresh graphics driver afterwards.`n" +
          "- It is tuned for desktops: power saving is turned off.`n" +
          "- It needs an internet connection."
+    if ($Chassis -eq 'Laptop') { $q += "`n`nThis PC is a laptop: the Ultimate Performance power plan is left out, so your power plan and battery life stay as they are." }
     Confirm-AkariDialog $q 'Start One-click' 'Cancel' 'Warning' 'Start One-click now?'
+}
+
+# One-click's browser (the native one's question): Helium (recommended) first, the other browsers, No browser last.
+# The picked install's id, '' for none, $null when cancelled. No browser installs loaded = '' without asking.
+function Read-AkariOneClickBrowser {
+    $browsers = @(Get-AkariOneClickBrowsers $script:Tweaks)
+    if (-not $browsers.Count) { return '' }
+    $names = @($browsers | ForEach-Object { if ($_.Id -eq $AkariOneClickBrowser) { "$($_.Name) (recommended)" } else { $_.Name } }) + 'No browser'
+    $i = Select-AkariChoice 'AkariOS removes Microsoft Edge. Pick the browser to install instead.' $names 0 'Continue' 'Which browser should One-click install?'
+    if ($null -eq $i) { return $null }
+    if ($i -lt $browsers.Count) { $browsers[$i].Id } else { '' }
 }
 
 function Start-AkariOneClick {
     $path = "$Root\Presets\AkariOS.json"
     if (-not (Test-Path $path)) { Show-AkariMessage "Missing: $path" 'Error'; return }
     if ($script:Busy) { Show-AkariMessage "$($script:BusyLabel) is still running. Start One-click when it is done." 'Info' 'One-click'; return }
-    if (-not (Confirm-AkariOneClick)) { return }
+    $chassis = try { Get-AkariChassis } catch { 'Desktop' }
+    if (-not (Confirm-AkariOneClick $chassis)) { return }
+    $browser = Read-AkariOneClickBrowser
+    if ($null -eq $browser) { return }
+    foreach ($n in Get-AkariOneClickNotes $browser $chassis) { Write-ErrLog $n }
+    # Akari.ps1 applies them to the preset in the console (Get-AkariOneClickPreset)
+    $script:OneClickBrowser = $browser
+    $script:OneClickChassis = $chassis
     # asked here, in the window; Akari.ps1 makes it in the console before phase 1
     $script:OneClickRestore = Get-AkariRestoreChoice 'OneClick'
     Write-ErrLog "One-click started: $path"

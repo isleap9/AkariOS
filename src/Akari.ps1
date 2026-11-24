@@ -76,6 +76,8 @@ if ($FirstSignIn) {
     $loaded = Get-AkariTweaks (Join-Path $PSScriptRoot 'Tweaks')
     $oneClickPreset = Find-AkariPreset 'AkariOS' (Join-Path $PSScriptRoot 'Presets')
     if (-not $oneClickPreset) { Write-Log 'The AkariOS preset could not be read.'; [void][Console]::ReadLine(); exit }
+    # the browser is the preset's (no one to ask); a laptop gets no Ultimate Performance plan, as in One-click
+    $oneClickPreset = Get-AkariOneClickPreset $oneClickPreset $AkariOneClickBrowser (Get-AkariChassis)
     Write-Log 'Reading the apps and features on this PC...'
     $r = New-AkariPresetRun $oneClickPreset $loaded
     $status = @(Start-AkariPhases $r.Run $r.Tweaks | Where-Object { $_ -is [string] }) | Select-Object -Last 1
@@ -165,6 +167,8 @@ if ($script:OneClickPath) {
     # not $preset: that is the -Preset parameter ([string]; names ignore case)
     $oneClickPreset = Read-AkariPreset $script:OneClickPath $true
     if (-not $oneClickPreset) { Write-Log "One-click: $($script:OneClickPath) could not be read."; [void][Console]::ReadLine(); exit }
+    # the window's picks: the browser, and no Ultimate Performance plan on a laptop
+    $oneClickPreset = Get-AkariOneClickPreset $oneClickPreset $script:OneClickBrowser $script:OneClickChassis
     Write-Log 'Reading the apps and features on this PC...'
     $r = New-AkariPresetRun $oneClickPreset $loaded
     $status = @(Start-AkariPhases $r.Run $r.Tweaks | Where-Object { $_ -is [string] }) | Select-Object -Last 1
