@@ -335,6 +335,94 @@ Describe 'Invoke-AkariIsoBuild' {
     }
 }
 
+Describe 'Invoke-AkariIsoBuild from the wizard''s groups' {
+    . Initialize-IsoTest
+    $out = Join-Path $TestDrive 'out'
+    $w = Get-AkariIsoWork $out
+    function New-Media {
+        Remove-Item $w.Root -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item "$($w.Media)\sources\sxs", "$($w.Media)\boot", "$($w.Media)\efi\microsoft\boot", $w.Mount -ItemType Directory -Force | Out-Null
+        foreach ($f in 'sources\install.esd', 'sources\boot.wim', 'boot\etfsboot.com', 'efi\microsoft\boot\efisys.bin') { Set-Content (Join-Path $w.Media $f) 'x' }
+        New-Item "$($w.Mount)\Windows\System32\config", "$($w.Mount)\Users\Default" -ItemType Directory -Force | Out-Null
+        foreach ($h in 'Windows\System32\config\SOFTWARE', 'Windows\System32\config\SYSTEM', 'Users\Default\NTUSER.DAT') { Set-Content "$($w.Mount)\$h" 'x' }
+        New-Item "$($w.Mount)\Windows\System32\OneDriveSetup.exe" -ItemType File -Force | Out-Null
+    }
+    $script:rows = [System.Collections.Generic.List[object]]::new()
+    Mock Write-Log { }
+    Mock Write-ErrLog { }
+    Mock Set-AkariProgress { }
+    Mock Install-AkariAdk { 'C:\adk\oscdimg.exe' }
+    Mock Export-AkariWim { }
+    Mock Mount-AkariWim { }
+    Mock Save-AkariWim { }
+    Mock Undo-AkariWim { }
+    Mock Invoke-AkariDism { 0 }
+    Mock Invoke-AkariRegExe { 0 }
+    Mock Invoke-AkariRegistry { foreach ($e in $Entries) { $script:rows.Add($e) } }
+    Mock Invoke-AkariRegistryTrusted { }
+    Mock Grant-AkariOwnership { }
+    Mock Remove-AkariPaths { 1 }
+    Mock Get-AkariWimImages { @{ Index = 1 }, @{ Index = 2 } }
+    Mock Invoke-AkariExe { 0 }
+    Mock Read-AkariImageApps { @{ Name = 'Microsoft.BingNews'; Package = 'Microsoft.BingNews_1_x64__8wekyb3d8bbwe' }, @{ Name = 'Microsoft.WindowsCalculator'; Package = 'Microsoft.WindowsCalculator_1_x64__8wekyb3d8bbwe' } }
+    Mock Copy-AkariToImage { }
+    $c = @{ OutDir = $out; Iso = 'D:\Win11.iso'; Image = "$($w.Media)\sources\install.esd"; Index = 6; Edition = 'Windows 11 Pro' }
+
+    It 'builds from the groups instead of the always-on data' {
+        New-Media; $script:rows.Clear()
+        $cs = $c.Clone(); $cs.Groups = @('SkipHardwareChecks', 'OneDrive'); $cs.AppPatterns = @('Microsoft.BingNews')
+        $AkariShared = @{ IsoOps = [Collections.ArrayList]::new() }
+        $r = Invoke-AkariIsoBuild $cs
+        $ops = @($AkariShared.IsoOps | Where-Object { $_.State -ne 'Running' } | ForEach-Object { "$($_.Name)|$($_.State)" })
+        Remove-Variable AkariShared
+        $r.Ok | Should Be $true
+        @($script:rows | Where-Object { $_.Path -like '*LabConfig' -and $_.Name -eq 'BypassTPMCheck' }).Count | Should BeGreaterThan 0
+        # zISO's always-on rows and paths are not written or removed
+        @($script:rows | Where-Object { $_.Name -eq 'DisableWindowsConsumerFeatures' }).Count | Should Be 0
+        $ops -contains 'Windows\InboxApps|Skipped' | Should Be $false
+        $ops -contains 'Windows\System32\OneDriveSetup.exe|Done' | Should Be $true
+        # the app pattern matched on the image
+        $ops -contains 'App Microsoft.BingNews|Done' | Should Be $true
+        @($ops | Where-Object { $_ -like 'App Microsoft.WindowsCalculator*' }).Count | Should Be 0
+        Assert-MockCalled Mount-AkariWim -Scope It -ParameterFilter { $Path -like '*boot.wim' }
+    }
+
+    It 'fails an unknown group before it starts' {
+        $cs = $c.Clone(); $cs.Groups = @('Nope')
+        $r = Invoke-AkariIsoBuild $cs
+        "$($r.Ok)|$($r.Message)" | Should Be 'False|Unknown removal group: Nope'
+        Assert-MockCalled Install-AkariAdk -Scope It -Times 0
+    }
+
+    It 'writes the baked Tweaks into the image and the first sign-in''s RunOnce value' {
+        New-Media; $script:rows.Clear()
+        $toggle = [pscustomobject]@{ Id = 't-user'; Name = 't-user'; Kind = 'Toggle'; Registry = [hashtable[]]@(
+                @{ Path = 'HKCU:\Control Panel\Mouse'; Name = 'MouseSpeed'; Type = 'DWord'; Value = 0 }
+                @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\X'; Name = 'Y'; Type = 'DWord'; Value = 2 }) }
+        $choice = [pscustomobject]@{ Id = 't-choice'; Name = 'A choice'; Kind = 'Choice'; Recommended = 3; Registry = [hashtable[]]@(@{ Path = 'HKLM:\SOFTWARE\Policies\Z'; Name = 'Level'; Type = 'DWord' }) }
+        $nodef = [pscustomobject]@{ Id = 't-def'; Name = 'Default hive'; Kind = 'Toggle'; Registry = [hashtable[]]@(@{ Path = 'Registry::HKEY_USERS\.DEFAULT\X'; Name = 'A'; Type = 'DWord'; Value = 1 }) }
+        $cs = $c.Clone(); $cs.Groups = @(); $cs.AkariDir = 'C:\src'; $cs.FirstSignIn = $true; $cs.ImageBuild = 26100
+        $cs.Bake = @(@{ Tweak = $toggle; Value = $null }, @{ Tweak = $choice; Value = 5 }, @{ Tweak = $nodef; Value = $null })
+        $AkariShared = @{ IsoOps = [Collections.ArrayList]::new() }
+        $r = Invoke-AkariIsoBuild $cs
+        $ops = @($AkariShared.IsoOps | Where-Object { $_.State -ne 'Running' } | ForEach-Object { "$($_.Name)|$($_.State)|$($_.Note)" })
+        Remove-Variable AkariShared
+        $r.Ok | Should Be $true
+        $seen = @($script:rows | ForEach-Object { "$($_.Path)|$($_.Name)|$($_.Value)" })
+        $seen -contains "$($AkariIsoRegRoot)NTUSER\Control Panel\Mouse|MouseSpeed|0" | Should Be $true
+        $seen -contains "$($AkariIsoRegRoot)SYSTEM\ControlSet001\Control\X|Y|2" | Should Be $true
+        $seen -contains "$($AkariIsoRegRoot)SOFTWARE\Policies\Z|Level|5" | Should Be $true
+        $seen -contains "$($AkariIsoRegRoot)$AkariIsoRunOnceKey|AkariOS|$AkariIsoFirstSignIn" | Should Be $true
+        $AkariIsoFirstSignIn | Should Match "-File C:\\AkariOS\\Akari\.ps1 -FirstSignIn' -Verb RunAs"
+        $ops -contains 'Tweak t-user|Done|' | Should Be $true
+        $ops -contains 'Tweak A choice|Done|5' | Should Be $true
+        $ops -contains 'Tweak Default hive|Skipped|The image has no DEFAULT hive' | Should Be $true
+        $ops -contains 'The rest of AkariOS at the first sign-in|Done|A RunOnce entry for each new account: one UAC prompt, then One-click''s console' | Should Be $true
+        $ids = @($r.Report.stages | ForEach-Object { $_.id }) -join ','
+        $ids | Should Match 'Cleanup,Bake,AkariOS,Commit'
+    }
+}
+
 Describe 'Export-AkariWim' {
     . Initialize-IsoTest
     It 'exports a recovery-compressed install.esd through dism.exe, a split image''s parts too' {
@@ -612,6 +700,87 @@ Describe 'Invoke-AkariIsoBuild with options and removals' {
     }
 }
 
+Describe 'ISO Builder wizard data (Core\Iso\Wizard)' {
+    . Initialize-IsoTest
+    foreach ($f in 'Loader', 'Presets') { . "$Core\$f.ps1" }
+    $groups = @(Get-AkariIsoGroups)
+    $modes = @(Get-AkariIsoModes)
+
+    It 'reads the modes and the groups by Order' {
+        ($modes | ForEach-Object { $_.Id }) -join ',' | Should Be 'AkariOS,Lite,Minimal'
+        $groups[0].Id | Should Be 'SkipHardwareChecks'
+        foreach ($m in $modes) { foreach ($g in $m.Groups) { @($groups | Where-Object { $_.Id -eq $g }).Count | Should Be 1 } }
+        $modes[0].AkariOS | Should Be $true
+    }
+
+    It 'picks groups by id, in Order, and refuses an unknown one' {
+        ((Get-AkariIsoGroupsPicked @('OneDrive', 'SkipHardwareChecks') $groups) | ForEach-Object { $_.Id }) -join ',' | Should Be 'SkipHardwareChecks,OneDrive'
+        { Get-AkariIsoGroupsPicked @('Nope') $groups } | Should Throw 'Unknown removal group: Nope'
+    }
+
+    It 'expands the appx tokens and keeps other patterns' {
+        $t = @([pscustomobject]@{ Id = 'appx/A'; Risk = 'Safe'; Keep = $false }, [pscustomobject]@{ Id = 'appx/B'; Risk = 'Caution'; Keep = $false },
+            [pscustomobject]@{ Id = 'appx/C'; Risk = 'Safe'; Keep = $true }, [pscustomobject]@{ Id = 'other'; Risk = 'Safe'; Keep = $false })
+        (Get-AkariIsoAppPatterns @(@{ Apps = @('appx:Safe') }) $t) -join ',' | Should Be 'A'
+        (Get-AkariIsoAppPatterns @(@{ Apps = @('appx:AkariOS') }) $t) -join ',' | Should Be 'A,B'
+        (Get-AkariIsoAppPatterns @(@{ Apps = @('appx:Safe', 'appx:AkariOS') }, @{ Apps = @('Edge*', 'a') }) $t) -join ',' | Should Be 'A,B,Edge*'
+    }
+
+    It 'puts a Tweak''s path in the image or nowhere' {
+        $r = 'HKLM:\AkariIso_'
+        Get-AkariIsoImagePath 'HKLM:\SOFTWARE\Policies\X' $r | Should Be 'HKLM:\AkariIso_SOFTWARE\Policies\X'
+        Get-AkariIsoImagePath 'HKLM:\SYSTEM\CurrentControlSet\Services\X' $r | Should Be 'HKLM:\AkariIso_SYSTEM\ControlSet001\Services\X'
+        Get-AkariIsoImagePath 'HKLM:\SYSTEM\Setup' $r | Should Be 'HKLM:\AkariIso_SYSTEM\Setup'
+        Get-AkariIsoImagePath 'HKCU:\Control Panel\Mouse' $r | Should Be 'HKLM:\AkariIso_NTUSER\Control Panel\Mouse'
+        Get-AkariIsoImagePath 'Registry::HKEY_USERS\.DEFAULT\Control Panel\Keyboard' $r | Should Be 'HKLM:\AkariIso_DEFAULT\Control Panel\Keyboard'
+        Get-AkariIsoImagePath 'HKEY_CLASSES_ROOT\Directory' $r | Should Be 'HKLM:\AkariIso_SOFTWARE\Classes\Directory'
+        foreach ($none in 'HKCU:\Software\Classes\CLSID\{x}', 'HKLM:\HARDWARE\X', 'Registry::HKEY_USERS\S-1-5-21-1\X', 'not a path') { Get-AkariIsoImagePath $none $r | Should BeNullOrEmpty }
+    }
+
+    It 'bakes the AkariOS preset''s registry-only Tweaks and leaves the rest for the first sign-in' {
+        $loaded = Get-AkariTweaks "$Root\Tweaks"
+        $preset = Find-AkariPreset 'AkariOS' "$Root\Presets"
+        $b = Get-AkariIsoBake $preset $loaded.Tweaks 26100
+        @($b.InImage).Count | Should BeGreaterThan 10
+        foreach ($i in $b.InImage) {
+            $i.Tweak.SafeMode | Should Be $false
+            if ($i.Tweak.Kind -eq 'Choice') { $i.Value | Should Not BeNullOrEmpty }
+        }
+        $b.Later -contains 'oneclick-ddu-prepare' | Should Be $true
+        $b.Later -contains 'security-defender-settings' | Should Be $true
+        @($b.Later | Where-Object { $_ -like 'appx/*' }).Count | Should BeGreaterThan 0
+        $all = @((Resolve-AkariPreset $preset $loaded.Tweaks).Items | ForEach-Object { $_.Id }) | Sort-Object
+        (@(@($b.InImage | ForEach-Object { $_.Tweak.Id }) + @($b.Later)) | Sort-Object) -join ',' | Should Be ($all -join ',')
+    }
+
+    It 'bakes by the image''s Windows' {
+        $row = @(@{ Path = 'HKLM:\SOFTWARE\X'; Name = 'A'; Type = 'DWord'; Value = 1 })
+        $t = @([pscustomobject]@{ Id = 'w10'; Name = 'w10'; Kind = 'Toggle'; Requires = @('Win10'); Registry = $row }, [pscustomobject]@{ Id = 'lap'; Name = 'lap'; Kind = 'Toggle'; Requires = @('Laptop'); Registry = $row })
+        $preset = @{ Name = 'p'; Entries = @(@{ Id = 'w10' }, @{ Id = 'lap' }) }
+        (Get-AkariIsoBake $preset $t 19045).Later -join ',' | Should Be 'lap'
+        (Get-AkariIsoBake $preset $t 26100).Later -join ',' | Should Be 'w10,lap'
+    }
+
+    It 'plans a wizard build: .NET 3.5 and the cleanup before the features; settings, files and boot.wim only for groups with them' {
+        $ids = { param($c, $g) $p = New-AkariIsoPlan $c @() $g; @($p | ForEach-Object { $_.Id }) -join ',' }
+        & $ids @{ Groups = @() } @() | Should Be 'Adk,Mount,NetFx3,Cleanup,Commit,Compress,Iso,Tidy'
+        $g = Get-AkariIsoGroupsPicked @('Tiny11Features', 'OneDrive') $groups
+        & $ids @{ Groups = @('Tiny11Features', 'OneDrive'); AppPatterns = @('Microsoft.BingNews') } $g | Should Be 'Adk,Mount,Apps,NetFx3,Cleanup,Features,Registry,Files,Commit,Compress,Iso,Tidy'
+        & $ids @{ Groups = @(); FirstSignIn = $true } @() | Should Not Match 'Bake'
+        & $ids @{ Groups = @(); FirstSignIn = $true; AkariDir = 'C:\a' } @() | Should Match 'Bake,AkariOS,Commit'
+        # the port's build keeps its order
+        & $ids @{ Features = @('Recall') } @() | Should Be 'Adk,Mount,Features,Registry,Files,NetFx3,Cleanup,Commit,Compress,Boot,Iso,Tidy'
+    }
+
+    It 'reads an edition''s build and says the plan''s size' {
+        $window = $null; . "$Root\UI\IsoBuilder.ps1"
+        Get-AkariIsoBuildOf '10.0.26100.1742' | Should Be 26100
+        Get-AkariIsoBuildOf '' | Should Be 0
+        Get-AkariIsoPlanText 1 | Should Be '1 removal group'
+        Get-AkariIsoPlanText 0 | Should Be '0 removal groups'
+    }
+}
+
 Describe 'ISO Builder page helpers (UI\IsoBuilder.ps1)' {
     . Initialize-IsoTest
     . "$Core\Unattend.ps1"
@@ -709,16 +878,21 @@ Describe 'ISO Builder page helpers (UI\IsoBuilder.ps1)' {
 
     It 'reviews the image, what goes, where the ISO goes, the installation options and the build settings' {
         $cards = Get-AkariIsoReviewCards @{ Summary = 'Windows 11 Pro'; Iso = 'D:\Win11.iso'; ModeName = 'Custom'; ModeIcon = 'settings-2'
+            Groups = @('Skip the hardware checks'); Custom = $true
             Lists = @(@{ Title = 'Store apps'; Ticked = 3; Count = 40 }); OutDir = 'E:\Out'; Answer = 'Local'; SkipOobe = $true; User = 'Gamer'; AkariOS = $true
             Settings = @{ Compression = 'Recovery'; Turbo = $true } }
         ($cards | ForEach-Object { $_.Title }) -join ',' | Should Be 'Windows image,Custom,Output and workspace,Installation options,Build settings'
         $cards[4].Lines | Should Be "Compression: Recovery ESD (smallest, slowest)`nTurbo feature removal: On`nRemove leftover image data: Off`n.NET 3.5's setup files on the ISO: Kept"
         $cards[0].Lines | Should Be "Windows 11 Pro`nD:\Win11.iso"
-        $cards[1].Lines | Should Be 'Store apps: 3 of 40'
+        $cards[1].Lines | Should Be ("1 removal group`n- Skip the hardware checks`n`nStore apps: 3 of 40")
         $cards[2].Lines | Should Be "ISO`nE:\Out\Win11-Akari.iso`n`nWork folder`nE:\Out\AkariIso"
         $cards[3].Lines | Should Be "Answer file: A local account (Gamer), setup's questions skipped`nAkariOS on the new Windows: Yes"
-        $none = Get-AkariIsoReviewCards @{ Summary = 'x'; Iso = 'D:\a.iso'; ModeName = 'Custom'; Lists = @(); OutDir = 'E:\'; Answer = 'None'; AkariOS = $false }
-        $none[1].Lines | Should Be 'Nothing removed: the image''s lists weren''t read.'
+        $none = Get-AkariIsoReviewCards @{ Summary = 'x'; Iso = 'D:\a.iso'; ModeName = 'Custom'; Custom = $true; Lists = @(); OutDir = 'E:\'; Answer = 'None'; AkariOS = $false }
+        $none[1].Lines | Should Be "0 removal groups`n`nThe image's own lists weren't read: nothing picked from them."
+        # the AkariOS mode: its groups and what is baked
+        $ak = Get-AkariIsoReviewCards @{ Summary = 'x'; Iso = 'D:\a.iso'; ModeName = 'AkariOS'; Groups = @('A', 'B'); Bake = @{ InImage = 40; Later = 25; FirstSignIn = $true }; OutDir = 'E:\'; Answer = 'None' }
+        $ak[1].Lines | Should Be "2 removal groups`n- A`n- B`n`nAkariOS settings written into the image: 40`nThe rest at the first sign-in: 25 changes, one UAC prompt"
+        (Get-AkariIsoReviewCards @{ Groups = @('A'); Bake = @{ InImage = 1; Later = 2; FirstSignIn = $false } })[1].Lines | Should Match 'The rest left out: run One-click from the Start menu later$'
         $none[3].Lines | Should Be "Answer file: None: setup asks everything as usual`nAkariOS on the new Windows: No"
     }
 

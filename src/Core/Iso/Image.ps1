@@ -193,6 +193,191 @@ function Remove-AkariIsoLeftovers([string]$Mount) {
     }
 }
 
+# ---- the wizard's modes and removal groups (src\Core\Iso\Wizard: the native app reads them too)
+
+$AkariIsoWizardDir = Join-Path $PSScriptRoot 'Wizard'
+# the preset the AkariOS mode bakes in; the Default user's RunOnce value that finishes it at each new account's first
+# sign-in (the PowerShell app copied to C:\AkariOS: Akari.ps1 -FirstSignIn, started elevated: one UAC prompt)
+$AkariIsoBakePreset = 'AkariOS'
+$AkariIsoRunOnceKey = 'NTUSER\Software\Microsoft\Windows\CurrentVersion\RunOnce'
+$AkariIsoRunOnceName = 'AkariOS'
+$AkariIsoFirstSignIn = "powershell.exe -NoProfile -WindowStyle Hidden -Command `"Start-Process -FilePath 'powershell.exe' -ArgumentList '-NoProfile -ExecutionPolicy Bypass -WindowStyle Maximized -File C:\AkariOS\Akari.ps1 -FirstSignIn' -Verb RunAs`""
+
+# a Wizard folder's .psd1 files, each with Id = its file name, by Order then Id
+function Read-AkariIsoWizard([string]$Folder) {
+    $o = foreach ($f in @(Get-ChildItem -LiteralPath (Join-Path $AkariIsoWizardDir $Folder) -Filter *.psd1 -File)) {
+        $d = Import-PowerShellDataFile $f.FullName
+        $d.Id = $f.BaseName
+        $d
+    }
+    $o | Sort-Object @{ Expression = { [int]$_.Order } }, @{ Expression = { $_.Id } }
+}
+# the removal groups (Name, Description, Kind, Risk, Order, Apps, Features, Capabilities, Packages, Registry,
+# RemoveKeys, Remove, Boot, PruneComponentStore) and the modes (Name, Description, Tag, Order, Groups, Settings,
+# AkariOS, Minimal)
+function Get-AkariIsoGroups { Read-AkariIsoWizard 'Groups' }
+function Get-AkariIsoModes { Read-AkariIsoWizard 'Modes' }
+
+# the picked groups (ids), in Order; an unknown id throws
+function Get-AkariIsoGroupsPicked($Ids, $All) {
+    $ids = @($Ids | Where-Object { $_ })
+    foreach ($id in $ids) { if (-not @($All | Where-Object { $_.Id -eq $id }).Count) { throw "Unknown removal group: $id" } }
+    , @($All | Where-Object { $ids -contains $_.Id })
+}
+
+# the groups' app patterns, matched on the image's apps when it is built: 'appx:Safe' = the appx Group's rows rated
+# Safe and not Keep (Select recommended), 'appx:AkariOS' = its rows not Keep (the AkariOS preset's "appx/*"),
+# anything else as written. $Tweaks = the loaded Tweaks. Pure.
+function Get-AkariIsoAppPatterns($Groups, $Tweaks) {
+    $appx = @($Tweaks | Where-Object { $_.Id -like 'appx/*' })
+    $out = [Collections.Generic.List[string]]::new()
+    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($a in @($Groups | ForEach-Object { $_.Apps } | Where-Object { $_ })) {
+        $names = if ($a -eq 'appx:Safe') { @($appx | Where-Object { $_.Risk -eq 'Safe' -and -not $_.Keep } | ForEach-Object { $_.Id.Substring(5) }) }
+        elseif ($a -eq 'appx:AkariOS') { @($appx | Where-Object { -not $_.Keep } | ForEach-Object { $_.Id.Substring(5) }) }
+        else { @($a) }
+        foreach ($n in $names) { if ($seen.Add($n)) { $out.Add($n) } }
+    }
+    , $out.ToArray()
+}
+
+# a Tweak's registry path in the loaded image (under $Root), or $null where the image has no place for it: HKLM's
+# SOFTWARE and SYSTEM (CurrentControlSet = ControlSet001), HKCU = the Default user's NTUSER.DAT (but
+# Software\Classes), HKEY_USERS\.DEFAULT, HKEY_CLASSES_ROOT = SOFTWARE\Classes. Pure.
+function Get-AkariIsoImagePath([string]$Path, [string]$Root = $AkariIsoRegRoot) {
+    $p = if ($Path -like 'Registry::*') { $Path.Substring(10) } else { $Path }
+    $cut = $p.IndexOfAny([char[]]@(':', '\'))
+    $head = if ($cut -lt 0) { $p.ToUpperInvariant() } else { $p.Substring(0, $cut).ToUpperInvariant() }
+    $rest = if ($cut -lt 0) { '' } else { $p.Substring($cut).TrimStart(':').Trim('\') }
+    $hives = @{ HKLM = 'HKLM'; HKEY_LOCAL_MACHINE = 'HKLM'; HKCU = 'HKCU'; HKEY_CURRENT_USER = 'HKCU'; HKU = 'HKU'; HKEY_USERS = 'HKU'
+        HKCR = 'HKCR'; HKEY_CLASSES_ROOT = 'HKCR'; HKCC = 'HKCC'; HKEY_CURRENT_CONFIG = 'HKCC' }
+    if (-not $hives.ContainsKey($head)) { return $null }
+    if ($cut -ge 0 -and $p[$cut] -eq ':' -and $head.StartsWith('HKEY_')) { return $null }
+    $under = { param($prefix, $r) "$Root$prefix$(if ($r) { '\' + $r })" }
+    # $s -eq $h or under it: what follows it ($null when it isn't)
+    $after = { param($s, $h) if ($s -eq $h) { '' } elseif ($s -like "$h\*") { $s.Substring($h.Length + 1) } else { $null } }
+    switch ($hives[$head]) {
+        'HKLM' {
+            $r = & $after $rest 'SYSTEM\CurrentControlSet'; if ($null -ne $r) { return & $under 'SYSTEM\ControlSet001' $r }
+            $r = & $after $rest 'SYSTEM'; if ($null -ne $r) { return & $under 'SYSTEM' $r }
+            $r = & $after $rest 'SOFTWARE'; if ($null -ne $r) { return & $under 'SOFTWARE' $r }
+            return $null
+        }
+        'HKCU' { if ($null -ne (& $after $rest 'Software\Classes')) { return $null }; return & $under 'NTUSER' $rest }
+        'HKU' { $r = & $after $rest '.DEFAULT'; if ($null -ne $r) { return & $under 'DEFAULT' $r }; return $null }
+        'HKCR' { return & $under 'SOFTWARE\Classes' $rest }
+    }
+    $null
+}
+
+# a Tweak file with code in it (a foreach, a command, a script block: e.g. rows built in a loop), as the native loader
+# finds it (Tweak.NeedsCode): its rows aren't plain data, so neither app bakes it. Each file parsed once.
+$AkariIsoFileCode = @{}
+function Test-AkariTweakFileCode([string]$Path) {
+    if (-not $Path -or -not [IO.File]::Exists($Path)) { return $false }
+    if (-not $AkariIsoFileCode.ContainsKey($Path)) {
+        $ast = [Management.Automation.Language.Parser]::ParseFile($Path, [ref]$null, [ref]$null)
+        $AkariIsoFileCode[$Path] = $null -ne $ast.Find({
+                param($a)
+                $a -is [Management.Automation.Language.ForEachStatementAst] -or $a -is [Management.Automation.Language.CommandAst] -or
+                $a -is [Management.Automation.Language.ScriptBlockExpressionAst]
+            }, $true)
+    }
+    $AkariIsoFileCode[$Path]
+}
+
+# a Tweak written into the image whole: a Toggle or Choice of registry rows only (no script block or other code in
+# its file, not a Group Entry, an install, Safe Mode or a restart), whose Requires the image answers (Win10 / Win11
+# only), every row with a place in the image; a Choice over one named row with a Recommended value. Pure but for
+# reading the Tweak's file.
+function Test-AkariIsoBakeable($Tweak, [int]$Build) {
+    if ($Tweak.Kind -notin 'Toggle', 'Choice') { return $false }
+    if (Test-AkariTweakFileCode $Tweak.Source) { return $false }
+    if ($Tweak.EntryKind -or @($Tweak.Winget | Where-Object { $_ }).Count -or $Tweak.SafeMode -or $Tweak.Restarts) { return $false }
+    foreach ($p in $Tweak.PSObject.Properties) { if ($p.Value -is [scriptblock]) { return $false } }
+    $rows = @($Tweak.Registry | Where-Object { $_ })
+    if (-not $rows.Count) { return $false }
+    foreach ($r in @($Tweak.Requires | Where-Object { $_ })) {
+        if (-not (($r -eq 'Win11' -and $Build -ge 22000) -or ($r -eq 'Win10' -and $Build -lt 22000))) { return $false }
+    }
+    if ($Tweak.Kind -eq 'Choice' -and ($null -eq $Tweak.Recommended -or $null -eq $rows[0].Name)) { return $false }
+    foreach ($r in $rows) { if ($null -eq (Get-AkariIsoImagePath $r.Path 'HKLM:\AkariIso_')) { return $false } }
+    $true
+}
+
+# the preset's Apply items split for an image of $Build: InImage = @(@{ Tweak; Value (a Choice's) }) written into its
+# hives, Later = the other ids, run at the first sign-in. Pure.
+function Get-AkariIsoBake($Preset, $Tweaks, [int]$Build) {
+    $byId = @{}
+    foreach ($t in @($Tweaks)) { if (-not $byId.ContainsKey($t.Id)) { $byId[$t.Id] = $t } }
+    $in = [Collections.Generic.List[object]]::new()
+    $later = [Collections.Generic.List[string]]::new()
+    foreach ($i in @((Resolve-AkariPreset $Preset $Tweaks).Items)) {
+        $t = $byId[$i.Id]
+        if ($i.Mode -eq 'Apply' -and $t -and (Test-AkariIsoBakeable $t $Build)) {
+            $v = if ($t.Kind -eq 'Choice') { if ($null -ne $i.Value) { $i.Value } else { $t.Recommended } } else { $null }
+            $in.Add(@{ Tweak = $t; Value = $v })
+        }
+        else { $later.Add($i.Id) }
+    }
+    @{ InImage = $in.ToArray(); Later = $later.ToArray() }
+}
+
+# the image's own app logos (name -> a copy in $Folder): each app's AppxManifest.xml under the mount's WindowsApps
+# read as for installed apps (Get-AkariAppxLogos), the logo copied out, as the image is unmounted after a build
+function Get-AkariImageAppLogos([string]$Mount, $Apps, [string]$Folder) {
+    $pk = @(foreach ($a in @($Apps)) { @{ Name = $a.Name; InstallLocation = (Join-Path $Mount "Program Files\WindowsApps\$($a.Package)") } })
+    $found = Get-AkariAppxLogos $pk
+    $copies = @{}
+    foreach ($n in @($found.Keys)) {
+        try {
+            [void][IO.Directory]::CreateDirectory($Folder)
+            $copy = Join-Path $Folder ($n + [IO.Path]::GetExtension($found[$n]))
+            [IO.File]::Copy($found[$n], $copy, $true)
+            $copies[$n] = $copy
+        } catch { }
+    }
+    $copies
+}
+
+# ---- the AkariOS mode: the preset's settings in the image, the rest at the first sign-in
+
+# the baked Tweaks written into the loaded hives, one operation each (a row an admin can't write goes as
+# TrustedInstaller; a Tweak whose hive the image lacks is skipped), then the Default user's RunOnce entry
+function Invoke-AkariIsoBake([string]$Mount, [hashtable]$Choices) {
+    $loaded = @(Mount-AkariOfflineHives $Mount)
+    try {
+        foreach ($item in @($Choices.Bake | Where-Object { $_ })) {
+            Invoke-AkariIsoOp "Tweak $($item.Tweak.Name)" { Write-AkariIsoBakeItem $item $loaded }
+        }
+        if ($Choices.FirstSignIn -and $Choices.AkariDir) {
+            Invoke-AkariIsoOp 'The rest of AkariOS at the first sign-in' {
+                if ($loaded -notcontains 'NTUSER') { return @{ State = 'Skipped'; Note = 'The image has no Default user hive' } }
+                Invoke-AkariRegistry @(@{ Path = "$AkariIsoRegRoot$AkariIsoRunOnceKey"; Name = $AkariIsoRunOnceName; Type = 'String'; Value = $AkariIsoFirstSignIn }) 'Apply'
+                @{ State = 'Done'; Note = 'A RunOnce entry for each new account: one UAC prompt, then One-click''s console' }
+            }
+        }
+    }
+    finally { Dismount-AkariOfflineHives $loaded }
+}
+function Write-AkariIsoBakeItem($Item, $Loaded) {
+    $t = $Item.Tweak
+    $rows = @(foreach ($r in @($t.Registry)) { $c = $r.Clone(); $c.Path = Get-AkariIsoImagePath $r.Path; $c })
+    # a hive the image doesn't have: nothing written (it would land in the real HKLM)
+    foreach ($r in $rows) {
+        $h = ($r.Path.Substring($AkariIsoRegRoot.Length) -split '\\')[0]
+        if ($Loaded -notcontains $h) { return @{ State = 'Skipped'; Note = "The image has no $h hive" } }
+    }
+    if ($t.Kind -eq 'Choice') {
+        $r = $rows[0]
+        $one = @{ Path = $r.Path; Name = $r.Name; Type = $(if ($r.Type) { $r.Type } else { 'DWord' }); Value = $Item.Value }
+        try { Invoke-AkariRegistry @($one) 'Apply' } catch { Invoke-AkariRegistryTrusted @($one) 'Apply' }
+        return @{ State = 'Done'; Note = "$($Item.Value)" }
+    }
+    try { Invoke-AkariRegistry $rows 'Apply' } catch { Invoke-AkariRegistryTrusted $rows 'Apply' }
+    @{ State = 'Done'; Note = '' }
+}
+
 # ---- AkariOS in the image
 
 # a .lnk file (wrapper: tests mock it)

@@ -821,7 +821,7 @@ $script:Job = $null; Set-Busy $false
 function Foot { "$($StepNext.Content)|$($StepNext.IsEnabled)|$($StepBack.IsEnabled)" }
 Select-AkariPage 'ISO Builder'; "iso=$script:Cat|$(NavOn)|$($script:IsoState.Step)|$(Crumbs)|$($StepFooter.Visibility)|$(Foot)|$($script:IsoParts.ModeTiles.Count)|$((@($script:IsoParts.ModeTiles | Where-Object { $_.IsEnabled }) | ForEach-Object { $_.Tag } | Select-Object -Unique) -join ',')"
 Click $StepNext; "isoImage=$($script:IsoState.Step)|$(Crumbs)|$(Foot)|$($StepLabel.Text -replace '[^ -~]', '.')|$($script:IsoParts.SummaryText.Text)"
-Click $StepBack; Select-AkariIsoMode 'AkariOS'; "isoModeSoon=$($script:IsoState.Step)|$($script:IsoState.Mode)"
+Click $StepBack; Select-AkariIsoMode 'Minimal'; "isoModeSoon=$($script:IsoState.Step)|$($script:IsoState.Mode)"
 Select-AkariIsoMode 'Custom'; "isoMode=$($script:IsoState.Step)|$($script:IsoState.Mode)"
 Complete-AkariIsoJob @{ Kind = 'IsoOpen'; Shared = @{ Result = @{ Image = 'X:\AkariIso\Media\sources\install.wim'; Editions = @(@{ Index = 1; Name = 'Windows 10 Pro'; Version = '10.0.19045.1'; Supported = $false }, @{ Index = 3; Name = 'Windows 11 Home'; Version = '10.0.26200.1'; Supported = $true }, @{ Index = 6; Name = 'Windows 11 Pro'; Version = '10.0.26200.1'; Supported = $true }) } } }
 Show-Page
@@ -836,6 +836,7 @@ Click $StepNext; Click $StepNext; "isoReview=$($script:IsoState.Step)|$(Crumbs)|
 $script:IsoParts.Turbo.IsChecked = $true
 $script:Jobs = @(); Click $StepNext
 $c = $script:Jobs[-1].Shared.Choices
+"isoWizard=$($c.Groups -join ',')|$(@($c.Bake).Count)|$($c.FirstSignIn)|$($c.ImageBuild)|$(@($c.AppPatterns).Count)"
 "isoSettings=$($c.Settings.Compression)|$($c.Settings.Turbo)|$($c.Settings.CleanLeftovers)|$($script:IsoParts.Compression.Items.Count)"
 "isoBuild=$($script:Job.Kind)|$($c.Index)|$($c.Edition)|$(@($c.Options).Count)|$($c.Apps -join ',')|$($c.AkariDir -eq $Root)|$([Text.Encoding]::ASCII.GetString($c.Unattend) -match '<Name>Admin</Name>')|$($script:IsoState.Step)|$(Foot)"
 $n = @($script:IsoState.Stages).Count
@@ -857,6 +858,21 @@ Show-Page; "isoDone=$($script:IsoState.ResultPath)|$(@($script:IsoState.Stages |
 Click $StepNext; "isoAgain=$($script:IsoState.Step)|$(@($script:IsoState.Stages).Count)|$($script:IsoState.Mode)"
 Complete-AkariIsoJob @{ Kind = 'IsoUup'; Shared = @{ Result = @{ Ok = $true; Path = 'D:\Windows11_25H2_Pro_en-us.iso' } } }
 "isoUupDone=$($script:IsoParts.IsoPath.Text)|$($script:IsoParts.SrcFile.IsChecked)"
+# the AkariOS mode: its groups ticked and fixed, Custom's lists hidden, the first sign-in card, its build settings;
+# the build bakes the AkariOS preset and finishes it at the first sign-in
+$p = $script:IsoParts
+$p.Compression.SelectedIndex = 1
+# the downloaded ISO is a new source: opened again
+Complete-AkariIsoJob @{ Kind = 'IsoOpen'; Shared = @{ Result = @{ Image = 'X:\AkariIso\Media\sources\install.wim'; Editions = @(@{ Index = 6; Name = 'Windows 11 Pro'; Version = '10.0.26200.1'; Supported = $true }) } } }
+Select-AkariIsoMode 'AkariOS'
+"isoAkariOS=$($script:IsoState.Step)|$($script:IsoState.Mode)|$(($p.GroupChecks | Where-Object { $_.IsChecked } | ForEach-Object { $_.Tag }) -join ',')|$(@($p.GroupChecks | Where-Object { $_.IsEnabled }).Count)|$($p.ListsCard.Visibility)|$($p.FirstSignInCard.Visibility)|$($p.PlanText.Text)|$(Get-AkariComboTag $p.Compression)|$($p.AkariOS.IsChecked)"
+$script:Jobs = @(); Start-AkariIsoBuild
+$c = $script:Jobs[-1].Shared.Choices
+$pl = New-AkariIsoPlan $c @() (Get-AkariIsoPickedGroups)
+"isoAkariOSBuild=$($c.Groups -join ',')|$(@($c.Bake).Count -eq @((Get-AkariIsoPageBake).InImage).Count)|$($c.FirstSignIn)|$(@($c.Apps).Count)|$(@($c.AppPatterns).Count -eq @(Get-AkariIsoAppPatterns (Get-AkariIsoPickedGroups) $script:Tweaks).Count)|$(@($script:IsoState.Stages).Count -eq $pl.Count)|$(($pl | Where-Object { $_.Id -eq 'Bake' }).Text)"
+$script:Job = $null; Set-Busy $false
+Select-AkariIsoMode 'Custom'
+"isoCustomAgain=$(($p.GroupChecks | Where-Object { $_.IsChecked } | ForEach-Object { $_.Tag }) -join ',')|$(@($p.GroupChecks | Where-Object { $_.IsEnabled }).Count -eq $p.GroupChecks.Count)|$($p.ListsCard.Visibility)|$($p.FirstSignInCard.Visibility)"
 # Settings: theme, accent, animations, files, recovery, about
 Select-AkariPage 'Settings'; "settings=$script:Cat|$(NavOn)|$(($StepBody.Children | Where-Object { $_ -is [Windows.Controls.TextBlock] } | ForEach-Object { $_.Text }) -join ',')"
 "themeRadios=$(($script:AboutParts.Theme.Children | ForEach-Object { "$($_.Content)$(if ($_.IsChecked) { '*' })" }) -join ',')|$(($script:AboutParts.Accent.Items | ForEach-Object { $_.Content }) -join ',')|$($script:AboutParts.Animations.IsChecked)"
@@ -973,7 +989,7 @@ function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My
         $out.usbOld | Should Be 'Install USB'
     }
     It 'the ISO Builder is a wizard: modes, the image (Pro picked), Components reading the image, Review, the stages, Build another' {
-        $out.iso | Should Be 'ISO Builder|ISO Builder|0|ISO Builder|Visible|Start|True|False|8|Custom'
+        $out.iso | Should Be 'ISO Builder|ISO Builder|0|ISO Builder|Visible|Start|True|False|8|AkariOS,Lite,Custom'
         $out.isoImage | Should Be '1|ISO Builder>Windows image|Next|False|True|Step 2 of 6 . Windows image.Open an ISO and pick an edition first.|No image yet'
         $out.isoModeSoon | Should Be '0|Custom'
         $out.isoMode | Should Be '1|Custom'
@@ -982,6 +998,8 @@ function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My
         $out.isoRead | Should Be 'True|Next|True|True|Store apps (1)'
         $out.isoReview | Should Be '4|ISO Builder>Review|Build ISO|True|True'
         # the build settings: Recovery ESD at first, as the native app's
+        # Custom: the hardware checks group, the lists, no bake
+        $out.isoWizard | Should Be 'SkipHardwareChecks|0|False|26200|0'
         $out.isoSettings | Should Be 'Recovery|True|False|3'
         $out.isoBuild | Should Be 'IsoBuild|6|Windows 11 Pro|0|Microsoft.BingNews_1_x64__8wekyb3d8bbwe|True|True|5|Build another|False|False'
         $out.isoStages | Should Be 'True|Done,Done,Running,Waiting'
@@ -990,6 +1008,9 @@ function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My
         $out.isoDetails | Should Be ('{0:0.00} GB . SHA-256 ab12.Report: D:\Win11-Akari.report.json|2 s' -f 1)
         $out.isoAgain | Should Be '0|0|Custom'
         $out.isoUupDone | Should Be 'D:\Windows11_25H2_Pro_en-us.iso|True'
+        $out.isoAkariOS | Should Be '1|AkariOS|SkipHardwareChecks,NoSponsoredApps,StoreAppsAkariOS,Edge,OneDrive|0|Collapsed|Visible|5 removal groups|Recovery|True'
+        $out.isoAkariOSBuild | Should Be 'SkipHardwareChecks,NoSponsoredApps,StoreAppsAkariOS,Edge,OneDrive|True|True|0|True|True|Writing the AkariOS settings into the image'
+        $out.isoCustomAgain | Should Be 'SkipHardwareChecks|True|Visible|Collapsed'
     }
     It 'Settings: Appearance, Settings files, Recovery, About, in place of the options menu and the About page' {
         $out.settings | Should Be 'Settings|Settings|Appearance,Settings files,Recovery,About'

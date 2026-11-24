@@ -153,14 +153,14 @@ function Test-AkariWhiteLogo([Windows.Media.Imaging.BitmapSource]$Image) {
 
 # a row's icon ($Size px): the image (a mask in the text colour when it is black-or-white), or the box placeholder
 # (an optional or Windows feature: settings, else box)
-function New-AkariAppIcon($Tweak, [double]$Size = 28) {
-    $file = Get-AkariAppIconFile $Tweak $script:AppLogos (Join-Path $Root 'Assets\Apps')
+function New-AkariAppIcon($Tweak, [double]$Size = 28, $Logos = $script:AppLogos) {
+    $file = Get-AkariAppIconFile $Tweak $Logos (Join-Path $Root 'Assets\Apps')
     $icon = $null
     if ($file) {
         try {
             $bi = Get-AkariBitmap $file ([int]($Size * 2))
             $mono = $file -like '*.mono.png'
-            if (-not $mono -and $Tweak.Package -and $script:AppLogos[$Tweak.Package] -eq $file) { $mono = Test-AkariWhiteLogo $bi }
+            if (-not $mono -and $Tweak.Package -and $Logos -and $Logos[$Tweak.Package] -eq $file) { $mono = Test-AkariWhiteLogo $bi }
             if ($mono) {
                 # a black-or-white logo in the theme's text colour (the prototype's .mono-ic, inverted in light)
                 $icon = [Windows.Shapes.Rectangle]::new()

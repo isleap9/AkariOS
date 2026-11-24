@@ -1,7 +1,8 @@
 # ISO Builder (its tab and Home tile; plans docs/plans/2026-10-31-iso-builder.md, 2026-11-20-iso-builder-wizard.md): a
 # custom Windows 11 ISO as a six-step wizard (the native app's IsoBuilderViewModel.Wizard.cs; after Tiny11 Builder's
 # layout): Start (the modes), Windows image (a file, UUP Dump, Massgrave; the work folder; the edition, Pro picked),
-# Components (Custom: the image's four lists), Build settings (the answer file, AkariOS), Review, Create ISO (the
+# Components (the removal groups; Custom: the image's four lists), Build settings (the answer file, AkariOS, the first
+# sign-in, the build settings), Review, Create ISO (the
 # stages). Guided's footer: Back, and Next only once a step is complete (Get-AkariIsoFooter). Every slow step runs in
 # the background job (Kind Iso*, Complete-AkariIsoJob); meanwhile the page's own controls are off and the rest of Akari
 # stays usable (Optimize's changes and installs wait for it). Built once per session. Needs UI\Cards.ps1, UI\Pages.ps1,
@@ -16,13 +17,20 @@ $AkariIsoLeads = @(
     'Check the image, what goes and where the ISO is saved before building.'
     'Allow 20 to 40 minutes. Optimize''s changes and installs wait meanwhile.'
 )
-# the modes (Start and Components): only Custom until the modes batch (P7)
+# the modes (Start and Components): the data's (Core\Iso\Wizard\Modes: AkariOS, Lite, Minimal), then Custom. Data =
+# the mode's file (Groups, Settings, AkariOS); Minimal (it prunes the component store) waits for batch P9.
+$AkariIsoModeIcons = @{ AkariOS = 'zap'; Lite = 'disc-3'; Minimal = 'flask-conical'; Custom = 'settings-2' }
 $AkariIsoModes = @(
-    @{ Id = 'AkariOS'; Name = 'AkariOS'; Icon = 'zap'; Tag = 'Coming soon'; Available = $false; Text = 'The AkariOS setup out of the box: its apps removed, its Tweaks applied, AkariOS on it.' }
-    @{ Id = 'Lite'; Name = 'Lite'; Icon = 'disc-3'; Tag = 'Coming soon'; Available = $false; Text = 'A smaller Windows that keeps Windows Update, Defender, recovery and the Store.' }
-    @{ Id = 'Minimal'; Name = 'Minimal'; Icon = 'flask-conical'; Tag = 'Coming soon'; Available = $false; Text = 'The smallest image, for test VMs: no updates, recovery or Defender afterwards.' }
-    @{ Id = 'Custom'; Name = 'Custom'; Icon = 'settings-2'; Tag = 'Choose yourself'; Available = $true; Text = 'Pick what to remove from the image''s own apps and features.' }
+    if (Get-Command Get-AkariIsoModes -ErrorAction SilentlyContinue) {
+        foreach ($m in @(Get-AkariIsoModes)) {
+            $soon = [bool]$m.Minimal
+            @{ Id = $m.Id; Name = $m.Name; Icon = $AkariIsoModeIcons[$m.Id]; Tag = $(if ($soon) { 'Coming soon' } else { $m.Tag }); Available = -not $soon; Text = $m.Description; Data = $m }
+        }
+    }
+    @{ Id = 'Custom'; Name = 'Custom'; Icon = 'settings-2'; Tag = 'Choose yourself'; Available = $true; Text = 'Pick the removal groups and the image''s own apps and features yourself.'; Data = $null }
 )
+# the group Custom starts with: setup's hardware checks skipped, as every build did before the modes
+$AkariIsoCustomStart = 'SkipHardwareChecks'
 $AkariIsoListTitles = [ordered]@{ Apps = 'Store apps'; Capabilities = 'Optional features'; Features = 'Windows features'; Packages = 'OS packages (advanced)' }
 # Step: the wizard's step; Mode: the picked mode; Stages: the Create ISO step's @{ Text; State; Elapsed; Clock; Row;
 # Ops (its operations, Update-AkariIsoOpList); Open }; OpsSeen: the build's operations shown so far; Current: the
@@ -138,12 +146,36 @@ function Get-AkariIsoResultDetails($Report, [bool]$Ok) {
     ('{0:0.00} GB {1} SHA-256 {2}' -f ([double]$Report.size / 1GB), [char]0x00B7, $Report.sha256) + "`nReport: $file"
 }
 
-# Review's cards: @{ Icon; Title; Lines }. $Info: Summary, Iso, ModeName, ModeIcon, Lists (@{ Title; Ticked; Count },
-# the lists read), OutDir, Answer (None / Local / Generator), SkipOobe, User, AkariOS, Settings (the Build settings,
-# Get-AkariIsoSettings' shape; none = the defaults). Pure.
+# "n removal groups" over the plan. Pure.
+function Get-AkariIsoPlanText([int]$Count) { if ($Count -eq 1) { '1 removal group' } else { "$Count removal groups" } }
+
+# an edition's build from its version (10.0.26100.1742 -> 26100), 0 when it has none. Pure.
+function Get-AkariIsoBuildOf([string]$Version) {
+    $parts = "$Version".Split('.')
+    $b = 0
+    if ($parts.Count -gt 2 -and [int]::TryParse($parts[2], [ref]$b)) { $b } else { 0 }
+}
+
+# Review's cards: @{ Icon; Title; Lines }. $Info: Summary, Iso, ModeName, ModeIcon, Groups (the picked groups'
+# names), Custom (the image's own lists count), Lists (@{ Title; Ticked; Count }, the lists read), Bake (the AkariOS
+# mode: @{ InImage; Later; FirstSignIn }, counts), OutDir, Answer (None / Local / Generator), SkipOobe, User,
+# AkariOS, Settings (the Build settings, Get-AkariIsoSettings' shape; none = the defaults). Pure.
 function Get-AkariIsoReviewCards([hashtable]$Info) {
-    $lists = @(@($Info.Lists) | Where-Object { $_ } | ForEach-Object { "$($_.Title): $($_.Ticked) of $($_.Count)" })
-    $removed = if ($lists.Count) { $lists -join "`n" } else { 'Nothing removed: the image''s lists weren''t read.' }
+    $names = @($Info.Groups | Where-Object { $_ })
+    $plan = [Collections.Generic.List[string]]::new()
+    $plan.Add((Get-AkariIsoPlanText $names.Count))
+    foreach ($n in $names) { $plan.Add("- $n") }
+    if ($Info.Custom) {
+        $lists = @(@($Info.Lists) | Where-Object { $_ } | ForEach-Object { "$($_.Title): $($_.Ticked) of $($_.Count)" })
+        $plan.Add('')
+        if ($lists.Count) { foreach ($l in $lists) { $plan.Add($l) } } else { $plan.Add('The image''s own lists weren''t read: nothing picked from them.') }
+    }
+    if ($Info.Bake) {
+        $plan.Add('')
+        $plan.Add("AkariOS settings written into the image: $($Info.Bake.InImage)")
+        $plan.Add($(if ($Info.Bake.FirstSignIn) { "The rest at the first sign-in: $($Info.Bake.Later) changes, one UAC prompt" } else { 'The rest left out: run One-click from the Start menu later' }))
+    }
+    $removed = $plan -join "`n"
     $answer = switch ($Info.Answer) {
         'None' { 'None: setup asks everything as usual' }
         'Local' { if ($Info.SkipOobe) { "A local account ($($Info.User)), setup's questions skipped" } else { 'A local account, setup asks the rest' } }
@@ -348,11 +380,35 @@ function Get-AkariIsoView {
     [void]$s.Children.Add($c.Card)
     $p.Steps[1] = $s
 
-    # 3 Components: the mode again, then Custom's lists (the image's own)
+    # 3 Components: the mode again, the removal plan (the mode's groups, or Custom's picks), then Custom's lists (the
+    # image's own)
     $s = [Windows.Controls.StackPanel]::new()
     $m = New-AkariIsoModes; $m.Margin = [Windows.Thickness]::new(-4, -4, -4, 8)
     [void]$s.Children.Add($m)
+    $c = New-AkariIsoCard 'Removal plan'
+    $p.PlanText = New-AkariText '' 12 'Mu'; $p.PlanText.Margin = [Windows.Thickness]::new(0, 0, 0, 6)
+    [void]$c.Panel.Children.Add($p.PlanText)
+    $p.GroupChecks = [Collections.Generic.List[object]]::new()
+    # Minimal's pruning waits for batch P9
+    $script:IsoGroups = @(Get-AkariIsoGroups | Where-Object { -not $_.PruneComponentStore })
+    foreach ($g in $script:IsoGroups) {
+        $r = [Windows.Controls.StackPanel]::new(); $r.Orientation = 'Horizontal'
+        $cb = New-AkariIsoCheck $g.Name ($g.Id -eq $AkariIsoCustomStart)
+        $cb.Tag = $g.Id
+        $cb.Margin = [Windows.Thickness]::new(0, 8, 8, 0)
+        $cb.Add_Checked({ if (-not $script:IsoState.Applying) { Update-AkariIsoPlanText } })
+        $cb.Add_Unchecked({ if (-not $script:IsoState.Applying) { Update-AkariIsoPlanText } })
+        [void]$r.Children.Add($cb)
+        if ($g.Risk -in 'Caution', 'Advanced') { $bd = New-AkariBadge $g.Risk; $bd.Margin = [Windows.Thickness]::new(0, 8, 0, 0); [void]$r.Children.Add($bd) }
+        [void]$c.Panel.Children.Add($r)
+        $t = New-AkariText $g.Description 12 'Mu'; $t.Margin = [Windows.Thickness]::new(28, 0, 0, 0)
+        [void]$c.Panel.Children.Add($t)
+        $p.GroupChecks.Add($cb)
+    }
+    $p.PlanText.Text = Get-AkariIsoPlanText @($p.GroupChecks | Where-Object { $_.IsChecked }).Count
+    [void]$s.Children.Add($c.Card)
     $c = New-AkariIsoCard 'Apps and features in the image' 'Tick what to remove. Frameworks are left out of the list (apps need them).'
+    $p.ListsCard = $c.Card
     $r = New-AkariIsoRow
     [void]$r.Children.Add((New-AkariIsoButton 'Read the image''s apps again' 'Btn' { Start-AkariIsoRead }))
     [void]$r.Children.Add((New-AkariIsoButton 'Select recommended' 'Btn' { Select-AkariIsoRecommended }))
@@ -401,6 +457,16 @@ function Get-AkariIsoView {
     $c = New-AkariIsoCard 'AkariOS'
     $p.AkariOS = New-AkariIsoCheck 'Put AkariOS on the new Windows (C:\AkariOS, a Start menu and a desktop shortcut; nothing runs by itself)' $true
     [void]$c.Panel.Children.Add($p.AkariOS)
+    [void]$s.Children.Add($c.Card)
+    # the AkariOS mode: the rest of the preset at each new account's first sign-in
+    $c = New-AkariIsoCard 'Finish AkariOS at the first sign-in'
+    $p.FirstSignIn = New-AkariIsoCheck 'Run the rest of AkariOS when each new account first signs in' $true
+    [void]$c.Panel.Children.Add($p.FirstSignIn)
+    $t = New-AkariText 'The AkariOS settings that are only registry values are written into the image. The rest (drivers, Windows Security, installs) runs when each new account first signs in, after one UAC prompt. Off: only what can be done in the image; run One-click later.' 12 'Mu'
+    $t.Margin = [Windows.Thickness]::new(28, 0, 0, 0)
+    [void]$c.Panel.Children.Add($t)
+    $p.FirstSignInCard = $c.Card
+    $p.FirstSignInCard.Visibility = 'Collapsed'
     [void]$s.Children.Add($c.Card)
     # the build settings (the native app's): the final compression (Recovery ESD at first), three switches
     $c = New-AkariIsoCard 'Build settings'
@@ -514,14 +580,56 @@ function Open-AkariIsoStart {
     $script:IsoState.Step = 0
     Show-Page
 }
-# a mode's tile: picked; on Start, also the next step
+# a mode's tile: picked (a new one applied: Set-AkariIsoMode); on Start, also the next step
 function Select-AkariIsoMode([string]$Id) {
     $m = @($AkariIsoModes | Where-Object { $_.Id -eq $Id })[0]
     if (-not $m -or -not $m.Available) { return }
-    $script:IsoState.Mode = $Id
+    if ($script:IsoState.Mode -ne $Id) { $script:IsoState.Mode = $Id; Set-AkariIsoMode }
     Update-AkariIsoModeLook
     if ($script:IsoState.Step -eq 0) { $script:IsoState.Step = 1; Show-Page }
 }
+# the picked mode applied to the page: its groups ticked and fixed (Custom: Custom's start, ticked by hand), its build
+# settings (Custom: Recovery ESD, the switches off), AkariOS on for the AkariOS mode; Custom's lists and the first
+# sign-in card shown for their mode
+function Set-AkariIsoMode {
+    $p = $script:IsoParts
+    if (-not $p -or -not $p.GroupChecks) { return }
+    $m = @($AkariIsoModes | Where-Object { $_.Id -eq $script:IsoState.Mode })[0].Data
+    $script:IsoState.Applying = $true
+    try {
+        foreach ($cb in $p.GroupChecks) {
+            $cb.IsChecked = if ($m) { @($m.Groups) -contains [string]$cb.Tag } else { [string]$cb.Tag -eq $AkariIsoCustomStart }
+            $cb.IsEnabled = -not $m
+        }
+        $set = Get-AkariIsoSettings @{ Settings = $(if ($m) { $m.Settings } else { @{ Compression = 'Recovery' } }) }
+        foreach ($it in $p.Compression.Items) { if ($it.Tag -eq $set.Compression) { $p.Compression.SelectedItem = $it } }
+        foreach ($k in 'Turbo', 'CleanLeftovers', 'LeaveOutNetFx3Files') { $p[$k].IsChecked = $set[$k] }
+        if ($m -and $m.AkariOS) { $p.AkariOS.IsChecked = $true }
+    }
+    finally { $script:IsoState.Applying = $false }
+    $p.ListsCard.Visibility = if ($m) { 'Collapsed' } else { 'Visible' }
+    $p.FirstSignInCard.Visibility = if ($m -and $m.AkariOS) { 'Visible' } else { 'Collapsed' }
+    Update-AkariIsoPlanText
+}
+function Update-AkariIsoPlanText {
+    $p = $script:IsoParts
+    $p.PlanText.Text = Get-AkariIsoPlanText @($p.GroupChecks | Where-Object { $_.IsChecked }).Count
+}
+# the picked groups' data, in Order
+function Get-AkariIsoPickedGroups {
+    $ids = @($script:IsoParts.GroupChecks | Where-Object { $_.IsChecked } | ForEach-Object { [string]$_.Tag })
+    @($script:IsoGroups | Where-Object { $ids -contains $_.Id })
+}
+# the AkariOS mode's bake for the picked edition (Get-AkariIsoBake on the AkariOS preset), else $null
+function Get-AkariIsoPageBake {
+    $m = @($AkariIsoModes | Where-Object { $_.Id -eq $script:IsoState.Mode })[0].Data
+    if (-not $m -or -not $m.AkariOS) { return $null }
+    $preset = Find-AkariPreset $AkariIsoBakePreset (Join-Path $Root 'Presets')
+    if (-not $preset) { return $null }
+    $ed = Get-AkariIsoEdition
+    Get-AkariIsoBake $preset @($script:Tweaks | Where-Object { -not $_.Legacy }) (Get-AkariIsoBuildOf $(if ($ed) { $ed.Version } else { '' }))
+}
+
 # Build another: back to Start, the mode kept
 function Reset-AkariIsoBuild {
     $st = $script:IsoState
@@ -536,11 +644,14 @@ function New-AkariIsoReview {
     $sp = [Windows.Controls.StackPanel]::new()
     if ($st.BuildError) { [void]$sp.Children.Add((New-AkariInfoBar 'Bad' 'Can''t build yet' $st.BuildError).Bar) }
     $m = @($AkariIsoModes | Where-Object { $_.Id -eq $st.Mode })[0]
+    $bake = Get-AkariIsoPageBake
+    $bakeInfo = if ($bake) { @{ InImage = @($bake.InImage).Count; Later = @($bake.Later).Count; FirstSignIn = [bool]($p.FirstSignIn.IsChecked -and $p.AkariOS.IsChecked) } } else { $null }
     $lists = @(foreach ($lp in $p.Lists.Values) {
         if ($lp.Tag.View.Visibility -eq 'Visible') { @{ Title = $lp.Tag.Title; Ticked = @($lp.Children | Where-Object { $_.IsChecked }).Count; Count = $lp.Children.Count } }
     })
     $answer = if ($p.AnsNone.IsChecked) { 'None' } elseif ($p.AnsLocal.IsChecked) { 'Local' } else { 'Generator' }
     $cards = Get-AkariIsoReviewCards @{ Summary = (Get-AkariIsoSummary (Get-AkariIsoEdition)); Iso = $p.IsoPath.Text; ModeName = $m.Name; ModeIcon = $m.Icon
+        Groups = @(Get-AkariIsoPickedGroups | ForEach-Object { $_.Name }); Custom = (-not $m.Data); Bake = $bakeInfo
         Lists = $lists; OutDir = $p.OutDir.Text; Answer = $answer; SkipOobe = [bool]$p.SkipOobe.IsChecked; User = $p.User.Text.Trim(); AkariOS = [bool]$p.AkariOS.IsChecked
         Settings = (Get-AkariIsoPickedSettings) }
     $g = New-AkariCardGrid 320
@@ -753,12 +864,15 @@ try {
     $w = Get-AkariIsoWork $AkariShared.Out
     Mount-AkariIsoEdition $w $AkariShared.Image $AkariShared.Index
     $AkariShared.Apps = @(Get-AkariImageApps $w.Mount)
+    # each app's own logo, copied out of the image (it is unmounted after a build)
+    $AkariShared.Logos = Get-AkariImageAppLogos $w.Mount $AkariShared.Apps $AkariShared.LogoDir
     $AkariShared.Capabilities = @(Get-AkariImageCapabilities $w.Mount)
     $AkariShared.Features = @(Get-AkariImageFeatures $w.Mount | Where-Object { $_.State -notmatch 'Disabled' })
     $AkariShared.Packages = @(Get-AkariImagePackages $w.Mount)
 } catch { $AkariShared.Error = $_.Exception.Message }
 '@
-    if (Start-AkariIsoJob 'IsoRead' $code @{ Out = $p.OutDir.Text.Trim(); Image = $script:IsoState.Image; Index = [int]$ed.Index } "Reading the apps in $($ed.Name)") {
+    $logoDir = Join-Path (Split-Path $AkariLogFile) 'IsoLogos'
+    if (Start-AkariIsoJob 'IsoRead' $code @{ Out = $p.OutDir.Text.Trim(); Image = $script:IsoState.Image; Index = [int]$ed.Index; LogoDir = $logoDir } "Reading the apps in $($ed.Name)") {
         $p.ListNote.Text = "Reading the apps in $($ed.Name)$([char]0x2026) (mounting it takes a few minutes)"
     }
 }
@@ -780,17 +894,24 @@ function Start-AkariIsoBuild {
             if (-not $answer) { $st.BuildError = 'Install USB''s choices have a problem: open it to see what.'; Show-Page; return }
         }
     } catch { $st.BuildError = "The answer file could not be made: $($_.Exception.Message)"; Show-Page; return }
-    $sel = { param($k) @(if ($p.Lists[$k]) { $p.Lists[$k].Children | Where-Object { $_.IsChecked } | ForEach-Object { [string]$_.Tag } }) }
+    $custom = $st.Mode -eq 'Custom'
+    $sel = { param($k) @(if ($custom -and $p.Lists[$k]) { $p.Lists[$k].Children | Where-Object { $_.IsChecked } | ForEach-Object { [string]$_.Tag } }) }
+    $groups = @(Get-AkariIsoPickedGroups)
+    $bake = Get-AkariIsoPageBake
+    $ed2 = Get-AkariIsoBuildOf $ed.Version
     $choices = @{
         OutDir = $p.OutDir.Text.Trim(); Iso = $p.IsoPath.Text.Trim(); Image = $st.Image; Index = [int]$ed.Index; Edition = $ed.Name
         Options = @(); Apps = (& $sel 'Apps'); Capabilities = (& $sel 'Capabilities'); Features = (& $sel 'Features'); Packages = (& $sel 'Packages')
         AkariDir = $(if ($p.AkariOS.IsChecked) { $Root } else { '' }); Unattend = $answer; Settings = (Get-AkariIsoPickedSettings)
+        # the wizard: the picked groups (never zISO's always-on data), the AkariOS mode's bake and first sign-in
+        Groups = @($groups | ForEach-Object { $_.Id }); AppPatterns = (Get-AkariIsoAppPatterns $groups @($script:Tweaks | Where-Object { -not $_.Legacy }))
+        Bake = $(if ($bake) { @($bake.InImage) } else { @() }); FirstSignIn = [bool]($bake -and $p.FirstSignIn.IsChecked -and $p.AkariOS.IsChecked); ImageBuild = $ed2
     }
     $name = Get-AkariIsoOutName $choices.Iso
     $n = $choices.Apps.Count + $choices.Capabilities.Count + $choices.Features.Count + $choices.Packages.Count
-    $q = "Build $name from $($ed.Name)?`n`n$n apps and features to remove. It takes 20 to 40 minutes; Optimize's changes and installs wait meanwhile."
+    $q = "Build $name from $($ed.Name)?`n`n$(Get-AkariIsoPlanText $groups.Count)$(if ($custom) { " and $n of the image's apps and features" }) to remove. It takes 20 to 40 minutes; Optimize's changes and installs wait meanwhile."
     if (-not (Confirm-AkariDialog $q 'Build ISO' 'Cancel' 'Question' 'ISO Builder')) { return }
-    $plan = New-AkariIsoPlan $choices @()
+    $plan = New-AkariIsoPlan $choices @() $groups
     $code = '$AkariShared.Result = Invoke-AkariIsoBuild $AkariShared.Choices'
     $ops = [Collections.ArrayList]::Synchronized([Collections.ArrayList]::new())
     if (-not (Start-AkariIsoJob 'IsoBuild' $code @{ Choices = $choices; IsoOps = $ops } "Building $name")) { return }
@@ -879,11 +1000,21 @@ function Select-AkariIsoRecommended {
     foreach ($x in $l.Children) { $x.IsChecked = ($rec -contains [string]$x.Tag) }
 }
 
-function Set-AkariIsoList([string]$Key, $Items, [scriptblock]$Label, [scriptblock]$Value) {
+# a list of the image's: a check box each; $Logos (the Store apps): each app's icon beside its name (its own logo,
+# else Assets\Apps', else the box)
+function Set-AkariIsoList([string]$Key, $Items, [scriptblock]$Label, [scriptblock]$Value, $Logos = $null) {
     $lp = $script:IsoParts.Lists[$Key]
     $lp.Children.Clear()
     foreach ($i in @($Items | Sort-Object { & $Label $_ })) {
         $cb = New-AkariIsoCheck (& $Label $i)
+        if ($null -ne $Logos) {
+            $row = [Windows.Controls.StackPanel]::new(); $row.Orientation = 'Horizontal'
+            $ic = New-AkariAppIcon @{ Id = "appx/$($i.Name)"; Package = $i.Name } 20 $Logos
+            $ic.Margin = [Windows.Thickness]::new(0, 0, 8, 0); $ic.VerticalAlignment = 'Center'
+            [void]$row.Children.Add($ic)
+            [void]$row.Children.Add((New-AkariText (& $Label $i) 14))
+            $cb.Content = $row
+        }
         $cb.Tag = & $Value $i
         [void]$lp.Children.Add($cb)
     }
@@ -911,7 +1042,7 @@ function Complete-AkariIsoJob($Job) {
         'IsoRead' {
             if ($s.Error) { $p.ListNote.Text = "Not read: $($s.Error)"; return }
             $st.Lists = @{ Apps = $s.Apps }
-            Set-AkariIsoList 'Apps' $s.Apps { param($i) $i.Name } { param($i) $i.Package }
+            Set-AkariIsoList 'Apps' $s.Apps { param($i) $i.Name } { param($i) $i.Package } $(if ($s.Logos) { $s.Logos } else { @{} })
             Set-AkariIsoList 'Capabilities' $s.Capabilities { param($i) $i.Name } { param($i) $i.Name }
             Set-AkariIsoList 'Features' $s.Features { param($i) $i.Name } { param($i) $i.Name }
             Set-AkariIsoList 'Packages' $s.Packages { param($i) $i.Name } { param($i) $i.Name }

@@ -3,9 +3,11 @@ using System.Text.RegularExpressions;
 using AkariOS.Core.Apps;
 using AkariOS.Core.Iso;
 using AkariOS.Core.Machine;
+using AkariOS.Core.Presets;
 using AkariOS.Core.Registry;
 using AkariOS.Core.Runs;
 using AkariOS.Core.Sources;
+using AkariOS.Core.Tweaks;
 using AkariOS.Core.Update;
 using Microsoft.Win32;
 
@@ -132,6 +134,12 @@ public sealed partial class IsoBuildOracleTests
                         AkariExe = ch.TryGetValue("AkariOS", out var ak) && ak is true ? f.MakeExe() : null,
                         Unattend = ch.TryGetValue("Unattend", out var u) ? System.Text.Encoding.UTF8.GetBytes((string)u) : null,
                         Settings = ch.TryGetValue("Settings", out var st) ? (IsoBuildSettings)st : new(),
+                        // the wizard
+                        Groups = ch.TryGetValue("Groups", out var gr) ? (string[])gr : null,
+                        AppPatterns = ch.TryGetValue("AppPatterns", out var ap) ? (string[])ap : null,
+                        FirstSignIn = ch.TryGetValue("FirstSignIn", out var fs) && fs is true,
+                        ImageBuild = ch.TryGetValue("ImageBuild", out var ib) ? (int)ib : 0,
+                        Bake = ch.TryGetValue("Bake", out var bk) ? [.. ((BakeCase[])bk).Select(x => new IsoBakeItem(Loaded.Value.First(t => t.Id == x.Id), x.Value))] : null,
                     };
                     if (wizard is not null) choices = wizard(choices);
                     var r = b.Build(choices, f.Progress, f.Operations);
@@ -172,7 +180,9 @@ public sealed partial class IsoBuildOracleTests
         Assert.Equal(p.Marker, n.Marker);
         Assert.Equal(p.Ops, n.Ops);
         Assert.Equal(p.Report, n.Report);
-        Assert.Equal(ps.Registry(), cs.Registry());
+        // the first sign-in's RunOnce command names each app's own program (AkariOS-Native.exe, Akari.ps1)
+        static List<string> NoCommand(List<string> r) => [.. r.Select(l => l.Contains(@"\CurrentVersion\RunOnce|AkariOS|", StringComparison.Ordinal) ? l[..(l.LastIndexOf('|') + 1)] : l)];
+        Assert.Equal(NoCommand(ps.Registry()), NoCommand(cs.Registry()));
         return n;
     }
 
@@ -283,6 +293,53 @@ public sealed partial class IsoBuildOracleTests
 
     [Fact]
     public void Boots_uefi_only_without_etfsboot() => Same(Case(c => c["NoEtfs"] = true));
+
+    // ---- the wizard (native batch I4, PowerShell P7): removal groups instead of the always-on data, the AkariOS bake
+
+    internal sealed record BakeCase(string Id, object? Value);
+
+    private static readonly FolderSourceFiles RepoFiles = new(Repo.Root);
+    private static readonly Lazy<IReadOnlyList<Tweak>> Loaded = new(() => new Loader(RepoFiles, new Dictionary<string, ITweakCode>()).Load().Tweaks);
+
+    private static Dictionary<string, object> Mode(string id, Action<Dictionary<string, object>>? change = null) => Case(c =>
+    {
+        var m = IsoWizard.Modes(RepoFiles).Single(x => x.Id == id);
+        var groups = IsoWizard.Picked(m.Groups, IsoWizard.Groups(RepoFiles));
+        var ch = Choices(c);
+        ch["Groups"] = m.Groups.ToArray();
+        ch["AppPatterns"] = IsoWizard.AppPatterns(groups, Loaded.Value.Select(t => (t.Id, (string?)t.Risk.ToString(), t.Keep))).ToArray();
+        ch["Settings"] = m.Settings;
+        c["ImageFiles"] = (string[])[.. ImageFiles, @"Windows\System32\OneDriveSetup.exe", @"Program Files (x86)\Microsoft\Edge\a.exe", @"Program Files (x86)\Microsoft\EdgeWebView\b.dll"];
+        c["ImageFeatures"] = new[] { "Windows-Defender-Default-Definitions", "Recall", "Printing-PrintToPDFServices-Features", "MediaPlayback", "WorkFolders-Client" };
+        c["ImageCapabilities"] = new object[] { new { Name = "Media.WindowsMediaPlayer~~~~0.0.12.0", State = "Installed" }, new { Name = "App.StepsRecorder~~~~0.0.1.0", State = "NotPresent" } };
+        change?.Invoke(c);
+    });
+
+    [Fact]
+    public void Builds_the_lite_mode_from_its_groups() => Same(Mode("Lite"));
+
+    [Fact]
+    public void Builds_the_akarios_mode_with_the_bake_and_the_first_sign_in()
+    {
+        var bake = IsoWizard.Bake(new PresetStore(RepoFiles, Path.GetTempPath(), Path.Combine(Path.GetTempPath(), "none.json"), new MemoryLog()).Find(IsoWizard.Preset)!,
+            Loaded.Value, 26100);
+        var o = Same(Mode("AkariOS", c =>
+        {
+            var ch = Choices(c);
+            ch["AkariOS"] = true;
+            ch["FirstSignIn"] = true;
+            ch["ImageBuild"] = 26100;
+            ch["Bake"] = bake.InImage.Select(x => new BakeCase(x.Tweak.Id, x.Value)).ToArray();
+        }));
+        Assert.Contains(o.Ops, x => x.EndsWith("|The rest of AkariOS at the first sign-in|Done|A RunOnce entry for each new account: one UAC prompt, then One-click's console"));
+        Assert.Equal(bake.InImage.Count, o.Ops.Count(x => x.Contains("|Tweak ", StringComparison.Ordinal) && x.Contains("|Done|", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void Builds_with_no_groups() => Same(Case(c => Choices(c)["Groups"] = Array.Empty<string>()));
+
+    [Fact]
+    public void Fails_an_unknown_group_before_it_starts() => Same(Case(c => Choices(c)["Groups"] = new[] { "SkipHardwareChecks", "Nope" }));
 
     // ---- the build settings (native batch I3, PowerShell P6)
 

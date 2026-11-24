@@ -10,7 +10,9 @@
 # @{ verb = exit code }, Fail (Mount | Trusted | Oscdimg), Denied (hive paths an admin can't change: rows and keys
 # under them throw unless written as TrustedInstaller), Marker (left at the start), Choices @{ Index; Edition;
 # Options; Apps; Features; Capabilities; Packages; AkariOS (bool); Unattend (text); Settings (the native
-# IsoBuildSettings: Compression; Turbo; CleanLeftovers; LeaveOutNetFx3Files) }.
+# IsoBuildSettings: Compression; Turbo; CleanLeftovers; LeaveOutNetFx3Files); the wizard's Groups, AppPatterns,
+# FirstSignIn (bool), ImageBuild, Bake (@{ Id; Value }: the real Tweaks, loaded then) }. ImageCapabilities @{ Name;
+# State }: the image's capabilities.
 # Writes @{ Calls; Log; ErrLog; Progress; Ops; Results; Marker } as JSON to -Out; paths start <root>. Ops = each
 # operation the build reports ('<stage index>|<name>|<state>|<note>'); its report.json is left in <root>\out.
 param([Parameter(Mandatory)][string]$Src, [Parameter(Mandatory)][string]$Out, [Parameter(Mandatory)][string]$Case,
@@ -22,7 +24,7 @@ $c = [IO.File]::ReadAllText($Case).Replace('<root>', $Root.Replace('\', '\\')) |
 $script:CaseData = $c
 $AkariIsoMarker = Join-Path $Root 'iso-mount.json'
 $AkariIsoRegRoot = $Reg
-foreach ($f in 'Log', 'Version', 'Registry', 'Trusted', 'AppSetup', 'System', 'Runner', 'Iso') { . (Join-Path $Src "Core\$f.ps1") }
+foreach ($f in 'Log', 'Version', 'Registry', 'Trusted', 'AppSetup', 'System', 'Runner', 'Loader', 'Iso') { . (Join-Path $Src "Core\$f.ps1") }
 
 $script:Calls = [Collections.Generic.List[string]]::new()
 $script:Log = [Collections.Generic.List[string]]::new()
@@ -139,6 +141,10 @@ function Read-AkariImageApps([string]$Mount) {
     Rec "Read Apps $Mount"
     foreach ($a in @($script:CaseData.ImageApps | Where-Object { $_ })) { @{ Name = [string]$a.Name; Package = [string]$a.Package } }
 }
+function Get-AkariImageCapabilities([string]$Mount) {
+    Rec "Read Capabilities $Mount"
+    foreach ($x in @($script:CaseData.ImageCapabilities | Where-Object { $_ })) { if ($x.State -eq 'Installed') { @{ Name = [string]$x.Name; State = [string]$x.State } } }
+}
 function Get-AkariImageFeatures([string]$Mount) {
     Rec "Read Features $Mount"
     $stuck = @($script:CaseData.StuckFeatures | Where-Object { $_ })
@@ -180,6 +186,15 @@ foreach ($a in @($c.Actions)) {
             if ($ch.AkariOS) { $choices.AkariDir = Join-Path $Root 'akari' }
             if ($ch.Unattend) { $choices.Unattend = [Text.Encoding]::UTF8.GetBytes([string]$ch.Unattend) }
             if ($ch.Settings) { $choices.Settings = $ch.Settings }
+            # the wizard
+            if ($ch.PSObject.Properties['Groups']) { $choices.Groups = @($ch.Groups | Where-Object { $_ }) }
+            if ($ch.AppPatterns) { $choices.AppPatterns = @($ch.AppPatterns) }
+            if ($ch.FirstSignIn) { $choices.FirstSignIn = $true }
+            if ($ch.ImageBuild) { $choices.ImageBuild = [int]$ch.ImageBuild }
+            if ($ch.Bake) {
+                $loaded = @((Get-AkariTweaks (Join-Path $Src 'Tweaks')).Tweaks)
+                $choices.Bake = @(foreach ($b in @($ch.Bake)) { @{ Tweak = @($loaded | Where-Object { $_.Id -eq $b.Id })[0]; Value = $b.Value } })
+            }
             $r = Invoke-AkariIsoBuild $choices
             $results.Add([ordered]@{ Action = 'Build'; Ok = [bool]$r.Ok; Path = (Norm "$($r.Path)"); Message = (Norm "$($r.Message)") })
         }

@@ -1,7 +1,9 @@
 ﻿#requires -Version 5.1
-param([switch]$List, [string[]]$Apply, [string[]]$Revert, [string]$Preset, [string]$RevertPreset, [switch]$Resume)
+param([switch]$List, [string[]]$Apply, [string[]]$Revert, [string]$Preset, [string]$RevertPreset, [switch]$Resume, [switch]$FirstSignIn)
 # Akari. GUI:  powershell -ExecutionPolicy Bypass -File Akari.ps1
-# A Run in phases, after a restart (RunOnce; Core\Phases.ps1):  Akari.ps1 -Resume# CLI:  Akari.ps1 -List  |  -Apply id,id  |  -Revert id,id  |  -Preset <name|file.json>  |  -RevertPreset <name|file.json>
+# A Run in phases, after a restart (RunOnce; Core\Phases.ps1):  Akari.ps1 -Resume
+# An AkariOS ISO's first sign-in (RunOnce; Core\Iso\Image.ps1):  Akari.ps1 -FirstSignIn
+# CLI:  Akari.ps1 -List  |  -Apply id,id  |  -Revert id,id  |  -Preset <name|file.json>  |  -RevertPreset <name|file.json>
 #       (all but -List need an elevated shell; -RevertPreset reverts in reverse order and skips Actions)
 
 # ---- CLI: no relaunch, no WPF
@@ -58,6 +60,26 @@ if ($Resume) {
     $loaded = Get-AkariTweaks (Join-Path $PSScriptRoot 'Tweaks')
     $status = @(Start-AkariPhases $run (Get-AkariRunTweaks $run $loaded) | Where-Object { $_ -is [string] }) | Select-Object -Last 1
     if ($status -ne 'Restarting') { Write-AkariRunSummary $run.Outcomes; Write-Host '  Press Enter to close this window.'; [void][Console]::ReadLine() }
+    exit
+}
+
+# ---- an AkariOS ISO's first sign-in (the image's RunOnce value, Core\Iso\Image.ps1): the rest of the AkariOS preset
+# in One-click's console; no restore point (a new Windows has nothing to go back to)
+if ($FirstSignIn) {
+    $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]'Administrator')
+    if (-not $admin) {
+        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Maximized -File `"$PSCommandPath`" -FirstSignIn" -Verb RunAs
+        exit
+    }
+    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Appx', 'Winget', 'AppSetup', 'System', 'Presets', 'Phases', 'Restore') { . "$PSScriptRoot\Core\$f.ps1" }
+    Write-AkariBanner 'AkariOS is finishing setting up this Windows...'
+    $loaded = Get-AkariTweaks (Join-Path $PSScriptRoot 'Tweaks')
+    $oneClickPreset = Find-AkariPreset 'AkariOS' (Join-Path $PSScriptRoot 'Presets')
+    if (-not $oneClickPreset) { Write-Log 'The AkariOS preset could not be read.'; [void][Console]::ReadLine(); exit }
+    Write-Log 'Reading the apps and features on this PC...'
+    $r = New-AkariPresetRun $oneClickPreset $loaded
+    $status = @(Start-AkariPhases $r.Run $r.Tweaks | Where-Object { $_ -is [string] }) | Select-Object -Last 1
+    if ($status -ne 'Restarting') { Write-AkariRunSummary $r.Run.Outcomes; Write-Host '  Press Enter to close this window.'; [void][Console]::ReadLine() }
     exit
 }
 
