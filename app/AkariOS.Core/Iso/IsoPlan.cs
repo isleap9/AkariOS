@@ -7,7 +7,7 @@ namespace AkariOS.Core.Iso;
 
 /// <summary>
 /// What a build is asked to do (Invoke-AkariIsoBuild's $Choices): the output folder, the source ISO (for the name),
-/// the install image and edition (from opening the ISO), the option ids, the provisioned packages, features,
+/// the install image and edition (from opening the ISO), the provisioned packages, features,
 /// capabilities and OS packages to remove, the running AkariOS exe to copy in (AkariExe, the port's AkariDir; none =
 /// left out), the answer file (none = left out).
 /// </summary>
@@ -18,7 +18,6 @@ public sealed record IsoChoices
     public string Image { get; init; } = "";
     public int Index { get; init; }
     public string Edition { get; init; } = "";
-    public string[]? Options { get; init; }
     public string[]? Apps { get; init; }
     public string[]? Features { get; init; }
     public string[]? Capabilities { get; init; }
@@ -29,8 +28,8 @@ public sealed record IsoChoices
     /// <summary>The wizard's build settings (batch I3, native only so far); the defaults build as the port does.</summary>
     public IsoBuildSettings Settings { get; init; } = new();
 
-    /// <summary>The wizard's removal groups (batch I4, <see cref="IsoWizard.Groups"/> ids): null = the port's build,
-    /// zISO's always-on data (Always.psd1); set = these groups instead, and nothing else always on.</summary>
+    /// <summary>The removal groups (<see cref="IsoWizard.Groups"/> ids; null or empty = none): nothing else is always
+    /// on.</summary>
     public string[]? Groups { get; init; }
 
     /// <summary>App names or wildcards matched on the image's apps when it is built (the groups' apps, 'appx:' tokens
@@ -110,38 +109,28 @@ public static partial class IsoPlan
 {
     public const long MinFree = 25L << 30;
 
-    /// <summary>The build's ordered steps (New-AkariIsoPlan); <paramref name="picked"/> = the picked options.</summary>
-    /// <remarks>The wizard (<see cref="IsoChoices.Groups"/> set) passes its picked <paramref name="groups"/>: their
-    /// lists add the removal steps, and the settings, files and boot.wim steps come only when a group has some. Its
-    /// .NET 3.5 and component store cleanup come right after the apps, before any feature, capability or package is
-    /// removed: those leave operations pending, and DISM refuses the cleanup then (a report showed it skipped, the
-    /// image gigabytes larger).</remarks>
-    public static IReadOnlyList<IsoStep> Steps(IsoChoices c, IReadOnlyList<IsoOption> picked, IReadOnlyList<IsoGroup>? groups = null)
+    /// <summary>The build's ordered steps (New-AkariIsoPlan) for the picked <paramref name="groups"/>.</summary>
+    /// <remarks>The groups' lists add the removal steps, and the settings, files and boot.wim steps come only when a
+    /// group has some. .NET 3.5 and the component store cleanup come right after the apps, before any feature,
+    /// capability or package is removed: those leave operations pending, and DISM refuses the cleanup then (a report
+    /// showed it skipped, the image gigabytes larger). Minimal's pruning after the leftovers.</remarks>
+    public static IReadOnlyList<IsoStep> Steps(IsoChoices c, IReadOnlyList<IsoGroup>? groups = null)
     {
         var s = new List<IsoStep>();
         void Add(string id, string text) => s.Add(new IsoStep(id, text));
-        var wizard = c.Groups is not null;
         var g = groups ?? [];
         Add("Adk", "Getting the ISO tool ready (Windows ADK)");
         Add("Mount", $"Mounting {c.Edition}");
-        if (List(c.Apps).Count > 0 || picked.Any(o => o.Apps.Count > 0) || List(c.AppPatterns).Count > 0) Add("Apps", "Removing apps");
-        if (wizard)
-        {
-            Add("NetFx3", "Adding .NET Framework 3.5");
-            Add("Cleanup", "Cleaning up the component store");
-        }
-        if (List(c.Features).Count > 0 || picked.Any(o => o.Features.Count > 0) || g.Any(x => x.Features.Count > 0)) Add("Features", "Removing Windows features");
+        if (List(c.Apps).Count > 0 || List(c.AppPatterns).Count > 0) Add("Apps", "Removing apps");
+        Add("NetFx3", "Adding .NET Framework 3.5");
+        Add("Cleanup", "Cleaning up the component store");
+        if (List(c.Features).Count > 0 || g.Any(x => x.Features.Count > 0)) Add("Features", "Removing Windows features");
         if (List(c.Capabilities).Count > 0 || g.Any(x => x.Capabilities.Count > 0)) Add("Capabilities", "Removing optional features (capabilities)");
         if (List(c.Packages).Count > 0 || g.Any(x => x.Packages.Count > 0)) Add("Packages", "Removing OS packages");
-        if (!wizard || g.Any(x => x.Registry.Count > 0 || x.RemoveKeys.Count > 0)) Add("Registry", "Writing settings into the image's registry");
+        if (g.Any(x => x.Registry.Count > 0 || x.RemoveKeys.Count > 0)) Add("Registry", "Writing settings into the image's registry");
         if (c.Bake is { Count: > 0 } || (c.FirstSignIn && !string.IsNullOrEmpty(c.AkariExe))) Add("Bake", "Writing the AkariOS settings into the image");
-        if (!wizard || g.Any(x => x.Remove.Count > 0)) Add("Files", "Removing files from the image");
+        if (g.Any(x => x.Remove.Count > 0)) Add("Files", "Removing files from the image");
         if (!string.IsNullOrEmpty(c.AkariExe)) Add("AkariOS", "Adding AkariOS to the image");
-        if (!wizard)
-        {
-            Add("NetFx3", "Adding .NET Framework 3.5");
-            Add("Cleanup", "Cleaning up the component store");
-        }
         if (c.Settings.CleanLeftovers) Add("Leftovers", "Removing leftover image data");
         if (g.Any(x => x.PruneComponentStore)) Add("Prune", "Pruning the component store (Minimal: no updates or repairs afterwards)");
         Add("Commit", "Saving the image");
@@ -151,7 +140,7 @@ public static partial class IsoPlan
             IsoCompression.Fast => "Compressing install.wim (fast compression)",
             _ => "Compressing install.wim",
         });
-        if (!wizard || g.Any(x => x.Boot.Count > 0)) Add("Boot", "Skipping the Windows 11 requirements in setup (boot.wim)");
+        if (g.Any(x => x.Boot.Count > 0)) Add("Boot", "Skipping the Windows 11 requirements in setup (boot.wim)");
         if (c.Unattend is { Length: > 0 }) Add("Answer", "Adding the answer file (autounattend.xml)");
         if (c.Settings.LeaveOutNetFx3Files) Add("NoSxs", "Leaving .NET Framework 3.5's setup files off the ISO");
         Add("Iso", "Building the ISO");

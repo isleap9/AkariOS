@@ -32,7 +32,8 @@ public class ScaffoldTests
     [Theory]
     [InlineData("src/Presets/AkariOS.json")]
     [InlineData("src/OneClick/reg.reg")]
-    [InlineData("src/Core/Iso/Data/Always.psd1")]
+    [InlineData("src/Core/Iso/Wizard/Modes/Minimal.psd1")]
+    [InlineData("src/Core/Iso/LICENSE-zISOTweaker.txt")]
     [InlineData("src/UI/About.psd1")]
     [InlineData("src/UI/Unattend.psd1")]
     public void Shared_data_is_embedded(string path) => Assert.Contains(path, AkariInfo.EmbeddedPaths());

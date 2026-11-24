@@ -70,14 +70,12 @@ public sealed class IsoWizardOracleTests
         for (var i = 0; i < modes.Count; i++)
         {
             var m = modes[i];
-            // Minimal prunes the component store: the PowerShell app has it in batch P9
-            if (m.Minimal) continue;
             var picked = IsoWizard.Picked(m.Groups, all);
             var apps = IsoWizard.AppPatterns(picked, AppTweaks());
             Assert.Equal(Texts(patterns[i]), apps);
             var c = new IsoChoices { Edition = "Windows 11 Pro", Groups = [.. m.Groups], AppPatterns = [.. apps], Settings = m.Settings };
             if (m.AkariOS) c = c with { AkariExe = @"C:\AkariOS\AkariOS-Native.exe", FirstSignIn = true, Bake = IsoWizard.Bake(AkariOSPreset(), Loaded.Value, 26100).InImage };
-            Assert.Equal(Texts(plans[i]), IsoPlan.Steps(c, [], picked).Select(s => $"{s.Id}|{s.Text}"));
+            Assert.Equal(Texts(plans[i]), IsoPlan.Steps(c, picked).Select(s => $"{s.Id}|{s.Text}"));
         }
     }
 

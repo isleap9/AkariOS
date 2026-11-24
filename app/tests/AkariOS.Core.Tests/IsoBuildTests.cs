@@ -94,12 +94,12 @@ public sealed class IsoBuildTests
         var c = Case();
         using var s = new Side(c);
         var o = Cs(s, c);
-        // Adk, Mount, Registry, Files, NetFx3, Cleanup, Commit, Compress, Boot, Iso, Tidy
-        Assert.Equal("0/11 Getting the ISO tool ready (Windows ADK)", o.Progress[0]);
-        Assert.Equal("1/11 Mounting Windows 11 Pro", o.Progress[1]);
-        Assert.Equal("10/11 Removing the work folder", o.Progress[10]);
-        Assert.Equal("11/11 Done", o.Progress[^1]);
-        Assert.Equal(12, o.Progress.Count);
+        // Adk, Mount, NetFx3, Cleanup, Commit, Compress, Iso, Tidy
+        Assert.Equal("0/8 Getting the ISO tool ready (Windows ADK)", o.Progress[0]);
+        Assert.Equal("1/8 Mounting Windows 11 Pro", o.Progress[1]);
+        Assert.Equal("7/8 Removing the work folder", o.Progress[7]);
+        Assert.Equal("8/8 Done", o.Progress[^1]);
+        Assert.Equal(9, o.Progress.Count);
     }
 
     [Fact]

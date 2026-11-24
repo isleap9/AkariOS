@@ -720,7 +720,7 @@ public sealed partial class IsoBuilderViewModel : ObservableObject
         var what = IsCustom ? $"{PlanText}, {RemovalCount} apps and features picked from the image" : $"{CurrentMode!.Name}: {PlanText}";
         var q = $"Build {name} from {ed.Name}?\n\n{what}. It takes 20 to 40 minutes and AkariOS can't be used meanwhile.";
         if (!await _dialogs.ConfirmAsync("Build the ISO?", q, "Build ISO")) return;
-        StartStages(IsoPlan.Steps(choices, [], PickedGroups));
+        StartStages(IsoPlan.Steps(choices, PickedGroups));
         var progress = new PostedProgress(_background, p =>
         {
             if (_busy is { } b) _shell.Report(b, p);
@@ -773,7 +773,7 @@ public sealed partial class IsoBuilderViewModel : ObservableObject
         var exe = AkariOS ? _tools.AkariExe : null;
         return new IsoChoices
         {
-            OutDir = OutDir.Trim(), Iso = IsoPath.Trim(), Image = _image, Index = ed.Index, Edition = ed.Name, Options = [],
+            OutDir = OutDir.Trim(), Iso = IsoPath.Trim(), Image = _image, Index = ed.Index, Edition = ed.Name,
             Apps = lists["Apps"], Capabilities = lists["Capabilities"], Features = lists["Features"], Packages = lists["Packages"],
             AkariExe = exe, Unattend = answer, Settings = Settings,
             Groups = [.. groups.Select(g => g.Id)],

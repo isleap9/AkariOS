@@ -1,41 +1,14 @@
-# The ISO Builder's options and removals (dot-sourced by Core\Iso.ps1): zISO's ten options (Data\Options\*.psd1),
-# the apps, features, capabilities and packages the user picks, AkariOS copied into the image.
+# The ISO Builder's removals (dot-sourced by Core\Iso.ps1): the apps, features, capabilities and packages the user and
+# the removal groups pick, the leftovers, Minimal's component store pruning, AkariOS copied into the image, and the
+# wizard's modes and removal groups (Iso\Wizard).
 
-$AkariIsoOptionsDir = Join-Path $AkariIsoData 'Options'
-$AkariIsoGroups = @('Update', 'Security', 'Apps')
 # frameworks the app list leaves out (zISO's filter): removing them breaks the apps that use them
 $AkariIsoFrameworkApps = 'DesktopAppInstaller|AppRuntime|VCLibs|UI\.Xaml|NET\.Native'
 
 # a choice list without its empty entries (@($null) has one item). Pure.
 function Get-AkariIsoList($Value) { , @(@($Value) | Where-Object { $_ }) }
 
-# ---- options
-
-# every option: its data plus Id (the file name), in page order (Group, then Order)
-function Get-AkariIsoOptions {
-    $o = foreach ($f in @(Get-ChildItem -LiteralPath $AkariIsoOptionsDir -Filter *.psd1 -File)) {
-        $d = Import-PowerShellDataFile $f.FullName
-        $d.Id = $f.BaseName
-        $d
-    }
-    , @($o | Sort-Object { $AkariIsoGroups.IndexOf($_.Group) }, { $_.Order })
-}
-
-# a message when the picked ids don't go together (an unknown id, or two that exclude each other), else $null. Pure.
-function Test-AkariIsoOptions($Ids, $Options) {
-    $Ids = Get-AkariIsoList $Ids
-    foreach ($id in $Ids) {
-        $o = @($Options | Where-Object { $_.Id -eq $id })[0]
-        if (-not $o) { return "Unknown ISO option: $id" }
-        foreach ($x in @($o.Excludes)) {
-            if ($x -and $Ids -contains $x) { return "'$($o.Name)' and '$(@($Options | Where-Object { $_.Id -eq $x })[0].Name)' can't be picked together." }
-        }
-    }
-    $null
-}
-
-# the picked options' data, in page order. Pure.
-function Get-AkariIsoPicked([hashtable]$Choices, $Options) { , @($Options | Where-Object { @($Choices.Options) -contains $_.Id }) }
+# ---- rows and names
 
 # several "hide:" lists for Settings' SettingsPageVisibility (Defender's, AI's) become one row, or the last would win. Pure.
 function Merge-AkariIsoRows($Rows) {
@@ -53,7 +26,7 @@ function Merge-AkariIsoRows($Rows) {
     , $out.ToArray()
 }
 
-# the names to remove: the user's picks plus what on the image matches an option's patterns, once each. Pure.
+# the names to remove: the user's picks plus what on the image matches a group's patterns, once each. Pure.
 function Resolve-AkariIsoNames($Picked, $Patterns, $Available) {
     $set = [System.Collections.Generic.List[string]]::new()
     foreach ($n in @($Picked)) { if ($n -and -not $set.Contains($n)) { $set.Add($n) } }
@@ -190,6 +163,28 @@ function Remove-AkariIsoLeftovers([string]$Mount) {
             $gone = Remove-AkariImagePaths $Mount @($path)
             if ($gone -gt 0) { @{ State = 'Done'; Note = "$gone removed" } } else { @{ State = 'Skipped'; Note = 'Nothing there' } }
         }
+    }
+}
+
+# Minimal's component store pruning (Tiny11 Core, ADR 0010; the native PruneComponentStore): every WinSxS folder but
+# the store's metadata and the runtimes Windows loads from it removed, ownership taken once for the store. Refused (the
+# build fails, nothing removed) while servicing is pending or when the image's own runtimes can't be found.
+function Remove-AkariIsoComponentStore([string]$Mount) {
+    if (Test-Path -LiteralPath (Join-Path $Mount $AkariIsoPendingXml)) { throw 'The image has pending servicing (pending.xml): Minimal can''t prune its component store. Nothing was pruned.' }
+    $store = Join-Path $Mount 'Windows\WinSxS'
+    if (-not (Test-Path -LiteralPath $store -PathType Container)) { throw 'The image has no Windows\WinSxS folder: nothing to prune.' }
+    $folders = @([IO.Directory]::GetDirectories($store) | ForEach-Object { [IO.Path]::GetFileName($_) })
+    foreach ($family in $AkariIsoRequiredRuntimes) {
+        $found = @($folders | Where-Object { $_.IndexOf($family, [StringComparison]::OrdinalIgnoreCase) -ge 0 -and (Test-AkariKeepInComponentStore $_) })
+        if (-not $found.Count) { throw "Minimal can't find the image's $family runtime in WinSxS: nothing was pruned." }
+    }
+    $removable = @($folders | Where-Object { -not (Test-AkariKeepInComponentStore $_) })
+    Invoke-AkariIsoOp "$($removable.Count) component folders" {
+        Grant-AkariOwnership $store | Out-Null
+        $gone = 0
+        foreach ($f in $removable) { $gone += Remove-AkariPaths @(Join-Path $store $f) }
+        Write-Log "Pruned $gone of $($removable.Count) component folders"
+        @{ State = 'Done'; Note = "$gone removed; $($folders.Count - $removable.Count) kept" }
     }
 }
 

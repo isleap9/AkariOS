@@ -6,7 +6,6 @@
 # own Windows.
 
 if (-not $AkariIsoMarker) { $AkariIsoMarker = Join-Path $env:ProgramData 'Akari\iso-mount.json' }
-$AkariIsoData = Join-Path $PSScriptRoot 'Iso\Data'
 # the image's hives: name -> file under the mounted image
 $AkariIsoHives = [ordered]@{
     SOFTWARE = 'Windows\System32\config\SOFTWARE'
@@ -121,7 +120,6 @@ function ConvertTo-AkariIsoRows($Rows) {
     }
 }
 
-function Get-AkariIsoData([string]$Name) { Import-PowerShellDataFile (Join-Path $AkariIsoData "$Name.psd1") }
 
 # ---- the Build settings (the native IsoBuildSettings)
 
@@ -136,6 +134,14 @@ $AkariIsoLeftovers = @(
     'ProgramData\Microsoft\Windows\WER\Temp\*', 'Windows\Minidump\*', 'Windows\MEMORY.DMP', 'Windows\LiveKernelReports\*.dmp'
 )
 $AkariIsoPendingXml = 'Windows\WinSxS\pending.xml'
+# Minimal's component store pruning (Tiny11 Core, ADR 0010; the native IsoWizard.KeepInComponentStore): the WinSxS
+# folders it keeps = the store's own metadata and the runtimes Windows still loads from it (common controls, GDI+,
+# isolation automation, the VC CRTs, the servicing stack); it refuses unless it finds the $AkariIsoRequiredRuntimes
+$AkariIsoStoreMetadata = @('Catalogs', 'FileMaps', 'Fusion', 'InstallTemp', 'Manifests', 'SettingsManifests', 'Temp')
+$AkariIsoStoreRuntimes = '(?:common-controls|c\.\.-controls|gdiplus|isolationautomation|utomation\.proxystub|microsoft\.vc\d+\.crt|servicing|s\.\.(?:ngstack|stack))'
+$AkariIsoRequiredRuntimes = @('common-controls', 'gdiplus', 'servicing')
+# a WinSxS folder the pruning keeps. Pure.
+function Test-AkariKeepInComponentStore([string]$Folder) { ($AkariIsoStoreMetadata -contains $Folder) -or ($Folder -match $AkariIsoStoreRuntimes) }
 
 # $Choices.Settings as @{ Compression (a key of $AkariIsoCompressions); Turbo (the Windows features in one DISM call,
 # each read back); CleanLeftovers ($AkariIsoLeftovers removed); LeaveOutNetFx3Files (sources\sxs off the ISO) };
@@ -157,53 +163,44 @@ function Get-AkariIsoSettingsLines([hashtable]$Settings) {
     )
 }
 
-# the build's ordered steps: @{ Id; Text }. $Picked = the picked options' data (Get-AkariIsoPicked). The wizard
-# (Choices.Groups set) passes its picked $Groups: their lists add the removal steps, and the settings, files and
-# boot.wim steps come only when a group has some; its .NET 3.5 and component store cleanup come right after the
-# apps, before any feature, capability or package is removed (those leave operations pending, and DISM refuses the
-# cleanup then). Pure.
-function New-AkariIsoPlan([hashtable]$Choices, $Picked = @(), $Groups = @()) {
+# the build's ordered steps: @{ Id; Text }. $Groups = the picked removal groups (Get-AkariIsoGroupsPicked): their
+# lists add the removal steps, and the settings, files and boot.wim steps come only when a group has some. .NET 3.5
+# and the component store cleanup come right after the apps, before any feature, capability or package is removed
+# (those leave operations pending, and DISM refuses the cleanup then); Minimal's pruning (a group with
+# PruneComponentStore) after the leftovers, before the image is saved. Pure.
+function New-AkariIsoPlan([hashtable]$Choices, $Groups = @()) {
     $s = [System.Collections.Generic.List[object]]::new()
     $add = { param($id, $text) $s.Add(@{ Id = $id; Text = $text }) }
-    $wizard = Test-AkariIsoWizard $Choices
     $g = @($Groups | Where-Object { $_ })
     $has = { param($k) [bool]@($g | Where-Object { @($_[$k] | Where-Object { $_ }).Count }).Count }
     & $add 'Adk' 'Getting the ISO tool ready (Windows ADK)'
     & $add 'Mount' "Mounting $($Choices.Edition)"
-    if ((Get-AkariIsoList $Choices.Apps).Count -or @($Picked | Where-Object { $_.Apps }).Count -or (Get-AkariIsoList $Choices.AppPatterns).Count) { & $add 'Apps' 'Removing apps' }
-    if ($wizard) {
-        & $add 'NetFx3' 'Adding .NET Framework 3.5'
-        & $add 'Cleanup' 'Cleaning up the component store'
-    }
-    if ((Get-AkariIsoList $Choices.Features).Count -or @($Picked | Where-Object { $_.Features }).Count -or (& $has 'Features')) { & $add 'Features' 'Removing Windows features' }
+    if ((Get-AkariIsoList $Choices.Apps).Count -or (Get-AkariIsoList $Choices.AppPatterns).Count) { & $add 'Apps' 'Removing apps' }
+    & $add 'NetFx3' 'Adding .NET Framework 3.5'
+    & $add 'Cleanup' 'Cleaning up the component store'
+    if ((Get-AkariIsoList $Choices.Features).Count -or (& $has 'Features')) { & $add 'Features' 'Removing Windows features' }
     if ((Get-AkariIsoList $Choices.Capabilities).Count -or (& $has 'Capabilities')) { & $add 'Capabilities' 'Removing optional features (capabilities)' }
     if ((Get-AkariIsoList $Choices.Packages).Count -or (& $has 'Packages')) { & $add 'Packages' 'Removing OS packages' }
-    if (-not $wizard -or (& $has 'Registry') -or (& $has 'RemoveKeys')) { & $add 'Registry' 'Writing settings into the image''s registry' }
+    if ((& $has 'Registry') -or (& $has 'RemoveKeys')) { & $add 'Registry' 'Writing settings into the image''s registry' }
     if (@($Choices.Bake | Where-Object { $_ }).Count -or ($Choices.FirstSignIn -and $Choices.AkariDir)) { & $add 'Bake' 'Writing the AkariOS settings into the image' }
-    if (-not $wizard -or (& $has 'Remove')) { & $add 'Files' 'Removing files from the image' }
+    if (& $has 'Remove') { & $add 'Files' 'Removing files from the image' }
     if ($Choices.AkariDir) { & $add 'AkariOS' 'Adding AkariOS to the image' }
-    if (-not $wizard) {
-        & $add 'NetFx3' 'Adding .NET Framework 3.5'
-        & $add 'Cleanup' 'Cleaning up the component store'
-    }
     $set = Get-AkariIsoSettings $Choices
     if ($set.CleanLeftovers) { & $add 'Leftovers' 'Removing leftover image data' }
+    if (@($g | Where-Object { $_.PruneComponentStore }).Count) { & $add 'Prune' 'Pruning the component store (Minimal: no updates or repairs afterwards)' }
     & $add 'Commit' 'Saving the image'
     & $add 'Compress' $(switch ($set.Compression) {
             'Recovery' { 'Compressing install.esd (recovery compression)' }
             'Fast' { 'Compressing install.wim (fast compression)' }
             default { 'Compressing install.wim' }
         })
-    if (-not $wizard -or (& $has 'Boot')) { & $add 'Boot' 'Skipping the Windows 11 requirements in setup (boot.wim)' }
+    if (& $has 'Boot') { & $add 'Boot' 'Skipping the Windows 11 requirements in setup (boot.wim)' }
     if ($Choices.Unattend) { & $add 'Answer' 'Adding the answer file (autounattend.xml)' }
     if ($set.LeaveOutNetFx3Files) { & $add 'NoSxs' 'Leaving .NET Framework 3.5''s setup files off the ISO' }
     & $add 'Iso' 'Building the ISO'
     & $add 'Tidy' 'Removing the work folder'
     , $s.ToArray()
 }
-
-# a wizard build (Choices.Groups given, even empty): its groups stand in for zISO's always-on data
-function Test-AkariIsoWizard([hashtable]$Choices) { $Choices -and $Choices.ContainsKey('Groups') -and $null -ne $Choices.Groups }
 
 # the ISO's file name: <source>-Akari.iso
 function Get-AkariIsoOutName([string]$Iso) {
@@ -449,30 +446,21 @@ function Get-AkariFileSha256([string]$Path) {
 # ---- the build
 
 # $Choices: @{ OutDir; Iso (the source file, for the name); Image (from Open-AkariIsoSource); Index; Edition;
-# Options (option ids); Apps (provisioned package names); Features; Capabilities; Packages (names); AkariDir (this
-# AkariOS's folder, to copy into the image; none = left out); Unattend ([byte[]] autounattend.xml; none = left out);
-# Settings (the Build settings, Get-AkariIsoSettings); the wizard's: Groups (removal group ids: they replace zISO's
-# always-on data), AppPatterns (Get-AkariIsoAppPatterns), Bake (Get-AkariIsoBake's InImage), FirstSignIn (with
-# AkariDir: the RunOnce value) }.
+# Apps (provisioned package names); Features; Capabilities; Packages (names); AkariDir (this AkariOS's folder, to copy
+# into the image; none = left out); Unattend ([byte[]] autounattend.xml; none = left out); Settings (the Build
+# settings, Get-AkariIsoSettings); Groups (removal group ids; none = no group), AppPatterns (Get-AkariIsoAppPatterns),
+# Bake (Get-AkariIsoBake's InImage), FirstSignIn (with AkariDir: the RunOnce value) }.
 # Returns @{ Ok; Path; Message; Report }; on a failure the image is discarded, never left mounted. Each step's
 # operations go to the page (Add-AkariIsoOperation); either way a report goes next to the ISO and on the result.
 function Invoke-AkariIsoBuild([hashtable]$Choices) {
-    $all = Get-AkariIsoOptions
-    $bad = Test-AkariIsoOptions $Choices.Options $all
-    if ($bad) { return @{ Ok = $false; Path = $null; Message = $bad } }
-    $picked = Get-AkariIsoPicked $Choices $all
     $groups = @()
-    if (Test-AkariIsoWizard $Choices) {
-        try { $groups = Get-AkariIsoGroupsPicked $Choices.Groups (Get-AkariIsoGroups) }
-        catch { return @{ Ok = $false; Path = $null; Message = $_.Exception.Message } }
-    }
+    try { $groups = Get-AkariIsoGroupsPicked $Choices.Groups (Get-AkariIsoGroups) }
+    catch { return @{ Ok = $false; Path = $null; Message = $_.Exception.Message } }
     $w = Get-AkariIsoWork $Choices.OutDir
     $out = Join-Path $Choices.OutDir (Get-AkariIsoOutName $Choices.Iso)
-    # the wizard's groups stand in for zISO's always-on data
-    $always = if (Test-AkariIsoWizard $Choices) { @{ Requirements = @(); Registry = @(); Remove = @(); Boot = @() } } else { Get-AkariIsoData 'Always' }
     # a group's list, joined
     $fromGroups = { param($k) @($groups | ForEach-Object { $_[$k] } | Where-Object { $_ }) }
-    $steps = New-AkariIsoPlan $Choices $picked $groups
+    $steps = New-AkariIsoPlan $Choices $groups
     $set = Get-AkariIsoSettings $Choices
     $oscdimg = $null
     $started = Get-Date
@@ -494,13 +482,13 @@ function Invoke-AkariIsoBuild([hashtable]$Choices) {
                 'Adk' { $oscdimg = Install-AkariAdk }
                 'Mount' { Mount-AkariIsoEdition $w $Choices.Image $Choices.Index }
                 'Apps' {
-                    # the user's picks plus the image's apps an option names (Defender's Security app, the AI apps)
-                    $pats = @($picked | ForEach-Object { $_.Apps } | Where-Object { $_ }) + (Get-AkariIsoList $Choices.AppPatterns)
-                    $fromOptions = @(Get-AkariImageApps $w.Mount | Where-Object { $n = $_.Name; @($pats | Where-Object { $n -like $_ }).Count } | ForEach-Object { $_.Package })
-                    Remove-AkariImageApps $w.Mount (Resolve-AkariIsoNames ((Get-AkariIsoList $Choices.Apps) + $fromOptions) @() @())
+                    # the user's picks plus the image's apps the groups' patterns name
+                    $pats = Get-AkariIsoList $Choices.AppPatterns
+                    $matched = @(Get-AkariImageApps $w.Mount | Where-Object { $n = $_.Name; @($pats | Where-Object { $n -like $_ }).Count } | ForEach-Object { $_.Package })
+                    Remove-AkariImageApps $w.Mount (Resolve-AkariIsoNames ((Get-AkariIsoList $Choices.Apps) + $matched) @() @())
                 }
                 'Features' {
-                    $pats = @($picked | ForEach-Object { $_.Features } | Where-Object { $_ }) + @(& $fromGroups 'Features')
+                    $pats = @(& $fromGroups 'Features')
                     $have = if ($pats) { @(Get-AkariImageFeatures $w.Mount | ForEach-Object { $_.Name }) } else { @() }
                     $names = Resolve-AkariIsoNames (Get-AkariIsoList $Choices.Features) $pats $have
                     if ($set.Turbo) { Remove-AkariImageFeaturesAtOnce $w.Mount $names } else { Remove-AkariImageItems $w.Mount 'Feature' $names }
@@ -517,12 +505,12 @@ function Invoke-AkariIsoBuild([hashtable]$Choices) {
                     Remove-AkariImageItems $w.Mount 'Package' $names.ToArray()
                 }
                 'Registry' {
-                    $rows = @($always.Requirements) + @($always.Registry) + @($picked | ForEach-Object { $_.Registry } | Where-Object { $_ }) + @(& $fromGroups 'Registry')
-                    $keys = @($picked | ForEach-Object { $_.RemoveKeys } | Where-Object { $_ }) + @(& $fromGroups 'RemoveKeys')
+                    $rows = @(& $fromGroups 'Registry')
+                    $keys = @(& $fromGroups 'RemoveKeys')
                     Invoke-AkariIsoOp "Write $($rows.Count) settings" { Invoke-AkariIsoRegistry $w.Mount $rows $keys; @{ State = 'Done'; Note = '' } }
                 }
                 'Files' {
-                    foreach ($path in @(@($always.Remove) + @($picked | ForEach-Object { $_['Remove'] } | Where-Object { $_ }) + @(& $fromGroups 'Remove'))) {
+                    foreach ($path in @(& $fromGroups 'Remove')) {
                         Invoke-AkariIsoOp $path {
                             $gone = Remove-AkariImagePaths $w.Mount @($path)
                             if ($gone -gt 0) { @{ State = 'Done'; Note = "$gone removed" } } else { @{ State = 'Skipped'; Note = 'Not in this image' } }
@@ -554,6 +542,7 @@ function Invoke-AkariIsoBuild([hashtable]$Choices) {
                     }
                 }
                 'Leftovers' { Remove-AkariIsoLeftovers $w.Mount }
+                'Prune' { Remove-AkariIsoComponentStore $w.Mount }
                 'Commit' { Save-AkariWim $w.Mount }
                 'Compress' {
                     foreach ($old in @(Get-ChildItem -LiteralPath (Join-Path $w.Media 'sources') -Filter 'install*' -File -ErrorAction SilentlyContinue)) {
@@ -567,7 +556,7 @@ function Invoke-AkariIsoBuild([hashtable]$Choices) {
                     $boot = Join-Path $w.Media 'sources\boot.wim'
                     if (-not (Test-Path -LiteralPath $boot) -or @(Get-AkariWimImages $boot).Count -lt 2) { Write-Log 'No setup image in boot.wim: left as it is'; break }
                     Mount-AkariWim $boot 2 $w.Mount
-                    Invoke-AkariIsoRegistry $w.Mount (@($always.Requirements) + @($always.Boot) + @(& $fromGroups 'Boot'))
+                    Invoke-AkariIsoRegistry $w.Mount @(& $fromGroups 'Boot')
                     Save-AkariWim $w.Mount
                     Clear-AkariIsoMarker
                 }

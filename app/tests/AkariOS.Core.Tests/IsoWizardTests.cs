@@ -230,30 +230,29 @@ public sealed class IsoWizardTests
     }
 
     [Fact]
-    public void A_wizard_build_without_settings_groups_has_no_settings_files_or_boot_steps()
+    public void A_build_without_settings_groups_has_no_settings_files_or_boot_steps()
     {
-        var steps = IsoPlan.Steps(new IsoChoices { Groups = [] }, [], []).Select(x => x.Id).ToList();
-        Assert.DoesNotContain("Registry", steps);
-        Assert.DoesNotContain("Files", steps);
-        Assert.DoesNotContain("Boot", steps);
-        Assert.DoesNotContain("Bake", steps);
-        // the port's build keeps them all
-        var port = IsoPlan.Steps(new IsoChoices(), []).Select(x => x.Id).ToList();
-        Assert.Contains("Registry", port);
-        Assert.Contains("Files", port);
-        Assert.Contains("Boot", port);
+        foreach (var c in new[] { new IsoChoices { Groups = [] }, new IsoChoices() })
+        {
+            var steps = IsoPlan.Steps(c, []).Select(x => x.Id).ToList();
+            Assert.DoesNotContain("Registry", steps);
+            Assert.DoesNotContain("Files", steps);
+            Assert.DoesNotContain("Boot", steps);
+            Assert.DoesNotContain("Bake", steps);
+            Assert.DoesNotContain("Prune", steps);
+        }
     }
 
     [Fact]
     public void A_wizard_build_cleans_the_component_store_before_removing_features()
     {
         var groups = IsoWizard.Picked(["Tiny11Features", "OneDrive"], IsoWizard.Groups(Files));
-        var steps = IsoPlan.Steps(new IsoChoices { Groups = ["Tiny11Features", "OneDrive"], AppPatterns = ["Microsoft.BingNews"] }, [], groups)
+        var steps = IsoPlan.Steps(new IsoChoices { Groups = ["Tiny11Features", "OneDrive"], AppPatterns = ["Microsoft.BingNews"] }, groups)
             .Select(x => x.Id).ToList();
         Assert.Equal(["Adk", "Mount", "Apps", "NetFx3", "Cleanup", "Features", "Registry", "Files", "Commit", "Compress", "Iso", "Tidy"], steps);
-        // the port's order stays (the oracle)
-        var port = IsoPlan.Steps(new IsoChoices { Features = ["Recall"] }, []).Select(x => x.Id).ToList();
-        Assert.True(port.IndexOf("Features") < port.IndexOf("Cleanup"));
+        // the user's own features too
+        var own = IsoPlan.Steps(new IsoChoices { Features = ["Recall"] }).Select(x => x.Id).ToList();
+        Assert.True(own.IndexOf("Cleanup") < own.IndexOf("Features"));
     }
 
     [Fact]
@@ -301,9 +300,9 @@ public sealed class IsoWizardTests
     [Fact]
     public void Leaves_the_first_sign_in_out_without_the_exe()
     {
-        var steps = IsoPlan.Steps(new IsoChoices { Groups = [], FirstSignIn = true }, [], []).Select(x => x.Id);
+        var steps = IsoPlan.Steps(new IsoChoices { Groups = [], FirstSignIn = true }, []).Select(x => x.Id);
         Assert.DoesNotContain("Bake", steps);
-        steps = IsoPlan.Steps(new IsoChoices { Groups = [], FirstSignIn = true, AkariExe = "x.exe" }, [], []).Select(x => x.Id).ToList();
+        steps = IsoPlan.Steps(new IsoChoices { Groups = [], FirstSignIn = true, AkariExe = "x.exe" }, []).Select(x => x.Id).ToList();
         Assert.Contains("Bake", steps);
         Assert.True(steps.ToList().IndexOf("Bake") < steps.ToList().IndexOf("Commit"));
     }

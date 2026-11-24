@@ -6,8 +6,8 @@ using AkariOS.Core.Unattend;
 namespace AkariOS.Core.Tests;
 
 /// <summary>
-/// The native ISO Builder's pure parts against the PowerShell app's (Oracle/Export-Iso.ps1): the options and every row
-/// the build writes, the checks, the plan, the oscdimg arguments, the space check, the editions, the page's helpers,
+/// The native ISO Builder's pure parts against the PowerShell app's (Oracle/Export-Iso.ps1): every row the removal
+/// groups write, the plan, the oscdimg arguments, the space check, the editions, the page's helpers,
 /// Massgrave's catalogue and UUP Dump's builds, editions and converter settings.
 /// </summary>
 public sealed class IsoOracleTests
@@ -34,18 +34,13 @@ public sealed class IsoOracleTests
         return [Folder("both", @"boot\etfsboot.com", @"efi\microsoft\boot\efisys.bin"), Folder("uefi", @"efi\microsoft\boot\efisys.bin"), Folder("none")];
     }
 
-    private static readonly string[][] Checks =
-    [
-        [], ["DisableUpdates"], ["SecurityOnly", "DisableVersionUpgrade"], ["RemoveAI"], ["DisableUpdates", "SecurityOnly"],
-        ["Nope"], ["RemoveDefender", "RemoveEdge", "RemoveOneDrive", "DisableTelemetry"],
-    ];
-
     private static readonly object[] Plans =
     [
         new { Edition = "Windows 11 Pro" },
         new { Edition = "Windows 11 Home", Apps = new[] { "a" }, Features = new[] { "f" }, Capabilities = new[] { "c" }, Packages = new[] { "p" }, AkariDir = @"C:\AkariOS", AkariExe = @"C:\AkariOS\AkariOS-Native.exe", Unattend = "AQ==" },
-        new { Edition = "Pro", Options = new[] { "RemoveDefender" } },
-        new { Edition = "Pro", Options = new[] { "RemoveAI", "DisableTelemetry" }, Apps = new[] { "" } },
+        new { Edition = "Pro", Groups = new[] { "Tiny11Core", "WindowsAI" } },
+        new { Edition = "Pro", Groups = new[] { "NoSponsoredApps", "SkipHardwareChecks" }, Apps = new[] { "" } },
+        new { Edition = "Pro", Groups = Array.Empty<string>(), Settings = new { CleanLeftovers = true } },
     ];
 
     private static readonly object[] Resolve =
@@ -129,7 +124,7 @@ public sealed class IsoOracleTests
         var cases = Path.Combine(Temp, "cases.json");
         File.WriteAllText(cases, JsonSerializer.Serialize(new
         {
-            Checks, Plans, Resolve, Families, OutNames, Oscdimg = Media, Space, Editions, Answers, Recommended,
+            Plans, Resolve, Families, OutNames, Oscdimg = Media, Space, Editions, Answers, Recommended,
             Massgrave = Path.Combine(Repo.Root, "tests", "Fixtures", "Massgrave", "sample.md"),
             UupBuilds, UupTargets, UupVirtual, UupConfig, UupNames,
         }));
@@ -155,49 +150,19 @@ public sealed class IsoOracleTests
     private static string[] Rows(IEnumerable<IsoRow> rows) =>
         [.. rows.Select(r => $"{r.Row.Path}|{(r.Row.IsKeyRow ? "<key>" : r.Row.Name)}|{r.Row.Type}|{Show(r.Row.Value)}|{r.Trusted}|{r.Hive}")];
 
-    private static readonly IReadOnlyList<IsoOption> Options = IsoData.Options(Files);
+    private static readonly IReadOnlyList<IsoGroup> Groups = IsoWizard.Groups(Files);
 
     [Fact]
-    public void The_options_are_the_same_in_page_order_with_the_same_rows()
+    public void Every_groups_rows_are_the_same_merged_and_mapped()
     {
-        var ps = P("Options").EnumerateArray().ToList();
-        Assert.Equal(ps.Select(o => o.GetProperty("Id").GetString()), Options.Select(o => o.Id));
-        foreach (var (o, j) in Options.Zip(ps))
+        var ps = P("GroupRows").EnumerateArray().ToList();
+        Assert.Equal(ps.Select(g => g.GetProperty("Id").GetString()), Groups.Select(g => g.Id));
+        foreach (var (g, j) in Groups.Zip(ps))
         {
-            Assert.Equal($"{j.GetProperty("Name").GetString()}|{j.GetProperty("Description").GetString()}|{j.GetProperty("Group").GetString()}|{j.GetProperty("Order").GetInt32()}",
-                $"{o.Name}|{o.Description}|{o.Group}|{o.Order}");
-            Assert.Equal(Texts(j.GetProperty("Excludes")), o.Excludes);
-            Assert.Equal(Texts(j.GetProperty("Remove")), o.Remove);
-            Assert.Equal(Texts(j.GetProperty("RemoveKeys")), o.RemoveKeys);
-            Assert.Equal(Texts(j.GetProperty("Features")), o.Features);
-            Assert.Equal(Texts(j.GetProperty("Apps")), o.Apps);
-            Assert.Equal(Rows(j.GetProperty("Rows")), Rows(IsoData.Rows(IsoData.Merge(o.Registry), IsoData.HiveRoot)));
+            Assert.Equal(Rows(j.GetProperty("Rows")), Rows(IsoData.Rows(IsoData.Merge(g.Registry), IsoData.HiveRoot)));
+            Assert.Equal(Rows(j.GetProperty("Boot")), Rows(IsoData.Rows(IsoData.Merge(g.Boot), IsoData.HiveRoot)));
         }
-    }
-
-    [Fact]
-    public void The_always_on_rows_and_every_row_merged_are_the_same()
-    {
-        var a = IsoData.Always(Files);
-        var j = P("Always");
-        Assert.Equal(Rows(j.GetProperty("Requirements")), Rows(IsoData.Rows(a.Requirements, IsoData.HiveRoot)));
-        Assert.Equal(Rows(j.GetProperty("Boot")), Rows(IsoData.Rows(a.Boot, IsoData.HiveRoot)));
-        Assert.Equal(Rows(j.GetProperty("Registry")), Rows(IsoData.Rows(IsoData.Merge(a.Registry), IsoData.HiveRoot)));
-        Assert.Equal(Texts(j.GetProperty("Remove")), a.Remove);
-        var all = a.Requirements.Concat(a.Registry).Concat(Options.SelectMany(o => o.Registry));
-        Assert.Equal(Rows(P("MergedAll")), Rows(IsoData.Rows(IsoData.Merge(all), IsoData.HiveRoot)));
-    }
-
-    [Fact]
-    public void Options_that_don_t_go_together_and_the_ones_a_pick_rules_out_are_the_same()
-    {
-        var checks = P("Checks").EnumerateArray().ToList();
-        var blocked = P("Blocked").EnumerateArray().ToList();
-        for (var i = 0; i < Checks.Length; i++)
-        {
-            Assert.Equal(checks[i].GetString(), IsoData.Check(Checks[i], Options) ?? "");
-            Assert.Equal(Texts(blocked[i]), IsoData.Blocked(Checks[i], Options));
-        }
+        Assert.Equal(Rows(P("MergedAll")), Rows(IsoData.Rows(IsoData.Merge(Groups.SelectMany(g => g.Registry)), IsoData.HiveRoot)));
     }
 
     [Fact]
@@ -207,7 +172,7 @@ public sealed class IsoOracleTests
         for (var i = 0; i < Plans.Length; i++)
         {
             var ch = Json<IsoChoices>(Plans[i]);
-            Assert.Equal(Texts(ps[i]), IsoPlan.Steps(ch, IsoData.Picked(ch.Options, Options)).Select(s => $"{s.Id}|{s.Text}"));
+            Assert.Equal(Texts(ps[i]), IsoPlan.Steps(ch, ch.Groups is null ? [] : IsoWizard.Picked(ch.Groups, Groups)).Select(s => $"{s.Id}|{s.Text}"));
         }
     }
 

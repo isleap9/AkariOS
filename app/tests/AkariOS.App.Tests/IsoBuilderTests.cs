@@ -4,7 +4,7 @@ using AkariOS.Core.Tests;
 namespace AkariOS.App.Tests;
 
 /// <summary>
-/// The ISO Builder (src/UI/IsoBuilder.ps1) through its view model: zISO's cards, each slow step a background job on
+/// The ISO Builder (src/UI/IsoBuilder.ps1) through its view model: the wizard, each slow step a background job on
 /// IsoBuild / IsoDownload over the Core tests' recording fakes (IsoShared.cs), the long ones locking the shell, the
 /// refusals between an ISO job and the other changes, the closing question.
 /// </summary>

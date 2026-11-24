@@ -30,32 +30,19 @@ function Show-Row($r) {
         Trusted = [bool]$r.Trusted; Hive = "$($r.Hive)" }
 }
 
-$all = Get-AkariIsoOptions
-$always = Get-AkariIsoData 'Always'
+$groups = Get-AkariIsoGroups
 $result = [ordered]@{}
 
-# the options in page order, and every row the build writes, merged and mapped as Write-AkariIsoRegistry does
-$result.Options = @(foreach ($o in $all) {
-    [ordered]@{ Id = $o.Id; Name = $o.Name; Description = $o.Description; Group = $o.Group; Order = [int]$o.Order
-        # indexed: $o.Remove on a hashtable without that key is its Remove() method
-        Excludes = @(@($o['Excludes']) | Where-Object { $_ }); Remove = @(@($o['Remove']) | Where-Object { $_ }); RemoveKeys = @(@($o['RemoveKeys']) | Where-Object { $_ })
-        Features = @(@($o['Features']) | Where-Object { $_ }); Apps = @(@($o['Apps']) | Where-Object { $_ })
-        Rows = @(ConvertTo-AkariIsoRows (Merge-AkariIsoRows $o.Registry) | ForEach-Object { Show-Row $_ }) }
-})
-$result.Always = [ordered]@{
-    Requirements = @(ConvertTo-AkariIsoRows $always.Requirements | ForEach-Object { Show-Row $_ })
-    Boot         = @(ConvertTo-AkariIsoRows $always.Boot | ForEach-Object { Show-Row $_ })
-    Registry     = @(ConvertTo-AkariIsoRows (Merge-AkariIsoRows $always.Registry) | ForEach-Object { Show-Row $_ })
-    Remove       = @($always.Remove)
-}
-# every option's rows merged with the always-on ones (Defender's and AI's Settings pages become one row)
-$result.MergedAll = @(ConvertTo-AkariIsoRows (Merge-AkariIsoRows (@($always.Requirements) + @($always.Registry) + @($all | ForEach-Object { $_.Registry } | Where-Object { $_ }))) | ForEach-Object { Show-Row $_ })
+# every removal group's rows, merged and mapped as Write-AkariIsoRegistry does, and its boot.wim rows (indexed: a
+# hashtable's .Remove would be its method)
+function Get-Rows($Rows) { @(ConvertTo-AkariIsoRows (Merge-AkariIsoRows @(@($Rows) | Where-Object { $_ })) | ForEach-Object { Show-Row $_ }) }
+$result.GroupRows = @(foreach ($g in $groups) { [ordered]@{ Id = $g.Id; Rows = @(Get-Rows $g['Registry']); Boot = @(Get-Rows $g['Boot']) } })
+# every group's rows merged together (several "hide:" lists of Settings' pages become one row)
+$result.MergedAll = @(Get-Rows @($groups | ForEach-Object { $_['Registry'] } | Where-Object { $_ }))
 
-$result.Checks = @(foreach ($ids in @($c.Checks)) { "$(Test-AkariIsoOptions @($ids) $all)" })
-$result.Blocked = @(foreach ($ids in @($c.Checks)) { , @(Get-AkariIsoBlocked @($ids) $all) })
 $result.Plans = @(foreach ($p in @($c.Plans)) {
     $ch = ConvertTo-Hash $p
-    , @(Items (New-AkariIsoPlan $ch (Get-AkariIsoPicked $ch $all)) | ForEach-Object { "$($_.Id)|$($_.Text)" })
+    , @(Items (New-AkariIsoPlan $ch (Get-AkariIsoGroupsPicked $ch.Groups $groups)) | ForEach-Object { "$($_.Id)|$($_.Text)" })
 })
 $result.Resolve = @(foreach ($r in @($c.Resolve)) { , @(Items (Resolve-AkariIsoNames @($r.Picked) @($r.Patterns) @($r.Available))) })
 $result.Families = @(foreach ($p in @($c.Families)) { Get-AkariAppFamily $p })

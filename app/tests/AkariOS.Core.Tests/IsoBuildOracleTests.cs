@@ -130,7 +130,7 @@ public sealed partial class IsoBuildOracleTests
                     var choices = new IsoChoices
                     {
                         OutDir = outDir, Iso = iso, Image = opened?.Image ?? "", Index = (int)ch["Index"], Edition = (string)ch["Edition"],
-                        Options = List("Options"), Apps = List("Apps"), Features = List("Features"), Capabilities = List("Capabilities"), Packages = List("Packages"),
+                        Apps = List("Apps"), Features = List("Features"), Capabilities = List("Capabilities"), Packages = List("Packages"),
                         AkariExe = ch.TryGetValue("AkariOS", out var ak) && ak is true ? f.MakeExe() : null,
                         Unattend = ch.TryGetValue("Unattend", out var u) ? System.Text.Encoding.UTF8.GetBytes((string)u) : null,
                         Settings = ch.TryGetValue("Settings", out var st) ? (IsoBuildSettings)st : new(),
@@ -235,7 +235,7 @@ public sealed partial class IsoBuildOracleTests
     // ---- Invoke-AkariIsoBuild
 
     [Fact]
-    public void Builds_with_no_options()
+    public void Builds_with_no_groups_or_lists()
     {
         var o = Same(Case());
         Assert.Equal(@"Action=Build;Ok=true;Path=<root>\out\Win11-Akari.iso;Message=", o.Results[1]);
@@ -245,32 +245,39 @@ public sealed partial class IsoBuildOracleTests
         Assert.Contains($".sha256={sha}", o.Report);
         Assert.Contains(".size=3", o.Report);
         Assert.Contains(@"Oscdimg -m -o -u2 -udfver102 -bootdata:2#p0,e,b<root>\out\AkariIso\Media\boot\etfsboot.com#pEF,e,b<root>\out\AkariIso\Media\efi\microsoft\boot\efisys.bin <root>\out\AkariIso\Media <root>\out\Win11-Akari.iso", o.Calls);
-        Assert.Contains(@"Mount <root>\out\AkariIso\Media\sources\boot.wim 2 <root>\out\AkariIso\Mount", o.Calls);
-        Assert.Contains(@"Own <root>\out\AkariIso\Mount\Windows\InboxApps", o.Calls);
-        Assert.Contains(@"Trusted SOFTWARE\Microsoft\Windows\CurrentVersion\Shell\ShellUIHosts\CrossDeviceResumeHost", o.Calls);
+        // nothing always on: boot.wim and the image's registry left alone
+        Assert.DoesNotContain(@"Mount <root>\out\AkariIso\Media\sources\boot.wim 2 <root>\out\AkariIso\Mount", o.Calls);
+        Assert.DoesNotContain(o.Calls, x => x.StartsWith("HiveLoad", StringComparison.Ordinal));
         Assert.Equal("", o.Marker);
     }
 
-    public static TheoryData<string> OptionIds => [.. IsoData.Options(new FolderSourceFiles(Repo.Root)).Select(o => o.Id)];
+    /// <summary>A component store for Minimal's pruning: its metadata, the three runtimes it needs, one component.</summary>
+    private static readonly string[] StoreFiles =
+    [
+        @"Windows\WinSxS\Manifests\a.manifest",
+        @"Windows\WinSxS\amd64_microsoft.windows.common-controls_6595b64144ccf1df_6.0_none_1\comctl32.dll",
+        @"Windows\WinSxS\amd64_microsoft.windows.gdiplus_6595b64144ccf1df_1.1_none_1\gdiplus.dll",
+        @"Windows\WinSxS\amd64_microsoft-windows-servicingstack_31bf3856ad364e35_10.0_none_1\a.dll",
+        @"Windows\WinSxS\amd64_microsoft-windows-notepad_31bf3856ad364e35_10.0_none_1\notepad.exe",
+        @"Windows\System32\Recovery\winre.wim",
+    ];
+
+    public static TheoryData<string> GroupIds => [.. IsoWizard.Groups(new FolderSourceFiles(Repo.Root)).Select(g => g.Id)];
 
     [Theory]
-    [MemberData(nameof(OptionIds))]
-    public void Builds_with_each_option_alone(string id) => Same(Case(c => Choices(c)["Options"] = new[] { id }));
-
-    /// <summary>Every option that goes with the ones before it, in page order.</summary>
-    private static string[] AllOptions()
+    [MemberData(nameof(GroupIds))]
+    public void Builds_with_each_group_alone(string id) => Same(Case(c =>
     {
-        var all = IsoData.Options(new FolderSourceFiles(Repo.Root));
-        var picked = new List<string>();
-        foreach (var o in all) if (IsoData.Check([.. picked, o.Id], all) is null) picked.Add(o.Id);
-        return [.. picked];
-    }
+        Choices(c)["Groups"] = new[] { id };
+        c["ImageFiles"] = (string[])[.. ImageFiles, .. StoreFiles];
+    }));
 
     [Fact]
-    public void Builds_with_every_option_and_every_list_picked() => Same(Case(c =>
+    public void Builds_with_every_group_and_every_list_picked() => Same(Case(c =>
     {
         var ch = Choices(c);
-        ch["Options"] = AllOptions();
+        ch["Groups"] = IsoWizard.Groups(new FolderSourceFiles(Repo.Root)).Select(g => g.Id).ToArray();
+        c["ImageFiles"] = (string[])[.. ImageFiles, .. StoreFiles];
         ch["Apps"] = new[] { "Microsoft.BingNews_4.55.1.0_x64__8wekyb3d8bbwe", "Microsoft.SecHealthUI_1000.0.0.0_x64__8wekyb3d8bbwe" };
         ch["Features"] = new[] { "Printing-PrintToPDFServices-Features", "Recall" };
         ch["Capabilities"] = new[] { "Media.WindowsMediaPlayer~~~~0.0.12.0", "App.StepsRecorder~~~~0.0.1.0" };
@@ -319,6 +326,23 @@ public sealed partial class IsoBuildOracleTests
     public void Builds_the_lite_mode_from_its_groups() => Same(Mode("Lite"));
 
     [Fact]
+    public void Builds_the_minimal_mode_and_prunes_the_component_store()
+    {
+        var o = Same(Mode("Minimal", c => c["ImageFiles"] = (string[])[.. (string[])c["ImageFiles"], .. StoreFiles]));
+        Assert.StartsWith("Action=Build;Ok=true", o.Results[1]);
+        Assert.Contains("Pruned 1 of 1 component folders", o.Log);
+        Assert.Contains(o.Ops, x => x.EndsWith("|1 component folders|Done|1 removed; 4 kept"));
+    }
+
+    [Fact]
+    public void Minimal_refuses_to_prune_an_image_with_pending_servicing() =>
+        Same(Mode("Minimal", c => c["ImageFiles"] = (string[])[.. (string[])c["ImageFiles"], .. StoreFiles, IsoPlan.PendingXml]));
+
+    [Fact]
+    public void Minimal_refuses_to_prune_without_the_runtimes() =>
+        Same(Mode("Minimal", c => c["ImageFiles"] = (string[])[.. (string[])c["ImageFiles"], .. StoreFiles.Where(f => !f.Contains("gdiplus", StringComparison.Ordinal))]));
+
+    [Fact]
     public void Builds_the_akarios_mode_with_the_bake_and_the_first_sign_in()
     {
         var bake = IsoWizard.Bake(new PresetStore(RepoFiles, Path.GetTempPath(), Path.Combine(Path.GetTempPath(), "none.json"), new MemoryLog()).Find(IsoWizard.Preset)!,
@@ -334,9 +358,6 @@ public sealed partial class IsoBuildOracleTests
         Assert.Contains(o.Ops, x => x.EndsWith("|The rest of AkariOS at the first sign-in|Done|A RunOnce entry for each new account: one UAC prompt, then One-click's console"));
         Assert.Equal(bake.InImage.Count, o.Ops.Count(x => x.Contains("|Tweak ", StringComparison.Ordinal) && x.Contains("|Done|", StringComparison.Ordinal)));
     }
-
-    [Fact]
-    public void Builds_with_no_groups() => Same(Case(c => Choices(c)["Groups"] = Array.Empty<string>()));
 
     [Fact]
     public void Fails_an_unknown_group_before_it_starts() => Same(Case(c => Choices(c)["Groups"] = new[] { "SkipHardwareChecks", "Nope" }));
@@ -410,7 +431,7 @@ public sealed partial class IsoBuildOracleTests
     private static Dictionary<string, object> DismFailures() => Case(c =>
     {
         var ch = Choices(c);
-        ch["Options"] = new[] { "RemoveDefender" };
+        ch["Features"] = new[] { "Windows-Defender-Default-Definitions" };
         ch["Apps"] = new[] { "Microsoft.BingNews_4.55.1.0_x64__8wekyb3d8bbwe" };
         ch["Capabilities"] = new[] { "Media.WindowsMediaPlayer~~~~0.0.12.0" };
         ch["Packages"] = new[] { "Some-Package~31bf3856ad364e35~amd64~~1.0" };
@@ -427,13 +448,12 @@ public sealed partial class IsoBuildOracleTests
         var o = Same(Denials());
         Assert.Contains(@"Trusted SOFTWARE\Policies\Microsoft\Windows\DataCollection", o.Calls);
         Assert.Contains(@"Trusted NTUSER\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\Subscriptions", o.Calls);
-        Assert.Contains($@"Trusted {Store}\InboxApplications\MicrosoftWindows.Client.CoreAI_1000.0.0.0_x64__cw5n1h2txyewy", o.Calls);
         Assert.Contains($@"Trusted {Store}\InboxApplications\Microsoft.BingNews_4.55.1.0_x64__8wekyb3d8bbwe", o.Calls);
     }
 
     private static Dictionary<string, object> Denials() => Case(c =>
     {
-        Choices(c)["Options"] = new[] { "DisableTelemetry", "RemoveAI" };
+        Choices(c)["Groups"] = new[] { "Tiny11Settings", "NoSponsoredApps", "WindowsAI" };
         Choices(c)["Apps"] = new[] { "Microsoft.BingNews_4.55.1.0_x64__8wekyb3d8bbwe" };
         c["Denied"] = new[]
         {
@@ -446,23 +466,13 @@ public sealed partial class IsoBuildOracleTests
     });
 
     [Fact]
-    public void Leaves_out_display_version_when_the_image_has_none() => Same(Case(c =>
-    {
-        Choices(c)["Options"] = new[] { "DisableVersionUpgrade" };
-        c["NoDisplayVersion"] = true;
-    }));
-
-    [Fact]
     public void A_failed_mount_fails_the_build_and_discards() => Same(Case(c => c["Fail"] = "Mount"));
 
     [Fact]
-    public void A_failed_registry_write_fails_the_build_and_discards() => Same(Case(c => c["Fail"] = "Trusted"));
+    public void A_failed_registry_write_fails_the_build_and_discards() => Same(Case(c => { c["Fail"] = "Trusted"; Choices(c)["Groups"] = new[] { "Tiny11Core" }; }));
 
     [Fact]
     public void A_failed_oscdimg_fails_the_build() => Same(Case(c => c["Fail"] = "Oscdimg"));
-
-    [Fact]
-    public void Refuses_options_that_exclude_each_other() => Same(Case(c => Choices(c)["Options"] = new[] { "DisableUpdates", "SecurityOnly" }));
 }
 
 // IsoFakes: IsoShared.cs

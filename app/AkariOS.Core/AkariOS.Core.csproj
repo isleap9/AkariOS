@@ -6,7 +6,7 @@
     <EmbeddedResource Include="$(AkariSrc)Tweaks\*\**\*" LogicalName="src/Tweaks/%(RecursiveDir)%(Filename)%(Extension)" />
     <EmbeddedResource Include="$(AkariSrc)Presets\*.json" LogicalName="src/Presets/%(Filename)%(Extension)" />
     <EmbeddedResource Include="$(AkariSrc)OneClick\*" LogicalName="src/OneClick/%(Filename)%(Extension)" />
-    <EmbeddedResource Include="$(AkariSrc)Core\Iso\Data\**\*" LogicalName="src/Core/Iso/Data/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="$(AkariSrc)Core\Iso\LICENSE-zISOTweaker.txt" LogicalName="src/Core/Iso/LICENSE-zISOTweaker.txt" />
     <EmbeddedResource Include="$(AkariSrc)Core\Iso\Wizard\**\*" LogicalName="src/Core/Iso/Wizard/%(RecursiveDir)%(Filename)%(Extension)" />
     <EmbeddedResource Include="$(AkariSrc)UI\*.psd1" LogicalName="src/UI/%(Filename)%(Extension)" />
     <EmbeddedResource Include="$(AkariSrc)Assets\ascii.txt" LogicalName="src/Assets/ascii.txt" />

@@ -95,8 +95,9 @@ AGENTS.md updated, this line marked done, one commit, then the VM check.
 | P6 | ISO I3: build settings | done 2026-11-24 |
 | P7 | ISO I4: modes, removal groups, bake, first sign-in, image app icons | done 2026-11-24 |
 | P8 | ISO I5: Microsoft's download | done 2026-11-24 |
-| P9 | ISO I6: Minimal; zISO removed | |
-| P10 | 1.5.0 | |
+| P9 | ISO I6: Minimal; zISO removed | done 2026-11-24 |
+| P10 | One-click: the native app's browser pick and laptop detection (`OneClickPicks`: Helium first or another browser, Edge keeps Edge, no Ultimate power plan on a laptop), in the window's One-click and the ISO's first sign-in | |
+| P11 | 1.5.0 | |
 
 ## Decisions (2026-11-23)
 
@@ -110,7 +111,9 @@ AGENTS.md updated, this line marked done, one commit, then the VM check.
    `Copy-AkariToImage` does now). New `Akari.ps1 -FirstSignIn`: the AkariOS preset in One-click's console, no restore
    point. The RunOnce value starts it elevated through `Start-Process -Verb RunAs`. The oracle leaves the copied app and
    the RunOnce command out, as it already leaves AkariOS out.
-4. **zISO (item 17)**: removed from both apps in P9: the native port path (`IsoChoices.Options`, `IsoData.Options` /
+4. **zISO (item 17)**: removed from both apps in P9 (its options and `Always.psd1`; its licence moved to
+   `src/Core/Iso/LICENSE-zISOTweaker.txt` and its CREDITS line kept, as the build engine, the UUP download and five
+   removal groups still come from its code): the native port path (`IsoChoices.Options`, `IsoData.Options` /
    `Always`, the embedded `Core/Iso/Data/**`) goes too; the oracle's zISO cases become wizard cases.
 5. **Oracle depth**: `IsoBuildOracleTests` also compares each operation's stage, name and state, and report.json
    without timings; the PowerShell build reports the same operations. `IsoDownloadOracleTests` gains Microsoft's

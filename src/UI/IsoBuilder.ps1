@@ -18,17 +18,24 @@ $AkariIsoLeads = @(
     'Allow 20 to 40 minutes. Optimize''s changes and installs wait meanwhile.'
 )
 # the modes (Start and Components): the data's (Core\Iso\Wizard\Modes: AkariOS, Lite, Minimal), then Custom. Data =
-# the mode's file (Groups, Settings, AkariOS); Minimal (it prunes the component store) waits for batch P9.
+# the mode's file (Groups, Settings, AkariOS, Minimal: it prunes the component store, so it asks
+# $AkariIsoMinimalAgreement before it is picked).
 $AkariIsoModeIcons = @{ AkariOS = 'zap'; Lite = 'disc-3'; Minimal = 'flask-conical'; Custom = 'settings-2' }
 $AkariIsoModes = @(
     if (Get-Command Get-AkariIsoModes -ErrorAction SilentlyContinue) {
         foreach ($m in @(Get-AkariIsoModes)) {
-            $soon = [bool]$m.Minimal
-            @{ Id = $m.Id; Name = $m.Name; Icon = $AkariIsoModeIcons[$m.Id]; Tag = $(if ($soon) { 'Coming soon' } else { $m.Tag }); Available = -not $soon; Text = $m.Description; Data = $m }
+            @{ Id = $m.Id; Name = $m.Name; Icon = $AkariIsoModeIcons[$m.Id]; Tag = $m.Tag; Available = $true; Text = $m.Description; Data = $m }
         }
     }
     @{ Id = 'Custom'; Name = 'Custom'; Icon = 'settings-2'; Tag = 'Choose yourself'; Available = $true; Text = 'Pick the removal groups and the image''s own apps and features yourself.'; Data = $null }
 )
+# the agreement Minimal asks for before it is picked (Tiny11 Core's warning, ADR 0010; the native MinimalAgreement)
+$AkariIsoMinimalAgreement = "Minimal is for test virtual machines only. The Windows it builds:`n" +
+"- never gets Windows Update, so no security fixes`n" +
+"- has Microsoft Defender turned off`n" +
+"- has no recovery environment, and can't be repaired, reset or have features or languages added`n" +
+"- loses Edge, WebView2 and most bundled apps`n`n" +
+"Don't install it on a PC you use."
 # the group Custom starts with: setup's hardware checks skipped, as every build did before the modes
 $AkariIsoCustomStart = 'SkipHardwareChecks'
 $AkariIsoListTitles = [ordered]@{ Apps = 'Store apps'; Capabilities = 'Optional features'; Features = 'Windows features'; Packages = 'OS packages (advanced)' }
@@ -65,12 +72,6 @@ function Get-AkariIsoRecommendedApps($Apps, $Tweaks) {
     $safe = @{}
     foreach ($t in @($Tweaks)) { if ($t.Id -like 'appx/*' -and $t.Risk -eq 'Safe' -and -not $t.Keep) { $safe[$t.Id.Substring(5)] = $true } }
     @($Apps | Where-Object { $safe.ContainsKey($_.Name) } | ForEach-Object { $_.Package })
-}
-
-# zISO's options another picked one rules out (Disable all updates turns the other two off). Not on the page any more;
-# the native oracle (IsoOracleTests) still compares it until zISO goes (P9). Pure.
-function Get-AkariIsoBlocked($Picked, $Options) {
-    @(foreach ($o in @($Options)) { if (@($Picked) -contains $o.Id) { @($o.Excludes) | Where-Object { $_ } } }) | Sort-Object -Unique
 }
 
 # Massgrave's products in page order, and a product's languages. Pure.
@@ -402,8 +403,7 @@ function Get-AkariIsoView {
     $p.PlanText = New-AkariText '' 12 'Mu'; $p.PlanText.Margin = [Windows.Thickness]::new(0, 0, 0, 6)
     [void]$c.Panel.Children.Add($p.PlanText)
     $p.GroupChecks = [Collections.Generic.List[object]]::new()
-    # Minimal's pruning waits for batch P9
-    $script:IsoGroups = @(Get-AkariIsoGroups | Where-Object { -not $_.PruneComponentStore })
+    $script:IsoGroups = @(Get-AkariIsoGroups)
     foreach ($g in $script:IsoGroups) {
         $r = [Windows.Controls.StackPanel]::new(); $r.Orientation = 'Horizontal'
         $cb = New-AkariIsoCheck $g.Name ($g.Id -eq $AkariIsoCustomStart)
@@ -597,6 +597,8 @@ function Open-AkariIsoStart {
 function Select-AkariIsoMode([string]$Id) {
     $m = @($AkariIsoModes | Where-Object { $_.Id -eq $Id })[0]
     if (-not $m -or -not $m.Available) { return }
+    if ($script:IsoState.Mode -ne $Id -and $m.Data -and $m.Data.Minimal -and
+        -not (Confirm-AkariDialog $AkariIsoMinimalAgreement 'I understand' 'Cancel' 'Warning' 'Build a Minimal image?')) { return }
     if ($script:IsoState.Mode -ne $Id) { $script:IsoState.Mode = $Id; Set-AkariIsoMode }
     Update-AkariIsoModeLook
     if ($script:IsoState.Step -eq 0) { $script:IsoState.Step = 1; Show-Page }
@@ -914,7 +916,7 @@ function Start-AkariIsoBuild {
     $ed2 = Get-AkariIsoBuildOf $ed.Version
     $choices = @{
         OutDir = $p.OutDir.Text.Trim(); Iso = $p.IsoPath.Text.Trim(); Image = $st.Image; Index = [int]$ed.Index; Edition = $ed.Name
-        Options = @(); Apps = (& $sel 'Apps'); Capabilities = (& $sel 'Capabilities'); Features = (& $sel 'Features'); Packages = (& $sel 'Packages')
+        Apps = (& $sel 'Apps'); Capabilities = (& $sel 'Capabilities'); Features = (& $sel 'Features'); Packages = (& $sel 'Packages')
         AkariDir = $(if ($p.AkariOS.IsChecked) { $Root } else { '' }); Unattend = $answer; Settings = (Get-AkariIsoPickedSettings)
         # the wizard: the picked groups (never zISO's always-on data), the AkariOS mode's bake and first sign-in
         Groups = @($groups | ForEach-Object { $_.Id }); AppPatterns = (Get-AkariIsoAppPatterns $groups @($script:Tweaks | Where-Object { -not $_.Legacy }))
@@ -924,7 +926,7 @@ function Start-AkariIsoBuild {
     $n = $choices.Apps.Count + $choices.Capabilities.Count + $choices.Features.Count + $choices.Packages.Count
     $q = "Build $name from $($ed.Name)?`n`n$(Get-AkariIsoPlanText $groups.Count)$(if ($custom) { " and $n of the image's apps and features" }) to remove. It takes 20 to 40 minutes; Optimize's changes and installs wait meanwhile."
     if (-not (Confirm-AkariDialog $q 'Build ISO' 'Cancel' 'Question' 'ISO Builder')) { return }
-    $plan = New-AkariIsoPlan $choices @() $groups
+    $plan = New-AkariIsoPlan $choices $groups
     $code = '$AkariShared.Result = Invoke-AkariIsoBuild $AkariShared.Choices'
     $ops = [Collections.ArrayList]::Synchronized([Collections.ArrayList]::new())
     if (-not (Start-AkariIsoJob 'IsoBuild' $code @{ Choices = $choices; IsoOps = $ops } "Building $name")) { return }

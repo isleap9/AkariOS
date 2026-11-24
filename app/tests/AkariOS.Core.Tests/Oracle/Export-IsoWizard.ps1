@@ -27,7 +27,7 @@ $result.Plans = @(foreach ($m in $modes) {
     $picked = Get-AkariIsoGroupsPicked $m.Groups $groups
     $c = @{ Edition = 'Windows 11 Pro'; Groups = @($m.Groups); AppPatterns = (Get-AkariIsoAppPatterns $picked $tweaks); Settings = $m.Settings }
     if ($m.AkariOS) { $c.AkariDir = 'C:\AkariOS'; $c.FirstSignIn = $true; $c.Bake = @((Get-AkariIsoBake $preset $tweaks 26100).InImage) }
-    $p = New-AkariIsoPlan $c @() $picked
+    $p = New-AkariIsoPlan $c $picked
     , @($p | ForEach-Object { "$($_.Id)|$($_.Text)" })
 })
 $result.ImagePaths = @(foreach ($p in @([IO.File]::ReadAllLines($Paths))) { $r = Get-AkariIsoImagePath $p 'HKLM:\AkariIso_'; if ($null -eq $r) { '(none)' } else { $r } })

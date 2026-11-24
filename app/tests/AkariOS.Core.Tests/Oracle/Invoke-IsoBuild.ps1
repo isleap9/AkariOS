@@ -9,7 +9,7 @@
 # ImageFeatures (names; one DISM disabled reads back DisabledWithPayloadRemoved, but StuckFeatures), DismCodes
 # @{ verb = exit code }, Fail (Mount | Trusted | Oscdimg), Denied (hive paths an admin can't change: rows and keys
 # under them throw unless written as TrustedInstaller), Marker (left at the start), Choices @{ Index; Edition;
-# Options; Apps; Features; Capabilities; Packages; AkariOS (bool); Unattend (text); Settings (the native
+# Apps; Features; Capabilities; Packages; AkariOS (bool); Unattend (text); Settings (the native
 # IsoBuildSettings: Compression; Turbo; CleanLeftovers; LeaveOutNetFx3Files); the wizard's Groups, AppPatterns,
 # FirstSignIn (bool), ImageBuild, Bake (@{ Id; Value }: the real Tweaks, loaded then) }. ImageCapabilities @{ Name;
 # State }: the image's capabilities.
@@ -179,7 +179,7 @@ foreach ($a in @($c.Actions)) {
             $ch = $c.Choices
             $choices = @{
                 OutDir = $outDir; Iso = $iso; Image = $opened.Image; Index = [int]$ch.Index; Edition = [string]$ch.Edition
-                Options = @($ch.Options | Where-Object { $_ }); Apps = @($ch.Apps | Where-Object { $_ })
+                Apps = @($ch.Apps | Where-Object { $_ })
                 Features = @($ch.Features | Where-Object { $_ }); Capabilities = @($ch.Capabilities | Where-Object { $_ })
                 Packages = @($ch.Packages | Where-Object { $_ })
             }

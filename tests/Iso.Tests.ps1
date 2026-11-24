@@ -9,8 +9,8 @@ function Initialize-IsoTest {
 
 Describe 'ISO Builder data' {
     . Initialize-IsoTest
-    $d = Get-AkariIsoData 'Always'
-    $all = @($d.Requirements) + @($d.Boot) + @($d.Registry)
+    $d = @(Get-AkariIsoGroups | Where-Object { $_.Id -eq 'SkipHardwareChecks' })[0]
+    $all = @(Get-AkariIsoGroups | ForEach-Object { @($_['Registry']) + @($_['Boot']) } | Where-Object { $_ })
 
     It 'starts every row with a hive the build loads' {
         foreach ($r in $all) { @('SOFTWARE', 'SYSTEM', 'NTUSER', 'DEFAULT') -contains ($r.Path -split '\\')[0] | Should Be $true }
@@ -22,7 +22,7 @@ Describe 'ISO Builder data' {
 
     It 'skips the Windows 11 requirements (TPM, Secure Boot, CPU, RAM, storage)' {
         foreach ($n in 'BypassTPMCheck', 'BypassSecureBootCheck', 'BypassCPUCheck', 'BypassRAMCheck', 'BypassStorageCheck') {
-            @($d.Requirements | Where-Object { $_.Name -eq $n -and $_.Value -eq 1 }).Count | Should Be 1
+            @($d.Registry | Where-Object { $_.Name -eq $n -and $_.Value -eq 1 }).Count | Should Be 1
         }
     }
 
@@ -87,9 +87,12 @@ Describe 'ISO Builder helpers' {
         $e[1].Supported | Should Be $true
     }
 
-    It 'lists the steps in build order' {
+    It 'lists the steps in build order: nothing always on but .NET 3.5 and the cleanup' {
         (New-AkariIsoPlan @{ Edition = 'Windows 11 Pro' } | ForEach-Object { $_.Id }) -join ',' |
-            Should Be 'Adk,Mount,Registry,Files,NetFx3,Cleanup,Commit,Compress,Boot,Iso,Tidy'
+            Should Be 'Adk,Mount,NetFx3,Cleanup,Commit,Compress,Iso,Tidy'
+        $g = Get-AkariIsoGroupsPicked @('SkipHardwareChecks') (Get-AkariIsoGroups)
+        (New-AkariIsoPlan @{ Edition = 'Windows 11 Pro'; Groups = @('SkipHardwareChecks') } $g | ForEach-Object { $_.Id }) -join ',' |
+            Should Be 'Adk,Mount,NetFx3,Cleanup,Registry,Commit,Compress,Boot,Iso,Tidy'
     }
 }
 
@@ -193,7 +196,8 @@ Describe 'Invoke-AkariIsoBuild' {
     Mock Remove-AkariPaths { 1 }
     Mock Get-AkariWimImages { @{ Index = 1 }, @{ Index = 2 } }
     Mock Invoke-AkariExe { $script:calls.Add('Oscdimg'); 0 }
-    $c = @{ OutDir = $out; Iso = 'D:\Win11.iso'; Image = "$($w.Media)\sources\install.esd"; Index = 6; Edition = 'Windows 11 Pro' }
+    $c = @{ OutDir = $out; Iso = 'D:\Win11.iso'; Image = "$($w.Media)\sources\install.esd"; Index = 6; Edition = 'Windows 11 Pro'; Groups = @('SkipHardwareChecks') }
+    $cg = Get-AkariIsoGroupsPicked $c.Groups (Get-AkariIsoGroups)
 
     It 'builds in order and returns the ISO path' {
         New-Media; $script:calls.Clear()
@@ -203,11 +207,11 @@ Describe 'Invoke-AkariIsoBuild' {
         ($script:calls -join ' ') | Should Be 'Adk Export:6:fast Mount:install.wim:1 Dism:/Enable-Feature Dism:/Cleanup-Image Save Export:1:max Mount:boot.wim:2 Save Oscdimg'
     }
 
-    It 'writes the requirements and the always-on settings into the image' {
+    It 'writes the hardware-check bypass into the image and boot.wim' {
         New-Media
         [void](Invoke-AkariIsoBuild $c)
-        Assert-MockCalled Invoke-AkariRegistry -Scope It -ParameterFilter { $Entries[0].Path -eq 'HKLM:\AkariIso_SYSTEM\Setup\LabConfig' -and $Entries[0].Name -eq 'BypassTPMCheck' }
-        Assert-MockCalled Invoke-AkariRegistry -Scope It -ParameterFilter { $Entries[0].Path -eq 'HKLM:\AkariIso_SYSTEM\Setup\Status\ChildCompletion' }
+        Assert-MockCalled Invoke-AkariRegistry -Scope It -ParameterFilter { @($Entries | Where-Object { $_.Path -eq 'HKLM:\AkariIso_SYSTEM\Setup\LabConfig' -and $_.Name -eq 'BypassTPMCheck' }).Count -eq 1 }
+        Assert-MockCalled Invoke-AkariRegistry -Scope It -ParameterFilter { @($Entries | Where-Object { $_.Path -eq 'HKLM:\AkariIso_SYSTEM\Setup\Status\ChildCompletion' }).Count -eq 1 }
     }
 
     It 'replaces the source install image with the compressed one and removes the work folder' {
@@ -248,7 +252,7 @@ Describe 'Invoke-AkariIsoBuild' {
         $sha = -join @([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::ASCII.GetBytes('iso')) | ForEach-Object { $_.ToString('x2') })
         $r.Report.sha256 | Should Be $sha
         $r.Report.size | Should Be 3
-        $steps = New-AkariIsoPlan $c @()
+        $steps = New-AkariIsoPlan $c $cg
         $j = Get-Content -LiteralPath (Join-Path $out 'Win11-Akari.report.json') -Raw | ConvertFrom-Json
         $j.ok | Should Be $true
         $j.iso | Should Be $iso
@@ -267,7 +271,7 @@ Describe 'Invoke-AkariIsoBuild' {
         (Invoke-AkariIsoBuild $c).Message | Should Be ''
         $ops = @($AkariShared.IsoOps)
         Remove-Variable AkariShared
-        $cleanup = [array]::IndexOf(@(New-AkariIsoPlan $c @() | ForEach-Object { $_.Id }), 'Cleanup')
+        $cleanup = [array]::IndexOf(@(New-AkariIsoPlan $c $cg | ForEach-Object { $_.Id }), 'Cleanup')
         $mine = @($ops | Where-Object { $_.Name -eq 'Component store cleanup' })
         (@($mine | ForEach-Object { "$($_.Stage)|$($_.State)" }) -join ',') | Should Be "$cleanup|Running,$cleanup|Done"
         # no ISO was made: its hash skipped
@@ -284,7 +288,7 @@ Describe 'Invoke-AkariIsoBuild' {
         $fail.state | Should Be 'Failed'
         "$($fail.operations[0].state)|$($fail.operations[0].note)" | Should Be 'Failed|DISM crashed.'
         @($st | Where-Object { $_.id -eq 'Tidy' })[0].state | Should Be 'Not run'
-        $st.Count | Should Be (New-AkariIsoPlan $c @()).Count
+        $st.Count | Should Be (New-AkariIsoPlan $c $cg).Count
         Test-Path (Join-Path $out 'Win11-Akari.report.json') | Should Be $true
         Mock Invoke-AkariDism { $script:calls.Add('Dism:' + ($Arguments[1])); 0 }
     }
@@ -301,6 +305,7 @@ Describe 'Invoke-AkariIsoBuild' {
         $r = Invoke-AkariIsoBuild $cs
         $ops = @($AkariShared.IsoOps | Where-Object { $_.State -ne 'Running' } | ForEach-Object { "$($_.Name)|$($_.State)|$($_.Note)" })
         Remove-Variable AkariShared
+        $r.Message | Should Be ''
         $r.Ok | Should Be $true
         # the features in one call, each read back
         Assert-MockCalled Invoke-AkariDism -Times 1 -Exactly -Scope It -ParameterFilter { ($Arguments -join ' ') -eq "/Image:$($w.Mount) /Disable-Feature /FeatureName:Recall /FeatureName:Stuck /FeatureName:Gone /Remove /NoRestart" }
@@ -316,7 +321,7 @@ Describe 'Invoke-AkariIsoBuild' {
         ($script:calls -contains 'Dism:/Enable-Feature') | Should Be $true
         $ops -contains 'sources\sxs|Done|' | Should Be $true
         $ids = @($r.Report.stages | ForEach-Object { $_.id }) -join ','
-        $ids | Should Match 'Cleanup,Leftovers,Commit,Compress,Boot,NoSxs,Iso'
+        $ids | Should Match 'Registry,Leftovers,Commit,Compress,Boot,NoSxs,Iso'
         $s = $r.Report.settings
         "$($s.compression)|$($s.turbo)|$($s.cleanLeftovers)|$($s.leaveOutNetFx3Files)" | Should Be 'Recovery|True|True|True'
     }
@@ -326,7 +331,7 @@ Describe 'Invoke-AkariIsoBuild' {
         New-Item (Join-Path $w.Mount 'Windows\Temp\t.tmp'), (Join-Path $w.Mount $AkariIsoPendingXml) -ItemType File -Force | Out-Null
         $cs = $c.Clone(); $cs.Settings = @{ CleanLeftovers = $true }
         $AkariShared = @{ IsoOps = [Collections.ArrayList]::new() }
-        [void](Invoke-AkariIsoBuild $cs)
+        (Invoke-AkariIsoBuild $cs).Message | Should Be ''
         $ops = @($AkariShared.IsoOps | Where-Object { $_.State -ne 'Running' })
         Remove-Variable AkariShared
         $mine = @($ops | Where-Object { $_.Name -like '*leftover*' -or $AkariIsoLeftovers -contains $_.Name })
@@ -454,49 +459,22 @@ Describe 'Clear-AkariIsoLeftover' {
     }
 }
 
-Describe 'ISO Builder options' {
+Describe 'ISO Builder rows and names' {
     . Initialize-IsoTest
-    $all = Get-AkariIsoOptions
-    $ids = @($all | ForEach-Object { $_.Id })
+    $groups = @(Get-AkariIsoGroups)
 
-    It 'has zISO''s ten options, in page order' {
-        ($ids -join ',') | Should Be 'DisableUpdates,SecurityOnly,DisableVersionUpgrade,RemoveDefender,RemoveBitLocker,DisableMitigations,DisableTelemetry,RemoveEdge,RemoveOneDrive,RemoveAI'
-    }
-
-    It 'gives every option a name, a description and rows for the hives the build loads' {
-        foreach ($o in $all) {
-            $o.Name | Should Not BeNullOrEmpty
-            $o.Description | Should Not BeNullOrEmpty
-            foreach ($r in @($o.Registry) + @(@($o.RemoveKeys) | Where-Object { $_ } | ForEach-Object { @{ Path = $_ } })) {
+    It 'gives every group rows for the hives the build loads, and paths under the image' {
+        foreach ($g in $groups) {
+            foreach ($r in @($g['Registry']) + @($g['Boot']) + @(@($g['RemoveKeys']) | Where-Object { $_ } | ForEach-Object { @{ Path = $_ } })) {
                 if (-not $r) { continue }
                 @('SOFTWARE', 'SYSTEM', 'NTUSER', 'DEFAULT') -contains ($r.Path -split '\\')[0] | Should Be $true
             }
-            foreach ($p in @($o.Remove)) { if ($p) { $p | Should Not Match '^[A-Za-z]:|^\\|\.\.' } }
-            foreach ($x in @($o.Excludes)) { if ($x) { $ids -contains $x | Should Be $true } }
+            foreach ($p in @($g['Remove'])) { if ($p) { $p | Should Not Match '^[A-Za-z]:|^\\|\.\.' } }
         }
     }
 
-    It 'adds no root certificate to the image (zISO''s Windows AI .cab is left out)' {
-        foreach ($o in $all) { @($o.Registry | Where-Object { $_.Path -match 'SystemCertificates' }).Count | Should Be 0 }
-    }
-
-    It 'keeps WebView2 when Edge goes' {
-        $edge = $all | Where-Object { $_.Id -eq 'RemoveEdge' }
-        @($edge.Remove | Where-Object { $_ -match 'WebView|EdgeUpdate|Edge\*' }).Count | Should Be 0
-    }
-
-    It 'brings zISO''s Defender .reg files over (services deleted, SmartScreen off)' {
-        $d = $all | Where-Object { $_.Id -eq 'RemoveDefender' }
-        @($d.Registry | Where-Object { $_.Path -eq 'SYSTEM\ControlSet001\Services\WinDefend' -and -not $_.ContainsKey('Name') }).Count | Should BeGreaterThan 0
-        @($d.Registry | Where-Object { $_.Name -eq 'SmartScreenEnabled' -and $_.Value -eq 'Off' }).Count | Should Be 2
-        $d.Features | Should Be '*Defender*'
-    }
-
-    It 'refuses options that exclude each other, and unknown ones' {
-        Test-AkariIsoOptions @('DisableUpdates', 'SecurityOnly') $all | Should Match "can't be picked together"
-        Test-AkariIsoOptions @('DisableVersionUpgrade', 'DisableUpdates') $all | Should Match "can't be picked together"
-        Test-AkariIsoOptions @('Nope') $all | Should Match 'Unknown'
-        Test-AkariIsoOptions @('SecurityOnly', 'DisableVersionUpgrade', 'RemoveAI') $all | Should BeNullOrEmpty
+    It 'adds no root certificate to the image' {
+        foreach ($g in $groups) { @($g['Registry'] | Where-Object { $_.Path -match 'SystemCertificates' }).Count | Should Be 0 }
     }
 
     It 'merges the Settings pages Defender and AI hide' {
@@ -518,10 +496,50 @@ Describe 'ISO Builder options' {
         Get-AkariAppFamily 'MicrosoftWindows.Client.WebExperience_524.1.0.0_neutral_~_cw5n1h2txyewy' | Should Be 'MicrosoftWindows.Client.WebExperience_cw5n1h2txyewy'
     }
 
-    It 'adds the removal steps only when something is to be removed' {
-        $picked = Get-AkariIsoPicked @{ Options = @('RemoveDefender') } $all
+    It 'adds the removal steps only when something is to be removed, and Minimal''s pruning before the image is saved' {
+        $picked = Get-AkariIsoGroupsPicked @('Tiny11Core') $groups
         $plan = (New-AkariIsoPlan @{ Edition = 'x'; Packages = @('P'); AkariDir = 'C:\a'; Unattend = [byte[]](1) } $picked | ForEach-Object { $_.Id }) -join ','
-        $plan | Should Be 'Adk,Mount,Apps,Features,Packages,Registry,Files,AkariOS,NetFx3,Cleanup,Commit,Compress,Boot,Answer,Iso,Tidy'
+        $plan | Should Be 'Adk,Mount,NetFx3,Cleanup,Capabilities,Packages,Registry,Files,AkariOS,Prune,Commit,Compress,Answer,Iso,Tidy'
+    }
+}
+
+Describe 'Minimal''s component store pruning' {
+    . Initialize-IsoTest
+    $m = Join-Path $TestDrive 'mount'
+    $sxs = Join-Path $m 'Windows\WinSxS'
+    $keep = @('Manifests', 'amd64_microsoft.windows.common-controls_6595b64144ccf1df_6.0_none_1', 'amd64_microsoft.windows.gdiplus_6595b64144ccf1df_1.1_none_1',
+        'amd64_microsoft-windows-servicingstack_31bf3856ad364e35_10.0_none_1')
+    function New-Store([string[]]$Folders) {
+        Remove-Item $m -Recurse -Force -ErrorAction SilentlyContinue
+        foreach ($f in $Folders) { New-Item (Join-Path $sxs $f) -ItemType Directory -Force | Out-Null }
+    }
+    Mock Write-Log { }
+    Mock Grant-AkariOwnership { }
+    Mock Remove-AkariPaths { 1 }
+
+    It 'keeps the store''s metadata and the runtimes Windows loads from it' {
+        foreach ($f in $keep + 'amd64_microsoft-windows-s..stack-msg.resources_31bf3856ad364e35_10.0.26100.1_en-us_1', 'x86_microsoft.vc90.crt_1fc8b3b9a1e18e3b_9.0.30729.9635_none_1') {
+            Test-AkariKeepInComponentStore $f | Should Be $true
+        }
+        Test-AkariKeepInComponentStore 'amd64_microsoft-windows-notepad_31bf3856ad364e35_10.0.26100.1_none_1' | Should Be $false
+        Test-AkariKeepInComponentStore 'amd64_microsoft-edge-webview_31bf3856ad364e35_10.0.26100.1_none_1' | Should Be $false
+    }
+
+    It 'removes every other folder, taking ownership of the store once' {
+        New-Store ($keep + 'amd64_microsoft-windows-notepad_31bf3856ad364e35_10.0_none_1')
+        Remove-AkariIsoComponentStore $m
+        Assert-MockCalled Grant-AkariOwnership -Times 1 -Exactly -Scope It -ParameterFilter { $Path -eq $sxs }
+        Assert-MockCalled Remove-AkariPaths -Times 1 -Exactly -Scope It
+        Assert-MockCalled Remove-AkariPaths -Times 1 -Exactly -Scope It -ParameterFilter { $Paths[0] -like '*notepad*' }
+    }
+
+    It 'refuses while servicing is pending, or without a runtime, removing nothing' {
+        New-Store ($keep + 'amd64_microsoft-windows-notepad_31bf3856ad364e35_10.0_none_1')
+        Set-Content (Join-Path $m $AkariIsoPendingXml) 'x'
+        { Remove-AkariIsoComponentStore $m } | Should Throw 'pending servicing'
+        New-Store ($keep | Where-Object { $_ -notlike '*gdiplus*' })
+        { Remove-AkariIsoComponentStore $m } | Should Throw 'gdiplus runtime'
+        Assert-MockCalled Remove-AkariPaths -Times 0 -Exactly -Scope It
     }
 }
 
@@ -616,7 +634,7 @@ Describe 'Copy-AkariToImage' {
     }
 }
 
-Describe 'Invoke-AkariIsoBuild with options and removals' {
+Describe 'Invoke-AkariIsoBuild with removal groups and removals' {
     . Initialize-IsoTest
     $out = Join-Path $TestDrive 'out'
     $w = Get-AkariIsoWork $out
@@ -624,6 +642,11 @@ Describe 'Invoke-AkariIsoBuild with options and removals' {
         New-Item "$($w.Media)\sources", "$($w.Media)\efi\microsoft\boot", "$($w.Mount)\Windows\System32\config" -ItemType Directory -Force | Out-Null
         foreach ($f in 'sources\install.wim', 'efi\microsoft\boot\efisys.bin') { Set-Content (Join-Path $w.Media $f) 'x' }
         foreach ($h in 'SOFTWARE', 'SYSTEM') { Set-Content "$($w.Mount)\Windows\System32\config\$h" 'x' }
+        # Minimal's component store: its runtimes and one component
+        foreach ($f in 'Manifests', 'amd64_microsoft.windows.common-controls_6595b64144ccf1df_6.0_none_1', 'amd64_microsoft.windows.gdiplus_6595b64144ccf1df_1.1_none_1',
+            'amd64_microsoft-windows-servicingstack_31bf3856ad364e35_10.0_none_1', 'amd64_microsoft-windows-notepad_31bf3856ad364e35_10.0_none_1') {
+            New-Item "$($w.Mount)\Windows\WinSxS\$f" -ItemType Directory -Force | Out-Null
+        }
     }
     Mock Write-Log { }
     Mock Write-ErrLog { }
@@ -646,33 +669,43 @@ Describe 'Invoke-AkariIsoBuild with options and removals' {
     Mock Copy-AkariToImage { }
     Mock Read-AkariImageApps { @{ Name = 'Microsoft.SecHealthUI'; Package = 'Microsoft.SecHealthUI_1_x64__8wekyb3d8bbwe' }, @{ Name = 'Microsoft.Copilot'; Package = 'Microsoft.Copilot_1_x64__8wekyb3d8bbwe' }, @{ Name = 'Microsoft.Windows.Photos'; Package = 'Microsoft.Windows.Photos_1_x64__8wekyb3d8bbwe' } }
     Mock Get-AkariImageFeatures { @{ Name = 'Windows-Defender-Default-Definitions' }, @{ Name = 'Recall' }, @{ Name = 'Printing-PrintToPDFServices-Features' } }
+    Mock Get-AkariImageCapabilities { @{ Name = 'Language.Speech~~~en-US~0.0.1.0'; State = 'Installed' }, @{ Name = 'Language.Basic~~~en-US~0.0.1.0'; State = 'Installed' } }
     Mock Invoke-AkariExe { $script:answer = [IO.File]::ReadAllText((Join-Path $w.Media 'autounattend.xml')); 0 }
     $c = @{
         OutDir = $out; Iso = 'D:\W.iso'; Image = "$($w.Media)\sources\install.wim"; Index = 1; Edition = 'Windows 11 Pro'
-        Options = @('RemoveDefender', 'RemoveAI', 'DisableMitigations'); Apps = @('Microsoft.BingNews_1_x64__8wekyb3d8bbwe')
+        Groups = @('Tiny11Features', 'Tiny11Core'); AppPatterns = @('Microsoft.Copilot'); Apps = @('Microsoft.BingNews_1_x64__8wekyb3d8bbwe')
         Capabilities = @('Media.WindowsMediaPlayer~~~~0.0.12.0'); AkariDir = 'C:\AkariOS'; Unattend = [Text.Encoding]::ASCII.GetBytes('<unattend/>')
     }
 
-    It 'removes the picked apps and the ones the options name, not the others' {
+    It 'removes the picked apps and the ones the groups'' patterns name, not the others' {
         New-OptMedia
         (Invoke-AkariIsoBuild $c).Ok | Should Be $true
         Assert-MockCalled Remove-AkariImageApps -Times 1 -Exactly -Scope It -ParameterFilter {
-            ($Packages -join ',') -eq 'Microsoft.BingNews_1_x64__8wekyb3d8bbwe,Microsoft.SecHealthUI_1_x64__8wekyb3d8bbwe,Microsoft.Copilot_1_x64__8wekyb3d8bbwe'
+            ($Packages -join ',') -eq 'Microsoft.BingNews_1_x64__8wekyb3d8bbwe,Microsoft.Copilot_1_x64__8wekyb3d8bbwe'
         }
     }
 
-    It 'removes the features the options match and the picked capabilities' {
+    It 'removes the features and capabilities the groups match on the image, and the picked ones' {
         New-OptMedia
         [void](Invoke-AkariIsoBuild $c)
-        Assert-MockCalled Remove-AkariImageItems -Times 1 -Exactly -Scope It -ParameterFilter { $Kind -eq 'Feature' -and ($Names -join ',') -eq 'Windows-Defender-Default-Definitions,Recall' }
-        Assert-MockCalled Remove-AkariImageItems -Times 1 -Exactly -Scope It -ParameterFilter { $Kind -eq 'Capability' -and $Names[0] -eq 'Media.WindowsMediaPlayer~~~~0.0.12.0' }
+        Assert-MockCalled Remove-AkariImageItems -Times 1 -Exactly -Scope It -ParameterFilter { $Kind -eq 'Feature' -and ($Names -join ',') -eq 'Recall' }
+        Assert-MockCalled Remove-AkariImageItems -Times 1 -Exactly -Scope It -ParameterFilter { $Kind -eq 'Capability' -and ($Names -join ',') -eq 'Media.WindowsMediaPlayer~~~~0.0.12.0,Language.Speech~~~en-US~0.0.1.0' }
     }
 
-    It 'writes the options'' rows (Trusted ones as TrustedInstaller) and deletes their wildcard keys' {
+    It 'writes the groups'' rows, Trusted ones as TrustedInstaller' {
         New-OptMedia
         [void](Invoke-AkariIsoBuild $c)
-        Assert-MockCalled Invoke-AkariRegistryTrusted -Scope It -ParameterFilter { @($Entries | Where-Object { $_.Name -eq 'MitigationOptions' }).Count -eq 1 }
-        Assert-MockCalled Remove-AkariIsoKeys -Scope It -ParameterFilter { $Patterns -contains 'SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\InboxApplications\MicrosoftWindows.Client.CoreAI*' }
+        Assert-MockCalled Invoke-AkariRegistryTrusted -Scope It -ParameterFilter { @($Entries | Where-Object { $_.Path -like '*\Services\WinDefend' -and $_.Name -eq 'Start' }).Count -eq 1 }
+    }
+
+    It 'prunes the component store for Minimal''s group, after the leftovers and before the image is saved' {
+        New-OptMedia
+        $AkariShared = @{ IsoOps = [Collections.ArrayList]::new() }
+        (Invoke-AkariIsoBuild $c).Ok | Should Be $true
+        $ops = @($AkariShared.IsoOps)
+        Remove-Variable AkariShared
+        $prune = [array]::IndexOf(@(New-AkariIsoPlan $c (Get-AkariIsoGroupsPicked $c.Groups (Get-AkariIsoGroups)) | ForEach-Object { $_.Id }), 'Prune')
+        "$(@($ops | Where-Object { $_.Name -eq '1 component folders' })[-1].Stage)|$(@($ops | Where-Object { $_.Name -eq '1 component folders' })[-1].Note)" | Should Be "$prune|1 removed; 4 kept"
     }
 
     It 'adds AkariOS and puts the answer file at the root of the ISO' {
@@ -683,19 +716,19 @@ Describe 'Invoke-AkariIsoBuild with options and removals' {
         $script:answer | Should Be '<unattend/>'
     }
 
-    It 'removes only the always-on paths and the options'' own Remove lists (no hashtable method as a path)' {
+    It 'removes only the groups'' own Remove lists (no hashtable method as a path)' {
         New-OptMedia
         Mock Remove-AkariImagePaths { 0 }
         [void](Invoke-AkariIsoBuild $c)
         Assert-MockCalled Remove-AkariImagePaths -Scope It -ParameterFilter { @($Paths | Where-Object { $_ -like '*Remove(*' }).Count -gt 0 } -Times 0 -Exactly
-        Assert-MockCalled Remove-AkariImagePaths -Scope It -ParameterFilter { $Paths -contains 'Program Files\Windows Defender' } -Times 1 -Exactly
+        Assert-MockCalled Remove-AkariImagePaths -Scope It -ParameterFilter { $Paths -contains 'Windows\System32\Recovery\winre.wim' } -Times 1 -Exactly
     }
 
-    It 'refuses options that exclude each other before touching anything' {
-        $bad = $c.Clone(); $bad.Options = @('DisableUpdates', 'SecurityOnly')
+    It 'refuses an unknown group before touching anything' {
+        $bad = $c.Clone(); $bad.Groups = @('Tiny11Core', 'Nope')
         $r = Invoke-AkariIsoBuild $bad
         $r.Ok | Should Be $false
-        $r.Message | Should Match "can't be picked together"
+        $r.Message | Should Be 'Unknown removal group: Nope'
         Assert-MockCalled Install-AkariAdk -Times 0 -Exactly -Scope It
     }
 }
@@ -762,14 +795,16 @@ Describe 'ISO Builder wizard data (Core\Iso\Wizard)' {
     }
 
     It 'plans a wizard build: .NET 3.5 and the cleanup before the features; settings, files and boot.wim only for groups with them' {
-        $ids = { param($c, $g) $p = New-AkariIsoPlan $c @() $g; @($p | ForEach-Object { $_.Id }) -join ',' }
+        $ids = { param($c, $g) $p = New-AkariIsoPlan $c $g; @($p | ForEach-Object { $_.Id }) -join ',' }
         & $ids @{ Groups = @() } @() | Should Be 'Adk,Mount,NetFx3,Cleanup,Commit,Compress,Iso,Tidy'
         $g = Get-AkariIsoGroupsPicked @('Tiny11Features', 'OneDrive') $groups
         & $ids @{ Groups = @('Tiny11Features', 'OneDrive'); AppPatterns = @('Microsoft.BingNews') } $g | Should Be 'Adk,Mount,Apps,NetFx3,Cleanup,Features,Registry,Files,Commit,Compress,Iso,Tidy'
         & $ids @{ Groups = @(); FirstSignIn = $true } @() | Should Not Match 'Bake'
         & $ids @{ Groups = @(); FirstSignIn = $true; AkariDir = 'C:\a' } @() | Should Match 'Bake,AkariOS,Commit'
-        # the port's build keeps its order
-        & $ids @{ Features = @('Recall') } @() | Should Be 'Adk,Mount,Features,Registry,Files,NetFx3,Cleanup,Commit,Compress,Boot,Iso,Tidy'
+        # the user's own features after the cleanup too
+        & $ids @{ Features = @('Recall') } @() | Should Be 'Adk,Mount,NetFx3,Cleanup,Features,Commit,Compress,Iso,Tidy'
+        # Minimal: its pruning before the image is saved
+        & $ids @{ Groups = @('Tiny11Core') } (Get-AkariIsoGroupsPicked @('Tiny11Core') $groups) | Should Match 'Files,Prune,Commit'
     }
 
     It 'reads an edition''s build and says the plan''s size' {
@@ -820,13 +855,6 @@ Describe 'ISO Builder page helpers (UI\IsoBuilder.ps1)' {
             @{ Name = 'Microsoft.XboxApp'; Package = 'xbox' }, @{ Name = 'Microsoft.Unknown'; Package = 'u' }
         )
         (Get-AkariIsoRecommendedApps $apps $tweaks) -join ',' | Should Be 'news'
-    }
-
-    It 'rules out the options a picked one excludes (zISO''s, for the native oracle until P9)' {
-        $all = Get-AkariIsoOptions
-        (Get-AkariIsoBlocked @('DisableUpdates') $all) -join ',' | Should Be 'DisableVersionUpgrade,SecurityOnly'
-        (Get-AkariIsoBlocked @('SecurityOnly', 'DisableVersionUpgrade') $all) -join ',' | Should Be 'DisableUpdates'
-        @(Get-AkariIsoBlocked @('RemoveAI') $all).Count | Should Be 0
     }
 
     It 'lets Next go only once a step is complete, and neither Next nor Back while the page''s job runs' {
@@ -910,9 +938,9 @@ Describe 'ISO Builder page helpers (UI\IsoBuilder.ps1)' {
     It 'plans the build settings'' steps' {
         $ids = { param($s) $p = New-AkariIsoPlan @{ Edition = 'W'; Settings = $s }; @($p | ForEach-Object { $_.Id }) -join ',' }
         $text = { param($s) $p = New-AkariIsoPlan @{ Edition = 'W'; Settings = $s }; @($p | Where-Object { $_.Id -eq 'Compress' })[0].Text }
-        & $ids $null | Should Be 'Adk,Mount,Registry,Files,NetFx3,Cleanup,Commit,Compress,Boot,Iso,Tidy'
+        & $ids $null | Should Be 'Adk,Mount,NetFx3,Cleanup,Commit,Compress,Iso,Tidy'
         & $text $null | Should Be 'Compressing install.wim'
-        & $ids @{ CleanLeftovers = $true; LeaveOutNetFx3Files = $true } | Should Be 'Adk,Mount,Registry,Files,NetFx3,Cleanup,Leftovers,Commit,Compress,Boot,NoSxs,Iso,Tidy'
+        & $ids @{ CleanLeftovers = $true; LeaveOutNetFx3Files = $true } | Should Be 'Adk,Mount,NetFx3,Cleanup,Leftovers,Commit,Compress,NoSxs,Iso,Tidy'
         & $text @{ Compression = 'Recovery' } | Should Be 'Compressing install.esd (recovery compression)'
         & $text @{ Compression = 'Fast' } | Should Be 'Compressing install.wim (fast compression)'
     }
