@@ -94,7 +94,7 @@ AGENTS.md updated, this line marked done, one commit, then the VM check.
 | P5 | ISO I2: operations, the build page, report.json, size and SHA-256 | done 2026-11-23 |
 | P6 | ISO I3: build settings | done 2026-11-24 |
 | P7 | ISO I4: modes, removal groups, bake, first sign-in, image app icons | done 2026-11-24 |
-| P8 | ISO I5: Microsoft's download | |
+| P8 | ISO I5: Microsoft's download | done 2026-11-24 |
 | P9 | ISO I6: Minimal; zISO removed | |
 | P10 | 1.5.0 | |
 

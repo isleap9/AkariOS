@@ -858,6 +858,17 @@ Show-Page; "isoDone=$($script:IsoState.ResultPath)|$(@($script:IsoState.Stages |
 Click $StepNext; "isoAgain=$($script:IsoState.Step)|$(@($script:IsoState.Stages).Count)|$($script:IsoState.Mode)"
 Complete-AkariIsoJob @{ Kind = 'IsoUup'; Shared = @{ Result = @{ Ok = $true; Path = 'D:\Windows11_25H2_Pro_en-us.iso' } } }
 "isoUupDone=$($script:IsoParts.IsoPath.Text)|$($script:IsoParts.SrcFile.IsChecked)"
+# Microsoft's download: picking it reads the hash list; a match becomes the source; a mismatch isn't used, saying so
+$script:Jobs = @(); $script:IsoParts.SrcMs.IsChecked = $true
+$msJob = "$($script:Job.Kind)|$($script:IsoParts.SrcMs.Tag.Visibility)"
+$script:Job = $null; Set-Busy $false
+Complete-AkariIsoJob @{ Kind = 'IsoMicrosoft'; Shared = @{ Result = @{ Ok = $true; Items = @(@{ Language = 'English 64-bit'; Sha256 = 'AB' }); Message = '' } } }
+$script:Toasted = ''
+Complete-AkariIsoJob @{ Kind = 'IsoVerify'; Shared = @{ Iso = 'D:\Win11_25H2_English_x64.iso'; Result = @{ Match = @{ Language = 'English 64-bit'; Sha256 = 'AB' } } } }
+"isoMicrosoft=$msJob|$(@($script:IsoState.MsHashes).Count)|$($script:IsoParts.IsoPath.Text)|$($script:IsoParts.SrcFile.IsChecked)|$script:Toasted|$($script:IsoParts.OpenNote.Text -match 'English 64-bit')"
+$script:IsoParts.IsoPath.Text = ''
+Complete-AkariIsoJob @{ Kind = 'IsoVerify'; Shared = @{ Iso = 'D:\Win11_bad.iso'; Result = @{ Match = $null } } }
+"isoMicrosoftBad=$($script:IsoParts.IsoPath.Text)|$script:Toasted|$($script:IsoParts.MsNote.Text -match '^Win11_bad.iso doesn''t match')"
 # the AkariOS mode: its groups ticked and fixed, Custom's lists hidden, the first sign-in card, its build settings;
 # the build bakes the AkariOS preset and finishes it at the first sign-in
 $p = $script:IsoParts
@@ -1008,6 +1019,8 @@ function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My
         $out.isoDetails | Should Be ('{0:0.00} GB . SHA-256 ab12.Report: D:\Win11-Akari.report.json|2 s' -f 1)
         $out.isoAgain | Should Be '0|0|Custom'
         $out.isoUupDone | Should Be 'D:\Windows11_25H2_Pro_en-us.iso|True'
+        $out.isoMicrosoft | Should Be 'IsoMicrosoft|Visible|1|D:\Win11_25H2_English_x64.iso|True|ISO found and checked|True'
+        $out.isoMicrosoftBad | Should Be '|ISO not used|True'
         $out.isoAkariOS | Should Be '1|AkariOS|SkipHardwareChecks,NoSponsoredApps,StoreAppsAkariOS,Edge,OneDrive|0|Collapsed|Visible|5 removal groups|Recovery|True'
         $out.isoAkariOSBuild | Should Be 'SkipHardwareChecks,NoSponsoredApps,StoreAppsAkariOS,Edge,OneDrive|True|True|0|True|True|Writing the AkariOS settings into the image'
         $out.isoCustomAgain | Should Be 'SkipHardwareChecks|True|Visible|Collapsed'

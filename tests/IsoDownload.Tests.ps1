@@ -178,3 +178,44 @@ Describe 'Massgrave catalogue' {
         Find-AkariDownloadedIso $f $dl | Should Be "$dl\en-us_windows_11_iot_enterprise_ltsc_2024_x64_dvd_f6b14814 (1).iso"
     }
 }
+
+Describe 'Microsoft download' {
+    . Initialize-DownloadTest
+    $html = [IO.File]::ReadAllText((Join-Path $Fixtures 'Iso\microsoft-windows11.html'))
+
+    It 'reads the page''s hash table: trimmed, upper case, entities decoded' {
+        $h = Read-AkariMicrosoftHashes $html
+        ($h | ForEach-Object { $_.Language -replace '[^ -~]', '?' }) -join '|' | Should Be 'Arabic 64-bit|Bulgarian 64-bit|Chinese Traditional 64-bit|Portugu?s 64-bit'
+        $h[2].Sha256 | Should Be 'E951AB4EAD95D45E00CDFF6C9C05836F9499D3FD2FDEEAE0E709549F12F9B5DC'
+        @(Read-AkariMicrosoftHashes '<table><tr><td>English</td><td>not a hash</td></tr></table>').Count | Should Be 0
+    }
+
+    It 'reads Microsoft''s page, and says why when it can''t' {
+        Mock Invoke-AkariWebText { $html }
+        $r = Get-AkariMicrosoftHashes
+        $r.Ok | Should Be $true
+        $r.Items.Count | Should Be 4
+        Assert-MockCalled Invoke-AkariWebText -ParameterFilter { $Url -eq $AkariMicrosoftIsoPage }
+        Mock Invoke-AkariWebText { '<html>no table</html>' }
+        (Get-AkariMicrosoftHashes).Message | Should Match 'layout'
+        Mock Invoke-AkariWebText { throw '404 Not Found' }
+        (Get-AkariMicrosoftHashes).Message | Should Be 'Couldn''t read Microsoft''s SHA-256 list: 404 Not Found'
+    }
+
+    It 'finds a new Win11 ISO the browser finished, and checks it' {
+        $dl = Join-Path $TestDrive 'MsDownloads'
+        New-Item $dl -ItemType Directory -Force | Out-Null
+        $since = [datetime]::UtcNow.AddMinutes(-1)
+        Set-Content "$dl\Win11_24H2_English_x64.iso" 'old'
+        (Get-Item "$dl\Win11_24H2_English_x64.iso").LastWriteTimeUtc = $since.AddHours(-1)
+        Set-Content "$dl\Win11_25H2_English_x64.iso.crdownload" 'partial'
+        Set-Content "$dl\other.iso" 'x'
+        Find-AkariNewIso $AkariMicrosoftIsoPattern $since $dl | Should BeNullOrEmpty
+        [IO.File]::WriteAllText("$dl\Win11_25H2_English_x64.iso", 'iso bytes')
+        $iso = Find-AkariNewIso $AkariMicrosoftIsoPattern $since $dl
+        $iso | Should Be "$dl\Win11_25H2_English_x64.iso"
+        $sha = Get-AkariFileSha256 $iso
+        (Test-AkariMicrosoftIso $iso @(@{ Language = 'Arabic'; Sha256 = ('A' * 64) }, @{ Language = 'English'; Sha256 = $sha.ToUpperInvariant() })).Language | Should Be 'English'
+        Test-AkariMicrosoftIso $iso (Read-AkariMicrosoftHashes $html) | Should BeNullOrEmpty
+    }
+}

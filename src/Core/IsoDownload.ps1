@@ -5,6 +5,9 @@
 # - Massgrave (massgrave.dev): what UUP Dump can't make (LTSC, IoT LTSC, the consumer / business media). Its links go
 #   to file hosts that block scripts, so Akari only lists them (read from the site's markdown on GitHub) and finds the
 #   file the browser downloaded.
+# - Microsoft (the native app's I5): the browser downloads the latest Windows 11 from Microsoft's own page (its download
+#   service refuses automated requests, so Akari never calls it); Akari reads the SHA-256 table the same page
+#   publishes, finds the new Win11*.iso in Downloads and checks it against the table.
 # The network only through Invoke-AkariUupRequest, Save-AkariUupPackage, Invoke-AkariWebText; the converter only
 # through Invoke-AkariUupScript (tests mock them).
 
@@ -22,6 +25,10 @@ $AkariMassgravePages = @(
     'https://raw.githubusercontent.com/massgravel/massgrave.dev/main/docs/windows_11_links.md'
     'https://raw.githubusercontent.com/massgravel/massgrave.dev/main/docs/windows_ltsc_links.md'
 )
+# Microsoft's Windows 11 download page (the browser opens it, Akari reads its hash table) and its ISOs' names
+# (Win11_25H2_English_x64.iso)
+$AkariMicrosoftIsoPage = 'https://www.microsoft.com/en-us/software-download/windows11'
+$AkariMicrosoftIsoPattern = 'Win11*.iso'
 if ($null -eq $AkariUupRetryDelay) { $AkariUupRetryDelay = 5 }
 
 # ---- wrappers (tests mock these)
@@ -226,4 +233,46 @@ function Find-AkariDownloadedIso([string]$File, [string]$Folder = '') {
     $hit = @(Get-ChildItem -LiteralPath $Folder -Filter '*.iso' -File -ErrorAction SilentlyContinue |
             Where-Object { $_.Name -eq $File -or $_.BaseName -like "$base (*)" } | Sort-Object LastWriteTime -Descending)[0]
     if ($hit) { $hit.FullName } else { $null }
+}
+
+# ---- Microsoft
+
+# Microsoft's published hash table (the native MicrosoftIso.Hashes): a cell with the language, then one with 64 hex
+# digits: @{ Language; Sha256 (upper case) }, each hash once; none = an empty list (the page's layout changed). Pure.
+function Read-AkariMicrosoftHashes([string]$Html) {
+    $seen = @{}
+    $rx = '<td[^>]*>\s*(?<lang>[^<]+?)\s*</td>\s*<td[^>]*>\s*(?<hash>[0-9A-Fa-f]{64})\s*</td>'
+    @(foreach ($m in [regex]::Matches($Html, $rx, 'IgnoreCase')) {
+            $h = $m.Groups['hash'].Value.ToUpperInvariant()
+            if ($seen.ContainsKey($h)) { continue }
+            $seen[$h] = $true
+            @{ Language = [Net.WebUtility]::HtmlDecode($m.Groups['lang'].Value).Trim(); Sha256 = $h }
+        })
+}
+
+# Microsoft's SHA-256 table read from its page: @{ Ok; Items; Message }. Never throws.
+function Get-AkariMicrosoftHashes {
+    try {
+        $rows = @(Read-AkariMicrosoftHashes (Invoke-AkariWebText $AkariMicrosoftIsoPage))
+        if (-not $rows.Count) { return @{ Ok = $false; Items = @(); Message = 'Microsoft''s page lists no SHA-256 values (its layout may have changed).' } }
+        @{ Ok = $true; Items = $rows; Message = '' }
+    }
+    catch { @{ Ok = $false; Items = @(); Message = "Couldn't read Microsoft's SHA-256 list: $($_.Exception.Message)" } }
+}
+
+# the newest ISO matching $Pattern in the user's Downloads (or $Folder) written since $SinceUtc: a browser's finished
+# download (it renames its partial file to .iso only at the end); $null while there is none
+function Find-AkariNewIso([string]$Pattern, [datetime]$SinceUtc, [string]$Folder = '') {
+    if (-not $Folder) { $Folder = Get-AkariUserFolder 'Downloads' }
+    if (-not $Folder -or -not (Test-Path -LiteralPath $Folder)) { return $null }
+    $hit = @(Get-ChildItem -LiteralPath $Folder -Filter $Pattern -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Extension -eq '.iso' -and $_.LastWriteTimeUtc -ge $SinceUtc } | Sort-Object LastWriteTimeUtc -Descending)[0]
+    if ($hit) { $hit.FullName } else { $null }
+}
+
+# the ISO checked against Microsoft's table: the row its SHA-256 matches (Get-AkariFileSha256, Iso.ps1), else $null
+function Test-AkariMicrosoftIso([string]$Iso, $Hashes) {
+    $sha = Get-AkariFileSha256 $Iso
+    if (-not $sha) { throw "Can't read $Iso" }
+    @(@($Hashes) | Where-Object { $_.Sha256 -eq $sha })[0]
 }

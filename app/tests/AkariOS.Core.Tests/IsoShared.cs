@@ -437,13 +437,16 @@ public sealed partial class IsoDownloadOracleTests
 
     internal sealed class Side : IDisposable
     {
+        /// <summary>The downloads' clock: each file is Age minutes older (Invoke-IsoDownload.ps1's FindNew uses it too).</summary>
+        public static readonly DateTime Now = new(2026, 11, 13, 12, 0, 0, DateTimeKind.Utc);
+
         public string Root { get; } = Path.Combine(Path.GetTempPath(), $"akari-isod-{Guid.NewGuid():N}");
 
         public Side(Dictionary<string, object> c)
         {
             Directory.CreateDirectory(Path.Combine(Root, "out"));
             var downloads = Directory.CreateDirectory(Path.Combine(Root, "downloads")).FullName;
-            var now = new DateTime(2026, 11, 13, 12, 0, 0, DateTimeKind.Utc);
+            var now = Now;
             foreach (var d in JsonDocument.Parse(IsoBuildOracleTests.Json(c["Downloads"])).RootElement.EnumerateArray())
             {
                 var f = Path.Combine(downloads, d.GetProperty("Name").GetString()!);

@@ -8,7 +8,8 @@ namespace AkariOS.Core.Tests;
 
 /// <summary>
 /// IsoDownload against src\Core\IsoDownload.ps1 (Oracle/Invoke-IsoDownload.ps1): the real UUP Dump calls with
-/// retries, the converter package and its run, Massgrave's catalogue and the Downloads search, with recorders in place
+/// retries, the converter package and its run, Massgrave's catalogue, the Downloads search and Microsoft's download (its
+/// SHA-256 table, the new Win11*.iso, the check; plan 2026-11-23-powershell-catch-up decision 5), with recorders in place
 /// of the network and the converter; IsoDownload with recording fakes answering the same case. Compared: the calls
 /// (Api, Package, Script, Ini (ConvertConfig.ini's bytes when the converter runs), Page, Sleep), the log and akari.log
 /// lines, each action's result, the files left in the output folder.
@@ -76,6 +77,18 @@ public sealed partial class IsoDownloadOracleTests
                     break;
                 case "Find":
                     results.Add($"Find;Value={f.Norm(d.FindDownloaded(P("File"), Path.Combine(s.Root, "downloads")) ?? "")}");
+                    break;
+                case "Hashes":
+                    var h = d.MicrosoftHashes();
+                    results.Add($"Hashes;Ok={B(h.Ok)};Value={string.Join(",", (h.Value ?? []).Select(x => $"{x.Language}|{x.Sha256}"))};Message={f.Norm(h.Message)}");
+                    break;
+                case "FindNew":
+                    var since = Side.Now.AddMinutes(-a.GetProperty("Since").GetInt32());
+                    results.Add($"FindNew;Value={f.Norm(d.FindNew(P("Pattern"), since, Path.Combine(s.Root, "downloads")) ?? "")}");
+                    break;
+                case "Check":
+                    var rows = d.MicrosoftHashes().Value ?? [];
+                    results.Add($"Check;Value={d.Check(Path.Combine(s.Root, "downloads", P("File")), rows)?.Language ?? ""}");
                     break;
             }
         }
@@ -273,6 +286,59 @@ public sealed partial class IsoDownloadOracleTests
         };
         var o = Same(c);
         Assert.Equal([@"Find;Value=<root>\downloads\win (1).iso", "Find;Value="], o.Results);
+    }
+
+    // ---- Microsoft's download
+
+    private static string MicrosoftFixture() => File.ReadAllText(Path.Combine(Repo.Root, "tests", "Fixtures", "Iso", "microsoft-windows11.html"));
+
+    // every file Side writes holds "iso": a table with its SHA-256 matches them
+    private static string MatchingPage() =>
+        $"<table><tr><td>English International 64-bit</td><td>{Convert.ToHexString(System.Security.Cryptography.SHA256.HashData("iso"u8))}</td></tr></table>";
+
+    [Fact]
+    public void Reads_microsofts_hash_table()
+    {
+        var c = Case(new { Do = "Hashes" });
+        c["Pages"] = new Dictionary<string, string?> { [MicrosoftIso.Page] = MicrosoftFixture() };
+        var o = Same(c);
+        Assert.Equal(4, o.Results[0].Split(',').Length);
+        Assert.Equal([$"Page {MicrosoftIso.Page}"], o.Calls);
+    }
+
+    [Fact]
+    public void Says_when_microsofts_list_cannot_be_read() => Same(Case(new { Do = "Hashes" }));
+
+    [Fact]
+    public void Says_when_microsofts_page_lists_no_hash()
+    {
+        var c = Case(new { Do = "Hashes" });
+        c["Pages"] = new Dictionary<string, string?> { [MicrosoftIso.Page] = "<html>no table</html>" };
+        Same(c);
+    }
+
+    [Fact]
+    public void Finds_a_new_win11_iso_in_downloads()
+    {
+        var c = Case(new { Do = "FindNew", Pattern = MicrosoftIso.FilePattern, Since = 60 }, new { Do = "FindNew", Pattern = MicrosoftIso.FilePattern, Since = 1 });
+        c["Downloads"] = new object[]
+        {
+            new { Name = "Win11_24H2_English_x64.iso", Age = 120 }, new { Name = "Win11_25H2_English_x64.iso", Age = 5 }, new { Name = "Win11_25H2_Arabic_x64.iso", Age = 30 },
+            new { Name = "Win11_25H2_German_x64.iso.crdownload", Age = 0 }, new { Name = "other.iso", Age = 0 },
+        };
+        var o = Same(c);
+        Assert.Equal([@"FindNew;Value=<root>\downloads\Win11_25H2_English_x64.iso", "FindNew;Value="], o.Results);
+    }
+
+    [Fact]
+    public void Checks_the_iso_against_microsofts_table()
+    {
+        var c = Case(new { Do = "Check", File = "Win11_25H2_English_x64.iso" });
+        c["Downloads"] = new object[] { new { Name = "Win11_25H2_English_x64.iso", Age = 1 } };
+        c["Pages"] = new Dictionary<string, string?> { [MicrosoftIso.Page] = MatchingPage() };
+        Assert.Equal(["Check;Value=English International 64-bit"], Same(c).Results);
+        c["Pages"] = new Dictionary<string, string?> { [MicrosoftIso.Page] = MicrosoftFixture() };
+        Assert.Equal(["Check;Value="], Same(c).Results);
     }
 }
 

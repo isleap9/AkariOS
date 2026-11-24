@@ -1,10 +1,12 @@
 # The reference for the native IsoDownload (app/AkariOS.Core/Iso/IsoDownload.cs): src\Core\IsoDownload.ps1's real
 # Invoke-AkariUupApi, Get-AkariUupBuild, Get-AkariUupLanguages, Get-AkariUupEditions, Save-AkariUupIso,
-# Get-AkariMassgraveCatalogue and Find-AkariDownloadedIso, with recorders in place of the network and the converter
+# Get-AkariMassgraveCatalogue, Find-AkariDownloadedIso, and Microsoft's download (Get-AkariMicrosoftHashes,
+# Find-AkariNewIso, Test-AkariMicrosoftIso), with recorders in place of the network and the converter
 # (Invoke-AkariUupRequest, Save-AkariUupPackage, Invoke-AkariUupScript, Invoke-AkariWebText), Start-Sleep, the log and
 # Get-AkariDriveInfo, answering the case (-Case, a JSON file IsoDownloadOracleTests writes). Files only under -Root
 # (output <root>\out, the Downloads folder <root>\downloads). Nothing reaches the network.
-# Case: Actions (@{ Do = Build | Languages | Editions | Save | Catalogue | Find; ... }), Answers (the API's answers in
+# Case: Actions (@{ Do = Build | Languages | Editions | Save | Catalogue | Find | Hashes | FindNew | Check; ... }; FindNew's
+# Since = minutes before the downloads' clock, 2026-11-13 12:00 UTC), Answers (the API's answers in
 # call order: @{ Json } or @{ Throw }), Package (@{ Throw } or @{ Files = @{ name = text } }: the zip made), Script
 # (@{ Code; Iso; Lines }), Pages (url -> text, $null = throws), Drive @{ Free; Format }.
 # Writes @{ Calls; Log; ErrLog; Results; Files } as JSON to -Out; paths start <root>.
@@ -104,6 +106,21 @@ foreach ($a in @($c.Actions)) {
         'Find' {
             $r = Find-AkariDownloadedIso ([string]$a.File) (Join-Path $Root 'downloads')
             $results.Add("Find;Value=$(Norm "$r")")
+        }
+        'Hashes' {
+            $r = Get-AkariMicrosoftHashes
+            $v = (@($r.Items) | ForEach-Object { "$($_.Language)|$($_.Sha256)" }) -join ','
+            $results.Add("Hashes;Ok=$($r.Ok);Value=$v;Message=$(Norm $r.Message)")
+        }
+        'FindNew' {
+            $since = [datetime]::new(2026, 11, 13, 12, 0, 0, [DateTimeKind]::Utc).AddMinutes(-[int]$a.Since)
+            $r = Find-AkariNewIso ([string]$a.Pattern) $since (Join-Path $Root 'downloads')
+            $results.Add("FindNew;Value=$(Norm "$r")")
+        }
+        'Check' {
+            $h = Get-AkariMicrosoftHashes
+            $r = Test-AkariMicrosoftIso (Join-Path (Join-Path $Root 'downloads') ([string]$a.File)) $h.Items
+            $results.Add("Check;Value=$($r.Language)")
         }
     }
 }

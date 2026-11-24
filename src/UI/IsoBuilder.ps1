@@ -1,6 +1,6 @@
 # ISO Builder (its tab and Home tile; plans docs/plans/2026-10-31-iso-builder.md, 2026-11-20-iso-builder-wizard.md): a
 # custom Windows 11 ISO as a six-step wizard (the native app's IsoBuilderViewModel.Wizard.cs; after Tiny11 Builder's
-# layout): Start (the modes), Windows image (a file, UUP Dump, Massgrave; the work folder; the edition, Pro picked),
+# layout): Start (the modes), Windows image (a file, Microsoft, UUP Dump, Massgrave; the work folder; the edition, Pro picked),
 # Components (the removal groups; Custom: the image's four lists), Build settings (the answer file, AkariOS, the first
 # sign-in, the build settings), Review, Create ISO (the
 # stages). Guided's footer: Back, and Next only once a step is complete (Get-AkariIsoFooter). Every slow step runs in
@@ -36,7 +36,11 @@ $AkariIsoListTitles = [ordered]@{ Apps = 'Store apps'; Capabilities = 'Optional 
 # Ops (its operations, Update-AkariIsoOpList); Open }; OpsSeen: the build's operations shown so far; Current: the
 # operation running; ResultPath / BuildError: how the last build ended (BuildError also: why Review can't build);
 # Details: the ISO's size, SHA-256 and the report's path
+# Microsoft's download (MsHashes: its SHA-256 rows once read; MsError: why they couldn't be; MsWaiting / MsSince: watching
+# Downloads for a Win11*.iso written since)
+$AkariMicrosoftHint = 'Microsoft''s page downloads the latest Windows 11 in your browser (pick the language there); Akari then finds it in Downloads and checks it against the SHA-256 values Microsoft publishes.'
 $script:IsoState = @{ Image = ''; Editions = @(); Lists = $null; Massgrave = @(); Uup = $null; Waiting = ''
+    MsHashes = $null; MsError = ''; MsWaiting = $false; MsSince = [datetime]::MinValue
     Step = 0; Mode = 'Custom'; Stages = @(); ResultPath = ''; BuildError = ''; OpsSeen = 0; Current = ''; Details = '' }
 
 # ---- pure helpers (tests dot-source this file)
@@ -318,6 +322,7 @@ function Get-AkariIsoView {
     $s = [Windows.Controls.StackPanel]::new()
     $c = New-AkariIsoCard 'Windows 11 ISO'
     $p.SrcFile = New-AkariIsoRadio 'iso-src' 'An ISO file I have'
+    $p.SrcMs = New-AkariIsoRadio 'iso-src' 'Download the latest Windows 11 from Microsoft (checked against Microsoft''s SHA-256)'
     $p.SrcUup = New-AkariIsoRadio 'iso-src' 'Download with UUP Dump (23H2 to 26H2, any language, Home to IoT Enterprise)'
     $p.SrcMg = New-AkariIsoRadio 'iso-src' 'Download from Massgrave (LTSC, IoT LTSC, consumer and business media)'
     $p.SrcFile.IsChecked = $true
@@ -327,6 +332,14 @@ function Get-AkariIsoView {
     [void]$r.Children.Add($p.IsoPath)
     [void]$r.Children.Add((New-AkariIsoButton "Browse$([char]0x2026)" 'Btn' { $f = Select-AkariIsoFile; if ($f) { $script:IsoParts.IsoPath.Text = $f } }))
     [void]$b.Children.Add($r); [void]$c.Panel.Children.Add($b)
+    [void]$c.Panel.Children.Add($p.SrcMs)
+    $b = New-AkariIsoBranch $p.SrcMs
+    $p.SrcMs.Add_Checked({ Start-AkariMicrosoftHashes })
+    $r = New-AkariIsoRow
+    [void]$r.Children.Add((New-AkariIsoButton 'Open Microsoft''s download page' 'Btn' { Open-AkariMicrosoftPage }))
+    [void]$b.Children.Add($r)
+    $p.MsNote = New-AkariText $AkariMicrosoftHint 13 'Mu'
+    [void]$b.Children.Add($p.MsNote); [void]$c.Panel.Children.Add($b)
     [void]$c.Panel.Children.Add($p.SrcUup)
     $b = New-AkariIsoBranch $p.SrcUup
     $r = New-AkariIsoRow
@@ -968,10 +981,14 @@ function Open-AkariMassgraveFile {
     Open-AkariIsoLink $f.Url
     $script:IsoState.Waiting = $f.File
     $script:IsoParts.MgNote.Text = "Waiting for $($f.File) in Downloads$([char]0x2026) (download it in the browser that just opened)"
+    Start-AkariIsoWatch
+}
+# Downloads looked at every 3 seconds: Microsoft's download while one is awaited, else Massgrave's file
+function Start-AkariIsoWatch {
     if (-not $script:IsoWatch) {
         $script:IsoWatch = [Windows.Threading.DispatcherTimer]::new()
         $script:IsoWatch.Interval = [TimeSpan]::FromSeconds(3)
-        $script:IsoWatch.Add_Tick({ Test-AkariMassgraveDownload })
+        $script:IsoWatch.Add_Tick({ if ($script:IsoState.MsWaiting) { Test-AkariMicrosoftDownload } else { Test-AkariMassgraveDownload } })
     }
     $script:IsoWatch.Start()
 }
@@ -982,6 +999,52 @@ function Test-AkariMassgraveDownload {
     $script:IsoWatch.Stop()
     $script:IsoState.Waiting = ''
     Set-AkariIsoSource $hit "Downloaded: $hit"
+}
+
+# ---- Microsoft (the native app's I5): the browser downloads from Microsoft's page, Akari finds the new Win11*.iso in
+# Downloads and uses it only when its SHA-256 is one Microsoft publishes (the list unreadable: used, saying so)
+
+# Microsoft's hash table, read once (a question to a website); quietly not while another job runs (the watch asks
+# again on its next tick)
+function Start-AkariMicrosoftHashes {
+    if ($null -ne $script:IsoState.MsHashes -or $script:Busy) { return }
+    [void](Start-AkariIsoJob 'IsoMicrosoft' '$AkariShared.Result = Get-AkariMicrosoftHashes' @{} 'Reading Microsoft''s SHA-256 list')
+}
+
+# opens Microsoft's page in the browser, then looks for a new Win11*.iso in Downloads every 3 seconds
+function Open-AkariMicrosoftPage {
+    Open-AkariIsoLink $AkariMicrosoftIsoPage
+    $st = $script:IsoState
+    $st.MsWaiting = $true
+    # a file the browser finishes from now on (a few seconds' slack for the clocks)
+    $st.MsSince = [datetime]::UtcNow.AddSeconds(-5)
+    $script:IsoParts.MsNote.Text = "Waiting for the Windows 11 ISO in Downloads$([char]0x2026) (choose the language and download it in the browser that just opened)"
+    Start-AkariIsoWatch
+}
+
+function Test-AkariMicrosoftDownload {
+    $st = $script:IsoState
+    if ($script:Busy) { return }
+    $hit = Find-AkariNewIso $AkariMicrosoftIsoPattern $st.MsSince
+    if (-not $hit) { return }
+    # the hash list not read yet (its read waited for another job): read it, check on the next tick
+    if ($null -eq $st.MsHashes -and -not $st.MsError) { Start-AkariMicrosoftHashes; return }
+    if ($script:IsoWatch) { $script:IsoWatch.Stop() }
+    $st.MsWaiting = $false
+    Start-AkariMicrosoftCheck $hit
+}
+
+# the download checked against Microsoft's table in the background (job IsoVerify); no table = used, saying so
+function Start-AkariMicrosoftCheck([string]$Iso) {
+    $st = $script:IsoState; $p = $script:IsoParts
+    if ($null -eq $st.MsHashes) {
+        Set-AkariIsoSource $Iso "Downloaded: $Iso (not checked: $($st.MsError.TrimEnd('.')))"
+        $p.MsNote.Text = $AkariMicrosoftHint
+        return
+    }
+    $p.MsNote.Text = "Checking $([IO.Path]::GetFileName($Iso)) against Microsoft's SHA-256 values$([char]0x2026)"
+    $code = '$AkariShared.Result = try { $h = Test-AkariMicrosoftIso $AkariShared.Iso $AkariShared.Hashes; if ($h) { @{ Match = $h } } else { @{ Match = $null } } } catch { @{ Error = $_.Exception.Message } }'
+    [void](Start-AkariIsoJob 'IsoVerify' $code @{ Iso = $Iso; Hashes = @($st.MsHashes) } 'Checking the ISO''s SHA-256')
 }
 
 # a downloaded ISO becomes the source: "An ISO file I have", ready to open
@@ -1098,6 +1161,30 @@ function Complete-AkariIsoJob($Job) {
         'IsoUup' {
             $r = $s.Result
             if ($r -and $r.Ok) { Set-AkariIsoSource $r.Path "Downloaded: $($r.Path)" } else { $p.UupNote.Text = "Not downloaded: $(if ($r) { $r.Message } else { 'see the log' })" }
+        }
+        'IsoMicrosoft' {
+            $r = $s.Result
+            if ($r -and $r.Ok) { $st.MsHashes = @($r.Items); $st.MsError = '' }
+            else {
+                $st.MsError = if ($r) { $r.Message } else { 'Microsoft''s SHA-256 list could not be read.' }
+                Write-ErrLog "ISO Builder: $($st.MsError)"
+            }
+        }
+        'IsoVerify' {
+            $r = $s.Result
+            $iso = [string]$s.Iso
+            $name = [IO.Path]::GetFileName($iso)
+            if ($r -and $r.Match) {
+                $p.MsNote.Text = $AkariMicrosoftHint
+                Set-AkariIsoSource $iso "Downloaded and checked against Microsoft's SHA-256 ($($r.Match.Language)): $iso"
+                Show-AkariToast 'ISO found and checked' $iso
+            }
+            elseif ($r -and $r.Error) { $p.MsNote.Text = "$name could not be read: $($r.Error)" }
+            else {
+                $p.MsNote.Text = "$name doesn't match any SHA-256 value Microsoft publishes: it may be damaged or not Microsoft's. Delete it and download it again."
+                Write-ErrLog "ISO Builder: $iso matches no SHA-256 on Microsoft's page"
+                Show-AkariToast 'ISO not used' 'Its SHA-256 doesn''t match Microsoft''s.'
+            }
         }
         'IsoMassgrave' {
             $r = $s.Result
