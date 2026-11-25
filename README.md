@@ -23,12 +23,10 @@ Either way, AkariOS updates itself from its About page, and your settings and pr
 
 ### The native app (preview)
 
-AkariOS is also a native Windows app (WinUI 3, no PowerShell). From [Releases](https://github.com/isleap9/AkariOS/releases):
+AkariOS is also a native Windows app (WinUI 3, no PowerShell). From [Releases](https://github.com/isleap9/AkariOS/releases),
+`AkariOS-Native-Setup.exe` installs it to `C:\Program Files\AkariOS` with a Start menu shortcut and an uninstaller.
 
-- `AkariOS-Native-Setup.exe` installs it to `C:\Program Files\AkariOS` with a Start menu shortcut and an uninstaller.
-- `AkariOS-Native.exe` is the same app as one portable file: run it from anywhere.
-
-Both update themselves from Settings › About. They are separate from the PowerShell app above; presets are shared.
+It updates itself from Settings › About. They are separate from the PowerShell app above; presets are shared.
 
 > [!NOTE]
 > `AkariOS.exe` is a small launcher that starts `Akari.ps1` as administrator. It isn't code-signed, so the first time

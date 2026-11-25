@@ -4,7 +4,8 @@
 # Builds AkariOS-<version>.zip (one AkariOS\ folder with what Akari runs from) and Akari.ps1 (build/Bootstrap.ps1 filled in:
 # the one-liner `iwr .../releases/latest/download/Akari.ps1 -useb | iex`), and the native app (WinUI 3, ADR 0009): its
 # tests first, then build/Native.ps1 = AkariOS-Native.exe (portable) and AkariOS-Native-Setup.exe (Inno Setup,
-# build/AkariOS-Native.iss), each one's ProductVersion checked; all four are published. Both updaters (Core/Update.ps1, app/AkariOS.Core/Update/) read the latest release and check their file against the SHA-256 GitHub
+# build/AkariOS-Native.iss), each one's ProductVersion checked; the zip, Akari.ps1 and the setup are published (since
+# 1.5.0 not the portable exe: a portable copy updates by running the setup). Both updaters (Core/Update.ps1, app/AkariOS.Core/Update/) read the latest release and check their file against the SHA-256 GitHub
 # reports for it.
 # Windows runner: files get CRLF line endings, like a Windows checkout (.cmd and .reg files need them).
 name: Release
@@ -76,4 +77,4 @@ jobs:
           # checkout may leave an annotated tag lightweight: fetch it as it is
           git fetch --force origin "refs/tags/${tag}:refs/tags/${tag}"
           $notes = if ((git cat-file -t $tag) -eq 'tag') { '--notes-from-tag' } else { '--generate-notes' }
-          gh release create $tag "dist/AkariOS-$env:AKARI_VERSION.zip" dist/Akari.ps1 dist/AkariOS-Native.exe dist/AkariOS-Native-Setup.exe --title "AkariOS $env:AKARI_VERSION" $notes
+          gh release create $tag "dist/AkariOS-$env:AKARI_VERSION.zip" dist/Akari.ps1 dist/AkariOS-Native-Setup.exe --title "AkariOS $env:AKARI_VERSION" $notes

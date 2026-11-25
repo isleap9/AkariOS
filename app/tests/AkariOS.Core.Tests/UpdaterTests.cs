@@ -90,12 +90,27 @@ public sealed class UpdaterTests : IDisposable
     }
 
     [Fact]
-    public void A_release_without_the_exe_is_refused()
+    public void A_release_with_neither_the_exe_nor_the_setup_is_refused()
     {
         var r = Make().Install(Release(Digest(NewExe), url: null), _exe);
-        Assert.Equal(new UpdateResult(false, "The release has no AkariOS-Native.exe."), r);
+        Assert.Equal(new UpdateResult(false, "The release has no AkariOS-Native-Setup.exe."), r);
         Assert.Empty(_http.Calls);
         Untouched();
+    }
+
+    [Fact]
+    public void A_portable_copy_runs_the_setup_of_a_release_without_the_exe()
+    {
+        var temp = Path.Combine(_dir, "temp");
+        Directory.CreateDirectory(temp);
+        var release = Release(null, url: null) with { SetupUrl = "https://x/AkariOS-Native-Setup.exe", SetupDigest = Digest(NewExe) };
+        var r = new Updater(_http, _run, new MemoryLog(), _ => _version, temp).Install(release, _exe);
+
+        var setup = Path.Combine(temp, "AkariOS-Native-Setup-1.4.0.exe");
+        Assert.Equal(new UpdateResult(true, "Installing AkariOS 1.4.0. AkariOS will restart."), r);
+        Assert.Equal([("https://x/AkariOS-Native-Setup.exe", setup)], _http.Calls);
+        Assert.Equal([(setup, Updater.SetupArgs, false)], _run.Calls);
+        Assert.Equal(OldExe, File.ReadAllBytes(_exe));
     }
 
     [Theory]

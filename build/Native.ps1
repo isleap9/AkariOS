@@ -1,5 +1,5 @@
 # Builds the native app's release files (dev and release.yml):
-#   dist\AkariOS-Native.exe        the portable single-file exe (self-contained, win-x64)
+#   dist\AkariOS-Native.exe        the portable single-file exe (self-contained, win-x64; for testing, not released)
 #   dist\AkariOS-Native-Setup.exe  its installer (build\AkariOS-Native.iss, Inno Setup 6)
 # Both carry $AkariVersion (src\Core\Version.ps1); each one's ProductVersion is checked, since the updater compares it
 # with the release's tag. Tests are not run here: run them first (release.yml does).

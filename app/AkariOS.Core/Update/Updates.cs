@@ -94,7 +94,7 @@ public static class Updates
         var mine = Version.Parse(current);
         if (latest > mine)
         {
-            var why = blocks.DeveloperCopy ? $"This is a developer build: run a release's {Asset} to update."
+            var why = blocks.DeveloperCopy ? $"This is a developer build: run a release's {SetupAsset} to update."
                 : blocks.RunSaved ? "Update once the Run in phases has finished."
                 : blocks.Busy ? "Update once the changes being applied are done."
                 : null;

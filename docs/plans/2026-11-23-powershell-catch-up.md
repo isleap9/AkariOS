@@ -2,7 +2,7 @@
 
 Decided 2026-11-23: the PowerShell app (`src/`) gets everything the native WinUI 3 app (`app/`) has, including what
 `2026-11-19-native-winui-3.md`'s Notes and `2026-11-20-iso-builder-wizard.md` marked "native only". Both ship as
-1.5.0. Version stays 1.4.2 until the last batch passes the VM.
+1.5.0. Version stayed 1.4.2 until the last batch passed the VM (1.5.0 since P11).
 
 ## Inventory: what the native app does that the PowerShell app doesn't
 
@@ -97,7 +97,7 @@ AGENTS.md updated, this line marked done, one commit, then the VM check.
 | P8 | ISO I5: Microsoft's download | done 2026-11-24 |
 | P9 | ISO I6: Minimal; zISO removed | done 2026-11-24 |
 | P10 | One-click: the native app's browser pick and laptop detection (`OneClickPicks`: Helium first or another browser, Edge keeps Edge, no Ultimate power plan on a laptop), in the window's One-click and the ISO's first sign-in | done 2026-11-24 (PowerShell side; its oracle against the native `OneClickPicks` comes with that file's commit) |
-| P11 | 1.5.0 | |
+| P11 | 1.5.0 | done 2026-11-25 (P1-P10 passed the VM) |
 
 ## Decisions (2026-11-23)
 

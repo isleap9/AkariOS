@@ -109,7 +109,7 @@ public sealed class UpdateOracleTests
     {
         var u = Updates.Status("1.3.0", ReleaseOf(true, "1.4.0", ""), new UpdateBlocks(DeveloperCopy: true, RunSaved: true, Busy: true));
         Assert.Equal(UpdateKind.Blocked, u.Kind);
-        Assert.Equal("AkariOS 1.4.0 is available. This is a developer build: run a release's AkariOS-Native.exe to update.", u.Message);
+        Assert.Equal("AkariOS 1.4.0 is available. This is a developer build: run a release's AkariOS-Native-Setup.exe to update.", u.Message);
         Assert.Equal(UpdateKind.Latest, Updates.Status("1.4.0", ReleaseOf(true, "1.4.0", ""), new UpdateBlocks(true, false, false)).Kind);
     }
 

@@ -35,7 +35,8 @@ public sealed record UpdateResult(bool Ok, string Message);
 /// (<see cref="Cleanup"/>). No helper process.
 /// A copy the setup installed (<see cref="Updates.IsInstalled"/>) updates through the release's
 /// AkariOS-Native-Setup.exe instead: downloaded to the temp folder, checked the same way, then started silently
-/// (<see cref="SetupArgs"/>: it closes this app, installs over it and opens the new one).
+/// (<see cref="SetupArgs"/>: it closes this app, installs over it and opens the new one). So does a portable copy when
+/// the release has no AkariOS-Native.exe (release.yml publishes only the setup since 1.5.0): it ends up installed.
 /// </summary>
 public sealed class Updater(IHttp http, IExe exe, IAkariLog log, Func<string, string?>? versionOf = null, string? temp = null)
 {
@@ -47,7 +48,8 @@ public sealed class Updater(IHttp http, IExe exe, IAkariLog log, Func<string, st
 
     public UpdateResult Install(Release release, string exePath)
     {
-        var r = Updates.IsInstalled(exePath) ? TrySetup(release) : Try(release, exePath);
+        // since 1.5.0 a release carries only the setup: a portable copy installs it too when there's no exe to swap
+        var r = Updates.IsInstalled(exePath) || string.IsNullOrEmpty(release.AssetUrl) ? TrySetup(release) : Try(release, exePath);
         log.WriteFile($"Update: {r.Message}");
         return r;
     }
