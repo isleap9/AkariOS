@@ -153,17 +153,8 @@ public sealed partial class IsoBuild
     /// registry so Windows doesn't bring them back, removed with DISM, their folders deleted.</summary>
     private void RemoveApps(string mount, IReadOnlyList<string> packages)
     {
-        var loaded = LoadHives(mount);
-        try
-        {
-            foreach (var pkg in packages)
-            {
-                var name = pkg.Split('_')[0];
-                WriteRegistry([PsHashtable.Of(("Path", $@"{Store}\Deprovisioned\{IsoData.Family(pkg)}"), ("Value", "Key"))], loaded);
-                RemoveKeys([$@"{Store}\InboxApplications\{name}_*", $@"{Store}\Applications\{name}_*", $@"{Store}\Staged\{name}_*"], loaded);
-            }
-        }
-        finally { UnloadHives(loaded); }
+        // DISM first: it finds an offline image's provisioned apps through AppxAllUserStore's keys, so deleting them
+        // before made every removal fail with exit code 2 (not found)
         foreach (var pkg in packages)
         {
             var name = pkg.Split('_')[0];
@@ -177,6 +168,18 @@ public sealed partial class IsoBuild
                 return code == 0 ? (IsoOpState.Done, "") : (IsoOpState.Failed, $"DISM exit code {code}; its files removed");
             });
         }
+        // then each app marked deprovisioned (a feature update doesn't bring it back) and its keys DISM left removed
+        var loaded = LoadHives(mount);
+        try
+        {
+            foreach (var pkg in packages)
+            {
+                var name = pkg.Split('_')[0];
+                WriteRegistry([PsHashtable.Of(("Path", $@"{Store}\Deprovisioned\{IsoData.Family(pkg)}"), ("Value", "Key"))], loaded);
+                RemoveKeys([$@"{Store}\InboxApplications\{name}_*", $@"{Store}\Applications\{name}_*", $@"{Store}\Staged\{name}_*"], loaded);
+            }
+        }
+        finally { UnloadHives(loaded); }
     }
 
     /// <summary>Features, capabilities, OS packages: one call each; a failure is logged and the build goes on (as

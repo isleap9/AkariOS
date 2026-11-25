@@ -605,6 +605,15 @@ Describe 'Remove-AkariImageApps' {
         Assert-MockCalled Dismount-AkariOfflineHives -Times 1 -Exactly -Scope It
     }
 
+    It 'removes with DISM before touching AppxAllUserStore''s keys (DISM finds the apps through them)' {
+        $script:order = [Collections.Generic.List[string]]::new()
+        Mock Invoke-AkariDism { $script:order.Add("dism $($Arguments[1])"); 0 }
+        Mock Mount-AkariOfflineHives { $script:order.Add('load'); @('SOFTWARE') }
+        Mock Remove-AkariIsoKeys { $script:order.Add('keys') }
+        Remove-AkariImageApps 'M:\' @('Microsoft.BingNews_4.55.1.0_x64__8wekyb3d8bbwe')
+        ($script:order -join ',') | Should Be 'dism /Set-NonRemovableAppPolicy,dism /Remove-ProvisionedAppxPackage,load,keys'
+    }
+
     It 'leaves the frameworks out of the app list' {
         Mock Read-AkariImageApps { @{ Name = 'Microsoft.VCLibs.140.00'; Package = 'v' }, @{ Name = 'Microsoft.BingNews'; Package = 'b' }, @{ Name = 'Microsoft.DesktopAppInstaller'; Package = 'd' } }
         (@(Get-AkariImageApps 'M:\') | ForEach-Object { $_.Name }) -join ',' | Should Be 'Microsoft.BingNews'
@@ -855,6 +864,13 @@ Describe 'ISO Builder page helpers (UI\IsoBuilder.ps1)' {
             @{ Name = 'Microsoft.XboxApp'; Package = 'xbox' }, @{ Name = 'Microsoft.Unknown'; Package = 'u' }
         )
         (Get-AkariIsoRecommendedApps $apps $tweaks) -join ',' | Should Be 'news'
+    }
+
+    It 'starts the work folder on the C: drive and says to pick it when Windows refuses a folder' {
+        $AkariIsoDefaultOut | Should Match '^[A-Z]:\\AkariISO$'
+        Get-AkariIsoOpenError 'Access to the path is denied.' 'C:\Users\me\Desktop\x' |
+            Should Be "Not opened: Windows refused access to C:\Users\me\Desktop\x. Pick a folder on the C: drive, e.g. $AkariIsoDefaultOut (not the Desktop or Documents)."
+        Get-AkariIsoOpenError 'This ISO isn''t Windows 11.' 'C:\AkariISO' | Should Be 'Not opened: This ISO isn''t Windows 11.'
     }
 
     It 'lets Next go only once a step is complete, and neither Next nor Back while the page''s job runs' {

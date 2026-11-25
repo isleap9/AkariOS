@@ -83,15 +83,8 @@ function Remove-AkariIsoKeys([string[]]$Patterns, [string[]]$Loaded) {
 # them back, removed with DISM, their folders deleted
 function Remove-AkariImageApps([string]$Mount, [string[]]$Packages) {
     $store = 'SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore'
-    $loaded = Mount-AkariOfflineHives $Mount
-    try {
-        foreach ($p in $Packages) {
-            $name = ($p -split '_')[0]
-            Write-AkariIsoRegistry @(@{ Path = "$store\Deprovisioned\$(Get-AkariAppFamily $p)"; Value = 'Key' }) $loaded
-            Remove-AkariIsoKeys @("$store\InboxApplications\$($name)_*", "$store\Applications\$($name)_*", "$store\Staged\$($name)_*") $loaded
-        }
-    }
-    finally { Dismount-AkariOfflineHives $loaded }
+    # DISM first: it finds an offline image's provisioned apps through AppxAllUserStore's keys, so deleting them before
+    # made every removal fail with exit code 2 (not found)
     foreach ($p in $Packages) {
         $name = ($p -split '_')[0]
         Invoke-AkariIsoOp "App $name" {
@@ -103,6 +96,16 @@ function Remove-AkariImageApps([string]$Mount, [string[]]$Packages) {
             if ($c -eq 0) { @{ State = 'Done'; Note = '' } } else { @{ State = 'Failed'; Note = "DISM exit code $c; its files removed" } }
         }
     }
+    # then each app marked deprovisioned (a feature update doesn't bring it back) and its keys DISM left removed
+    $loaded = Mount-AkariOfflineHives $Mount
+    try {
+        foreach ($p in $Packages) {
+            $name = ($p -split '_')[0]
+            Write-AkariIsoRegistry @(@{ Path = "$store\Deprovisioned\$(Get-AkariAppFamily $p)"; Value = 'Key' }) $loaded
+            Remove-AkariIsoKeys @("$store\InboxApplications\$($name)_*", "$store\Applications\$($name)_*", "$store\Staged\$($name)_*") $loaded
+        }
+    }
+    finally { Dismount-AkariOfflineHives $loaded }
 }
 
 # an item's kind as the build page names it. Pure.

@@ -100,6 +100,19 @@ function Get-AkariIsoEditionPick($Editions) {
 }
 
 # the image picked so far, beside every step. Pure.
+# the work and output folder: on the C: drive, outside the user's protected folders (Windows Security's Controlled
+# folder access refuses powershell.exe there: "Access to the path is denied")
+$AkariIsoDefaultOut = "$(if ($env:SystemDrive) { $env:SystemDrive } else { 'C:' })\AkariISO"
+$AkariIsoOutHint = "Use the C: drive, e.g. $AkariIsoDefaultOut. Desktop, Documents and other user folders can be refused by Windows."
+
+# Open ISO's failure for the page (pure): a refused folder says what to pick instead
+function Get-AkariIsoOpenError([string]$Message, [string]$OutDir) {
+    if ($Message -match 'Access to the path|access is denied|UnauthorizedAccess') {
+        return "Not opened: Windows refused access to $OutDir. Pick a folder on the C: drive, e.g. $AkariIsoDefaultOut (not the Desktop or Documents)."
+    }
+    "Not opened: $Message"
+}
+
 function Get-AkariIsoSummary($Edition) { if ($Edition) { "$($Edition.Name) $([char]0x00B7) $($Edition.Version)" } else { 'No image yet' } }
 
 # the stages' states while the build reports step $Done of $Total (each step as it starts): the ones before it Done,
@@ -372,10 +385,11 @@ function Get-AkariIsoView {
     [void]$b.Children.Add($r)
     $p.MgNote = New-AkariText 'Massgrave''s links go to file hosts Akari can''t download from: your browser does, then Akari finds the file in Downloads.' 13 'Mu'
     [void]$b.Children.Add($p.MgNote); [void]$c.Panel.Children.Add($b)
-    [void]$c.Panel.Children.Add((New-AkariUaFormLabel 'Work and output folder (NTFS, 25 GB free; the ISO is saved here)'))
+    [void]$c.Panel.Children.Add((New-AkariUaFormLabel 'Work and output folder: pick the C: drive (NTFS, 25 GB free; the ISO is saved here)'))
+    [void]$c.Panel.Children.Add((New-AkariText $AkariIsoOutHint 13 'Mu'))
     $r = New-AkariIsoRow
     $p.OutDir = New-AkariIsoBox
-    $p.OutDir.Text = try { Get-AkariUserFolder 'Downloads' } catch { '' }
+    $p.OutDir.Text = $AkariIsoDefaultOut
     [void]$r.Children.Add($p.OutDir)
     [void]$r.Children.Add((New-AkariIsoButton "Browse$([char]0x2026)" 'Btn' { $f = Select-AkariIsoFolder; if ($f) { $script:IsoParts.OutDir.Text = $f } }))
     [void]$c.Panel.Children.Add($r)
@@ -1094,7 +1108,12 @@ function Complete-AkariIsoJob($Job) {
     switch ($Job.Kind) {
         'IsoOpen' {
             $r = $s.Result
-            if (-not $r -or $r.Error) { $p.OpenNote.Text = "Not opened: $(if ($r) { $r.Error } else { 'see the log' })"; return }
+            if (-not $r -or $r.Error) {
+                $err = if ($r) { $r.Error } else { 'see the log' }
+                Write-ErrLog "ISO Builder: couldn't open the ISO into $($s.Out): $err"
+                $p.OpenNote.Text = Get-AkariIsoOpenError $err $s.Out
+                return
+            }
             $st.Image = $r.Image
             $st.Lists = $null
             foreach ($l in $p.Lists.Values) { $l.Children.Clear(); $l.Tag.Head.Visibility = 'Collapsed'; $l.Tag.View.Visibility = 'Collapsed' }
