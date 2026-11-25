@@ -150,12 +150,9 @@ public sealed class SelfCopy(string exe, string folder, bool developerBuild)
 {
     public const string FileName = "AkariOS-Native.exe";
 
-    /// <summary>The running exe and %ProgramData%\AkariOS.Native; a developer build's assemblies have a Location.</summary>
-    // the empty Location of a single-file publish is what this reads (IL3000 warns about exactly that)
-#pragma warning disable IL3000
+    /// <summary>The running exe and %ProgramData%\AkariOS.Native (<see cref="AkariInfo.IsDeveloperBuild()"/>).</summary>
     public static SelfCopy Live() =>
-        new(Environment.ProcessPath ?? "", AkariPaths.MachineFolder, !string.IsNullOrEmpty(typeof(SelfCopy).Assembly.Location));
-#pragma warning restore IL3000
+        new(Environment.ProcessPath ?? "", AkariPaths.MachineFolder, AkariInfo.IsDeveloperBuild());
 
     private string Copy => Path.Combine(folder, FileName);
 

@@ -26,6 +26,17 @@ public sealed class UpdaterTests : IDisposable
 
     public void Dispose() => Directory.Delete(_dir, recursive: true);
 
+    [Theory]
+    // dotnet build: the assemblies beside the exe
+    [InlineData(@"C:\repo\app\AkariOS.App\bin\Debug\AkariOS.Core.dll", @"C:\repo\app\AkariOS.App\bin\Debug\AkariOS-Native.exe", true)]
+    // a WinUI single-file publish unpacks its assemblies to %TEMP%\.net (the 1.5.0 setup's copy said "developer build")
+    [InlineData(@"C:\Users\me\AppData\Local\Temp\.net\AkariOS-Native\abc123\AkariOS.Core.dll", @"C:\Program Files\AkariOS\AkariOS-Native.exe", false)]
+    // a plain single-file publish: no Location
+    [InlineData("", @"C:\Program Files\AkariOS\AkariOS-Native.exe", false)]
+    [InlineData(null, null, false)]
+    public void A_developer_build_is_one_whose_assemblies_sit_beside_the_exe(string? assembly, string? exe, bool developer) =>
+        Assert.Equal(developer, AkariInfo.IsDeveloperBuild(assembly, exe));
+
     private sealed class FakeHttp : IHttp
     {
         public byte[] Body { get; set; } = NewExe;

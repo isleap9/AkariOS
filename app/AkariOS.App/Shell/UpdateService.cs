@@ -64,10 +64,7 @@ public sealed partial class UpdateService : ObservableObject
     public bool HasNotes => Notes.Length > 0;
 
     /// <summary>Not a published single-file exe (dotnet build's output): it can't replace itself.</summary>
-    // the empty Location of a single-file publish is what this reads (IL3000 warns about exactly that)
-#pragma warning disable IL3000
-    public static bool IsDeveloperBuild() => !string.IsNullOrEmpty(typeof(UpdateService).Assembly.Location);
-#pragma warning restore IL3000
+    public static bool IsDeveloperBuild() => AkariInfo.IsDeveloperBuild();
 
     private UpdateBlocks Blocks() => new(_developerBuild, _runSaved(),
         _shell.IsBusy || _catalogue.Running || _catalogue.SafePending.Count > 0);
