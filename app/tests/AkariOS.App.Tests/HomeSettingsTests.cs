@@ -244,4 +244,44 @@ public sealed class HomeSettingsTests : IDisposable
         t.Shell.Toasts[0].ActCommand.Execute(null);
         Assert.Equal(_h.Dir, t.Open.Opened[^1]);
     }
+
+    [Fact]
+    public async Task The_drift_check_finds_settings_windows_changed_back_and_reviews_them_in_guided()
+    {
+        var t = Make();
+        var settings = new Settings();
+        var drift = t.Drift(settings);
+        var row = Assert.Single(t.Engine.Find("fix-plain")!.Registry!);
+        // nothing recorded yet: the launch check does nothing, the manual one says so
+        await drift.CheckAsync(manual: false);
+        Assert.False(settings.Values.ContainsKey(DriftCheck.BuildKey));
+        await drift.CheckAsync(manual: true);
+        Assert.Equal("Your setup is as AkariOS left it: AkariOS has not changed any settings on this PC yet.", t.Toasts[0]);
+
+        // applied from Optimize: recorded; then Windows puts it back
+        t.Card("fix-plain").IsOn = true;
+        Assert.Equal(Core.Tweaks.TweakMode.Apply, t.Engine.Expected!.All()["fix-plain"].Mode);
+        t.Engine.Registry.RemoveValue(row.Path, row.Name!);
+
+        // the launch check runs once per Windows build
+        await settings.SetAsync(DriftCheck.BuildKey, drift.BuildRevision());
+        await drift.CheckAsync(manual: false);
+        Assert.Empty(drift.Items);
+        await settings.SetAsync(DriftCheck.BuildKey, "older");
+        await drift.CheckAsync(manual: false);
+        Assert.Equal(["fix-plain"], drift.Items.Select(d => d.Id));
+        Assert.Equal(drift.BuildRevision(), settings.Values[DriftCheck.BuildKey]);
+        Assert.Equal("1 setting went back: Windows changed them back, most likely with an update.", t.Toasts[0]);
+
+        // Home's InfoBar, dismissible; Review = Guided's Tweaks step with it picked
+        var home = t.Home(drift: drift);
+        Assert.True(home.DriftBarOpen);
+        Assert.Equal("1 AkariOS setting went back to Windows' values", home.DriftTitle);
+        home.ReviewDriftCommand.Execute(null);
+        Assert.Equal(("Guided", 1), (t.Install.Mode, t.Install.Step));
+        Assert.Equal("Install AkariOS", t.Navigated[^1]);
+        Assert.Contains("fix-plain", t.Install.Selection.Keys);
+        home.DismissDriftCommand.Execute(null);
+        Assert.False(home.DriftBarOpen);
+    }
 }

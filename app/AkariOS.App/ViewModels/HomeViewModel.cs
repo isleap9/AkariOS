@@ -92,12 +92,14 @@ public sealed partial class HomeViewModel : ViewModelBase, INavigationAware
     private readonly Func<DateTime> _now;
     private readonly InstallViewModel _install;
 
-    public HomeViewModel(IShellNavigator shell, CatalogueViewModel catalogue, HomeStats stats, UpdateService updates, ActivityLog activity, InstallViewModel install)
-        : this(shell, catalogue, stats, updates, activity, install, () => DateTime.Now) { }
+    public HomeViewModel(IShellNavigator shell, CatalogueViewModel catalogue, HomeStats stats, UpdateService updates, ActivityLog activity, InstallViewModel install,
+        DriftCheck? drift = null)
+        : this(shell, catalogue, stats, updates, activity, install, () => DateTime.Now, drift) { }
 
-    public HomeViewModel(IShellNavigator shell, CatalogueViewModel catalogue, HomeStats stats, UpdateService updates, ActivityLog activity, InstallViewModel install, Func<DateTime> now)
+    public HomeViewModel(IShellNavigator shell, CatalogueViewModel catalogue, HomeStats stats, UpdateService updates, ActivityLog activity, InstallViewModel install, Func<DateTime> now,
+        DriftCheck? drift = null)
     {
-        (_shell, _catalogue, Stats, Updates, _activity, _install, _now) = (shell, catalogue, stats, updates, activity, install, now);
+        (_shell, _catalogue, Stats, Updates, _activity, _install, _now, Drift) = (shell, catalogue, stats, updates, activity, install, now, drift);
         var tweaks = catalogue.Tweaks.ToDictionary(t => t.Id);
         QuickSettings = QuickIds.Where(tweaks.ContainsKey).Select(id => catalogue.Card(tweaks[id])).ToList();
         Title = "Home";
@@ -106,6 +108,13 @@ public sealed partial class HomeViewModel : ViewModelBase, INavigationAware
     public HomeStats Stats { get; }
 
     public UpdateService Updates { get; }
+
+    /// <summary>The drift check (X3): its InfoBar shows while settings went back and it isn't dismissed.</summary>
+    public DriftCheck? Drift { get; }
+
+    public bool DriftBarOpen => Drift?.Found == true;
+    public string DriftTitle => Drift?.Title ?? "";
+    public string DriftMessage => DriftCheck.Message;
 
     public string Overline => $"AkariOS {AkariInfo.Version}";
     public string Headline => "Windows, tuned for games";
@@ -137,12 +146,30 @@ public sealed partial class HomeViewModel : ViewModelBase, INavigationAware
         UpdateBar();
         Updates.PropertyChanged += OnUpdates;
         _activity.Added += OnActivity;
+        if (Drift is not null) Drift.PropertyChanged += OnDrift;
+        OnDrift(null, null);
     }
 
     public void OnNavigatedFrom()
     {
         Updates.PropertyChanged -= OnUpdates;
         _activity.Added -= OnActivity;
+        if (Drift is not null) Drift.PropertyChanged -= OnDrift;
+    }
+
+    private void OnDrift(object? s, System.ComponentModel.PropertyChangedEventArgs? e)
+    {
+        OnPropertyChanged(nameof(DriftBarOpen));
+        OnPropertyChanged(nameof(DriftTitle));
+    }
+
+    [RelayCommand]
+    private void ReviewDrift() => Drift?.Review();
+
+    [RelayCommand]
+    private void DismissDrift()
+    {
+        if (Drift is not null) Drift.Dismissed = true;
     }
 
     private void OnUpdates(object? s, System.ComponentModel.PropertyChangedEventArgs e) => UpdateBar();

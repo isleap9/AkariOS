@@ -93,6 +93,8 @@ public partial class App : Application
                 MainWindow?.ApplyTheme(theme.CurrentTheme);
                 // every launch: the update check, once the window is up (on Home, an Available release asks)
                 Services.GetRequiredService<UpdateService>().Check(manual: false);
+                // the drift check (X3): only after Windows' build changed since the last one
+                _ = Services.GetRequiredService<DriftCheck>().CheckAsync(manual: false);
                 // a mount left by a build the app closed during: discarded in the background (Clear-AkariIsoLeftover)
                 if (Services.GetRequiredService<IsoTools>().Build is { } iso)
                     _ = Task.Run(() =>
@@ -154,6 +156,7 @@ public partial class App : Application
         services.AddSingleton<ServicesListViewModel>();
         services.AddSingleton<TasksListViewModel>();
         services.AddSingleton<StartupListViewModel>();
+        services.AddSingleton<DriftCheck>();
         services.AddTransient<CataloguePageViewModel>();
         services.AddSingleton(_ => new AppIcons(AssetFiles.Default));
         services.AddSingleton<InstallViewModel>();

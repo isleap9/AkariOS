@@ -36,8 +36,17 @@ public interface ISafeModeHandoff
 /// Mode get their Prepare now and go to the handoff.
 /// </summary>
 public sealed partial class Runner(TweakContext context, States states, IRememberedState remembered, IExplorer explorer,
-    ISafeModeHandoff? safeMode = null, Func<bool>? inSafeMode = null)
+    ISafeModeHandoff? safeMode = null, Func<bool>? inSafeMode = null, ExpectedStore? expected = null)
 {
+    /// <summary>expected.json (X3): what each Toggle and Choice should be, for the drift check; a failure to write it
+    /// is only logged.</summary>
+    private void Expect(Tweak t, TweakMode mode, object? value)
+    {
+        if (expected is null) return;
+        try { expected.Set(t, mode, value, context.Services.UtcNow().ToLocalTime()); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Log.WriteFile($"expected.json: {e.Message}"); }
+    }
+
     private IAkariLog Log => context.Log;
 
     private static Outcome Outcome(Tweak t, TweakMode mode, OutcomeKind kind, bool reboot = false, string message = "") =>
@@ -80,6 +89,7 @@ public sealed partial class Runner(TweakContext context, States states, IRemembe
         if (IsAlready(t, mode, value, want))
         {
             Log.Write($"Already: {t.Name}");
+            Expect(t, mode, value);
             return Outcome(t, mode, OutcomeKind.Already);
         }
 
@@ -95,6 +105,7 @@ public sealed partial class Runner(TweakContext context, States states, IRemembe
             return Outcome(t, mode, OutcomeKind.Failed, message: e.Message);
         }
         if (t.Kind == TweakKind.Toggle && !t.Has("Detect") && t.Registry is null && !t.RowsAreCode) remembered.Set(t.Id, mode == TweakMode.Apply);
+        Expect(t, mode, value);
         var done = mode == TweakMode.Apply ? OutcomeKind.Applied : OutcomeKind.Reverted;
         Log.Write($"{done}: {t.Name}");
         return Outcome(t, mode, done, t.Reboot);

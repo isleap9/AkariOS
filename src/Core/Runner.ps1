@@ -29,10 +29,12 @@ function Invoke-AkariTweak($Tweak, [ValidateSet('Apply', 'Revert')][string]$Mode
         $cur = try { Get-AkariChoiceValue $Tweak } catch { $null }
         if ($null -ne $cur -and (Test-AkariRegMatch $cur $Value)) {
             Write-Log "Already: $($Tweak.Name)"
+            Set-AkariExpected $Tweak $Mode $Value
             return New-AkariOutcome $Tweak.Id $Mode 'Already'
         }
     } elseif ($Tweak.Kind -ne 'Action' -and (Get-AkariState $Tweak) -eq $want) {
         Write-Log "Already: $($Tweak.Name)"
+        Set-AkariExpected $Tweak $Mode $Value
         return New-AkariOutcome $Tweak.Id $Mode 'Already'
     } elseif ($Tweak.Kind -eq 'Action' -and $Tweak.Detect -and (& { try { [bool](& ([scriptblock]::Create($Tweak.Detect.ToString()))) } catch { $false } })) {
         # an Action's Detect says it is already done (e.g. the app is already removed)
@@ -63,6 +65,7 @@ function Invoke-AkariTweak($Tweak, [ValidateSet('Apply', 'Revert')][string]$Mode
         return New-AkariOutcome $Tweak.Id $Mode 'Failed' $false $_.Exception.Message
     }
     if ($Tweak.Kind -eq 'Toggle' -and -not $Tweak.Detect -and -not $Tweak.Registry) { Set-AkariRememberedState $Tweak.Id ($Mode -eq 'Apply') }
+    Set-AkariExpected $Tweak $Mode $Value
     $done = if ($Mode -eq 'Apply') { 'Applied' } else { 'Reverted' }
     Write-Log "${done}: $($Tweak.Name)"
     New-AkariOutcome $Tweak.Id $Mode $done $Tweak.Reboot
@@ -247,6 +250,8 @@ function Start-AkariJob([string]$Code, $Queue, [string]$CoreDir, [hashtable]$Sha
     $rs.Open()
     $rs.SessionStateProxy.SetVariable('LogQueue', $Queue)
     $rs.SessionStateProxy.SetVariable('AkariShared', $Shared)
+    # where Invoke-AkariTweak records what each setting should be (State.ps1, X3)
+    $rs.SessionStateProxy.SetVariable('AkariExpectedPath', $AkariExpectedPath)
     $ps = [powershell]::Create()
     $ps.Runspace = $rs
     $pre = (@('Log', 'Compat', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Restore', 'Appx', 'Winget', 'AppSetup', 'System', 'Phases', 'Presets', 'Iso', 'IsoDownload', 'Startup') | ForEach-Object { ". '$CoreDir\$_.ps1'" }) -join "`n"

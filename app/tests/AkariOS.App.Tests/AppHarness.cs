@@ -123,13 +123,17 @@ internal sealed record AppTest(Engine Engine, CatalogueViewModel Catalogue, Shel
     private InstallViewModel? _install;
 
     /// <summary>Install AkariOS: one per test, as the app's.</summary>
+    /// <summary>The drift check (X3) on these settings.</summary>
+    public DriftCheck Drift(AkariOS.Framework.Services.ISettingsService settings) => new(Engine, Work, Shell, settings, Install, new Navigator(Navigated));
+
     public InstallViewModel Install => _install ??= new InstallViewModel(Engine, Work, Dialogs, new Text(Names), Shell, Restore, Catalogue, Stats, Activity,
         new Navigator(Navigated), Open, Picker, new OneClickHandoff(OneClicks.Add), new Choice(Picks, PickOptions), Icons);
 
     /// <summary>Home as the window opens it, at a fixed time (Recent activity's "when").</summary>
-    public HomeViewModel Home(DateTime? now = null)
+    public HomeViewModel Home(DateTime? now = null, DriftCheck? drift = null)
     {
-        var h = new HomeViewModel(new Navigator(Navigated), Catalogue, new HomeStats(Engine, Work, Catalogue), Updates, Activity, Install, () => now ?? new DateTime(2026, 11, 20, 12, 0, 0));
+        var h = new HomeViewModel(new Navigator(Navigated), Catalogue, new HomeStats(Engine, Work, Catalogue), Updates, Activity, Install,
+            () => now ?? new DateTime(2026, 11, 20, 12, 0, 0), drift);
         h.OnNavigatedTo(null);
         return h;
     }
@@ -277,6 +281,7 @@ internal sealed class AppHarness : IDisposable
             System = new Pc(chassis),
             Log = log,
             Remembered = new JsonRememberedState(Path.Combine(Dir, "state.json")),
+            Expected = new ExpectedStore(Path.Combine(Dir, "expected.json")),
             Explorer = explorer,
             Presets = new PresetStore(files, Path.Combine(Dir, "presets"), Path.Combine(Dir, "lastused.json"), log),
             Codes = new Dictionary<string, ITweakCode>(),

@@ -49,13 +49,16 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private readonly Engine _engine;
     private readonly Action<string> _applyAccent;
     private readonly InstallViewModel _install;
+    private readonly DriftCheck? _drift;
     private AppTheme _selectedTheme;
     private string _selectedAccent;
 
     public SettingsViewModel(IThemeService theme, ISettingsService settings, IShellOpen open, IFilePicker picker, IDialogService dialogs,
-        IBackground background, ShellState shell, Engine engine, UpdateService updates, AccentChoice accent, InstallViewModel install)
+        IBackground background, ShellState shell, Engine engine, UpdateService updates, AccentChoice accent, InstallViewModel install,
+        DriftCheck? drift = null)
     {
         _install = install;
+        _drift = drift;
         (_theme, _settings, _open, _picker, _dialogs, _background, _shell, _engine) = (theme, settings, open, picker, dialogs, background, shell, engine);
         Updates = updates;
         _applyAccent = accent.Apply;
@@ -149,6 +152,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _engine.Log.Write($"Support file saved: {path}");
         _shell.Toast("Support file saved", path, InfoBarSeverity.Success, "Open folder", () => _open.Folder(Path.GetDirectoryName(path) ?? path));
     }
+
+    /// <summary>Check my setup (X3): the drift check now; found = Guided with them picked, else a toast.</summary>
+    [RelayCommand]
+    public Task CheckSetupAsync() => _drift?.CheckAsync(manual: true) ?? Task.CompletedTask;
 
     /// <summary>Start-AkariImport: a preset file into Install AkariOS › Guided's Tweaks step.</summary>
     [RelayCommand]

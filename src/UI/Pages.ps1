@@ -183,6 +183,14 @@ function Show-AkariHome {
         $ib.Close.Add_Click({ $script:UpdateDismissed = $true })
         [void]$HomePanel.Children.Add($ib.Bar)
     }
+    # the drift check's InfoBar (About.ps1): AkariOS settings Windows changed back, dismissible
+    if ($script:Drift -and @($script:Drift).Count -and -not $script:DriftDismissed) {
+        $n = @($script:Drift).Count
+        $db = New-AkariInfoBar 'Warn' "$n AkariOS setting$(if ($n -ne 1) { 's' }) went back to Windows' values" 'Windows changed them back, most likely with an update. Review them and apply them again.' @(
+            (New-AkariBarButton 'Review' { Open-AkariDriftReview })) -Close
+        $db.Close.Add_Click({ $script:DriftDismissed = $true })
+        [void]$HomePanel.Children.Add($db.Bar)
+    }
     [void]$HomePanel.Children.Add((New-AkariHero))
     [void]$HomePanel.Children.Add((New-AkariSection 'Get started'))
     $tiles = [Windows.Controls.Primitives.UniformGrid]::new()

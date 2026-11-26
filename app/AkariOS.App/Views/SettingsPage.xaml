@@ -99,6 +99,18 @@
             <Border Style="{StaticResource CardBorder}">
                 <Grid ColumnSpacing="16">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE73E;" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="Check my setup" />
+                        <TextBlock Text="Find the AkariOS settings Windows changed back, e.g. after an update" TextWrapping="Wrap"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" Style="{StaticResource CaptionTextBlockStyle}" />
+                    </StackPanel>
+                    <Button Grid.Column="2" Content="Check" VerticalAlignment="Center" Command="{x:Bind ViewModel.CheckSetupCommand}" />
+                </Grid>
+            </Border>
+            <Border Style="{StaticResource CardBorder}">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                     <FontIcon Glyph="&#xEBE8;" VerticalAlignment="Center" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock Text="Save a support file" />

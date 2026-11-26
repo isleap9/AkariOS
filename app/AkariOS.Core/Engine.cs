@@ -55,7 +55,10 @@ public sealed class Engine
 
     public States States => new(Context, Remembered);
 
-    public Runner Runner => new(Context, States, Remembered, Explorer, SafeMode, InSafeMode);
+    public Runner Runner => new(Context, States, Remembered, Explorer, SafeMode, InSafeMode, Expected);
+
+    /// <summary>expected.json (X3: the drift check); null = not recorded (tests unless they set one).</summary>
+    public ExpectedStore? Expected { get; init; }
 
     public RestorePoints? RestorePoints => SystemRestore is null ? null : new(SystemRestore, Registry, Log);
 
@@ -97,6 +100,7 @@ public sealed class Engine
             System = new MachineInfo(registry, new WmiHardware()),
             Log = log,
             Remembered = remembered,
+            Expected = new ExpectedStore(Path.Combine(AkariPaths.UserFolder, "expected.json")),
             Explorer = explorer,
             Presets = new PresetStore(new EmbeddedSourceFiles(), AkariPaths.PresetFolder, Path.Combine(AkariPaths.UserFolder, "lastused.json"), log),
             Codes = codes,

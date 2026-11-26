@@ -6,6 +6,9 @@ param([switch]$List, [string[]]$Apply, [string[]]$Revert, [string]$Preset, [stri
 # CLI:  Akari.ps1 -List  |  -Apply id,id  |  -Revert id,id  |  -Preset <name|file.json>  |  -RevertPreset <name|file.json>
 #       (all but -List need an elevated shell; -RevertPreset reverts in reverse order and skips Actions)
 
+# what each setting should be, for the drift check (Core\State.ps1); every branch records its changes
+$AkariExpectedPath = Join-Path $env:LOCALAPPDATA 'Akari\expected.json'
+
 # ---- CLI: no relaunch, no WPF
 if ($List -or $Apply -or $Revert -or $Preset -or $RevertPreset) {
     $CoreDir = Join-Path $PSScriptRoot 'Core'

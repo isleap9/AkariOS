@@ -110,6 +110,7 @@ function Show-AkariSettings {
     foreach ($x in @(
         @('arrow-reset', 'System Restore', "Open Windows' restore points", { Start-Process "$env:SystemRoot\System32\rstrui.exe" }),
         @('document', 'Logs', 'Open the folder with akari.log', { Open-AkariLogFolder }),
+        @('shield-check', 'Check my setup', 'Find the AkariOS settings Windows changed back, e.g. after an update', { Start-AkariDriftCheck $true }),
         @('bug', 'Save a support file', 'A zip of the logs and this PC''s details for a bug report; your names are left out', { Save-AkariSupportFile }))) {
         $c = New-AkariSettingsCard $x[0] $x[1] $x[2] (New-AkariIcon 'external-link' 12 'Mu') 'CardButton'
         $c.Card.Add_Click($x[3])
@@ -271,3 +272,74 @@ function Start-AkariUpdateInstall {
 
 # every launch: check in the background once the window is up
 $window.Add_Loaded({ Start-AkariUpdateCheck $false })
+
+# ---- the drift check (X3, Core\State.ps1): the settings in expected.json that are no longer what AkariOS set. On
+# launch only when Windows' build or update revision changed since the last check (settings.json DriftBuild), and
+# from Settings > Recovery > Check my setup. Found = Home's InfoBar; Review opens Guided's Tweaks step with them picked.
+
+$script:Drift = @()
+$script:DriftChecking = $false
+$script:DriftDismissed = $false
+
+function Start-AkariDriftCheck([bool]$Manual) {
+    if ($script:DriftChecking) { return }
+    $build = Get-AkariBuildRevision
+    if (-not $Manual) {
+        if (-not @((Get-AkariExpected).Keys).Count) { return }
+        if ((Read-AkariSettings)['DriftBuild'] -eq $build) { return }
+    }
+    $script:DriftChecking = $true
+    if ($Manual) { Set-Busy $true 'Checking your setup' $false }
+    $q = { param($x) "'" + ([string]$x -replace "'", "''") + "'" }
+    $shared = [hashtable]::Synchronized(@{ Manual = $Manual; Build = $build })
+    $job = Start-AkariJob @"
+`$loaded = Get-AkariTweaks $(& $q "$Root\Tweaks")
+`$AkariShared.Drift = @(Get-AkariDrift @(`$loaded.Tweaks))
+`$AkariShared.Count = @((Get-AkariExpected).Keys).Count
+"@ $script:Queue "$Root\Core" $shared
+    $tm = [Windows.Threading.DispatcherTimer]::new()
+    $tm.Interval = [TimeSpan]::FromMilliseconds(300)
+    $tm.Tag = $job
+    $tm.Add_Tick({
+        param($s, $a)
+        $j = $s.Tag
+        if (-not $j.Handle.IsCompleted) { return }
+        $s.Stop()
+        try { [void]$j.Ps.EndInvoke($j.Handle) } catch { }
+        $j.Ps.Dispose(); $j.Rs.Dispose()
+        Complete-AkariDriftCheck $j.Shared
+    })
+    $tm.Start()
+}
+
+function Complete-AkariDriftCheck($Shared) {
+    $script:DriftChecking = $false
+    if ($Shared.Manual) { Set-Busy $false }
+    $script:Drift = @($Shared.Drift)
+    $script:DriftDismissed = $false
+    Save-AkariSetting 'DriftBuild' $Shared.Build
+    $n = $script:Drift.Count
+    Add-Log "Setup check: $n of $([int]$Shared.Count) AkariOS settings went back"
+    if ($Shared.Manual) {
+        if ($n) { Open-AkariDriftReview }
+        else { Show-AkariToast 'Your setup is as AkariOS left it' $(if ($Shared.Count) { "All $($Shared.Count) settings AkariOS changed are still set." } else { 'AkariOS has not changed any settings on this PC yet.' }) }
+        return
+    }
+    if ($n) {
+        Show-AkariToast "$n setting$(if ($n -ne 1) { 's' }) went back" 'Windows changed them back, most likely with an update. Home has Review.'
+        if ($script:Cat -eq 'Home') { $script:PageMotionKey = ''; Show-Page }
+    }
+}
+
+# Guided's Tweaks step with the drifted settings picked: the user reviews and applies them as any Run
+function Open-AkariDriftReview {
+    if (-not $script:Drift.Count -or $script:Busy) { return }
+    Push-AkariHistory
+    $script:Cat = 'Install AkariOS'; $script:Query = ''
+    $script:Mode = 'Guided'
+    $script:Step = 1
+    Show-Page
+    Set-AkariQuickSelect (ConvertTo-AkariDriftPreset $script:Drift)
+}
+
+$window.Add_Loaded({ Start-AkariDriftCheck $false })

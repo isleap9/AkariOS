@@ -75,6 +75,11 @@ Tools › Cleanup to a new Tools › Startup Category (its id and the AkariOS pr
   user's session; the launch check may be enough).
 - Tests: the drift list (pure, on fixture Tweaks and made-up States); expected.json written by the Runner for each
   Outcome kind; an oracle between the apps.
+- Built 2026-11-26 (Pester `tests/Drift.Tests.ps1`; native `DriftTests` with `Oracle/Export-Drift.ps1`, the app test in
+  `HomeSettingsTests`). Decided while building: each app keeps its own expected.json next to its state.json (as
+  state.json is per app); no daily task, the launch check (after a build change) and Check my setup only; Review
+  opens Guided's Tweaks step with the drifted settings ticked, as Import does, instead of a page of its own. The Run
+  history records (`history\*.json`) move to X4, the first batch that reads them. VM check: to do.
 
 ## X4 Undo last run
 

@@ -4,6 +4,9 @@
 # the Windows build number (22000 and up = Windows 11)
 function Get-AkariOSBuild { [Environment]::OSVersion.Version.Build }
 
+# the build with its update revision (CurrentBuild.UBR, e.g. 26100.2314): a Windows update changes it. Read only.
+function Get-AkariBuildRevision { $nt = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction SilentlyContinue; "$($nt.CurrentBuild).$($nt.UBR)" }
+
 # the Windows edition's EditionID (Core* = Home, Professional, Enterprise, ...). Read only; tests mock this.
 function Get-AkariEdition { "$((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction SilentlyContinue).EditionID)" }
 

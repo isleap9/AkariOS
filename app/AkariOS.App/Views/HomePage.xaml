@@ -19,6 +19,17 @@
                 </InfoBar.Content>
             </InfoBar>
 
+            <!-- the drift check's InfoBar (X3): AkariOS settings Windows changed back, dismissible -->
+            <InfoBar Severity="Warning" IsClosable="True"
+                     IsOpen="{x:Bind ViewModel.DriftBarOpen, Mode=OneWay}" Title="{x:Bind ViewModel.DriftTitle, Mode=OneWay}"
+                     Message="{x:Bind ViewModel.DriftMessage}" CloseButtonCommand="{x:Bind ViewModel.DismissDriftCommand}">
+                <InfoBar.Content>
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,12">
+                        <Button Content="Review" Style="{StaticResource AccentButtonStyle}" Command="{x:Bind ViewModel.ReviewDriftCommand}" />
+                    </StackPanel>
+                </InfoBar.Content>
+            </InfoBar>
+
             <!-- the hero (New-AkariHero): the logo, the headline, Start One-click and Choose changes, the facts -->
             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                     BorderThickness="1" CornerRadius="8" Padding="32">
