@@ -284,4 +284,31 @@ public sealed class HomeSettingsTests : IDisposable
         home.DismissDriftCommand.Execute(null);
         Assert.False(home.DriftBarOpen);
     }
+
+    [Fact]
+    public async Task Undo_puts_back_the_last_runs_values_after_asking()
+    {
+        var t = Make();
+        var s = t.Settings(new Theme(), new Settings());
+        // nothing yet
+        await s.UndoAsync();
+        Assert.Equal("There is no Run to undo yet. Guided and One-click Runs are kept here, the last 10.", t.Dialogs.Asked[^1]);
+
+        var row = Assert.Single(t.Engine.Find("fix-plain")!.Registry!);
+        t.Engine.Registry.SetValue(row.Path, row.Name!, 7, "DWord");
+        Core.Runs.PlanItem[] plan = [new("fix-plain", Core.Tweaks.TweakMode.Apply)];
+        t.Engine.History!.Record("Guided run", DateTime.Now, plan, t.Engine.Find, () => t.Engine.Runner.Run(plan, t.Engine.Find));
+        Assert.Equal(1u, t.Engine.Registry.GetValue(row.Path, row.Name!));
+
+        // asked with what goes back; cancelled = nothing
+        await s.UndoAsync();
+        Assert.Contains("- 1 setting go back to what it was before the Run", t.Dialogs.Asked[^1]);
+        Assert.Equal(1u, t.Engine.Registry.GetValue(row.Path, row.Name!));
+        t.Dialogs.Answers.Enqueue("Undo");
+        await s.UndoAsync();
+        Assert.Equal(7u, t.Engine.Registry.GetValue(row.Path, row.Name!));
+        Assert.Equal("Undid Guided run: 1 setting put back. Restart Windows if a change asked for it.", t.Toasts[0]);
+        Assert.Contains(t.Activity.All(), a => a.Title == "Undid \"Guided run\"");
+        Assert.Null(t.Engine.History.Last());
+    }
 }

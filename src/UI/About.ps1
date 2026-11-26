@@ -110,6 +110,7 @@ function Show-AkariSettings {
     foreach ($x in @(
         @('arrow-reset', 'System Restore', "Open Windows' restore points", { Start-Process "$env:SystemRoot\System32\rstrui.exe" }),
         @('document', 'Logs', 'Open the folder with akari.log', { Open-AkariLogFolder }),
+        @('rotate-ccw', 'Undo the last run', 'Put back the values the last Guided or One-click Run changed', { Start-AkariUndo }),
         @('shield-check', 'Check my setup', 'Find the AkariOS settings Windows changed back, e.g. after an update', { Start-AkariDriftCheck $true }),
         @('bug', 'Save a support file', 'A zip of the logs and this PC''s details for a bug report; your names are left out', { Save-AkariSupportFile }))) {
         $c = New-AkariSettingsCard $x[0] $x[1] $x[2] (New-AkariIcon 'external-link' 12 'Mu') 'CardButton'
@@ -343,3 +344,56 @@ function Open-AkariDriftReview {
 }
 
 $window.Add_Loaded({ Start-AkariDriftCheck $false })
+
+# ---- Undo the last run (X4, Core\History.ps1): the newest history record, what Undo can do with it asked first, then
+# one job (Kind Undo); an undone record is renamed <name>.undone, so the next Undo goes one Run further back
+
+# (pure) the question: the Run, then what goes back exactly, what goes back to Windows' default, what can't
+function Get-AkariUndoText($Record, $Plan, $Tweaks) {
+    $name = { param($id) $t = @($Tweaks | Where-Object { $_.Id -eq $id }) | Select-Object -First 1; if ($t) { $t.Name } else { $id } }
+    $when = try { ([datetime]$Record.When).ToString('d MMM yyyy, HH:mm', [Globalization.CultureInfo]::InvariantCulture) } catch { $Record.When }
+    $lines = @("Undo `"$($Record.Name)`" from $when?", '')
+    $n = @($Plan.Exact).Count; $d = @($Plan.Default).Count; $x = @($Plan.Never).Count
+    if ($n) { $lines += "- $n setting$(if ($n -ne 1) { 's' }) go back to what $(if ($n -ne 1) { 'they were' } else { 'it was' }) before the Run" }
+    if ($d) { $lines += "- $d go back to Windows' default (they run code, so their earlier values weren't saved): $((@($Plan.Default) | ForEach-Object { & $name $_ }) -join ', ')" }
+    if ($x) { $lines += "- $x can't be undone here (apps, one-time actions): $((@($Plan.Never) | ForEach-Object { & $name $_ }) -join ', ')" }
+    $lines -join "`n"
+}
+
+function Start-AkariUndo {
+    if ($script:Busy -or $script:Job) { Show-AkariMessage 'Wait for the changes running now to finish first.' 'Info' 'Undo the last run'; return }
+    $r = Get-AkariLastHistory
+    if (-not $r) { Show-AkariMessage 'There is no Run to undo yet. Guided and One-click Runs are kept here, the last 10.' 'Info' 'Undo the last run'; return }
+    $plan = Get-AkariUndoPlan $r $script:Tweaks
+    if (-not (@($plan.Exact).Count + @($plan.Default).Count)) {
+        Show-AkariMessage "Nothing in `"$($r.Name)`" can be undone here: it changed no settings, or only apps and one-time actions." 'Info' 'Undo the last run'
+        return
+    }
+    if (-not (Confirm-AkariDialog (Get-AkariUndoText $r $plan $script:Tweaks) 'Undo' 'Cancel' 'Question' 'Undo the last run')) { return }
+    $q = { param($x) "'" + ([string]$x -replace "'", "''") + "'" }
+    $shared = [hashtable]::Synchronized(@{ Path = $r.Path; Name = $r.Name })
+    $code = @"
+`$loaded = Get-AkariTweaks $(& $q "$Root\Tweaks")
+`$all = @(`$loaded.Tweaks) + @(Import-AkariLegacyTweaks $(& $q "$Root\Tweaks"))
+`$rec = Read-AkariHistory `$AkariShared.Path
+`$AkariShared.Outcomes = @(Invoke-AkariUndo `$rec `$all)
+if (-not @(`$AkariShared.Outcomes | Where-Object { `$_.Outcome -eq 'Failed' }).Count) { Move-Item -LiteralPath `$AkariShared.Path -Destination ([IO.Path]::ChangeExtension(`$AkariShared.Path, '.undone')) -Force }
+"@
+    $code = Add-AkariRestoreFirst $code ''
+    $label = "Undoing $($r.Name)"
+    Set-Busy $true $label $false
+    Add-Log $label
+    $script:Job = Start-AkariJob $code $script:Queue "$Root\Core" $shared
+    $script:Job.Label = $label
+    $script:Job.Kind = 'Undo'
+}
+
+function Complete-AkariUndo($Shared) {
+    $outs = @($Shared.Outcomes)
+    $ok = @($outs | Where-Object { $_.Outcome -in 'Reverted', 'Already' }).Count
+    $bad = @($outs | Where-Object { $_.Outcome -eq 'Failed' })
+    Add-AkariActivity "Undid `"$($Shared.Name)`"" 'Settings' $ok 'rotate-ccw'
+    if ($bad.Count) { Show-AkariMessage "$ok put back, $($bad.Count) failed:`n`n$(($bad | ForEach-Object { "- $($_.Id): $($_.Message)" }) -join "`n")`n`nThe log has the details; Undo can be run again." 'Warning' 'Undo the last run' }
+    else { Show-AkariToast "Undid $($Shared.Name)" "$ok setting$(if ($ok -ne 1) { 's' }) put back. Restart Windows if a change asked for it." }
+}
+

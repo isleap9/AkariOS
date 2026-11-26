@@ -44,7 +44,7 @@ function Test-AkariSafeMode { [bool]$env:SAFEBOOT_OPTION }
 # Outcomes = @(...) }. Saved to $AkariRunPath between restarts.
 
 function New-AkariRun([string]$Name, $Phases) {
-    @{ Name = $Name; Sid = (Get-AkariUserSid); Next = 0; Phases = @($Phases); Outcomes = @() }
+    @{ Name = $Name; Sid = (Get-AkariUserSid); Next = 0; Phases = @($Phases); Outcomes = @(); History = '' }
 }
 
 function Save-AkariRun($Run) {
@@ -127,7 +127,18 @@ function Start-AkariPhases($Run, $Tweaks, [string]$AkariPath = "$AkariRoot\Akari
         # a phase that restarts the PC itself (DDU) sets up the next boot first; otherwise that waits until the phase is done
         if ($next -and $restarts) { Set-AkariNextBoot $next.Boot $AkariPath }
         elseif ($restarts -and $safe) { Set-AkariSafeBoot $false }
+        # X4: one history record for the whole Run, across its restarts (Core\History.ps1)
+        $AkariHistoryFile = ''
+        if (Get-Command New-AkariHistory -ErrorAction SilentlyContinue) {
+            if (-not "$($Run.History)") {
+                $h = New-AkariHistory $Run.Name
+                if ($Run -is [hashtable]) { $Run.History = $h } else { $Run | Add-Member History $h -Force }
+                Save-AkariRun $Run
+            }
+            $AkariHistoryFile = "$($Run.History)"
+        }
         $out = @(Invoke-AkariPlan $ph.Items $Tweaks); $lastOut = $out
+        if ($AkariHistoryFile) { Add-AkariHistoryOutcomes $AkariHistoryFile $out }
         $Run.Outcomes = @($Run.Outcomes) + $out
         foreach ($o in $out) { Write-ErrLog ('{0,-9} {1}  {2}' -f $o.Outcome, $o.Id, $o.Message) }
         Save-AkariRun $Run

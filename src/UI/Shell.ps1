@@ -683,6 +683,7 @@ $timer.Add_Tick({
             'Uninstall' { Complete-AkariUninstall $j.Shared; $show = $false }
             'AppsInstalled' { Complete-AkariInstalledRead $j.Shared; $show = $false }
             'Export' { Complete-AkariExport $j.Shared; $show = $false }
+            'Undo' { Complete-AkariUndo $j.Shared; $show = $false }
         }
         # the ISO Builder's jobs (UI\IsoBuilder.ps1): after Set-Busy, so a finished step can start the next
         if ("$($j.Kind)" -like 'Iso*') { Complete-AkariIsoJob $j }

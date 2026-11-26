@@ -140,7 +140,8 @@ internal sealed record AppTest(Engine Engine, CatalogueViewModel Catalogue, Shel
 
     /// <summary>Settings; its theme and settings stores are the framework's on a file in the test's folder.</summary>
     public SettingsViewModel Settings(AkariOS.Framework.Services.IThemeService theme, AkariOS.Framework.Services.ISettingsService settings) =>
-        new(theme, settings, Open, Picker, Dialogs, Work, Shell, Engine, Updates, new AccentChoice(Accent.Akari, Accents.Add), Install);
+        new(theme, settings, Open, Picker, Dialogs, Work, Shell, Engine, Updates, new AccentChoice(Accent.Akari, Accents.Add), Install,
+            Drift(settings), Catalogue, Activity);
 }
 
 internal sealed class AppHarness : IDisposable
@@ -267,6 +268,7 @@ internal sealed class AppHarness : IDisposable
         var apps = new Core.Apps.AppPackages(packages, dism, log);
         var (explorer, shutdown, points, boot) = (new FakeExplorer(), new FakeShutdown(), new FakeRestore(), new FakeBoot());
         var runs = new RunStore(Path.Combine(Dir, "run.json"), () => boot.Steps.Add("clear"));
+        var registry = new RegistryEngine(new RedirectedRegistryPaths(_root));
         var engine = new Engine
         {
             RunStore = runs,
@@ -277,11 +279,12 @@ internal sealed class AppHarness : IDisposable
                 Winget = new Core.Apps.Winget(winget, packages, new NoDownloads(), apps, null, log, Dir, @"C:\Windows", _ => { }),
             },
             Files = files,
-            Registry = new RegistryEngine(new RedirectedRegistryPaths(_root)),
+            Registry = registry,
             System = new Pc(chassis),
             Log = log,
             Remembered = new JsonRememberedState(Path.Combine(Dir, "state.json")),
             Expected = new ExpectedStore(Path.Combine(Dir, "expected.json")),
+            History = new RunHistory(Path.Combine(Dir, "history"), registry, log),
             Explorer = explorer,
             Presets = new PresetStore(files, Path.Combine(Dir, "presets"), Path.Combine(Dir, "lastused.json"), log),
             Codes = new Dictionary<string, ITweakCode>(),

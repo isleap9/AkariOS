@@ -179,8 +179,8 @@
                             </ItemsControl>
                         </StackPanel>
                     </Border>
-                    <InfoBar Severity="Warning" IsOpen="True" IsClosable="False" Margin="0,8,0,0" Title="There is no uninstaller"
-                             Message="Use One-click on a fresh install or a PC you can reinstall." />
+                    <InfoBar Severity="Warning" IsOpen="True" IsClosable="False" Margin="0,8,0,0" Title="Undo covers settings only"
+                             Message="Settings › Recovery › Undo the last run puts settings back; removed apps and drivers stay removed. Use One-click on a fresh install or a PC you can reinstall." />
                 </StackPanel>
 
                 <!-- Guided › Apps -->

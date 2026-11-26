@@ -99,6 +99,18 @@
             <Border Style="{StaticResource CardBorder}">
                 <Grid ColumnSpacing="16">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE7A7;" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="Undo the last run" />
+                        <TextBlock Text="Put back the values the last Guided or One-click Run changed" TextWrapping="Wrap"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" Style="{StaticResource CaptionTextBlockStyle}" />
+                    </StackPanel>
+                    <Button Grid.Column="2" Content="Undo…" VerticalAlignment="Center" Command="{x:Bind ViewModel.UndoCommand}" />
+                </Grid>
+            </Border>
+            <Border Style="{StaticResource CardBorder}">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                     <FontIcon Glyph="&#xE73E;" VerticalAlignment="Center" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock Text="Check my setup" />

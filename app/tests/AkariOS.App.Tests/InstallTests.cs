@@ -340,7 +340,7 @@ public sealed class InstallTests : IDisposable
     {
         var t = Make();
         await t.Install.StartOneClickAsync();
-        Assert.Contains("There is no uninstaller", t.Dialogs.Asked[^1]);
+        Assert.Contains("Undo (Settings › Recovery) puts settings back", t.Dialogs.Asked[^1]);
         Assert.Empty(t.OneClicks);
         t.Dialogs.Answers.Enqueue("Start One-click");
         await t.Install.StartOneClickAsync();

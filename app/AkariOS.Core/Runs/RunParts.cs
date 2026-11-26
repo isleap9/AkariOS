@@ -24,6 +24,7 @@ public sealed class RunStore(string path, Action onClear) : IRunStore
             ["Name"] = run.Name,
             ["Sid"] = run.Sid,
             ["Next"] = run.Next,
+            ["History"] = run.History,
             ["Phases"] = new JsonArray([.. run.Phases.Select(p => new JsonObject
             {
                 ["Name"] = p.Name,
@@ -57,6 +58,7 @@ public sealed class RunStore(string path, Action onClear) : IRunStore
                 Name = Str(j, "Name"),
                 Sid = Str(j, "Sid"),
                 Next = j.TryGetProperty("Next", out var n) && n.ValueKind == JsonValueKind.Number ? n.GetInt32() : 0,
+                History = Str(j, "History"),
                 Phases = List(j, "Phases").Select(p => new RunPhase
                 {
                     Name = Str(p, "Name"),

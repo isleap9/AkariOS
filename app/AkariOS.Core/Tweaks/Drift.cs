@@ -51,6 +51,16 @@ public sealed class ExpectedStore(string path)
         _ => null,
     };
 
+    /// <summary>Remove-AkariExpected: Undo put the user's own value back.</summary>
+    public void Remove(string id)
+    {
+        var s = All();
+        if (!s.Remove(id)) return;
+        var o = s.OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(p => p.Key, p => new Dictionary<string, object?> { ["Mode"] = p.Value.Mode.ToString(), ["Value"] = p.Value.Value, ["When"] = p.Value.When });
+        File.WriteAllText(Path, JsonSerializer.Serialize(o, new JsonSerializerOptions { WriteIndented = true }));
+    }
+
     /// <summary>Set-AkariExpected: Toggles and Choices only (not Group Entries); Value kept for a Choice's Apply.</summary>
     public void Set(Tweak t, TweakMode mode, object? value, DateTime now)
     {

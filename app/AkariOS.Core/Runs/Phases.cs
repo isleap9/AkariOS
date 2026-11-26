@@ -33,6 +33,9 @@ public sealed class PhaseRun
 
     public List<RunPhase> Phases { get; set; } = [];
     public List<Outcome> Outcomes { get; init; } = [];
+
+    /// <summary>Its history record (X4: Undo), made when its first phase runs; '' = none.</summary>
+    public string History { get; set; } = "";
 }
 
 public enum PhasesStatus { Done, Restarting, Stopped }
@@ -75,6 +78,9 @@ public sealed class PhaseParts
     public required IRunStore Store { get; init; }
     public required IRunBoot Boot { get; init; }
     public required IAkariLog Log { get; init; }
+
+    /// <summary>The Run history (X4): one record for the whole Run, across its restarts; null = none kept.</summary>
+    public RunHistory? History { get; init; }
 }
 
 /// <summary>
@@ -145,7 +151,14 @@ public sealed class Phases(PhaseParts parts)
             // a phase that restarts the PC itself (DDU) sets up the next boot first; otherwise that waits until it is done
             if (next != null && restarts) parts.Boot.Next(next.Boot);
             else if (restarts && safe) parts.Boot.SafeBoot(false);
+            // X4: one history record for the whole Run (Core\History.ps1's), the rows before each phase's changes
+            if (parts.History is { } h)
+            {
+                if (run.History.Length == 0) { run.History = h.New(run.Name, DateTime.Now); parts.Store.Save(run); }
+                h.AddBefore(run.History, ph.Items.Select(x => parts.Find(x.Id)));
+            }
             var outcomes = parts.Plan(ph.Items);
+            if (parts.History is { } hist && run.History.Length > 0) hist.AddOutcomes(run.History, outcomes);
             lastOut = outcomes;
             run.Outcomes.AddRange(outcomes);
             foreach (var o in outcomes) Log.WriteFile(OutcomeLine(o));

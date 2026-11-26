@@ -50,15 +50,18 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private readonly Action<string> _applyAccent;
     private readonly InstallViewModel _install;
     private readonly DriftCheck? _drift;
+    private readonly CatalogueViewModel? _catalogue;
+    private readonly ActivityLog? _activity;
     private AppTheme _selectedTheme;
     private string _selectedAccent;
 
     public SettingsViewModel(IThemeService theme, ISettingsService settings, IShellOpen open, IFilePicker picker, IDialogService dialogs,
         IBackground background, ShellState shell, Engine engine, UpdateService updates, AccentChoice accent, InstallViewModel install,
-        DriftCheck? drift = null)
+        DriftCheck? drift = null, CatalogueViewModel? catalogue = null, ActivityLog? activity = null)
     {
         _install = install;
         _drift = drift;
+        (_catalogue, _activity) = (catalogue, activity);
         (_theme, _settings, _open, _picker, _dialogs, _background, _shell, _engine) = (theme, settings, open, picker, dialogs, background, shell, engine);
         Updates = updates;
         _applyAccent = accent.Apply;
@@ -156,6 +159,40 @@ public sealed partial class SettingsViewModel : ViewModelBase
     /// <summary>Check my setup (X3): the drift check now; found = Guided with them picked, else a toast.</summary>
     [RelayCommand]
     public Task CheckSetupAsync() => _drift?.CheckAsync(manual: true) ?? Task.CompletedTask;
+
+    public const string UndoTitle = "Undo the last run";
+
+    /// <summary>Start-AkariUndo (X4): the newest Run record, what Undo can do with it asked first, then one change
+    /// through the Catalogue's queue (the session's restore point first); an undone record is set aside, so the next
+    /// Undo goes one Run further back.</summary>
+    [RelayCommand]
+    public async Task UndoAsync()
+    {
+        if (_engine.History is not { } history || _catalogue is null) return;
+        if (history.Last() is not { } r)
+        {
+            await _dialogs.ShowInfoAsync(UndoTitle, "There is no Run to undo yet. Guided and One-click Runs are kept here, the last 10.");
+            return;
+        }
+        var plan = Core.Runs.RunHistory.Plan(r, _engine.Find);
+        if (plan.Exact.Count + plan.Default.Count == 0)
+        {
+            await _dialogs.ShowInfoAsync(UndoTitle, $"Nothing in \"{r.Name}\" can be undone here: it changed no settings, or only apps and one-time actions.");
+            return;
+        }
+        if (!await _dialogs.ConfirmAsync(UndoTitle, Core.Runs.RunHistory.UndoText(r, plan, _engine.Find), "Undo", "Cancel")) return;
+        var done = new TaskCompletionSource<object?>();
+        _catalogue.Enqueue($"Undoing {r.Name}", restore: true, () => { },
+            () => history.Undo(r, _engine.Find, _engine.Runner, _engine.Explorer, _engine.Expected), res => done.SetResult(res));
+        var outs = await done.Task as IReadOnlyList<Core.Runs.Outcome> ?? [];
+        var ok = outs.Count(o => o.Kind is Core.Runs.OutcomeKind.Reverted or Core.Runs.OutcomeKind.Already);
+        var bad = outs.Where(o => o.Kind == Core.Runs.OutcomeKind.Failed).ToList();
+        _activity?.Add($"Undid \"{r.Name}\"", "Settings", ok, "Undo");
+        if (bad.Count > 0)
+            _shell.Toast($"{ok} put back, {bad.Count} failed", string.Join('\n', bad.Select(o => $"{o.Id}: {o.Message}")) + "\nThe log has the details; Undo can be run again.",
+                InfoBarSeverity.Warning);
+        else _shell.Toast($"Undid {r.Name}", $"{ok} setting{(ok != 1 ? "s" : "")} put back. Restart Windows if a change asked for it.");
+    }
 
     /// <summary>Start-AkariImport: a preset file into Install AkariOS › Guided's Tweaks step.</summary>
     [RelayCommand]

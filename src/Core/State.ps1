@@ -90,6 +90,19 @@ function Set-AkariExpected($Tweak, [string]$Mode, $Value = $null) {
     } catch { Write-ErrLog "expected.json: $($_.Exception.Message)" }
 }
 
+# forgets what a Tweak should be (Undo put the user's own value back)
+function Remove-AkariExpected([string]$Id) {
+    if (-not $AkariExpectedPath) { return }
+    $s = Get-AkariExpected
+    if (-not $s.ContainsKey($Id)) { return }
+    $s.Remove($Id)
+    try {
+        $o = [ordered]@{}
+        foreach ($k in @($s.Keys | Sort-Object)) { $o[$k] = [ordered]@{ Mode = $s[$k].Mode; Value = $s[$k].Value; When = $s[$k].When } }
+        ($o | ConvertTo-Json -Depth 4) | Set-Content $AkariExpectedPath -Encoding UTF8
+    } catch { Write-ErrLog "expected.json: $($_.Exception.Message)" }
+}
+
 # (pure) whether a setting went off what was last asked: Revert = its State isn't Default; Apply = not Optimized, or,
 # for a Choice set to a value, its current value isn't that value. Unknown is never drift (it can't be told).
 function Test-AkariDrift([string]$Kind, [string]$Mode, $Value, [string]$State, $Current) {

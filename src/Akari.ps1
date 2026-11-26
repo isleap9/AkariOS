@@ -8,11 +8,13 @@ param([switch]$List, [string[]]$Apply, [string[]]$Revert, [string]$Preset, [stri
 
 # what each setting should be, for the drift check (Core\State.ps1); every branch records its changes
 $AkariExpectedPath = Join-Path $env:LOCALAPPDATA 'Akari\expected.json'
+# the Run history Undo reads (Core\History.ps1)
+$AkariHistoryDir = Join-Path $env:LOCALAPPDATA 'Akari\history'
 
 # ---- CLI: no relaunch, no WPF
 if ($List -or $Apply -or $Revert -or $Preset -or $RevertPreset) {
     $CoreDir = Join-Path $PSScriptRoot 'Core'
-    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Appx', 'Winget', 'AppSetup', 'System', 'Presets', 'Phases', 'Restore') { . "$CoreDir\$f.ps1" }
+    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Appx', 'Winget', 'AppSetup', 'System', 'Presets', 'Phases', 'Restore', 'History') { . "$CoreDir\$f.ps1" }
     $loaded = Get-AkariTweaks (Join-Path $PSScriptRoot 'Tweaks')
     Write-AkariProblems $loaded.Problems { param($m) [Console]::Error.WriteLine($m) }
     if ($List) {
@@ -56,7 +58,7 @@ if ($Resume) {
         Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Maximized -File `"$PSCommandPath`" -Resume" -Verb RunAs
         exit
     }
-    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Appx', 'Winget', 'AppSetup', 'System', 'Presets', 'Phases', 'Restore') { . "$PSScriptRoot\Core\$f.ps1" }
+    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Appx', 'Winget', 'AppSetup', 'System', 'Presets', 'Phases', 'Restore', 'History') { . "$PSScriptRoot\Core\$f.ps1" }
     Write-AkariBanner 'AkariOS is continuing...'
     $run = Get-AkariRun
     if (-not $run) { Write-Log 'Nothing to continue.'; exit }
@@ -74,7 +76,7 @@ if ($FirstSignIn) {
         Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Maximized -File `"$PSCommandPath`" -FirstSignIn" -Verb RunAs
         exit
     }
-    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Appx', 'Winget', 'AppSetup', 'System', 'Presets', 'Phases', 'Restore') { . "$PSScriptRoot\Core\$f.ps1" }
+    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Appx', 'Winget', 'AppSetup', 'System', 'Presets', 'Phases', 'Restore', 'History') { . "$PSScriptRoot\Core\$f.ps1" }
     Write-AkariBanner 'AkariOS is finishing setting up this Windows...'
     $loaded = Get-AkariTweaks (Join-Path $PSScriptRoot 'Tweaks')
     $oneClickPreset = Find-AkariPreset 'AkariOS' (Join-Path $PSScriptRoot 'Presets')
@@ -117,7 +119,7 @@ foreach ($c in @($Root, (Split-Path -Parent $Root), "$Root\Tweaks")) {
     if ($c -and (Test-Path "$c\UI\MainWindow.xaml") -and (Test-Path "$c\Tweaks")) { $Root = $c; break }
 }
 # ---- Core: helpers, loader, state and runner (the background job loads the same files)
-foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Appx', 'Winget', 'AppSetup', 'Restore', 'System', 'Presets', 'Phases', 'Version', 'Update', 'Unattend', 'Iso', 'IsoDownload', 'Support', 'Startup') { . "$Root\Core\$f.ps1" }
+foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Appx', 'Winget', 'AppSetup', 'Restore', 'System', 'Presets', 'Phases', 'Version', 'Update', 'Unattend', 'Iso', 'IsoDownload', 'Support', 'Startup', 'History') { . "$Root\Core\$f.ps1" }
 # the folder an update replaces (the zip's folder, or C:\AkariOS from the one-liner); none when run through iex
 $AkariInstallDir = if ($PSScriptRoot) { $Root } else { '' }
 # after an update: the previous copy (<folder>.old) and the download folder go

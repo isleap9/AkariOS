@@ -60,6 +60,9 @@ public sealed class Engine
     /// <summary>expected.json (X3: the drift check); null = not recorded (tests unless they set one).</summary>
     public ExpectedStore? Expected { get; init; }
 
+    /// <summary>The Run history Undo reads (X4); null = none kept (tests unless they set one).</summary>
+    public RunHistory? History { get; init; }
+
     public RestorePoints? RestorePoints => SystemRestore is null ? null : new(SystemRestore, Registry, Log);
 
     /// <summary>A Tweak or Entry by id (an Entry of something on this PC is built from its id).</summary>
@@ -73,6 +76,7 @@ public sealed class Engine
         System = System,
         InSafeMode = InSafeMode,
         Plan = items => Runner.Run(items, Find),
+        History = History,
         Prepare = (t, i) => Runner.Prepare(t, i.Mode),
         Store = RunStore ?? throw new InvalidOperationException("this engine has no run.json"),
         Boot = RunBoot ?? throw new InvalidOperationException("this engine can't set up the next boot"),
@@ -101,6 +105,7 @@ public sealed class Engine
             Log = log,
             Remembered = remembered,
             Expected = new ExpectedStore(Path.Combine(AkariPaths.UserFolder, "expected.json")),
+            History = new RunHistory(Path.Combine(AkariPaths.UserFolder, "history"), registry, log),
             Explorer = explorer,
             Presets = new PresetStore(new EmbeddedSourceFiles(), AkariPaths.PresetFolder, Path.Combine(AkariPaths.UserFolder, "lastused.json"), log),
             Codes = codes,

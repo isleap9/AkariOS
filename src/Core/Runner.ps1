@@ -192,6 +192,8 @@ function Invoke-AkariPlan([object[]]$Items, $Tweaks) {
         Set-AkariProgress $done $total $(if ($t) { $t.Name } else { $i.Id })
         $done++
         if (-not $t) { Write-Log "Failed: $($i.Id) (unknown tweak id)"; New-AkariOutcome $i.Id $i.Mode 'Failed' $false 'Unknown tweak id'; continue }
+        # X4: the values as they were, for Undo (Core\History.ps1; loaded where a recorded Run runs)
+        if ($AkariHistoryFile -and (Get-Command Add-AkariHistoryBefore -ErrorAction SilentlyContinue)) { Add-AkariHistoryBefore $AkariHistoryFile $t }
         $o = Invoke-AkariTweak $t $i.Mode $i.Value
         if ($t.Explorer -and $o.Outcome -in 'Applied', 'Reverted') { $explorer = $true }
         $o
@@ -252,9 +254,10 @@ function Start-AkariJob([string]$Code, $Queue, [string]$CoreDir, [hashtable]$Sha
     $rs.SessionStateProxy.SetVariable('AkariShared', $Shared)
     # where Invoke-AkariTweak records what each setting should be (State.ps1, X3)
     $rs.SessionStateProxy.SetVariable('AkariExpectedPath', $AkariExpectedPath)
+    $rs.SessionStateProxy.SetVariable('AkariHistoryDir', $AkariHistoryDir)
     $ps = [powershell]::Create()
     $ps.Runspace = $rs
-    $pre = (@('Log', 'Compat', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Restore', 'Appx', 'Winget', 'AppSetup', 'System', 'Phases', 'Presets', 'Iso', 'IsoDownload', 'Startup') | ForEach-Object { ". '$CoreDir\$_.ps1'" }) -join "`n"
+    $pre = (@('Log', 'Compat', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Restore', 'Appx', 'Winget', 'AppSetup', 'System', 'Phases', 'Presets', 'Iso', 'IsoDownload', 'Startup', 'History') | ForEach-Object { ". '$CoreDir\$_.ps1'" }) -join "`n"
     $wrapped = $pre + "`ntry {`n& {`n" + $Code + "`n} *>&1 | Out-String -Stream | ForEach-Object { if (`$_.Trim()) { Write-Log `$_ } }`n} catch { Write-Log ('Error: ' + `$_.Exception.Message) }"
     [void]$ps.AddScript($wrapped)
     @{ Ps = $ps; Rs = $rs; Handle = $ps.BeginInvoke(); Shared = $Shared }

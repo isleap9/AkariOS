@@ -102,6 +102,13 @@ user's own values.
   `Invoke-AkariUndo`); native `Runs/History.cs`.
 - Tests: a Run on a test key, then Undo, then every value is byte for byte what it was (each kind, absent values, key
   rows); the Undo plan's three lists (pure, oracle).
+- Built 2026-11-26 (Pester `tests/History.Tests.ps1`; native `HistoryTests`, the Settings test in `HomeSettingsTests`).
+  Decided while building: a Tweak with a key row is not undoable exactly (it goes to Windows' default), so a deleted
+  key's contents never need saving; Undo lives in Settings › Recovery ("Undo the last run": the newest record, set
+  aside as `.undone` once done, so the next Undo goes one Run further back), not on Recent activity's rows; Recorded
+  Runs are Guided's and Runs in phases (One-click, CLI presets), not single Optimize changes (a switch flips back);
+  the "There is no uninstaller" warnings now say what Undo covers. No oracle: each app reads only its own records.
+  VM check: to do.
 
 ## X5 Per-game settings
 

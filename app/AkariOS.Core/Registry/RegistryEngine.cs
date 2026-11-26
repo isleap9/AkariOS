@@ -42,6 +42,21 @@ public sealed class RegistryEngine(IRegistryPaths paths, ITrustedInstaller? trus
     public RegistryValueKind? GetKind(string path, string name) => Use(path, write: false, k =>
         k != null && k.GetValueNames().Contains(ValueName(name), StringComparer.OrdinalIgnoreCase) ? k.GetValueKind(ValueName(name)) : (RegistryValueKind?)null);
 
+    /// <summary>A value as stored (an ExpandString not expanded; a DWord as its uint), with its kind; null when missing
+    /// (Undo's saved values, X4).</summary>
+    public (RegistryValueKind Kind, object Data)? GetRaw(string path, string name) => Use(path, write: false, k =>
+    {
+        var n = ValueName(name);
+        if (k is null || !k.GetValueNames().Contains(n, StringComparer.OrdinalIgnoreCase)) return ((RegistryValueKind, object)?)null;
+        var data = k.GetValue(n, null, RegistryValueOptions.DoNotExpandEnvironmentNames) switch
+        {
+            int i => unchecked((uint)i),
+            long l => unchecked((ulong)l),
+            var v => v,
+        };
+        return data is null ? null : (k.GetValueKind(n), data);
+    });
+
     public bool KeyExists(string path) => Use(path, write: false, k => k != null);
 
     /// <summary>The names of a key's values (empty when it is missing); the unnamed one is '(default)'.</summary>

@@ -89,7 +89,7 @@ public sealed partial class InstallViewModel : ObservableObject
 
     /// <summary>Confirm-AkariOneClick.</summary>
     public const string OneClickWarning = "AkariOS changes a lot of Windows, including security features.\n\n" +
-        "- Run it on a fresh install or a PC you can reinstall. There is no uninstaller.\n" +
+        "- Run it on a fresh install or a PC you can reinstall. Undo (Settings › Recovery) puts settings back; removed apps and drivers stay removed.\n" +
         "- Security is reduced on purpose (Defender settings, UAC, memory integrity).\n" +
         "- Your PC restarts several times, once into Safe Mode. Save your work and don't interrupt it.\n" +
         "- Graphics and audio drivers are removed. Install a fresh graphics driver afterwards.\n" +
@@ -466,7 +466,13 @@ public sealed partial class InstallViewModel : ObservableObject
         {
             if (restore && _engine.RestorePoints?.Create("AkariOS") is { Ok: false } refused) return new Refused(refused.Message);
             if (restore) _background.Post(() => RunItems[0].State = RunState.Applied);
-            try { return _engine.Runner.Run(plan, _engine.Find, progress); }
+            try
+            {
+                // X4: a history record for Settings › Recovery › Undo the last run
+                return _engine.History is { } h
+                    ? h.Record("Guided run", DateTime.Now, plan, _engine.Find, () => _engine.Runner.Run(plan, _engine.Find, progress))
+                    : _engine.Runner.Run(plan, _engine.Find, progress);
+            }
             catch (Exception e) { _engine.Log.WriteFile($"Error: Guided run: {e}"); return null; }
         }, r => _ = Guard(AppliedAsync(r, plan, restore)));
     }

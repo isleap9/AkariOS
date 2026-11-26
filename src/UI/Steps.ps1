@@ -500,7 +500,7 @@ function Update-AkariStepFooter {
 # $Chassis Laptop adds the laptop note (the native LaptopNote)
 function Confirm-AkariOneClick([string]$Chassis = '') {
     $q = "AkariOS changes a lot of Windows, including security features.`n" +
-         "- Run it on a fresh install or a PC you can reinstall. There is no uninstaller.`n" +
+         "- Run it on a fresh install or a PC you can reinstall. Undo (Settings > Recovery) puts settings back; removed apps and drivers stay removed.`n" +
          "- Security is reduced on purpose (Defender settings, UAC, memory integrity).`n" +
          "- Your PC restarts several times, once into Safe Mode. Save your work and don't interrupt it.`n" +
          "- Graphics and audio drivers are removed. Install a fresh graphics driver afterwards.`n" +
@@ -581,7 +581,7 @@ function Show-AkariChooser {
     }
     [void]$ex.Body.Children.Add((New-AkariExpanderRow $ph $null 16))
     [void]$StepBody.Children.Add($ex.Card)
-    $w = New-AkariInfoBar 'Warn' 'There is no uninstaller' 'Use One-click on a fresh install or a PC you can reinstall.'
+    $w = New-AkariInfoBar 'Warn' 'Undo covers settings only' 'Settings > Recovery > Undo the last run puts settings back; removed apps and drivers stay removed. Use One-click on a fresh install or a PC you can reinstall.'
     $w.Bar.Margin = [Windows.Thickness]::new(0, 16, 0, 0)
     [void]$StepBody.Children.Add($w.Bar)
 }
@@ -763,7 +763,9 @@ function Start-AkariApply($Plan = $null, [string]$Label = '', [string]$Restore =
     $q = { param($s) "'" + ([string]$s -replace "'", "''") + "'" }
     $items = @(if ($Plan) { $Plan } else { Get-AkariPlanItems $script:Sel })
     $skip = if ($Restore) { -not (Get-AkariRestoreChoice $Restore) } elseif ($Plan) { $true } else { -not (Get-AkariRestoreChoice $script:Mode) }
-    $shared = [hashtable]::Synchronized(@{ Plan = $items; SkipRestore = $skip })
+    # X4: a Guided Run keeps a history record, for Settings > Recovery > Undo the last run (Core\History.ps1)
+    $history = if ($Kind -eq 'Apply' -and -not $Plan) { 'Guided run' } else { '' }
+    $shared = [hashtable]::Synchronized(@{ Plan = $items; SkipRestore = $skip; History = $history })
     # the job loads the tweaks itself: a script block must not cross runspaces
     $code = @"
 `$root = $(& $q "$Root\Tweaks")
@@ -775,7 +777,9 @@ if (-not `$AkariShared.SkipRestore) {
     `$AkariShared.Restore = New-AkariRestorePoint 'AkariOS'
     if (-not `$AkariShared.Restore.Ok) { return }
 }
+`$AkariHistoryFile = if (`$AkariShared.History) { New-AkariHistory `$AkariShared.History } else { '' }
 `$AkariShared.Outcomes = @(Invoke-AkariPlan `$AkariShared.Plan `$all)
+if (`$AkariHistoryFile) { Add-AkariHistoryOutcomes `$AkariHistoryFile `$AkariShared.Outcomes }
 "@
     $n = $items.Count
     $label = if ($Label) { $Label } else { 'Applying changes' }
