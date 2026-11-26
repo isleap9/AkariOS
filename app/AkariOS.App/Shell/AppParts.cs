@@ -23,6 +23,9 @@ public interface IFilePicker
 
     /// <summary>Where to save a zip (Settings › Recovery's support file).</summary>
     Task<string?> SaveZipAsync(string suggestedName);
+
+    /// <summary>A program (*.exe): Optimize › Gaming's "Add a game…".</summary>
+    Task<string?> OpenExeAsync();
 }
 
 /// <summary>
@@ -64,6 +67,13 @@ public sealed class WindowFilePicker : IFilePicker
     {
         var picker = new Microsoft.Windows.Storage.Pickers.FileOpenPicker(_window());
         picker.FileTypeFilter.Add(".xml");
+        return (await picker.PickSingleFileAsync())?.Path;
+    }
+
+    public async Task<string?> OpenExeAsync()
+    {
+        var picker = new Microsoft.Windows.Storage.Pickers.FileOpenPicker(_window());
+        picker.FileTypeFilter.Add(".exe");
         return (await picker.PickSingleFileAsync())?.Path;
     }
 

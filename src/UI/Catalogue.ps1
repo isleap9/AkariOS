@@ -9,11 +9,12 @@ $AkariCatalogueSearch = 'Catalogue:Search'
 $AkariCatalogueSections = 'Optimize', 'Customize', 'Hardware', 'Advanced', 'Tools'
 $AkariCatalogueHeaders = @{ Hardware = 'Graphics & Hardware' }
 # Category pages that also list what is on the PC, under their Tweaks (the search filters that list there): the page
-# key -> the function that adds the list (UI\ServicesPage.ps1, UI\TasksPage.ps1, UI\StartupPage.ps1) and the search box's placeholder
+# key -> the function that adds the list (UI\ServicesPage.ps1, UI\TasksPage.ps1, UI\StartupPage.ps1, UI\GamesPage.ps1) and the search box's placeholder
 $AkariCatalogueLists = @{
     'Catalogue:Advanced/Services'        = @{ Show = 'Show-AkariServiceList'; Hint = 'Search services' }
     'Catalogue:Advanced/Scheduled tasks' = @{ Show = 'Show-AkariTaskList'; Hint = 'Search tasks' }
     'Catalogue:Tools/Startup'            = @{ Show = 'Show-AkariStartupList'; Hint = 'Search startup apps' }
+    'Catalogue:Optimize/Gaming'          = @{ Show = 'Show-AkariGameList'; Hint = 'Search games' }
 }
 
 # the Tweaks the Catalogue lists: one-file Toggles, Choices and Actions (no Legacy, no Group Entries, not the Apps or

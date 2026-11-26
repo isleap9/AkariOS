@@ -156,6 +156,7 @@ public partial class App : Application
         services.AddSingleton<ServicesListViewModel>();
         services.AddSingleton<TasksListViewModel>();
         services.AddSingleton<StartupListViewModel>();
+        services.AddSingleton<GamesListViewModel>();
         services.AddSingleton<DriftCheck>();
         services.AddTransient<CataloguePageViewModel>();
         services.AddSingleton(_ => new AppIcons(AssetFiles.Default));

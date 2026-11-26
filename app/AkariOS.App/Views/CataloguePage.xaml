@@ -97,6 +97,7 @@
                             <views:ServicesListView DataContext="{x:Bind Services}" Visibility="{x:Bind HasServices}" />
                             <views:TasksListView DataContext="{x:Bind Tasks}" Visibility="{x:Bind HasTasks}" />
                             <views:StartupListView DataContext="{x:Bind Startup}" Visibility="{x:Bind HasStartup}" />
+                            <views:GamesListView DataContext="{x:Bind Games}" Visibility="{x:Bind HasGames}" />
                         </StackPanel>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>

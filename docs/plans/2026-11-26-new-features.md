@@ -134,6 +134,11 @@ A list on the Optimize › Gaming page (`$AkariCatalogueLists`, under its Tweaks
   `Set-AkariGameSetting`); native `Machine/Games.cs`, `GamesListViewModel`.
 - Tests: the VDF and manifest readers on fixtures (`tests/Fixtures/Games/`), each switch on a test key, the Layers
   value merge (pure, oracle).
+- Built 2026-11-26 (Pester `tests/Games.Tests.ps1`; native `GamesTests` with `Oracle/Export-Games.ps1`, the list's test
+  in `ServicesTasksTests`). Decided while building: Steam, Epic, GOG and games added by hand (Battle.net and Xbox
+  left out: neither keeps a list of exes to read); a Steam game's exe is guessed (the biggest exe that isn't a
+  helper, three folders down) and Add a game… covers a wrong guess; games stay out of presets and Export; the fixtures
+  are written by the tests themselves, no `tests/Fixtures/Games/`. VM check: to do.
 
 ## X6 Before and after numbers
 

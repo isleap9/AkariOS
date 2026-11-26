@@ -28,13 +28,18 @@ internal sealed record AppTest(Engine Engine, CatalogueViewModel Catalogue, Shel
     /// <summary>A page as the window opens it.</summary>
     public CataloguePageViewModel Page(string key, string query = "")
     {
-        var p = new CataloguePageViewModel(Catalogue, ServiceList, TaskList, new Navigator(Navigated), StartupList);
+        var p = new CataloguePageViewModel(Catalogue, ServiceList, TaskList, new Navigator(Navigated), StartupList, GameList);
         p.OnNavigatedTo(new CatalogueQuery(key, query));
         return p;
     }
 
     public ActivityLog Activity { get; init; } = null!;
     public StartupListViewModel StartupList { get; init; } = null!;
+    /// <summary>Optimize › Gaming's games (X5): no launcher, a GOG key on the test key, games.json in the test folder;
+    /// the registry is the test key's, so the switches' real paths are safe.</summary>
+    public GamesListViewModel GameList => _games ??= new GamesListViewModel(Engine, Work, Picker, Catalogue,
+        new Core.Machine.Games(Engine.Registry, new Core.Machine.GameSources("", "", @"HKLM:\GOG", Path.Combine(Path.GetDirectoryName(AssetDir)!, "games.json"))));
+    private GamesListViewModel? _games;
     public FakePackages Packages { get; init; } = null!;
     public FakeDism Dism { get; init; } = null!;
     public FakeWinget Winget { get; init; } = null!;
@@ -361,6 +366,8 @@ internal sealed class AppHarness : IDisposable
         public Task<string?> OpenIsoAsync() => Task.FromResult(IsoPath);
         public string? ZipPath { get; set; }
         public Task<string?> SaveZipAsync(string suggestedName) { Suggested.Add(suggestedName); return Task.FromResult(ZipPath); }
+        public string? ExePath { get; set; }
+        public Task<string?> OpenExeAsync() => Task.FromResult(ExePath);
     }
 
     /// <summary>The timers started (the Massgrave watch): Tick calls every one still running.</summary>

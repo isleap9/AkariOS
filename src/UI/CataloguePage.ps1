@@ -418,6 +418,7 @@ function Start-AkariCatalogueNext {
     if ($it.Kind -eq 'Service') { Start-AkariServiceJob $it; return }
     if ($it.Kind -eq 'Task') { Start-AkariTaskJob $it; return }
     if ($it.Kind -eq 'Startup') { Start-AkariStartupJob $it; return }
+    if ($it.Kind -eq 'Game') { Start-AkariGameJob $it; return }
     $e = $script:CatCards[$it.Id]
     $t = $e.Tweak
     $e.Busy = 'Running'
@@ -464,6 +465,7 @@ function Complete-AkariCatalogueJob($Job) {
         'CatalogueService' { Complete-AkariServiceJob $s }
         'CatalogueTask' { Complete-AkariTaskJob $s }
         'CatalogueStartup' { Complete-AkariStartupJob $s }
+        'CatalogueGame' { Complete-AkariGameJob $s }
         'CatalogueExplorer' { $script:CatExplorer.Clear() }
         'CatalogueRun' { Complete-AkariCatalogueSafeRun $s }
     }

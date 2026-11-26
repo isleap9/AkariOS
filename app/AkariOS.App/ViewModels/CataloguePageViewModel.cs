@@ -27,8 +27,9 @@ public sealed record CategoryGroup(string Title, IReadOnlyList<CategoryLink> Lin
 /// <summary>A Category on a Catalogue page: its heading and cards (search results: "Section › Category"); the Services
 /// and Scheduled tasks pages list what is on the PC under their Tweaks.</summary>
 public sealed record CatalogueGroup(string Key, string Title, IReadOnlyList<TweakCardViewModel> Cards,
-    ServicesListViewModel? Services = null, TasksListViewModel? Tasks = null, StartupListViewModel? Startup = null)
+    ServicesListViewModel? Services = null, TasksListViewModel? Tasks = null, StartupListViewModel? Startup = null, GamesListViewModel? Games = null)
 {
+    public bool HasGames => Games is not null;
     public bool HasServices => Services is not null;
     public bool HasTasks => Tasks is not null;
     public bool HasStartup => Startup is not null;
@@ -42,11 +43,12 @@ public sealed record CatalogueGroup(string Key, string Title, IReadOnlyList<Twea
 /// <see cref="CatalogueViewModel"/>'s.
 /// </summary>
 public sealed partial class CataloguePageViewModel(CatalogueViewModel catalogue, ServicesListViewModel services, TasksListViewModel tasks, IShellNavigator navigator,
-    StartupListViewModel? startup = null) : ViewModelBase, INavigationAware
+    StartupListViewModel? startup = null, GamesListViewModel? games = null) : ViewModelBase, INavigationAware
 {
     public static readonly string ServicesKey = Core.Tweaks.Catalogue.Key("Advanced", "Services");
     public static readonly string TasksKey = Core.Tweaks.Catalogue.Key("Advanced", "Scheduled tasks");
     public static readonly string StartupKey = Core.Tweaks.Catalogue.Key("Tools", "Startup");
+    public static readonly string GamesKey = Core.Tweaks.Catalogue.Key("Optimize", "Gaming");
 
     public CatalogueViewModel Catalogue => catalogue;
 
@@ -161,10 +163,11 @@ public sealed partial class CataloguePageViewModel(CatalogueViewModel catalogue,
             }
             Groups = pages.Select(p => new CatalogueGroup(p.Key, p.Category,
                 Core.Tweaks.Catalogue.List(tweaks, p.Key, "").Select(catalogue.Card).ToList(),
-                p.Key == ServicesKey ? services : null, p.Key == TasksKey ? tasks : null, p.Key == StartupKey ? startup : null)).ToList();
+                p.Key == ServicesKey ? services : null, p.Key == TasksKey ? tasks : null, p.Key == StartupKey ? startup : null, p.Key == GamesKey ? games : null)).ToList();
             if (Groups.Any(g => g.HasServices)) services.Show();
             if (Groups.Any(g => g.HasTasks)) tasks.Show();
             if (Groups.Any(g => g.HasStartup)) startup?.Show();
+            if (Groups.Any(g => g.HasGames)) games?.Show();
         }
         Flash = q.Flash;
         catalogue.Highlight(Groups.SelectMany(g => g.Cards), IsSearch ? q.Query : "");

@@ -201,4 +201,40 @@ public sealed class ServicesTasksTests : IDisposable
         Assert.Equal(["Chat.lnk", "Contoso"], list.Shown.Select(r => r.Name));
         Assert.Contains(t.Activity.All(), a => a.Title == "Removed startup app \"Tool\"");
     }
+
+    [Fact]
+    public async Task The_games_list_sits_under_gaming_and_switches_each_games_settings()
+    {
+        var t = _h.Make();
+        var group = t.Page(CataloguePageViewModel.GamesKey).Groups.Single();
+        Assert.Same(t.GameList, group.Games);
+        Assert.Contains(group.Cards, c => c.Id == "gaming-windowed-optimizations");
+        Assert.All(t.Page(CataloguePageViewModel.StartupKey).Groups, g => Assert.False(g.HasGames));
+        var list = t.GameList;
+        Assert.Equal("0 games found", list.CountText);
+        Assert.Equal("No Steam, Epic or GOG games found. Add a game to set it up.", list.Message);
+
+        // Add a game…: cancelled = nothing; picked = in games.json and listed
+        await list.AddAsync();
+        Assert.Empty(list.Shown);
+        t.Picker.ExePath = @"C:\Games\Zeta\zeta.exe";
+        await list.AddAsync();
+        var row = Assert.Single(list.Shown);
+        Assert.Equal(("zeta", true, "Added  C:\\Games\\Zeta\\zeta.exe"), (row.Name, row.IsAdded, row.Meta));
+
+        // a switch acts right away through the queue, the value read back
+        row.Switch("Gpu").IsOn = true;
+        Assert.Equal(Core.Machine.Games.GpuValue, t.Engine.Registry.GetValue(Core.Machine.GamePaths.Windows.Gpu, @"C:\Games\Zeta\zeta.exe"));
+        Assert.True(row.Game.Gpu);
+        Assert.True(row.Switch("Gpu").IsOn);
+        row.Switch("Priority").IsOn = true;
+        Assert.Equal(3u, t.Engine.Registry.GetValue($@"{Core.Machine.GamePaths.Windows.Ifeo}\zeta.exe\PerfOptions", "CpuPriorityClass"));
+        row.Switch("Gpu").IsOn = false;
+        Assert.Null(t.Engine.Registry.GetValue(Core.Machine.GamePaths.Windows.Gpu, @"C:\Games\Zeta\zeta.exe"));
+
+        // Remove from list: off the list, its settings left
+        row.RemoveCommand.Execute(null);
+        Assert.Empty(list.Shown);
+        Assert.Equal(3u, t.Engine.Registry.GetValue($@"{Core.Machine.GamePaths.Windows.Ifeo}\zeta.exe\PerfOptions", "CpuPriorityClass"));
+    }
 }
