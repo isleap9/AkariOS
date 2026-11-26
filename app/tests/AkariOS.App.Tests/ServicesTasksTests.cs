@@ -158,4 +158,47 @@ public sealed class ServicesTasksTests : IDisposable
         Assert.Equal([@"schtasks.exe /change /tn ""\Microsoft\Windows\UpdateOrchestrator\Schedule Scan"" /disable"], t.Trusted.Started);
         Assert.Equal(("", false), (scan.Error, scan.IsOn));
     }
+
+    [Fact]
+    public async Task The_startup_list_sits_under_its_tweak_and_switches_and_removes_entries()
+    {
+        var t = _h.Make();
+        var reg = t.Engine.Registry;
+        const string run = @"HKCU:\Software\Microsoft\Windows\CurrentVersion\Run";
+        reg.SetValue(run, "Contoso", @"""C:\NoSuch\contoso.exe"" /tray", "String");
+        reg.SetValue(run, "Tool", @"C:\NoSuch\tool.exe", "String");
+        var folder = Path.Combine(_h.Dir, "Startup");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "Chat.lnk"), "x");
+        reg.SetValue(@"HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders", "Startup", folder, "String");
+
+        var group = t.Page(CataloguePageViewModel.StartupKey).Groups.Single();
+        Assert.Same(t.StartupList, group.Startup);
+        Assert.Contains(group.Cards, c => c.Id == "oneclick-startup-cleanup");
+        Assert.All(t.Page("Catalogue:Advanced/Services").Groups, g => Assert.False(g.HasStartup));
+        var list = t.StartupList;
+        Assert.Equal(["Chat.lnk", "Contoso", "Tool"], list.Shown.Select(r => r.Name));
+        Assert.Equal("3 startup apps, 3 on", list.CountText);
+
+        // off: Task Manager's StartupApproved value, the entry left
+        var contoso = list.Rows["Registry, this user|Contoso"];
+        contoso.IsOn = false;
+        Assert.Equal(("Off", false, ""), (contoso.StatusText, contoso.IsOn, contoso.Error));
+        Assert.Equal(3, Assert.IsType<byte[]>(reg.GetValue(@"HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run", "Contoso"))[0]);
+        Assert.NotNull(reg.GetValue(run, "Contoso"));
+        list.Filter = "Off";
+        Assert.Equal(["Contoso"], list.Shown.Select(r => r.Name));
+        list.Filter = "All";
+
+        // Remove asks; cancelled = nothing, then removed
+        var tool = list.Rows["Registry, this user|Tool"];
+        await list.ChangeAsync(tool, "Remove");
+        Assert.Contains("is deleted", t.Dialogs.Asked[^1]);
+        Assert.NotNull(reg.GetValue(run, "Tool"));
+        t.Dialogs.Answers.Enqueue("Remove");
+        await list.ChangeAsync(tool, "Remove");
+        Assert.Null(reg.GetValue(run, "Tool"));
+        Assert.Equal(["Chat.lnk", "Contoso"], list.Shown.Select(r => r.Name));
+        Assert.Contains(t.Activity.All(), a => a.Title == "Removed startup app \"Tool\"");
+    }
 }

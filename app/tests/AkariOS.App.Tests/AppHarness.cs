@@ -28,12 +28,13 @@ internal sealed record AppTest(Engine Engine, CatalogueViewModel Catalogue, Shel
     /// <summary>A page as the window opens it.</summary>
     public CataloguePageViewModel Page(string key, string query = "")
     {
-        var p = new CataloguePageViewModel(Catalogue, ServiceList, TaskList, new Navigator(Navigated));
+        var p = new CataloguePageViewModel(Catalogue, ServiceList, TaskList, new Navigator(Navigated), StartupList);
         p.OnNavigatedTo(new CatalogueQuery(key, query));
         return p;
     }
 
     public ActivityLog Activity { get; init; } = null!;
+    public StartupListViewModel StartupList { get; init; } = null!;
     public FakePackages Packages { get; init; } = null!;
     public FakeDism Dism { get; init; } = null!;
     public FakeWinget Winget { get; init; } = null!;
@@ -298,6 +299,7 @@ internal sealed class AppHarness : IDisposable
         return new AppTest(engine, catalogue, shell, restore, dialogs, work, explorer, shutdown, points, boot, runs,
             new ServicesListViewModel(engine, work, dialogs, catalogue), new TasksListViewModel(engine, work, catalogue), services, tasks, trusted)
         {
+            StartupList = new StartupListViewModel(engine, work, dialogs, catalogue, activity),
             Activity = activity, Updates = updates, GitHub = github, Started = run.Started, Closed = closed,
             Packages = packages, Dism = dism, Winget = winget, AssetDir = Path.Combine(Dir, "assets"),
         };

@@ -132,7 +132,7 @@ Describe 'One-click steps' {
             New-Item "$TestDrive\Windows\System32\Tasks\Microsoft\keep" -ItemType File -Force | Out-Null
             New-Item "$TestDrive\Windows\System32\Tasks\OtherUpdater" -ItemType File -Force | Out-Null
             New-Item "$TestDrive\User\AppData\Microsoft\Windows\Start Menu\Programs\Startup\app.lnk" -ItemType File -Force | Out-Null
-            $t = Load 'Tools\Cleanup\StartupCleanup.ps1'
+            $t = Load 'Tools\Startup\StartupCleanup.ps1'
             It 'empties Run, the Startup folders and the non-Microsoft tasks' {
                 (Invoke-AkariTweak $t Apply).Outcome | Should Be 'Applied'
                 Get-AkariRegValue 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' 'Some App' | Should Be $null

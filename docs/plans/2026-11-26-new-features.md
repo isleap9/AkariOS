@@ -30,8 +30,9 @@ One button that gathers what a bug report needs.
 
 ## X2 Startup apps page
 
-A third list in the style of Services and Scheduled tasks: `Catalogue:Advanced/Startup` (or Tools/Cleanup:
-**Open**), in `$AkariCatalogueLists`.
+A third list in the style of Services and Scheduled tasks: `Catalogue:Tools/Startup`, in `$AkariCatalogueLists`.
+Decided while building: a Category page exists only through its Tweaks, so `oneclick-startup-cleanup` moved from
+Tools › Cleanup to a new Tools › Startup Category (its id and the AkariOS preset unchanged) and the list sits under it.
 
 - Read: HKCU and HKLM `Run` / `RunOnce` (both WOW6432Node), both Startup folders, and each entry's on / off state from
   `Explorer\StartupApproved\Run`, `Run32` and `StartupFolder` (the first byte: 02 / 06 = on, 03 / 07 = off; Task
@@ -44,6 +45,8 @@ A third list in the style of Services and Scheduled tasks: `Catalogue:Advanced/S
   StartupApproved bytes through the pure `ConvertTo-` / `ConvertFrom-AkariStartupApproved`); UI `UI/StartupPage.ps1`.
   Native: `Machine/StartupItems.cs`, `StartupListViewModel` / `StartupRowViewModel`, `Views/StartupListView`.
 - Tests: reads and switches on a test key and `TestDrive:` folders; an oracle compares the pure parts.
+- Built 2026-11-26 (Pester `tests/Startup.Tests.ps1`; native `StartupTests` with `Oracle/Export-Startup.ps1`, the
+  list's test in `ServicesTasksTests`). RunOnce entries are left out, as Task Manager does. VM check: to do.
 
 ## X3 Run history (the base for X4 and X6) and the drift check
 

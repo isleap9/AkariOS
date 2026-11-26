@@ -1,5 +1,5 @@
 # Ported from AkariOS-Ultimate (FR33THY Ultimate) 6 Windows "Autoruns Startup Tasks & Apps Check": the Autoruns part
-# (Sysinternals Autoruns, now from winget). Its cleanup part is oneclick-startup-cleanup (Tools > Cleanup).
+# (Sysinternals Autoruns, now from winget). Its cleanup part is oneclick-startup-cleanup (Tools > Startup).
 # Action: it opens a tool; it changes nothing.
 @{
     Id          = 'tools-autoruns'

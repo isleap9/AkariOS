@@ -1,9 +1,9 @@
 using AkariOS.Core.Machine;
 using AkariOS.Core.Tweaks;
 
-namespace AkariOS.Tweaks.Tools.Cleanup;
+namespace AkariOS.Tweaks.Tools.Startup;
 
-/// <summary>src/Tweaks/Tools/Cleanup/StartupCleanup.ps1: the Run / RunOnce keys emptied (deleted and made again; HKCU the
+/// <summary>src/Tweaks/Tools/Startup/StartupCleanup.ps1: the Run / RunOnce keys emptied (deleted and made again; HKCU the
 /// real user's), the two Startup folders emptied, and every scheduled task outside \Microsoft deleted: its task cache
 /// key as TrustedInstaller, its task file. An Action: what it removes was put there by other programs.</summary>
 [TweakCode("oneclick-startup-cleanup")]

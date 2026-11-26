@@ -12,7 +12,7 @@ public static class CategoryGlyphs
         ["Input"] = "", ["Accessibility"] = "", ["Apps"] = "", ["Context menu"] = "", ["Explorer"] = "",
         ["Notifications"] = "", ["Sound"] = "", ["Start"] = "", ["System"] = "", ["Taskbar"] = "",
         ["Theme"] = "", ["Features"] = "", ["Scheduled tasks"] = "", ["Services"] = Settings, ["Check"] = "",
-        ["Cleanup"] = "", ["Drivers"] = "", ["Fixes"] = "", ["Panels"] = "", ["Refresh"] = "", ["Setup"] = "",
+        ["Cleanup"] = "", ["Startup"] = "", ["Drivers"] = "", ["Fixes"] = "", ["Panels"] = "", ["Refresh"] = "", ["Setup"] = "",
     };
 
     public static string Of(string category) => All.GetValueOrDefault(category, Settings);

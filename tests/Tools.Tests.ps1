@@ -267,7 +267,7 @@ Describe 'Batch 2c' {
     }
 
     It 'the startup cleanup and the restore point are Tools buttons now' {
-        "$((Load 'Tools\Cleanup\StartupCleanup.ps1').Section)/$((Load 'Tools\Cleanup\StartupCleanup.ps1').Category)" | Should Be 'Tools/Cleanup'
+        "$((Load 'Tools\Startup\StartupCleanup.ps1').Section)/$((Load 'Tools\Startup\StartupCleanup.ps1').Category)" | Should Be 'Tools/Startup'
         "$((Load 'Tools\Setup\RestorePoint.ps1').Section)/$((Load 'Tools\Setup\RestorePoint.ps1').Category)" | Should Be 'Tools/Setup'
     }
 

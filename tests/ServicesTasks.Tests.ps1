@@ -94,11 +94,12 @@ Describe 'Services and Scheduled tasks pages (pure parts)' {
     )
     $defaults = @{ Spooler = 2; BITS = 2; Fax = 3; cbdhsvc = 2 }
 
-    It 'puts the two tweaks on the Services and Scheduled tasks pages' {
+    It 'puts each list''s tweak on its page (Services, Scheduled tasks, Startup)' {
         $tw = Join-Path $Root 'Tweaks'
         $t = @(
             Import-AkariTweakFile (Join-Path $tw 'Advanced\Services\ServicesOff.ps1') $tw
             Import-AkariTweakFile (Join-Path $tw 'Advanced\Scheduled tasks\RemoveScheduledTasks.ps1') $tw
+            Import-AkariTweakFile (Join-Path $tw 'Tools\Startup\StartupCleanup.ps1') $tw
         )
         $keys = @((Get-AkariCataloguePages $t).Pages | ForEach-Object { $_.Key })
         foreach ($k in $AkariCatalogueLists.Keys) { $keys -contains $k | Should Be $true }

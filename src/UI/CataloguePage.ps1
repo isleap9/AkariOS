@@ -417,6 +417,7 @@ function Start-AkariCatalogueNext {
     # a service or a task (the Services and Scheduled tasks lists): UI\ServicesPage.ps1, UI\TasksPage.ps1
     if ($it.Kind -eq 'Service') { Start-AkariServiceJob $it; return }
     if ($it.Kind -eq 'Task') { Start-AkariTaskJob $it; return }
+    if ($it.Kind -eq 'Startup') { Start-AkariStartupJob $it; return }
     $e = $script:CatCards[$it.Id]
     $t = $e.Tweak
     $e.Busy = 'Running'
@@ -462,6 +463,7 @@ function Complete-AkariCatalogueJob($Job) {
         }
         'CatalogueService' { Complete-AkariServiceJob $s }
         'CatalogueTask' { Complete-AkariTaskJob $s }
+        'CatalogueStartup' { Complete-AkariStartupJob $s }
         'CatalogueExplorer' { $script:CatExplorer.Clear() }
         'CatalogueRun' { Complete-AkariCatalogueSafeRun $s }
     }

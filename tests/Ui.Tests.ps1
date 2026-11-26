@@ -736,7 +736,7 @@ $script:Queue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
 $loaded = @{ Problems = @() }
 function Get-AkariAppxInstalled { @() }; function Start-AkariFeatureRead { }
 $AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
-foreach ($f in 'Motion', 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Pages', 'Shell', 'Rows', 'CataloguePage', 'ServicesPage', 'TasksPage', 'About', 'UnattendForm', 'Unattend', 'IsoBuilder', 'ImportExport') { . "$Root\UI\$f.ps1" }
+foreach ($f in 'Motion', 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Pages', 'Shell', 'Rows', 'CataloguePage', 'ServicesPage', 'TasksPage', 'StartupPage', 'About', 'UnattendForm', 'Unattend', 'IsoBuilder', 'ImportExport') { . "$Root\UI\$f.ps1" }
 $timer.Stop()
 function Test-AkariSafeMode { $false }
 function Get-AkariAppxPackages { @() }

@@ -1,12 +1,13 @@
 # One-click's steptwo.ps1 (isleap9/Akari-OS): "remove 3rd party startup apps" and "scheduled tasks"; also the cleanup
 # part of AkariOS-Ultimate (FR33THY Ultimate) 6 Windows "Autoruns Startup Tasks & Apps Check" (tools-autoruns opens
-# Autoruns). In Tools since batch 2c; its id stays, the AkariOS preset runs it.
+# Autoruns). In Tools since batch 2c, Tools > Startup since X2 (the startup apps list under it); its id stays, the AkariOS
+# preset runs it.
 # Action: what it removes was put there by other programs, nothing to put back.
 @{
     Id          = 'oneclick-startup-cleanup'
     Name        = 'Remove third-party startup entries and tasks'
     Section     = 'Tools'
-    Category    = 'Cleanup'
+    Category    = 'Startup'
     Kind        = 'Action'
     Button      = 'Run'
     Risk        = 'Advanced'

@@ -41,7 +41,8 @@
         # Tools
         @{ Section = 'Tools'; Category = 'Setup'; Group = 'Keep it running'; Line = 'A restore point, activation, Home to Pro, updating every app' }
         @{ Section = 'Tools'; Category = 'Drivers'; Group = 'Keep it running'; Line = 'The latest NVIDIA, AMD and Intel drivers, a DDU clean, Snappy Driver Installer, controller overclock' }
-        @{ Section = 'Tools'; Category = 'Cleanup'; Group = 'Keep it running'; Line = 'Temporary files, Windows.old, logs, old drivers, startup entries' }
+        @{ Section = 'Tools'; Category = 'Startup'; Group = 'Keep it running'; Line = 'Every app that starts with Windows on or off, or all of them removed' }
+        @{ Section = 'Tools'; Category = 'Cleanup'; Group = 'Keep it running'; Line = 'Temporary files, Windows.old, logs, old drivers' }
         @{ Section = 'Tools'; Category = 'Fixes'; Group = 'Keep it running'; Line = 'Windows Update reset, network reset, corruption scan, WinGet reinstall' }
         @{ Section = 'Tools'; Category = 'Check'; Group = 'Check and recover'; Line = 'BIOS, storage, RAM, GPU and polling rate tests, O&O ShutUp10++' }
         @{ Section = 'Tools'; Category = 'Refresh'; Group = 'Check and recover'; Line = 'Reinstall Windows, factory reset, Gaming Services repair, restart to BIOS' }

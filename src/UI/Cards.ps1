@@ -10,7 +10,7 @@ $AkariCategoryGlyphs = @{
     Security = 'shield'; Display = 'monitor'; Tuning = 'cpu'; Graphics = 'monitor'; Input = 'keyboard'; Accessibility = 'accessibility'
     Apps = 'apps'; 'Context menu' = 'list-bullet'; Explorer = 'folder'; Notifications = 'bell'; Sound = 'volume-2'; Start = 'layout-grid'
     System = 'app-window'; Taskbar = 'panel-bottom'; Theme = 'paint-brush'; Features = 'apps'; 'Scheduled tasks' = 'calendar'
-    Services = 'settings'; Check = 'circle-check'; Cleanup = 'broom'; Drivers = 'download'; Fixes = 'wrench'; Panels = 'app-window'
+    Services = 'settings'; Check = 'circle-check'; Cleanup = 'broom'; Startup = 'rocket'; Drivers = 'download'; Fixes = 'wrench'; Panels = 'app-window'
     Refresh = 'arrow-reset'; Setup = 'rocket'
     # Legacy pages
     Windows = 'app-window'; Hardware = 'cpu'; Advanced = 'flask-conical'
