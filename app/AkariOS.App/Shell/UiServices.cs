@@ -107,6 +107,33 @@ public sealed class ContentTextDialog(Func<Microsoft.UI.Xaml.XamlRoot?> root) : 
     }
 }
 
+/// <summary>A question with one answer from a list (One-click's browser): the picked index, null = cancelled.</summary>
+public interface IChoiceDialog
+{
+    Task<int?> PickAsync(string title, string message, IReadOnlyList<string> options, int selected, string button);
+}
+
+/// <summary>The real one: a ContentDialog with RadioButtons, over the window.</summary>
+public sealed class ContentChoiceDialog(Func<Microsoft.UI.Xaml.XamlRoot?> root) : IChoiceDialog
+{
+    public async Task<int?> PickAsync(string title, string message, IReadOnlyList<string> options, int selected, string button)
+    {
+        if (root() is not { } xamlRoot) return null;
+        var list = new Microsoft.UI.Xaml.Controls.RadioButtons { Header = message, MaxColumns = 2 };
+        foreach (var o in options) list.Items.Add(o);
+        list.SelectedIndex = selected;
+        var dialog = new Microsoft.UI.Xaml.Controls.ContentDialog
+        {
+            XamlRoot = xamlRoot, Title = title, PrimaryButtonText = button, CloseButtonText = "Cancel",
+            Content = new Microsoft.UI.Xaml.Controls.ScrollViewer { Content = list },
+            DefaultButton = Microsoft.UI.Xaml.Controls.ContentDialogButton.Primary,
+        };
+        AkariDialogs.Style(dialog);
+        var r = await dialog.ShowAsync();
+        return r == Microsoft.UI.Xaml.Controls.ContentDialogResult.Primary && list.SelectedIndex >= 0 ? list.SelectedIndex : null;
+    }
+}
+
 /// <summary>One-click's hand-off (Start-AkariOneClick): the preset Program runs in a console once the window closes.</summary>
 public sealed class OneClickHandoff(Action<Core.Presets.Preset> start)
 {

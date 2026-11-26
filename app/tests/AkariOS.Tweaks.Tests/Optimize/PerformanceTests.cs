@@ -143,6 +143,34 @@ public sealed class PerformanceTests : IDisposable
     }
 
     [Fact]
+    public void A_device_key_only_system_can_open_is_skipped_not_a_failure()
+    {
+        // Enum\...\Properties is SYSTEM's alone on a real PC: the walk read it and stopped with "Requested registry access is not allowed"
+        const string e = @"HKLM:\SYSTEM\ControlSet001\Enum";
+        _h.Set($@"{e}\SCSI\Disk&Ven_A\1\Device Parameters", "x", 1, "DWord");
+        _h.Set($@"{e}\SCSI\Disk&Ven_A\1\Properties\{{guid}}", "x", 1, "DWord");
+        using var hkcu = Microsoft.Win32.RegistryKey.OpenBaseKey(Microsoft.Win32.RegistryHive.CurrentUser, Microsoft.Win32.RegistryView.Registry64);
+        using var locked = hkcu.OpenSubKey($@"{_h.KeyRoot}\HKLM\SYSTEM\ControlSet001\Enum\SCSI\Disk&Ven_A\1\Properties",
+            Microsoft.Win32.RegistryKeyPermissionCheck.ReadWriteSubTree, System.Security.AccessControl.RegistryRights.ChangePermissions | System.Security.AccessControl.RegistryRights.ReadPermissions)!;
+        var deny = new System.Security.AccessControl.RegistryAccessRule(System.Security.Principal.WindowsIdentity.GetCurrent().User!,
+            System.Security.AccessControl.RegistryRights.EnumerateSubKeys, System.Security.AccessControl.AccessControlType.Deny);
+        var acl = locked.GetAccessControl();
+        acl.AddAccessRule(deny);
+        locked.SetAccessControl(acl);
+        try
+        {
+            Assert.Equal(OutcomeKind.Applied, _h.Run("performance-write-cache-flushing-off", TweakMode.Apply).Kind);
+            Assert.Equal(1u, _h.Get($@"{e}\SCSI\Disk&Ven_A\1\Device Parameters\Disk", "CacheIsPowerProtected"));
+            Assert.Equal(OutcomeKind.Applied, _h.Run("power-device-power-saving-off", TweakMode.Apply).Kind);
+        }
+        finally
+        {
+            acl.RemoveAccessRule(deny);
+            locked.SetAccessControl(acl);
+        }
+    }
+
+    [Fact]
     public void The_real_users_folder_comes_from_their_shell_folders_else_their_profile()
     {
         Assert.Null(UserFolders.Get(_h.Engine.Registry, "Local AppData"));

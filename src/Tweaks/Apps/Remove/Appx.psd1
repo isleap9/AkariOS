@@ -102,7 +102,7 @@
         @{ Name = 'Microsoft.WindowsCamera'; Display = 'Camera'; Description = 'Camera app for using built-in or connected cameras'; Risk = 'Caution' }
         @{ Name = 'Microsoft.windowscommunicationsapps'; Display = 'Mail & Calendar'; Description = 'Mail & Calendar app suite (discontinued)'; Risk = 'Safe' }
         @{ Name = 'Microsoft.WindowsNotepad'; Display = 'Notepad'; Description = 'Notepad text editor app'; Risk = 'Caution'; Keep = $true }
-        @{ Name = 'Microsoft.WindowsStore'; Display = 'Microsoft Store'; Description = 'Microsoft Store, WARNING: This app cannot be reinstalled easily if removed!'; Risk = 'Advanced' }
+        @{ Name = 'Microsoft.WindowsStore'; Display = 'Microsoft Store'; Description = 'Microsoft Store, WARNING: This app cannot be reinstalled easily if removed!'; Risk = 'Advanced'; Keep = $true }
         @{ Name = 'Microsoft.WindowsTerminal'; Display = 'Windows Terminal'; Description = 'Default terminal app in windows 11 (Command Prompt, PowerShell, WSL), WARNING: Do not remove if you launched Win11Debloat from Windows Terminal, as this will cause the script to fail.'; Risk = 'Advanced' }
         @{ Name = 'Microsoft.Xbox.TCUI'; Display = 'Xbox TCUI Framework'; Description = 'UI framework, seems to be required for Microsoft Store, photos and certain games'; Risk = 'Advanced' }
         @{ Name = 'Microsoft.XboxGameOverlay'; Display = 'Xbox Game Overlay'; Description = 'Game overlay, required or useful for some games (part of Xbox Game Bar). Warning: Uninstalling this app may reduce game performance on PCs with certain modern processors.'; Risk = 'Caution' }

@@ -249,8 +249,16 @@ public sealed class WmiNetBindings : INetBindings
     public void Set(string componentId, bool enabled)
     {
         using var all = Query(componentId);
+        // the ManagementBaseObject overload: InvokeMethod(name, (object[])null) maps the method's out parameters
+        // (cmdletOutput) back into the null array and throws a NullReferenceException
+        var method = enabled ? "Enable" : "Disable";
         foreach (var b in all.Cast<ManagementObject>())
-            using (b) b.InvokeMethod(enabled ? "Enable" : "Disable", null);
+            using (b)
+            using (var r = b.InvokeMethod(method, null, null))
+            {
+                if (r?["ReturnValue"] is { } code && Convert.ToInt64(code) != 0)
+                    throw new System.Runtime.InteropServices.COMException($"{method} returned {code}", unchecked((int)Convert.ToInt64(code)));
+            }
     }
 }
 

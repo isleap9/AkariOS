@@ -12,6 +12,10 @@ public enum OutcomeKind { Applied, Reverted, Already, Skipped, Failed }
 
 public sealed record Outcome(string Id, TweakMode Mode, OutcomeKind Kind, bool Reboot = false, string Message = "");
 
+/// <summary>Thrown by a change Windows won't make and that is no fault (a capability that is part of Windows, a
+/// restore point Windows keeps one a day of): the Runner reports Skipped with its message, not Failed.</summary>
+public sealed class SkippedException(string message) : Exception(message);
+
 /// <summary>One change of a Run: Apply or Revert, a Choice's value (null = Recommended), its preset Phase (index).</summary>
 public sealed record PlanItem(string Id, TweakMode Mode, object? Value = null, int Phase = 0);
 
@@ -80,6 +84,11 @@ public sealed partial class Runner(TweakContext context, States states, IRemembe
         }
 
         try { Change(t, mode, value); }
+        catch (SkippedException e)
+        {
+            Log.Write($"Skipped: {t.Name} ({e.Message})");
+            return Outcome(t, mode, OutcomeKind.Skipped, message: e.Message);
+        }
         catch (Exception e)
         {
             Log.Write($"Failed: {t.Name}: {e.Message}");

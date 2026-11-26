@@ -96,6 +96,18 @@ public sealed class AppRunnerTests : IDisposable
     }
 
     [Fact]
+    public void A_capability_Windows_keeps_for_good_is_skipped_not_failed()
+    {
+        _dism.Capabilities.Add(new("Windows.SmbDirect~~~~", "Installed"));
+        _dism.Permanent.Add("Windows.SmbDirect~~~~");
+        var cap = Loader.ResolveEntry([Group("capability", EntryKind.CapabilityRemove)], "capability/Windows.SmbDirect~~~~")!;
+        var o = Run(cap);
+        Assert.Equal(OutcomeKind.Skipped, o.Kind);
+        Assert.Contains("0x800F0825", o.Message);
+        Assert.Empty(_dism.Changes);
+    }
+
+    [Fact]
     public void A_store_restore_installs_its_store_id_once()
     {
         _pm.Packages.Add(App("Microsoft.WindowsStore"));

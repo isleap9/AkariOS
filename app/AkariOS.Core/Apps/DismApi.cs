@@ -174,7 +174,7 @@ public sealed partial class DismApi : IDism
             text = Marshal.PtrToStringUni(Marshal.ReadIntPtr(msg))?.Trim();
             DismDelete(msg);
         }
-        throw new InvalidOperationException(string.IsNullOrEmpty(text) ? $"DISM failed (0x{hr:X8})" : $"{text} (0x{hr:X8})");
+        throw new DismException(string.IsNullOrEmpty(text) ? $"DISM failed (0x{hr:X8})" : $"{text} (0x{hr:X8})", hr);
     }
 
     [LibraryImport("dismapi.dll", StringMarshalling = StringMarshalling.Utf16)]

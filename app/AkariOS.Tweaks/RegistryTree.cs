@@ -11,7 +11,11 @@ public static class RegistryTree
         var found = new List<string>();
         void Walk(string path)
         {
-            foreach (var k in reg.SubKeys(path))
+            // a key only SYSTEM can open (a device's Properties) is skipped, as -ErrorAction SilentlyContinue did
+            IReadOnlyList<string> subs;
+            try { subs = reg.SubKeys(path); }
+            catch (Exception e) when (e is UnauthorizedAccessException or System.Security.SecurityException or IOException) { return; }
+            foreach (var k in subs)
             {
                 var p = $@"{path}\{k}";
                 if (name(k)) found.Add(p);

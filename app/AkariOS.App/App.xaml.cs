@@ -167,6 +167,7 @@ public partial class App : Application
         services.AddSingleton<ITimers>(new DispatcherTimers(queue!));
         services.AddSingleton<IsoBuilderViewModel>();
         services.AddSingleton<ITextDialog>(_ => new ContentTextDialog(() => MainWindow?.Content?.XamlRoot));
+        services.AddSingleton<IChoiceDialog>(_ => new ContentChoiceDialog(() => MainWindow?.Content?.XamlRoot));
         // One-click: Program runs the preset in a console once the window has closed
         services.AddSingleton(_ => new OneClickHandoff(p =>
         {

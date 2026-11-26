@@ -348,4 +348,47 @@ public sealed class InstallTests : IDisposable
         Assert.Single(t.Points.Points);
         Assert.False(t.Shell.IsBusy);
     }
+
+    [Fact]
+    public async Task One_click_asks_for_the_browser_and_leaves_the_power_plan_out_on_a_laptop()
+    {
+        static List<string> Ids(Core.Presets.Preset p) => p.Entries.Select(e => e.Id).ToList();
+        // the real AkariOS preset on a desktop: Helium first and picked, the power plan kept
+        var t = _h.Make();
+        t.Dialogs.Answers.Enqueue("Start One-click");
+        await t.Install.StartOneClickAsync();
+        Assert.Empty(t.OneClicks);
+        Assert.Equal("Helium (recommended)", t.PickOptions[^1][0]);
+        Assert.Equal(InstallViewModel.NoBrowser, t.PickOptions[^1][^1]);
+        Assert.Contains("Firefox", t.PickOptions[^1]);
+        t.Dialogs.Answers.Enqueue("Start One-click");
+        t.Picks.Enqueue("Helium (recommended)");
+        await t.Install.StartOneClickAsync();
+        var desktop = Ids(Assert.Single(t.OneClicks));
+        Assert.Contains("install-helium", desktop);
+        Assert.Contains("power-ultimate-plan", desktop);
+        Assert.Contains("remove-edge", desktop);
+
+        // a laptop: told so, no power plan; Firefox in Helium's place, in the same phase
+        var l = _h.Make(chassis: Core.Machine.Chassis.Laptop);
+        l.Dialogs.Answers.Enqueue("Start One-click");
+        l.Picks.Enqueue("Firefox");
+        await l.Install.StartOneClickAsync();
+        Assert.Contains("This PC is a laptop", l.Dialogs.Asked[0]);
+        var laptop = Assert.Single(l.OneClicks);
+        Assert.DoesNotContain("power-ultimate-plan", Ids(laptop));
+        Assert.DoesNotContain("install-helium", Ids(laptop));
+        Assert.Equal(0, laptop.Entries.Single(e => e.Id == "install-firefox").Phase);
+
+        // Edge keeps Edge; no browser installs none
+        l.Dialogs.Answers.Enqueue("Start One-click");
+        l.Picks.Enqueue("Microsoft Edge");
+        await l.Install.StartOneClickAsync();
+        Assert.DoesNotContain("remove-edge", Ids(l.OneClicks[^1]));
+        l.Dialogs.Answers.Enqueue("Start One-click");
+        l.Picks.Enqueue(InstallViewModel.NoBrowser);
+        await l.Install.StartOneClickAsync();
+        Assert.DoesNotContain(Ids(l.OneClicks[^1]), id => Core.Presets.OneClickPicks.Browsers(l.Engine.Loaded.Tweaks).Any(b => b.Id == id));
+        Assert.Contains("remove-edge", Ids(l.OneClicks[^1]));
+    }
 }

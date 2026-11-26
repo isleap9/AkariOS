@@ -96,6 +96,12 @@ public sealed partial class InstallViewModel : ObservableObject
         "- It is tuned for desktops: power saving is turned off.\n" +
         "- It needs an internet connection.";
 
+    /// <summary>Added to the warning on a laptop: the Ultimate Performance plan is left out.</summary>
+    public const string LaptopNote = "\n\nThis PC is a laptop: the Ultimate Performance power plan is left out, so your power plan and battery life stay as they are.";
+
+    /// <summary>The browser question's "none" option.</summary>
+    public const string NoBrowser = "No browser";
+
     private readonly Engine _engine;
     private readonly IBackground _background;
     private readonly IDialogService _dialogs;
@@ -109,12 +115,13 @@ public sealed partial class InstallViewModel : ObservableObject
     private readonly IShellOpen _open;
     private readonly IFilePicker _picker;
     private readonly OneClickHandoff _oneClick;
+    private readonly IChoiceDialog _choice;
     private readonly AppIcons _icons;
 
     public InstallViewModel(Engine engine, IBackground background, IDialogService dialogs, ITextDialog text, ShellState shell, RestoreRule restore,
-        CatalogueViewModel catalogue, HomeStats stats, ActivityLog activity, IShellNavigator navigator, IShellOpen open, IFilePicker picker, OneClickHandoff oneClick, AppIcons icons)
+        CatalogueViewModel catalogue, HomeStats stats, ActivityLog activity, IShellNavigator navigator, IShellOpen open, IFilePicker picker, OneClickHandoff oneClick, IChoiceDialog choice, AppIcons icons)
     {
-        _icons = icons;
+        (_icons, _choice) = (icons, choice);
         (_engine, _background, _dialogs, _text, _shell, _restore) = (engine, background, dialogs, text, shell, restore);
         (_catalogue, _stats, _activity, _navigator, _open, _picker, _oneClick) = (catalogue, stats, activity, navigator, open, picker, oneClick);
         (Tweaks, Apps) = (NewTweaks(), NewApps());
@@ -623,7 +630,20 @@ public sealed partial class InstallViewModel : ObservableObject
             await _dialogs.ShowErrorAsync("AkariOS One-click", "The AkariOS preset is missing from this build.");
             return;
         }
-        if (!await _dialogs.ConfirmAsync("Start One-click now?", OneClickWarning, "Start One-click")) return;
+        var chassis = _engine.System.Chassis;
+        var warning = chassis == Core.Machine.Chassis.Laptop ? OneClickWarning + LaptopNote : OneClickWarning;
+        if (!await _dialogs.ConfirmAsync("Start One-click now?", warning, "Start One-click")) return;
+        var browsers = OneClickPicks.Browsers(_engine.Loaded.Tweaks);
+        string? browser = null;
+        if (browsers.Count > 0)
+        {
+            var options = browsers.Select(b => b.Id == OneClickPicks.DefaultBrowser ? $"{b.Name} (recommended)" : b.Name).Append(NoBrowser).ToList();
+            if (await _choice.PickAsync("Which browser should One-click install?", "AkariOS removes Microsoft Edge. Pick the browser to install instead.",
+                    options, 0, "Continue") is not { } picked) return;
+            browser = picked < browsers.Count ? browsers[picked].Id : null;
+        }
+        preset = OneClickPicks.Apply(preset, browser, chassis);
+        foreach (var note in OneClickPicks.Notes(browser, chassis)) _engine.Log.WriteFile(note);
         if (!await _restore.ChooseAsync("OneClick")) { Hand(preset); return; }
         var busy = _shell.Begin("Creating a restore point");
         var done = new TaskCompletionSource<object?>();

@@ -23,6 +23,7 @@ public sealed class ImportRegFile : ITweakCode
             {
                 failed++;
                 c.Log.Write($"Kept by Windows: {what} ({e.Message})");
+                c.Log.WriteFile($"reg.reg: kept by Windows: {what} ({e.Message})");
             }
         }
         foreach (var key in RegReader.Parse(RegReader.Decode(c.Files.ReadBytes(File))).Keys)

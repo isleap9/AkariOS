@@ -207,11 +207,18 @@ internal sealed class FakeDism : IDism
     public List<DismItem> Capabilities { get; } = [];
     public List<DismItem> Features { get; } = [];
     public List<string> Changes { get; } = [];
+    /// <summary>Names Windows won't remove (DISM's CBS_E_CANNOT_UNINSTALL).</summary>
+    public HashSet<string> Permanent { get; } = [];
 
     IReadOnlyList<DismItem> IDism.Capabilities() => Capabilities.ToList();
     IReadOnlyList<DismItem> IDism.Features() => Features.ToList();
     public string? CapabilityState(string name) => Capabilities.FirstOrDefault(c => c.Name == name)?.State;
     public string? FeatureState(string name) => Features.FirstOrDefault(f => f.Name == name)?.State;
-    public void RemoveCapability(string name) => Changes.Add($"remove-capability {name}");
-    public void DisableFeature(string name) => Changes.Add($"disable-feature {name}");
+    public void RemoveCapability(string name) { Refused(name); Changes.Add($"remove-capability {name}"); }
+    public void DisableFeature(string name) { Refused(name); Changes.Add($"disable-feature {name}"); }
+
+    private void Refused(string name)
+    {
+        if (Permanent.Contains(name)) throw new DismException("The operation cannot be performed. (0x800F0825)", DismException.CannotUninstall);
+    }
 }

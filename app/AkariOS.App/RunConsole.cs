@@ -98,7 +98,8 @@ public sealed class RunConsole(TextWriter output, TextReader input, IConsoleLook
             output.WriteLine("The AkariOS preset is missing: open AkariOS from the Start menu and run One-click.");
             return Wait(1);
         }
-        return RunPreset(e, preset);
+        // the browser is the preset's (no one to ask); a laptop gets no Ultimate Performance plan, as in One-click
+        return RunPreset(e, OneClickPicks.Apply(preset, OneClickPicks.DefaultBrowser, e.System.Chassis));
     }
 
     private int RunPreset(Engine e, Preset preset)

@@ -102,6 +102,16 @@ public sealed class OneClickTests : IDisposable
         Assert.StartsWith("throw ", Lines(ps, "oneclick-restore-point", "Apply")[^1]);
         _h.Restore.Refuse = true;
         Assert.Equal(OutcomeKind.Failed, Apply("oneclick-restore-point").Kind);
+
+        // refused, but One-click's own point is from today: Windows keeps one a day, nothing is lost
+        _h.Restore.MadeAt = _h.Now.ToLocalTime().AddHours(-1);
+        var o = Apply("oneclick-restore-point");
+        Assert.Equal(OutcomeKind.Skipped, o.Kind);
+        Assert.StartsWith("Windows keeps one restore point a day", o.Message);
+
+        // older than a day: a real failure
+        _h.Restore.MadeAt = _h.Now.ToLocalTime().AddHours(-30);
+        Assert.Equal(OutcomeKind.Failed, Apply("oneclick-restore-point").Kind);
     }
 
     [Fact]

@@ -95,6 +95,19 @@ internal sealed record AppTest(Engine Engine, CatalogueViewModel Catalogue, Shel
     /// <summary>Presets handed to One-click's console (the window closed).</summary>
     public List<Preset> OneClicks { get; } = [];
 
+    /// <summary>One-click's browser question: the queued answers by option text (none = cancelled), the options asked.</summary>
+    public Queue<string> Picks { get; } = new();
+    public List<IReadOnlyList<string>> PickOptions { get; } = [];
+
+    private sealed class Choice(Queue<string> picks, List<IReadOnlyList<string>> asked) : IChoiceDialog
+    {
+        public Task<int?> PickAsync(string title, string message, IReadOnlyList<string> options, int selected, string button)
+        {
+            asked.Add(options);
+            return Task.FromResult(picks.TryDequeue(out var p) && options.ToList().IndexOf(p) is var i && i >= 0 ? (int?)i : null);
+        }
+    }
+
     private HomeStats? _stats;
     public HomeStats Stats => _stats ??= new HomeStats(Engine, Work, Catalogue);
 
@@ -110,7 +123,7 @@ internal sealed record AppTest(Engine Engine, CatalogueViewModel Catalogue, Shel
 
     /// <summary>Install AkariOS: one per test, as the app's.</summary>
     public InstallViewModel Install => _install ??= new InstallViewModel(Engine, Work, Dialogs, new Text(Names), Shell, Restore, Catalogue, Stats, Activity,
-        new Navigator(Navigated), Open, Picker, new OneClickHandoff(OneClicks.Add), Icons);
+        new Navigator(Navigated), Open, Picker, new OneClickHandoff(OneClicks.Add), new Choice(Picks, PickOptions), Icons);
 
     /// <summary>Home as the window opens it, at a fixed time (Recent activity's "when").</summary>
     public HomeViewModel Home(DateTime? now = null)
@@ -139,11 +152,11 @@ internal sealed class AppHarness : IDisposable
         if (Directory.Exists(Dir)) Directory.Delete(Dir, recursive: true);
     }
 
-    private sealed class Pc : ISystemInfo
+    private sealed class Pc(Chassis chassis) : ISystemInfo
     {
         public int Build => 26100;
         public string Edition => "Professional";
-        public Chassis Chassis => Chassis.Desktop;
+        public Chassis Chassis => chassis;
         public IReadOnlyList<Gpu> Gpus => [];
         public IReadOnlyList<string> GpuDevices => [];
     }
@@ -238,7 +251,7 @@ internal sealed class AppHarness : IDisposable
     }
 
     /// <summary>files: fixture ones, else the repo's src/ (the real Tweaks and lists).</summary>
-    public AppTest Make(ISourceFiles? files = null, bool safeMode = false)
+    public AppTest Make(ISourceFiles? files = null, bool safeMode = false, Chassis chassis = Chassis.Desktop)
     {
         files ??= new FolderSourceFiles(Core.Tests.Repo.Root);
         var (services, tasks) = (new FakeServiceManager(), new FakeTaskScheduler());
@@ -260,7 +273,7 @@ internal sealed class AppHarness : IDisposable
             },
             Files = files,
             Registry = new RegistryEngine(new RedirectedRegistryPaths(_root)),
-            System = new Pc(),
+            System = new Pc(chassis),
             Log = log,
             Remembered = new JsonRememberedState(Path.Combine(Dir, "state.json")),
             Explorer = explorer,

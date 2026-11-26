@@ -5,7 +5,8 @@ using AkariOS.Core.Tweaks;
 namespace AkariOS.Tweaks.Optimize.Performance;
 
 /// <summary>src/Tweaks/Optimize/Performance/WriteCacheFlushing.ps1: CacheIsPowerProtected = 1 in the Disk key of every
-/// SCSI and NVMe disk's Device Parameters (ControlSet001\Enum). Revert removes only that value, from every Disk key.</summary>
+/// SCSI and NVMe disk's Device Parameters (ControlSet001\Enum). Revert removes only that value, from every Disk key.
+/// A key that refuses the change is skipped.</summary>
 [TweakCode("performance-write-cache-flushing-off")]
 public sealed class WriteCacheFlushing : ITweakCode
 {
@@ -26,11 +27,12 @@ public sealed class WriteCacheFlushing : ITweakCode
 
     public void Apply(Tweak tweak, TweakContext c, object? value)
     {
-        foreach (var k in Keys(c.Registry, "Device Parameters")) c.Registry.SetValue($@"{k}\Disk", Value, 1, "DWord");
+        // -ErrorAction SilentlyContinue: a disk key that refuses the change is skipped
+        foreach (var k in Keys(c.Registry, "Device Parameters")) RegistryTree.Try(() => c.Registry.SetValue($@"{k}\Disk", Value, 1, "DWord"));
     }
 
     public void Revert(Tweak tweak, TweakContext c, object? value)
     {
-        foreach (var k in Keys(c.Registry, "Disk")) c.Registry.RemoveValue(k, Value);
+        foreach (var k in Keys(c.Registry, "Disk")) RegistryTree.Try(() => c.Registry.RemoveValue(k, Value));
     }
 }

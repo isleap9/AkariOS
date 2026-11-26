@@ -627,12 +627,13 @@ namespace AkariOS.Tweaks.Tests
         public int Start(string exe, string arguments) { Started.Add($"{exe}|{arguments}"); return 0; }
     }
 
-    /// <summary>System Restore: the points made; Refuse = Windows says no.</summary>
+    /// <summary>System Restore: the points made (each dated MadeAt, local time); Refuse = Windows says no.</summary>
     internal sealed class FakeRestore : ISystemRestore
     {
         public List<string> Made { get; } = [];
         public bool Refuse { get; set; }
-        public IReadOnlyList<RestorePoint> List() => Made.Select((d, i) => new RestorePoint(d, null, (uint)i)).ToList();
+        public DateTime? MadeAt { get; set; }
+        public IReadOnlyList<RestorePoint> List() => Made.Select((d, i) => new RestorePoint(d, MadeAt, (uint)i)).ToList();
         public void Create(string description) { if (Refuse) throw new InvalidOperationException("Windows refused the restore point"); Made.Add(description); }
         public void EnableProtection() { }
     }

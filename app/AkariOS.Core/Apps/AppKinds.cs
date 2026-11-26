@@ -41,8 +41,8 @@ public static class AppKinds
         switch (t.EntryKind?.Name)
         {
             case "AppxRemove": Apps(c).Remove(name); break;
-            case "CapabilityRemove": Apps(c).RemoveCapability(name); break;
-            case "FeatureDisable": Apps(c).DisableFeature(name); break;
+            case "CapabilityRemove": Permanent(() => Apps(c).RemoveCapability(name)); break;
+            case "FeatureDisable": Permanent(() => Apps(c).DisableFeature(name)); break;
             case "StoreInstall": Winget(c).Install(t.StoreId ?? throw new InvalidOperationException($"{t.Id} has no StoreId"), "msstore"); break;
             case null:
                 var w = Winget(c);
@@ -51,6 +51,17 @@ public static class AppKinds
                 if (t.Has("After")) t.Code!.After(t, c, TweakMode.Apply);
                 break;
             case var k: throw new NotSupportedException($"unknown EntryKind '{k}'");
+        }
+    }
+
+    // CBS_E_CANNOT_UNINSTALL: a permanent part of this Windows (the display language's Language.Basic, SmbDirect):
+    // nothing AkariOS can do, so Skipped, not Failed
+    private static void Permanent(Action remove)
+    {
+        try { remove(); }
+        catch (DismException e) when (e.Code == DismException.CannotUninstall)
+        {
+            throw new SkippedException("Windows won't remove it: it is a permanent part of this Windows (0x800F0825)");
         }
     }
 

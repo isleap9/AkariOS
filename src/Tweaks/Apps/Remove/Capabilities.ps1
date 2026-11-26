@@ -12,8 +12,9 @@
     Description = 'Windows optional features: Steps Recorder, WordPad, Math Recognizer, Internet Explorer mode and the rest.'
     EntryKind   = 'CapabilityRemove'
     # FR33THY's keep-list: network drivers, Windows 10 Paint and Notepad, .NET 3.5, and what installers, monitoring
-    # tools and the Snipping Tool need
+    # tools and the Snipping Tool need; plus Language.Basic (the display language's own pack: Windows refuses its removal)
     KeepNames   = '*Microsoft.Windows.Ethernet*', '*Microsoft.Windows.MSPaint*', '*Microsoft.Windows.Notepad*',
-                  '*Microsoft.Windows.Wifi*', '*NetFX3*', '*VBSCRIPT*', '*WMIC*', '*Windows.Client.ShellComponents*'
+                  '*Microsoft.Windows.Wifi*', '*NetFX3*', '*VBSCRIPT*', '*WMIC*', '*Windows.Client.ShellComponents*',
+                  '*Language.Basic*'
     Entries     = (Import-PowerShellDataFile "$PSScriptRoot\Capabilities.psd1").Rows
 }
