@@ -7,6 +7,21 @@ function Get-AkariOSBuild { [Environment]::OSVersion.Version.Build }
 # the Windows edition's EditionID (Core* = Home, Professional, Enterprise, ...). Read only; tests mock this.
 function Get-AkariEdition { "$((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction SilentlyContinue).EditionID)" }
 
+# a virtual machine's firmware names (pure): Hyper-V, VMware, VirtualBox, QEMU / KVM, Xen, Parallels
+function Test-AkariVirtualName([string]$Manufacturer, [string]$Product) {
+    "$Manufacturer|$Product" -match 'Virtual Machine|VMware|VirtualBox|innotek|QEMU|\bKVM\b|\bXen\b|Parallels|Bochs'
+}
+
+# $true on a virtual machine (the firmware's names, HKLM\HARDWARE\DESCRIPTION\System\BIOS); read once, read only.
+# The GUI leaves Mica off there: a VM's display adapter has DWM draw Mica as black.
+function Test-AkariVirtualMachine {
+    if ($null -eq $script:AkariVirtual) {
+        $b = Get-ItemProperty 'HKLM:\HARDWARE\DESCRIPTION\System\BIOS' -ErrorAction SilentlyContinue
+        $script:AkariVirtual = [bool](Test-AkariVirtualName "$($b.SystemManufacturer)" "$($b.SystemProductName)")
+    }
+    $script:AkariVirtual
+}
+
 # 'Laptop' or 'Desktop', from the chassis type (portable, laptop, notebook, tablet, convertible, ...); read once
 function Get-AkariChassis {
     if (-not $script:AkariChassis) {

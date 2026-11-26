@@ -204,9 +204,17 @@ if (Test-Path $logoPath) {
 }
 $window.Add_SourceInitialized({
     $h = [Windows.Interop.WindowInteropHelper]::new($window).Handle
-    # mica behind the whole window on windows 11; windows 10 keeps the solid body
+    # mica behind the whole window on windows 11; windows 10 keeps the solid body. So does a PC where DWM can't draw
+    # Mica and the clear body would show black (WinUI's MicaBackdrop falls back the same way): a virtual machine,
+    # WPF drawing in software (render tier 0: no GPU driver) or a Remote Desktop session.
     $build = [Environment]::OSVersion.Version.Build
-    if ($build -ge 22000) {
+    $noMica = $false
+    try {
+        $noMica = (Test-AkariVirtualMachine) -or ([Windows.Media.RenderCapability]::Tier -shr 16) -eq 0 -or
+                  [Windows.SystemParameters]::IsRemoteSession
+    } catch { Write-ErrLog "Mica check: $_" }
+    if ($noMica) { Write-ErrLog 'Mica off: a virtual machine, software rendering or Remote Desktop' }
+    if ($build -ge 22000 -and -not $noMica) {
         [Windows.Interop.HwndSource]::FromHwnd($h).CompositionTarget.BackgroundColor = [Windows.Media.Colors]::Transparent
         if ($build -ge 22621) {
             # DWMWA_SYSTEMBACKDROP_TYPE = DWMSBT_MAINWINDOW (mica)

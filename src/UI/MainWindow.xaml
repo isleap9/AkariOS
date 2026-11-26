@@ -427,10 +427,10 @@
       <Grid>
         <!-- PageScroll glides on the wheel (Enable-AkariSmoothScroll) and goes back to the top on a new page -->
         <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-          <!-- the page fills the layer up to 1064 px (its 36 px sides included), left-aligned: one star column with a cap -->
+          <!-- the page fills the layer up to 1064 px (its 36 px sides included), centred in a wider window as the
+               native app's (Views\PageLayout.cs): MaxWidth 992 + the margins, Stretch centres it past that -->
           <Grid>
-          <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="1064"/></Grid.ColumnDefinitions>
-          <StackPanel x:Name="Page" Margin="36,28,36,120">
+          <StackPanel x:Name="Page" Margin="36,28,36,120" MaxWidth="992">
             <!-- the page title, or a breadcrumb whose earlier parts are links (Set-AkariHeader) -->
             <StackPanel x:Name="PageHeader" Margin="0,0,0,20">
               <StackPanel x:Name="Crumbs" Orientation="Horizontal" Margin="0,0,0,4" Visibility="Collapsed"/>

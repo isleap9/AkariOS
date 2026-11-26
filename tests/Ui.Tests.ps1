@@ -413,7 +413,10 @@ Wait-Ms 450
 $th = (Part $sw 'Thumb').RenderTransform.Children
 $r = @("on $($th[2].X) $((Part $sw 'On').Opacity) $((Part $sw 'ThumbOn').Opacity) $((Part $sw 'L').Text)")
 $sw.IsChecked = $null; Wait-Ms 450
-$r += "null $($th[2].X) $((Part $sw 'On').Opacity) $((Part $sw 'L').Text)"
+$r += "null $($th[2].X + $th[3].X) $((Part $sw 'On').Opacity) $((Part $sw 'L').Text)"
+# unread (null) to On, as a Catalogue card whose State arrives: the thumb ends on the right, not held left by Null's exit
+$sw.IsChecked = $true; Wait-Ms 450
+$r += "back $($th[2].X + $th[3].X) $((Part $sw 'On').Opacity)"
 $r += "cat $((Part $cs 'Thumb').RenderTransform.Children[2].X)"
 $r += "check $((Part $ck 'On').Opacity) $((Part $ck 'Tick').StrokeDashOffset)"
 $r += "radio $((Part $rd 'Dot').RenderTransform.Children[0].ScaleX)"
@@ -421,7 +424,7 @@ $r += "exp $((Part $ex 'Chev').RenderTransform.Angle)"
 $r += "acc $($ac.ActualHeight) $($ac.MinWidth)"
 $r -join '|'
 '@
-        $want = 'on 20 1 1 On|null 10 0 Unchanged|cat 20|check 1 0|radio 1|exp 180|acc 32 120'
+        $want = 'on 20 1 1 On|null 10 0 Unchanged|back 20 1|cat 20|check 1 0|radio 1|exp 180|acc 32 120'
         foreach ($m in 'on', 'off') {
             $out = @(& powershell -NoProfile -STA -ExecutionPolicy Bypass -File $probe -Root $Root -Motion $m 2>&1 | ForEach-Object { "$_" }) -join "`n"
             "$m $out" | Should Be "$m $want"

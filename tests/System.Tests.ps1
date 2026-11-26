@@ -53,6 +53,23 @@ Describe 'Test-AkariRequirement' {
     It 'has nothing to meet without Requires' { Test-AkariRequirement ([pscustomobject]@{ Requires = $null }) | Should BeNullOrEmpty }
 }
 
+Describe 'Test-AkariVirtualName (Mica off on a VM)' {
+    . "$Core\System.ps1"
+    It 'knows the hypervisors firmware names' {
+        Test-AkariVirtualName 'Microsoft Corporation' 'Virtual Machine' | Should Be $true
+        Test-AkariVirtualName 'VMware, Inc.' 'VMware20,1' | Should Be $true
+        Test-AkariVirtualName 'innotek GmbH' 'VirtualBox' | Should Be $true
+        Test-AkariVirtualName 'QEMU' 'Standard PC (Q35 + ICH9, 2009)' | Should Be $true
+        Test-AkariVirtualName 'Xen' 'HVM domU' | Should Be $true
+    }
+    It 'leaves real PCs alone' {
+        Test-AkariVirtualName 'Microsoft Corporation' 'Surface Laptop 5' | Should Be $false
+        Test-AkariVirtualName 'ASUS' 'ROG STRIX B650E-F GAMING WIFI' | Should Be $false
+        Test-AkariVirtualName 'Dell Inc.' 'XPS 15 9530' | Should Be $false
+        Test-AkariVirtualName '' '' | Should Be $false
+    }
+}
+
 Describe 'Restart-AkariExplorer' {
     foreach ($f in 'Log', 'System') { . "$Core\$f.ps1" }
     $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()

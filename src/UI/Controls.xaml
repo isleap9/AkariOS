@@ -16,7 +16,7 @@
   <FontFamily x:Key="FontSmall">Segoe UI Variable Small, Segoe UI</FontFamily>
   <FontFamily x:Key="FontMono">Cascadia Mono, Consolas</FontFamily>
 
-  <!-- ToggleSwitch (WinUI): "Off" / "On" / "Unchanged" on its left, a 40 x 20 track with a 1 px Line stroke and a 12 px thumb; on = Acc track and an AccT thumb sliding 20 px (Motion.Base); hover: the thumb grows to 14 px, pressed it stretches to 17 px (Motion.Fast). Null (IsThreeState, a mixed State): the thumb in the middle, "Unchanged". -->
+  <!-- ToggleSwitch (WinUI): "Off" / "On" / "Unchanged" on its left, a 40 x 20 track with a 1 px Line stroke and a 12 px thumb; on = Acc track and an AccT thumb sliding 20 px (Motion.Base); hover: the thumb grows to 14 px, pressed it stretches to 17 px (Motion.Fast). Null (IsThreeState, a mixed State): the thumb in the middle, "Unchanged", through its own TranslateTransform ([3]): sharing On's ([2]) let Null's exit (to 0) run after On's entry (to 20) when a card went from unread to On, leaving the thumb on the left of a lit track. -->
   <Style x:Key="Switch" TargetType="ToggleButton">
     <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
     <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusPill}"/>
@@ -32,7 +32,7 @@
               <Border x:Name="On" CornerRadius="10" Background="{DynamicResource Acc}" Opacity="0"/>
               <Border x:Name="OnH" CornerRadius="10" Background="{DynamicResource AccH}" Opacity="0"/>
               <Grid x:Name="Thumb" Width="12" Height="12" HorizontalAlignment="Left" Margin="3,0,0,0" RenderTransformOrigin="0.5,0.5">
-                <Grid.RenderTransform><TransformGroup><ScaleTransform/><ScaleTransform/><TranslateTransform/></TransformGroup></Grid.RenderTransform>
+                <Grid.RenderTransform><TransformGroup><ScaleTransform/><ScaleTransform/><TranslateTransform/><TranslateTransform/></TransformGroup></Grid.RenderTransform>
                 <Border CornerRadius="6" Background="{DynamicResource Line}"/>
                 <Border x:Name="ThumbOn" CornerRadius="6" Background="{DynamicResource AccT}" Opacity="0"/>
               </Grid>
@@ -46,8 +46,8 @@
             </Trigger>
             <Trigger Property="IsChecked" Value="{x:Null}">
               <Setter TargetName="L" Property="Text" Value="Unchanged"/>
-              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[2].(TranslateTransform.X)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="10"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
-              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[2].(TranslateTransform.X)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[3].(TranslateTransform.X)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="10"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[3].(TranslateTransform.X)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
             </Trigger>
             <Trigger Property="IsMouseOver" Value="True">
               <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleX)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1.1666666666666667"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Thumb" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleY)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1.1666666666666667"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
