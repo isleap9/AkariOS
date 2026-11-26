@@ -54,11 +54,14 @@ public static partial class Program
     {
         AllocConsole();
         ShowWindow(GetConsoleWindow(), 3);
-        var output = new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true };
+        // UTF-8, so the console's rules and marks draw (Consolas and Cascadia have them)
+        Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+        var output = new StreamWriter(Console.OpenStandardOutput(), new System.Text.UTF8Encoding(false)) { AutoFlush = true };
         var input = new StreamReader(Console.OpenStandardInput());
         var log = new AkariLog(AkariPaths.LogFile);
-        log.Line += output.WriteLine;
-        try { return body(new RunConsole(output, input, new RealConsole()), log); }
+        var console = new RunConsole(output, input, new RealConsole());
+        log.Line += console.Line;
+        try { return body(console, log); }
         catch (Exception e)
         {
             log.WriteFile($"Error: {e}");

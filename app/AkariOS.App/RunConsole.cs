@@ -43,6 +43,21 @@ public sealed class RealConsole : IConsoleLook
 public sealed class RunConsole(TextWriter output, TextReader input, IConsoleLook look)
 {
     /// <summary>Write-AkariBanner: the title, the logo (dots white, lines dark grey), the line under it.</summary>
+    /// <summary>Write-AkariConsoleLine: one log line in the console's look (Core's ConsoleLines); a phase also goes to
+    /// the window's title.</summary>
+    public void Line(string message)
+    {
+        if (Core.Runs.ConsoleLines.Title(message) is { } title) look.Title(title);
+        foreach (var s in Core.Runs.ConsoleLines.Format(message, DateTime.Now.ToString("HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture)))
+        {
+            if (s.Text.Length == 0) { output.WriteLine(); continue; }
+            look.Color(s.Color);
+            output.Write(s.Text);
+        }
+        look.Color(ConsoleColor.Gray);
+        output.WriteLine();
+    }
+
     public void Banner(string line)
     {
         look.Title("AkariOS (Administrator) - keep this window open");
@@ -60,9 +75,16 @@ public sealed class RunConsole(TextWriter output, TextReader input, IConsoleLook
             }
             output.WriteLine();
         }
-        look.Color(ConsoleColor.White);
+        // the header: what runs and the version, a rule, what to expect
         output.WriteLine();
-        output.WriteLine($"  {line}");
+        look.Color(ConsoleColor.White);
+        output.Write($"  {line}");
+        look.Color(ConsoleColor.DarkGray);
+        output.WriteLine($"  AkariOS {Core.AkariInfo.Version}");
+        look.Color(ConsoleColor.DarkRed);
+        output.WriteLine($"  {new string(Core.Runs.ConsoleLines.Rule, Core.Runs.ConsoleLines.Width - 2)}");
+        look.Color(ConsoleColor.DarkGray);
+        output.WriteLine("  Keep this window open. Your PC may restart along the way; AkariOS carries on by itself.");
         look.Color(ConsoleColor.Gray);
         output.WriteLine();
     }
@@ -119,7 +141,10 @@ public sealed class RunConsole(TextWriter output, TextReader input, IConsoleLook
 
     private int Wait(int code)
     {
+        output.WriteLine();
+        look.Color(ConsoleColor.DarkGray);
         output.WriteLine("  Press Enter to close this window.");
+        look.Color(ConsoleColor.Gray);
         input.ReadLine();
         return code;
     }

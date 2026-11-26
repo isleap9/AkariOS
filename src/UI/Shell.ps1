@@ -253,15 +253,8 @@ $window.Add_DpiChanged({ Update-AkariCaptionHole })
 
 # the live log is the console window next to Akari (no log panel in the window); akari.log keeps a copy
 function Add-Log([string]$m) {
-    $line = "[{0}] {1}" -f (Get-Date -Format 'HH:mm:ss'), $m
-    $color = switch -Regex ($m) {
-        '^(Failed|Error)' { 'Red'; break }
-        '^(Applied|Reverted|Done|Restore point created)' { 'Green'; break }
-        '^(Already|Skipped)' { 'DarkGray'; break }
-        '^(Warning|Restore point)' { 'Yellow'; break }
-        default { 'Gray' }
-    }
-    try { [Console]::ForegroundColor = $color; [Console]::Out.WriteLine($line); [Console]::ResetColor() } catch { }
+    # the console's look (Core\Log.ps1): time, status tag, phase headers
+    Write-AkariConsoleLine $m -Stamp
     Write-ErrLog $m
 }
 

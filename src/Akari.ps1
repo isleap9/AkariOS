@@ -14,7 +14,7 @@ $AkariHistoryDir = Join-Path $env:LOCALAPPDATA 'Akari\history'
 # ---- CLI: no relaunch, no WPF
 if ($List -or $Apply -or $Revert -or $Preset -or $RevertPreset) {
     $CoreDir = Join-Path $PSScriptRoot 'Core'
-    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Appx', 'Winget', 'AppSetup', 'System', 'Presets', 'Phases', 'Restore', 'History') { . "$CoreDir\$f.ps1" }
+    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Appx', 'Winget', 'AppSetup', 'System', 'Presets', 'Phases', 'Restore', 'History', 'Version') { . "$CoreDir\$f.ps1" }
     $loaded = Get-AkariTweaks (Join-Path $PSScriptRoot 'Tweaks')
     Write-AkariProblems $loaded.Problems { param($m) [Console]::Error.WriteLine($m) }
     if ($List) {
@@ -58,13 +58,13 @@ if ($Resume) {
         Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Maximized -File `"$PSCommandPath`" -Resume" -Verb RunAs
         exit
     }
-    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Appx', 'Winget', 'AppSetup', 'System', 'Presets', 'Phases', 'Restore', 'History') { . "$PSScriptRoot\Core\$f.ps1" }
+    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Appx', 'Winget', 'AppSetup', 'System', 'Presets', 'Phases', 'Restore', 'History', 'Version') { . "$PSScriptRoot\Core\$f.ps1" }
     Write-AkariBanner 'AkariOS is continuing...'
     $run = Get-AkariRun
     if (-not $run) { Write-Log 'Nothing to continue.'; exit }
     $loaded = Get-AkariTweaks (Join-Path $PSScriptRoot 'Tweaks')
     $status = @(Start-AkariPhases $run (Get-AkariRunTweaks $run $loaded) | Where-Object { $_ -is [string] }) | Select-Object -Last 1
-    if ($status -ne 'Restarting') { Write-AkariRunSummary $run.Outcomes; Write-Host '  Press Enter to close this window.'; [void][Console]::ReadLine() }
+    if ($status -ne 'Restarting') { Write-AkariRunSummary $run.Outcomes; Write-AkariConsoleClose }
     exit
 }
 
@@ -76,7 +76,7 @@ if ($FirstSignIn) {
         Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Maximized -File `"$PSCommandPath`" -FirstSignIn" -Verb RunAs
         exit
     }
-    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Appx', 'Winget', 'AppSetup', 'System', 'Presets', 'Phases', 'Restore', 'History') { . "$PSScriptRoot\Core\$f.ps1" }
+    foreach ($f in 'Log', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Appx', 'Winget', 'AppSetup', 'System', 'Presets', 'Phases', 'Restore', 'History', 'Version') { . "$PSScriptRoot\Core\$f.ps1" }
     Write-AkariBanner 'AkariOS is finishing setting up this Windows...'
     $loaded = Get-AkariTweaks (Join-Path $PSScriptRoot 'Tweaks')
     $oneClickPreset = Find-AkariPreset 'AkariOS' (Join-Path $PSScriptRoot 'Presets')
@@ -86,7 +86,7 @@ if ($FirstSignIn) {
     Write-Log 'Reading the apps and features on this PC...'
     $r = New-AkariPresetRun $oneClickPreset $loaded
     $status = @(Start-AkariPhases $r.Run $r.Tweaks | Where-Object { $_ -is [string] }) | Select-Object -Last 1
-    if ($status -ne 'Restarting') { Write-AkariRunSummary $r.Run.Outcomes; Write-Host '  Press Enter to close this window.'; [void][Console]::ReadLine() }
+    if ($status -ne 'Restarting') { Write-AkariRunSummary $r.Run.Outcomes; Write-AkariConsoleClose }
     exit
 }
 
@@ -177,5 +177,5 @@ if ($script:OneClickPath) {
     Write-Log 'Reading the apps and features on this PC...'
     $r = New-AkariPresetRun $oneClickPreset $loaded
     $status = @(Start-AkariPhases $r.Run $r.Tweaks | Where-Object { $_ -is [string] }) | Select-Object -Last 1
-    if ($status -ne 'Restarting') { Write-AkariRunSummary $r.Run.Outcomes; Write-Host '  Press Enter to close this window.'; [void][Console]::ReadLine() }
+    if ($status -ne 'Restarting') { Write-AkariRunSummary $r.Run.Outcomes; Write-AkariConsoleClose }
 }
