@@ -96,6 +96,18 @@
                     <Button Grid.Column="2" Content="Open folder" VerticalAlignment="Center" Command="{x:Bind ViewModel.OpenLogFolderCommand}" />
                 </Grid>
             </Border>
+            <Border Style="{StaticResource CardBorder}">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xEBE8;" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="Save a support file" />
+                        <TextBlock Text="A zip of the logs and this PC's details for a bug report; your names are left out" TextWrapping="Wrap"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" Style="{StaticResource CaptionTextBlockStyle}" />
+                    </StackPanel>
+                    <Button Grid.Column="2" Content="Save…" VerticalAlignment="Center" Command="{x:Bind ViewModel.SaveSupportFileCommand}" />
+                </Grid>
+            </Border>
 
             <!-- About: the version and update status, What's new, links, credits, license -->
             <TextBlock Text="About" Style="{StaticResource Section}" />

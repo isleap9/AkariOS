@@ -220,4 +220,28 @@ public sealed class HomeSettingsTests : IDisposable
         Assert.Equal(_h.Dir, t.Open.Opened[^1]);
         Assert.Empty(t.Shell.Toasts);
     }
+
+    [Fact]
+    public async Task Support_file_is_saved_where_the_user_picks()
+    {
+        var t = Make();
+        var s = t.Settings(new Theme(), new Settings());
+        // cancelled: nothing written
+        await s.SaveSupportFileAsync();
+        Assert.StartsWith("AkariOS-support-", t.Picker.Suggested[0]);
+        Assert.Empty(t.Toasts);
+        t.Picker.ZipPath = Path.Combine(_h.Dir, "support.zip");
+        await s.SaveSupportFileAsync();
+        using (var zip = System.IO.Compression.ZipFile.OpenRead(t.Picker.ZipPath))
+        {
+            var info = zip.GetEntry("system.txt");
+            Assert.NotNull(info);
+            using var r = new StreamReader(info.Open());
+            Assert.StartsWith($"AkariOS {Core.AkariInfo.Version} (native app)", r.ReadToEnd());
+        }
+        Assert.Equal($"Support file saved: {t.Picker.ZipPath}", t.Toasts[0]);
+        Assert.False(t.Shell.IsBusy);
+        t.Shell.Toasts[0].ActCommand.Execute(null);
+        Assert.Equal(_h.Dir, t.Open.Opened[^1]);
+    }
 }

@@ -2,6 +2,7 @@ using AkariOS.App.Shell;
 using AkariOS.Core;
 using AkariOS.Core.Data;
 using AkariOS.Core.Sources;
+using AkariOS.Core.Support;
 using AkariOS.Framework.Services;
 using AkariOS.Framework.ViewModels;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -33,7 +34,7 @@ public sealed record AboutData(IReadOnlyList<LinkItem> Links, IReadOnlyList<Link
 
 /// <summary>
 /// Settings (About.ps1's Show-AkariSettings): Appearance (App theme, Accent colour), Settings files (Import into
-/// Guided, Export), Recovery (System Restore, Logs), About (the version, the update status, Check for updates, Update
+/// Guided, Export), Recovery (System Restore, Logs, the support file), About (the version, the update status, Check for updates, Update
 /// now, What's new, links, credits, license). Windows' animation effects are WinUI's own (no setting here).
 /// </summary>
 public sealed partial class SettingsViewModel : ViewModelBase
@@ -116,6 +117,38 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     [RelayCommand]
     private Task UpdateNow() => Updates.InstallAsync();
+
+    /// <summary>Save-AkariSupportFile: a zip of the logs and this PC's details (names taken out), where the user picks;
+    /// written in the background, then a toast that opens its folder. Nothing is sent anywhere.</summary>
+    [RelayCommand]
+    public async Task SaveSupportFileAsync()
+    {
+        if (await _picker.SaveZipAsync($"AkariOS-support-{DateTime.Now:yyyyMMdd-HHmm}.zip") is not { } path) return;
+        var busy = _shell.Begin("Saving a support file");
+        var done = new TaskCompletionSource<string?>();
+        _background.Run(() =>
+        {
+            try
+            {
+                SupportFile.Make(path, SupportFile.Files(), SupportFile.Info(_engine, DateTime.Now), SupportFile.Users(_engine), Environment.MachineName, _engine.Log);
+                return null;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
+            {
+                _engine.Log.WriteFile($"Error: support file: {e}");
+                return e.Message;
+            }
+        }, r => done.SetResult(r as string));
+        var error = await done.Task;
+        _shell.End(busy);
+        if (error is not null)
+        {
+            _shell.Toast("Support file not saved", error, InfoBarSeverity.Error);
+            return;
+        }
+        _engine.Log.Write($"Support file saved: {path}");
+        _shell.Toast("Support file saved", path, InfoBarSeverity.Success, "Open folder", () => _open.Folder(Path.GetDirectoryName(path) ?? path));
+    }
 
     /// <summary>Start-AkariImport: a preset file into Install AkariOS › Guided's Tweaks step.</summary>
     [RelayCommand]

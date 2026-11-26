@@ -10,6 +10,30 @@ $script:UpdateChecking = $false
 # Settings › About's data: links, credits, license (UI\About.psd1)
 $script:AboutData = Import-PowerShellDataFile "$Root\UI\About.psd1"
 
+# Settings > Recovery: the support file (Core\Support.ps1), saved where the user picks; nothing is sent anywhere
+function Select-AkariSupportFile {
+    Add-Type -AssemblyName System.Windows.Forms
+    $d = [Windows.Forms.SaveFileDialog]::new()
+    $d.Filter = 'Zip files (*.zip)|*.zip'
+    $d.FileName = "AkariOS-support-$((Get-Date).ToString('yyyyMMdd-HHmm')).zip"
+    if ($d.ShowDialog() -eq 'OK') { $d.FileName } else { $null }
+}
+
+function Save-AkariSupportFile {
+    $path = Select-AkariSupportFile
+    if (-not $path) { return }
+    try {
+        $r = New-AkariSupportFile $path (Get-AkariSupportFiles) (Get-AkariSupportInfo) (Get-AkariSupportUsers) $env:COMPUTERNAME
+    } catch {
+        Write-ErrLog "Support file: $($_.Exception.Message)"
+        Show-AkariMessage "The support file could not be saved:`n`n$($_.Exception.Message)" 'Error' 'Save a support file'
+        return
+    }
+    Add-Log "Support file saved: $($r.Path)"
+    Show-AkariToast 'Support file saved' $r.Path
+    Open-AkariFolder (Split-Path $r.Path)
+}
+
 function Open-AkariLogFolder { $f = Split-Path $AkariLogFile; if (Test-Path $f) { Start-Process explorer.exe $f } }
 
 # a text link (Link style: AccText, underlined on hover) that opens $Url in the browser
@@ -85,7 +109,8 @@ function Show-AkariSettings {
     $st = [Windows.Controls.StackPanel]::new()
     foreach ($x in @(
         @('arrow-reset', 'System Restore', "Open Windows' restore points", { Start-Process "$env:SystemRoot\System32\rstrui.exe" }),
-        @('document', 'Logs', 'Open the folder with akari.log', { Open-AkariLogFolder }))) {
+        @('document', 'Logs', 'Open the folder with akari.log', { Open-AkariLogFolder }),
+        @('bug', 'Save a support file', 'A zip of the logs and this PC''s details for a bug report; your names are left out', { Save-AkariSupportFile }))) {
         $c = New-AkariSettingsCard $x[0] $x[1] $x[2] (New-AkariIcon 'external-link' 12 'Mu') 'CardButton'
         $c.Card.Add_Click($x[3])
         [void]$st.Children.Add($c.Card)

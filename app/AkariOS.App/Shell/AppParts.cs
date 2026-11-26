@@ -20,6 +20,9 @@ public interface IFilePicker
 
     /// <summary>A Windows ISO (the ISO Builder's "Browse…").</summary>
     Task<string?> OpenIsoAsync();
+
+    /// <summary>Where to save a zip (Settings › Recovery's support file).</summary>
+    Task<string?> SaveZipAsync(string suggestedName);
 }
 
 /// <summary>
@@ -40,6 +43,13 @@ public sealed class WindowFilePicker : IFilePicker
     {
         var picker = new Microsoft.Windows.Storage.Pickers.FileSavePicker(_window()) { SuggestedFileName = suggestedName, DefaultFileExtension = ".json" };
         picker.FileTypeChoices.Add("AkariOS settings", [".json"]);
+        return (await picker.PickSaveFileAsync())?.Path;
+    }
+
+    public async Task<string?> SaveZipAsync(string suggestedName)
+    {
+        var picker = new Microsoft.Windows.Storage.Pickers.FileSavePicker(_window()) { SuggestedFileName = suggestedName, DefaultFileExtension = ".zip" };
+        picker.FileTypeChoices.Add("Zip file", [".zip"]);
         return (await picker.PickSaveFileAsync())?.Path;
     }
 

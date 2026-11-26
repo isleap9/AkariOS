@@ -349,6 +349,8 @@ internal sealed class AppHarness : IDisposable
         public Task<string?> OpenXmlAsync() => Task.FromResult(XmlPath);
         public Task<string?> FolderAsync() => Task.FromResult(FolderPath);
         public Task<string?> OpenIsoAsync() => Task.FromResult(IsoPath);
+        public string? ZipPath { get; set; }
+        public Task<string?> SaveZipAsync(string suggestedName) { Suggested.Add(suggestedName); return Task.FromResult(ZipPath); }
     }
 
     /// <summary>The timers started (the Massgrave watch): Tick calls every one still running.</summary>
