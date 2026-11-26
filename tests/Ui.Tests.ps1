@@ -719,7 +719,7 @@ Add-Type -AssemblyName PresentationFramework
 $env:AKARI_MOTION = 'off'
 $AkariLogFile = $LogFile
 $AkariPresetDir = Join-Path (Split-Path $LogFile) 'presets'
-foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'Restore', 'Version', 'Update', 'Unattend', 'Presets', 'Iso', 'IsoDownload') { . "$Root\Core\$f.ps1" }
+foreach ($f in 'Log', 'Registry', 'Loader', 'State', 'Runner', 'Restore', 'Version', 'Update', 'Unattend', 'Presets', 'Iso', 'IsoDownload', 'History', 'Metrics') { . "$Root\Core\$f.ps1" }
 # the Install USB page reads no drive and no PC setting here
 function Get-AkariSetupDrives { }
 function Get-AkariUnattendDefaults { @{} }

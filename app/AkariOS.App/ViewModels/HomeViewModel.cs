@@ -76,6 +76,9 @@ public sealed partial class HomeStats : ObservableObject
 /// <summary>A Recent activity row: its title, "when · where", the count, a glyph.</summary>
 public sealed record ActivityItem(string Title, string Detail, string CountText, string Glyph);
 
+/// <summary>A "Since AkariOS" row on Home (X6): the number's name, before → after.</summary>
+public sealed record SinceRow(string Name, string Text);
+
 /// <summary>
 /// Home (Pages.ps1's Show-AkariHome): the update InfoBar, the hero (headline, Start One-click, Choose changes, the
 /// facts), Get started tiles, Quick settings (four AkariOS Tweaks as the Catalogue's own cards, acting right away) and
@@ -93,13 +96,13 @@ public sealed partial class HomeViewModel : ViewModelBase, INavigationAware
     private readonly InstallViewModel _install;
 
     public HomeViewModel(IShellNavigator shell, CatalogueViewModel catalogue, HomeStats stats, UpdateService updates, ActivityLog activity, InstallViewModel install,
-        DriftCheck? drift = null)
-        : this(shell, catalogue, stats, updates, activity, install, () => DateTime.Now, drift) { }
+        DriftCheck? drift = null, MetricsAfter? metrics = null)
+        : this(shell, catalogue, stats, updates, activity, install, () => DateTime.Now, drift, metrics) { }
 
     public HomeViewModel(IShellNavigator shell, CatalogueViewModel catalogue, HomeStats stats, UpdateService updates, ActivityLog activity, InstallViewModel install, Func<DateTime> now,
-        DriftCheck? drift = null)
+        DriftCheck? drift = null, MetricsAfter? metrics = null)
     {
-        (_shell, _catalogue, Stats, Updates, _activity, _install, _now, Drift) = (shell, catalogue, stats, updates, activity, install, now, drift);
+        (_shell, _catalogue, Stats, Updates, _activity, _install, _now, Drift, _metrics) = (shell, catalogue, stats, updates, activity, install, now, drift, metrics);
         var tweaks = catalogue.Tweaks.ToDictionary(t => t.Id);
         QuickSettings = QuickIds.Where(tweaks.ContainsKey).Select(id => catalogue.Card(tweaks[id])).ToList();
         Title = "Home";
@@ -111,6 +114,24 @@ public sealed partial class HomeViewModel : ViewModelBase, INavigationAware
 
     /// <summary>The drift check (X3): its InfoBar shows while settings went back and it isn't dismissed.</summary>
     public DriftCheck? Drift { get; }
+
+    private readonly MetricsAfter? _metrics;
+
+    /// <summary>X6: "Since AkariOS", the numbers before the last Run and after its restart (Metrics.Diff).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSince))]
+    public partial IReadOnlyList<SinceRow> SinceRows { get; private set; } = [];
+
+    [ObservableProperty] public partial string SinceNote { get; private set; } = "";
+
+    public bool HasSince => SinceRows.Count > 0;
+
+    private void ReadSince()
+    {
+        var r = _metrics?.Shown();
+        SinceRows = r is null ? [] : Core.Machine.Metrics.Diff(r.Metrics.GetValueOrDefault("Before"), r.Metrics.GetValueOrDefault("After")).Select(x => new SinceRow(x.Name, x.Text)).ToList();
+        SinceNote = r is null ? "" : $"Before \"{r.Name}\" and after its restart. These numbers change from one boot to the next: read them as a rough guide.";
+    }
 
     public bool DriftBarOpen => Drift?.Found == true;
     public string DriftTitle => Drift?.Title ?? "";
@@ -148,6 +169,8 @@ public sealed partial class HomeViewModel : ViewModelBase, INavigationAware
         _activity.Added += OnActivity;
         if (Drift is not null) Drift.PropertyChanged += OnDrift;
         OnDrift(null, null);
+        ReadSince();
+        if (_metrics is not null) _metrics.Changed += ReadSince;
     }
 
     public void OnNavigatedFrom()
@@ -155,6 +178,7 @@ public sealed partial class HomeViewModel : ViewModelBase, INavigationAware
         Updates.PropertyChanged -= OnUpdates;
         _activity.Added -= OnActivity;
         if (Drift is not null) Drift.PropertyChanged -= OnDrift;
+        if (_metrics is not null) _metrics.Changed -= ReadSince;
     }
 
     private void OnDrift(object? s, System.ComponentModel.PropertyChangedEventArgs? e)

@@ -95,6 +95,8 @@ public partial class App : Application
                 Services.GetRequiredService<UpdateService>().Check(manual: false);
                 // the drift check (X3): only after Windows' build changed since the last one
                 _ = Services.GetRequiredService<DriftCheck>().CheckAsync(manual: false);
+                // X6: the numbers after the last Run, once Windows has settled after its restart
+                _ = Services.GetRequiredService<MetricsAfter>().StartAsync();
                 // a mount left by a build the app closed during: discarded in the background (Clear-AkariIsoLeftover)
                 if (Services.GetRequiredService<IsoTools>().Build is { } iso)
                     _ = Task.Run(() =>
@@ -158,6 +160,7 @@ public partial class App : Application
         services.AddSingleton<StartupListViewModel>();
         services.AddSingleton<GamesListViewModel>();
         services.AddSingleton<DriftCheck>();
+        services.AddSingleton<MetricsAfter>();
         services.AddTransient<CataloguePageViewModel>();
         services.AddSingleton(_ => new AppIcons(AssetFiles.Default));
         services.AddSingleton<InstallViewModel>();

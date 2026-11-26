@@ -192,6 +192,20 @@ function Show-AkariHome {
         [void]$HomePanel.Children.Add($db.Bar)
     }
     [void]$HomePanel.Children.Add((New-AkariHero))
+    # X6: the numbers before the last Run and after its restart (Core\Metrics.ps1)
+    $mr = Get-AkariMetricsShown $script:MetricsRecords
+    if ($mr) {
+        [void]$HomePanel.Children.Add((New-AkariSection 'Since AkariOS'))
+        $st = [Windows.Controls.StackPanel]::new()
+        foreach ($row in @(Get-AkariMetricsDiff $mr.Metrics['Before'] $mr.Metrics['After'])) {
+            $c = New-AkariSettingsCard 'gauge' $row.Name '' (New-AkariText $row.Text 14 'Tx' 'SemiBold') 'Plain'
+            [void]$st.Children.Add($c.Card)
+        }
+        $note = New-AkariText "Before `"$($mr.Name)`" and after its restart. These numbers change from one boot to the next: read them as a rough guide." 12 'Mu'
+        $note.TextWrapping = 'Wrap'; $note.Margin = [Windows.Thickness]::new(0, 6, 0, 0)
+        [void]$st.Children.Add($note)
+        [void]$HomePanel.Children.Add($st)
+    }
     [void]$HomePanel.Children.Add((New-AkariSection 'Get started'))
     $tiles = [Windows.Controls.Primitives.UniformGrid]::new()
     $tiles.Columns = 3

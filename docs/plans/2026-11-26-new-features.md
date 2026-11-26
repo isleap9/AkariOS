@@ -154,6 +154,9 @@ A list on the Optimize › Gaming page (`$AkariCatalogueLists`, under its Tweaks
 - Core: `Core/Metrics.ps1` (WMI and event reads behind wrappers that tests mock; `Get-AkariMetricsDiff`, pure); native
   `Machine/Metrics.cs` (`IMetrics`).
 - Tests: the diff and its text (pure, oracle); the wrappers mocked.
+- Built 2026-11-26 (Pester `tests/Metrics.Tests.ps1`; native `MetricsTests`, the same cases; no oracle). The timer
+  resolution is left out (the PowerShell app would need its own P/Invoke for one number); 'Before' is read when the
+  Run's history record is made, so CLI preset Runs get it too. VM check: to do.
 
 ## X7 ISO Builder: this PC's drivers in the image
 

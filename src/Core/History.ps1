@@ -22,7 +22,7 @@ function New-AkariHistory([string]$Name, [datetime]$Now = (Get-Date)) {
     $stamp = $Now.ToString('yyyyMMdd-HHmmss')
     $path = Join-Path $dir "$stamp.json"
     for ($k = 2; [IO.File]::Exists($path); $k++) { $path = Join-Path $dir "$stamp-$k.json" }
-    Save-AkariHistory $path @{ Name = $Name; When = $Now.ToString('o'); Before = @{}; Outcomes = @() }
+    Save-AkariHistory $path @{ Name = $Name; When = $Now.ToString('o'); Before = @{}; Outcomes = @(); Metrics = @{} }
     # undone ones (.undone) count too
     $old = @([IO.Directory]::GetFiles($dir) | Sort-Object -Descending | Select-Object -Skip $AkariHistoryKeep)
     foreach ($f in $old) { Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue }
@@ -43,7 +43,10 @@ function Read-AkariHistory([string]$Path) {
         }
     }
     $outs = @(foreach ($o in @($j.Outcomes)) { if ($o) { @{ Id = [string]$o.Id; Mode = [string]$o.Mode; Outcome = [string]$o.Outcome } } })
-    @{ Path = $Path; Name = [string]$j.Name; When = [string]$j.When; Before = $before; Outcomes = $outs }
+    # X6: the numbers before the Run and after its restart (Core\Metrics.ps1)
+    $metrics = @{}
+    if ($j.Metrics) { foreach ($w in 'Before', 'After') { if ($j.Metrics.$w) { $metrics[$w] = ConvertTo-AkariMetricsTable $j.Metrics.$w } } }
+    @{ Path = $Path; Name = [string]$j.Name; When = [string]$j.When; Before = $before; Outcomes = $outs; Metrics = $metrics }
 }
 
 # the newest record, or $null
@@ -52,6 +55,32 @@ function Get-AkariLastHistory {
     if (-not $dir -or -not [IO.Directory]::Exists($dir)) { return $null }
     $f = @([IO.Directory]::GetFiles($dir, '*.json') | Sort-Object -Descending) | Select-Object -First 1
     if ($f) { Read-AkariHistory $f } else { $null }
+}
+
+# (pure) a record's numbers read back from JSON as a hashtable
+function ConvertTo-AkariMetricsTable($O) {
+    $h = [ordered]@{}
+    if ($O -is [Collections.IDictionary]) { foreach ($k in @($O.Keys)) { $h[$k] = $O[$k] } }
+    elseif ($O) { foreach ($p in $O.PSObject.Properties) { $h[$p.Name] = $p.Value } }
+    $h
+}
+
+# a record's numbers before the Run ('Before') or after its restart ('After'), kept with the rest
+function Set-AkariHistoryMetrics([string]$Path, [string]$Which, $Metrics) {
+    if (-not $Path -or -not $Metrics) { return }
+    try {
+        $r = Read-AkariHistory $Path
+        if (-not $r) { return }
+        $m = $r.Metrics; $m[$Which] = $Metrics
+        Save-AkariHistory $Path @{ Name = $r.Name; When = $r.When; Before = $r.Before; Outcomes = $r.Outcomes; Metrics = $m }
+    } catch { Write-ErrLog "history: $($_.Exception.Message)" }
+}
+
+# every record, newest first (undone ones too: their numbers still count)
+function Get-AkariHistoryRecords {
+    $dir = Get-AkariHistoryDir
+    if (-not $dir -or -not [IO.Directory]::Exists($dir)) { return @() }
+    @([IO.Directory]::GetFiles($dir) | Sort-Object -Descending | ForEach-Object { Read-AkariHistory $_ } | Where-Object { $_ })
 }
 
 # (pure) a Tweak whose effect is only its value rows: a Toggle or Choice with registry rows, none a key row, no script
@@ -89,7 +118,7 @@ function Add-AkariHistoryBefore([string]$Path, $Tweak) {
         $r = Read-AkariHistory $Path
         if (-not $r -or $r.Before.ContainsKey($Tweak.Id)) { return }
         $r.Before[$Tweak.Id] = @(foreach ($row in @($Tweak.Registry | Where-Object { $_ })) { Read-AkariUndoRow $row.Path $row.Name })
-        Save-AkariHistory $Path @{ Name = $r.Name; When = $r.When; Before = $r.Before; Outcomes = $r.Outcomes }
+        Save-AkariHistory $Path @{ Name = $r.Name; When = $r.When; Before = $r.Before; Outcomes = $r.Outcomes; Metrics = $r.Metrics }
     } catch { Write-ErrLog "history: $($_.Exception.Message)" }
 }
 
@@ -99,7 +128,7 @@ function Add-AkariHistoryOutcomes([string]$Path, $Outcomes) {
         $r = Read-AkariHistory $Path
         if (-not $r) { return }
         $add = @(foreach ($o in @($Outcomes)) { if ($o.Id) { @{ Id = [string]$o.Id; Mode = [string]$o.Mode; Outcome = [string]$o.Outcome } } })
-        Save-AkariHistory $Path @{ Name = $r.Name; When = $r.When; Before = $r.Before; Outcomes = @($r.Outcomes) + $add }
+        Save-AkariHistory $Path @{ Name = $r.Name; When = $r.When; Before = $r.Before; Outcomes = @($r.Outcomes) + $add; Metrics = $r.Metrics }
     } catch { Write-ErrLog "history: $($_.Exception.Message)" }
 }
 

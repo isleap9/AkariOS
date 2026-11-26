@@ -154,7 +154,7 @@ public sealed class Phases(PhaseParts parts)
             // X4: one history record for the whole Run (Core\History.ps1's), the rows before each phase's changes
             if (parts.History is { } h)
             {
-                if (run.History.Length == 0) { run.History = h.New(run.Name, DateTime.Now); parts.Store.Save(run); }
+                if (run.History.Length == 0) { run.History = h.New(run.Name, DateTime.Now); h.TakeBefore(run.History); parts.Store.Save(run); }
                 h.AddBefore(run.History, ph.Items.Select(x => parts.Find(x.Id)));
             }
             var outcomes = parts.Plan(ph.Items);

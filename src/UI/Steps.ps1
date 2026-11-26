@@ -778,6 +778,8 @@ if (-not `$AkariShared.SkipRestore) {
     if (-not `$AkariShared.Restore.Ok) { return }
 }
 `$AkariHistoryFile = if (`$AkariShared.History) { New-AkariHistory `$AkariShared.History } else { '' }
+# X6: the numbers before the Run (Core\Metrics.ps1), the first launch after its restart reads them again
+if (`$AkariHistoryFile) { Set-AkariHistoryMetrics `$AkariHistoryFile 'Before' (Get-AkariMetrics) }
 `$AkariShared.Outcomes = @(Invoke-AkariPlan `$AkariShared.Plan `$all)
 if (`$AkariHistoryFile) { Add-AkariHistoryOutcomes `$AkariHistoryFile `$AkariShared.Outcomes }
 "@

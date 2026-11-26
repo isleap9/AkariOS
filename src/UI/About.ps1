@@ -345,6 +345,44 @@ function Open-AkariDriftReview {
 
 $window.Add_Loaded({ Start-AkariDriftCheck $false })
 
+# ---- the numbers after a Run (X6, Core\Metrics.ps1): on launch, the newest record whose 'After' is due is read in
+# the background; Windows up less than 3 minutes = read once it has been
+
+$script:MetricsRecords = @()
+
+function Start-AkariMetricsAfter {
+    $script:MetricsRecords = @(Get-AkariHistoryRecords)
+    $boot = try { Get-AkariLastBoot } catch { return }
+    $p = Find-AkariMetricsPending $script:MetricsRecords $boot (Get-Date)
+    if (-not $p) { return }
+    if ($p.State -eq 'Wait') {
+        $t = [Windows.Threading.DispatcherTimer]::new()
+        $t.Interval = [TimeSpan]::FromSeconds([Math]::Max(5, $AkariMetricsSettle - ((Get-Date) - $boot).TotalSeconds + 1))
+        $t.Add_Tick({ param($s, $a) $s.Stop(); Start-AkariMetricsAfter })
+        $t.Start()
+        return
+    }
+    $shared = [hashtable]::Synchronized(@{ Path = $p.Record.Path })
+    $job = Start-AkariJob 'Set-AkariHistoryMetrics $AkariShared.Path ''After'' (Get-AkariMetrics)' $script:Queue "$Root\Core" $shared
+    $tm = [Windows.Threading.DispatcherTimer]::new()
+    $tm.Interval = [TimeSpan]::FromMilliseconds(300)
+    $tm.Tag = $job
+    $tm.Add_Tick({
+        param($s, $a)
+        $j = $s.Tag
+        if (-not $j.Handle.IsCompleted) { return }
+        $s.Stop()
+        try { [void]$j.Ps.EndInvoke($j.Handle) } catch { }
+        $j.Ps.Dispose(); $j.Rs.Dispose()
+        $script:MetricsRecords = @(Get-AkariHistoryRecords)
+        Add-Log 'Numbers after the last Run read: Home shows them'
+        if ($script:Cat -eq 'Home') { $script:PageMotionKey = ''; Show-Page }
+    })
+    $tm.Start()
+}
+
+$window.Add_Loaded({ Start-AkariMetricsAfter })
+
 # ---- Undo the last run (X4, Core\History.ps1): the newest history record, what Undo can do with it asked first, then
 # one job (Kind Undo); an undone record is renamed <name>.undone, so the next Undo goes one Run further back
 

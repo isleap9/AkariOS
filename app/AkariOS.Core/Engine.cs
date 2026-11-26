@@ -63,6 +63,9 @@ public sealed class Engine
     /// <summary>The Run history Undo reads (X4); null = none kept (tests unless they set one).</summary>
     public RunHistory? History { get; init; }
 
+    /// <summary>X6: the numbers' readers (null = none: tests unless they give one).</summary>
+    public IMetricsReader? MetricsReader { get; init; }
+
     public RestorePoints? RestorePoints => SystemRestore is null ? null : new(SystemRestore, Registry, Log);
 
     /// <summary>A Tweak or Entry by id (an Entry of something on this PC is built from its id).</summary>
@@ -97,6 +100,7 @@ public sealed class Engine
         var shutdown = new ShutdownExe();
         var services = TweakServices.Live(trusted, user, explorer, remembered, log);
         var boot = new RunBoot(registry, services.BcdEdit!, shutdown, () => SelfCopy.Live().Target(), Thread.Sleep);
+        var metrics = new LiveMetricsReader();
         return new Engine
         {
             Files = new EmbeddedSourceFiles(),
@@ -105,7 +109,9 @@ public sealed class Engine
             Log = log,
             Remembered = remembered,
             Expected = new ExpectedStore(Path.Combine(AkariPaths.UserFolder, "expected.json")),
-            History = new RunHistory(Path.Combine(AkariPaths.UserFolder, "history"), registry, log),
+            History = new RunHistory(Path.Combine(AkariPaths.UserFolder, "history"), registry, log, () => Metrics.Read(metrics,
+                () => new StartupItems(registry, StartupItems.Locations(registry, services)).All().Count(i => i.Enabled))),
+            MetricsReader = metrics,
             Explorer = explorer,
             Presets = new PresetStore(new EmbeddedSourceFiles(), AkariPaths.PresetFolder, Path.Combine(AkariPaths.UserFolder, "lastused.json"), log),
             Codes = codes,

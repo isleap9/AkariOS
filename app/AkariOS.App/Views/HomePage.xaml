@@ -102,6 +102,25 @@
                 </Button>
             </Grid>
 
+            <!-- X6: Since AkariOS, the numbers before the last Run and after its restart -->
+            <TextBlock Text="Since AkariOS" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,20,0,4" Visibility="{x:Bind ViewModel.HasSince, Mode=OneWay}" />
+            <ItemsControl ItemsSource="{x:Bind ViewModel.SinceRows, Mode=OneWay}" Visibility="{x:Bind ViewModel.HasSince, Mode=OneWay}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SinceRow">
+                        <Border Style="{StaticResource CardBorder}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <FontIcon Glyph="&#xEC4A;" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{x:Bind Name}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="{x:Bind Text}" Style="{StaticResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Text="{x:Bind ViewModel.SinceNote, Mode=OneWay}" Visibility="{x:Bind ViewModel.HasSince, Mode=OneWay}" TextWrapping="Wrap"
+                       Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
             <!-- Quick settings: four AkariOS Tweaks as the Catalogue's own cards (they act right away) -->
             <TextBlock Text="Quick settings" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,20,0,4" Visibility="{x:Bind ViewModel.HasQuickSettings}" />
             <ItemsControl ItemsSource="{x:Bind ViewModel.QuickSettings}" ItemTemplate="{StaticResource CardTemplate}" />

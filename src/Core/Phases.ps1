@@ -132,6 +132,8 @@ function Start-AkariPhases($Run, $Tweaks, [string]$AkariPath = "$AkariRoot\Akari
         if (Get-Command New-AkariHistory -ErrorAction SilentlyContinue) {
             if (-not "$($Run.History)") {
                 $h = New-AkariHistory $Run.Name
+                # X6: the numbers before the Run (Core\Metrics.ps1, where it is loaded)
+                if ($h -and (Get-Command Get-AkariMetrics -ErrorAction SilentlyContinue)) { Set-AkariHistoryMetrics $h 'Before' (Get-AkariMetrics) }
                 if ($Run -is [hashtable]) { $Run.History = $h } else { $Run | Add-Member History $h -Force }
                 Save-AkariRun $Run
             }

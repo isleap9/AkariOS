@@ -13,7 +13,12 @@ public sealed record UndoRow(string Path, string Name, bool Exists, string Kind,
 
 /// <summary>A history record: the Run's name and time, each recorded Tweak's rows before it, the Outcomes.</summary>
 public sealed record HistoryRecord(string Path, string Name, string When, IReadOnlyDictionary<string, IReadOnlyList<UndoRow>> Before,
-    IReadOnlyList<(string Id, TweakMode Mode, OutcomeKind Kind)> Outcomes);
+    IReadOnlyList<(string Id, TweakMode Mode, OutcomeKind Kind)> Outcomes)
+{
+    /// <summary>X6: the numbers 'Before' the Run and 'After' its restart (Machine/Metrics.cs).</summary>
+    public IReadOnlyDictionary<string, IReadOnlyDictionary<string, double>> Metrics { get; init; } =
+        new Dictionary<string, IReadOnlyDictionary<string, double>>(StringComparer.OrdinalIgnoreCase);
+}
 
 /// <summary>What Undo does with a record (Get-AkariUndoPlan).</summary>
 public sealed record UndoPlan(IReadOnlyList<string> Exact, IReadOnlyList<string> Default, IReadOnlyList<string> Never);
@@ -25,8 +30,11 @@ public sealed record UndoPlan(IReadOnlyList<string> Exact, IReadOnlyList<string>
 /// here. Records: <c>history\&lt;yyyyMMdd-HHmmss&gt;.json</c> in the native app's folder, the PowerShell app's shape;
 /// the newest <see cref="Keep"/> kept; an undone one renamed <c>.undone</c>, so the next Undo goes one Run further back.
 /// </summary>
-public sealed class RunHistory(string folder, RegistryEngine registry, IAkariLog log)
+public sealed class RunHistory(string folder, RegistryEngine registry, IAkariLog log, Func<IReadOnlyDictionary<string, double>>? metrics = null)
 {
+    /// <summary>X6: reads the numbers now (null = none kept: tests unless they give one).</summary>
+    public Func<IReadOnlyDictionary<string, double>>? ReadMetrics { get; } = metrics;
+
     public const int Keep = 10;
 
     public string Folder { get; } = folder;
@@ -57,6 +65,8 @@ public sealed class RunHistory(string folder, RegistryEngine registry, IAkariLog
         {
             ["Name"] = r.Name, ["When"] = r.When, ["Before"] = before,
             ["Outcomes"] = new JsonArray([.. r.Outcomes.Select(o => new JsonObject { ["Id"] = o.Id, ["Mode"] = o.Mode.ToString(), ["Outcome"] = o.Kind.ToString() })]),
+            ["Metrics"] = new JsonObject(r.Metrics.Select(m => new KeyValuePair<string, JsonNode?>(m.Key,
+                new JsonObject(m.Value.Select(v => new KeyValuePair<string, JsonNode?>(v.Key, JsonValue.Create(v.Value))))))),
         };
         File.WriteAllText(r.Path, json.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
     }
@@ -80,7 +90,12 @@ public sealed class RunHistory(string folder, RegistryEngine registry, IAkariLog
                 foreach (var o in os.EnumerateArray())
                     if (Enum.TryParse<TweakMode>(S(o, "Mode"), true, out var m) && Enum.TryParse<OutcomeKind>(S(o, "Outcome"), true, out var k))
                         outs.Add((S(o, "Id"), m, k));
-            return new HistoryRecord(path, S(j, "Name"), S(j, "When"), before, outs);
+            var metrics = new Dictionary<string, IReadOnlyDictionary<string, double>>(StringComparer.OrdinalIgnoreCase);
+            if (j.TryGetProperty("Metrics", out var ms) && ms.ValueKind == JsonValueKind.Object)
+                foreach (var w in ms.EnumerateObject().Where(w => w.Value.ValueKind == JsonValueKind.Object))
+                    metrics[w.Name] = w.Value.EnumerateObject().Where(v => v.Value.ValueKind == JsonValueKind.Number)
+                        .ToDictionary(v => v.Name, v => v.Value.GetDouble(), StringComparer.OrdinalIgnoreCase);
+            return new HistoryRecord(path, S(j, "Name"), S(j, "When"), before, outs) { Metrics = metrics };
         }
         catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException or InvalidOperationException) { return null; }
     }
@@ -93,6 +108,30 @@ public sealed class RunHistory(string folder, RegistryEngine registry, IAkariLog
         JsonValueKind.Array => d.EnumerateArray().Select(x => x.ToString()).ToArray(),
         _ => null,
     };
+
+    /// <summary>Set-AkariHistoryMetrics: a record's numbers 'Before' or 'After', kept with the rest.</summary>
+    public void SetMetrics(string record, string which, IReadOnlyDictionary<string, double> values)
+    {
+        try
+        {
+            if (Read(record) is not { } r) return;
+            var m = new Dictionary<string, IReadOnlyDictionary<string, double>>(r.Metrics, StringComparer.OrdinalIgnoreCase) { [which] = values };
+            Save(r with { Metrics = m });
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { log.WriteFile($"history: {e.Message}"); }
+    }
+
+    /// <summary>X6: the numbers before a Run, when this history reads them.</summary>
+    public void TakeBefore(string record)
+    {
+        if (ReadMetrics is null) return;
+        try { SetMetrics(record, "Before", ReadMetrics()); }
+        catch (Exception e) when (e is InvalidOperationException or IOException or UnauthorizedAccessException) { log.WriteFile($"metrics: {e.Message}"); }
+    }
+
+    /// <summary>Get-AkariHistoryRecords: every record, newest first (undone ones too).</summary>
+    public IReadOnlyList<HistoryRecord> All() => !Directory.Exists(Folder) ? []
+        : Directory.GetFiles(Folder).OrderByDescending(f => f, StringComparer.OrdinalIgnoreCase).Select(Read).OfType<HistoryRecord>().ToList();
 
     /// <summary>Get-AkariLastHistory: the newest record not undone, or null.</summary>
     public HistoryRecord? Last()
@@ -151,6 +190,7 @@ public sealed class RunHistory(string folder, RegistryEngine registry, IAkariLog
         Func<IReadOnlyList<Outcome>> run)
     {
         var record = New(name, now);
+        TakeBefore(record);
         AddBefore(record, items.Select(i => find(i.Id)));
         var outcomes = run();
         AddOutcomes(record, outcomes);

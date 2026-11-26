@@ -257,7 +257,7 @@ function Start-AkariJob([string]$Code, $Queue, [string]$CoreDir, [hashtable]$Sha
     $rs.SessionStateProxy.SetVariable('AkariHistoryDir', $AkariHistoryDir)
     $ps = [powershell]::Create()
     $ps.Runspace = $rs
-    $pre = (@('Log', 'Compat', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Restore', 'Appx', 'Winget', 'AppSetup', 'System', 'Phases', 'Presets', 'Iso', 'IsoDownload', 'Startup', 'History', 'Games') | ForEach-Object { ". '$CoreDir\$_.ps1'" }) -join "`n"
+    $pre = (@('Log', 'Compat', 'Trusted', 'Registry', 'Loader', 'State', 'Runner', 'Legacy', 'Restore', 'Appx', 'Winget', 'AppSetup', 'System', 'Phases', 'Presets', 'Iso', 'IsoDownload', 'Startup', 'History', 'Games', 'Metrics') | ForEach-Object { ". '$CoreDir\$_.ps1'" }) -join "`n"
     $wrapped = $pre + "`ntry {`n& {`n" + $Code + "`n} *>&1 | Out-String -Stream | ForEach-Object { if (`$_.Trim()) { Write-Log `$_ } }`n} catch { Write-Log ('Error: ' + `$_.Exception.Message) }"
     [void]$ps.AddScript($wrapped)
     @{ Ps = $ps; Rs = $rs; Handle = $ps.BeginInvoke(); Shared = $Shared }
