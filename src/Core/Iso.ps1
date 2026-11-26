@@ -144,13 +144,15 @@ $AkariIsoRequiredRuntimes = @('common-controls', 'gdiplus', 'servicing')
 function Test-AkariKeepInComponentStore([string]$Folder) { ($AkariIsoStoreMetadata -contains $Folder) -or ($Folder -match $AkariIsoStoreRuntimes) }
 
 # $Choices.Settings as @{ Compression (a key of $AkariIsoCompressions); Turbo (the Windows features in one DISM call,
-# each read back); CleanLeftovers ($AkariIsoLeftovers removed); LeaveOutNetFx3Files (sources\sxs off the ISO) };
+# each read back); CleanLeftovers ($AkariIsoLeftovers removed); LeaveOutNetFx3Files (sources\sxs off the ISO);
+# AddDrivers (X7: this PC's third-party drivers exported and added to the image) };
 # missing = the defaults: Maximum, all off. Pure.
 function Get-AkariIsoSettings([hashtable]$Choices) {
     $s = $Choices.Settings
     $comp = 'Maximum'
     if ($s) { foreach ($k in $AkariIsoCompressions.Keys) { if ($k -eq "$($s.Compression)") { $comp = $k } } }
-    @{ Compression = $comp; Turbo = [bool]($s -and $s.Turbo); CleanLeftovers = [bool]($s -and $s.CleanLeftovers); LeaveOutNetFx3Files = [bool]($s -and $s.LeaveOutNetFx3Files) }
+    @{ Compression = $comp; Turbo = [bool]($s -and $s.Turbo); CleanLeftovers = [bool]($s -and $s.CleanLeftovers); LeaveOutNetFx3Files = [bool]($s -and $s.LeaveOutNetFx3Files)
+        AddDrivers = [bool]($s -and $s.AddDrivers) }
 }
 # the settings as Review's lines (the native IsoBuildSettings.Lines). Pure.
 function Get-AkariIsoSettingsLines([hashtable]$Settings) {
@@ -160,6 +162,7 @@ function Get-AkariIsoSettingsLines([hashtable]$Settings) {
         "Turbo feature removal: $(& $on $Settings.Turbo)"
         "Remove leftover image data: $(& $on $Settings.CleanLeftovers)"
         ".NET 3.5's setup files on the ISO: $(if ($Settings.LeaveOutNetFx3Files) { 'Left out' } else { 'Kept' })"
+        "This PC's drivers: $(if ($Settings.AddDrivers) { 'Added' } else { 'Not added' })"
     )
 }
 
@@ -175,6 +178,7 @@ function New-AkariIsoPlan([hashtable]$Choices, $Groups = @()) {
     $has = { param($k) [bool]@($g | Where-Object { @($_[$k] | Where-Object { $_ }).Count }).Count }
     & $add 'Adk' 'Getting the ISO tool ready (Windows ADK)'
     & $add 'Mount' "Mounting $($Choices.Edition)"
+    if ((Get-AkariIsoSettings $Choices).AddDrivers) { & $add 'Drivers' 'Adding this PC''s drivers' }
     if ((Get-AkariIsoList $Choices.Apps).Count -or (Get-AkariIsoList $Choices.AppPatterns).Count) { & $add 'Apps' 'Removing apps' }
     & $add 'NetFx3' 'Adding .NET Framework 3.5'
     & $add 'Cleanup' 'Cleaning up the component store'
@@ -416,7 +420,7 @@ function New-AkariIsoReport([hashtable]$Choices, [string]$Out, [datetime]$Starte
         source = "$($Choices.Iso)"; edition = "$($Choices.Edition)"; iso = $Out
         settings = $(
             $set = Get-AkariIsoSettings $Choices
-            [ordered]@{ compression = $set.Compression; turbo = $set.Turbo; cleanLeftovers = $set.CleanLeftovers; leaveOutNetFx3Files = $set.LeaveOutNetFx3Files })
+            [ordered]@{ compression = $set.Compression; turbo = $set.Turbo; cleanLeftovers = $set.CleanLeftovers; leaveOutNetFx3Files = $set.LeaveOutNetFx3Files; addDrivers = $set.AddDrivers })
         size = $Size; sha256 = $Sha; stages = @($Stages)
     }
 }
@@ -481,6 +485,25 @@ function Invoke-AkariIsoBuild([hashtable]$Choices) {
             switch ($s.Id) {
                 'Adk' { $oscdimg = Install-AkariAdk }
                 'Mount' { Mount-AkariIsoEdition $w $Choices.Image $Choices.Index }
+                'Drivers' {
+                    # X7: this PC's third-party drivers (dism /Export-Driver), then into the image in one DISM call
+                    $dir = Join-Path $w.Root 'Drivers'
+                    New-Item $dir -ItemType Directory -Force | Out-Null
+                    $hold.Drivers = 0
+                    Invoke-AkariIsoOp 'Export this PC''s drivers' {
+                        $code = Invoke-AkariDism /Online /Export-Driver "/Destination:$dir"
+                        if ($code -ne 0) { return @{ State = 'Failed'; Note = "DISM exit code $code" } }
+                        $hold.Drivers = @([IO.Directory]::GetDirectories($dir)).Count
+                        @{ State = 'Done'; Note = "$($hold.Drivers) drivers" }
+                    }
+                    Invoke-AkariIsoOp 'Add the drivers to the image' {
+                        if (-not $hold.Drivers) { return @{ State = 'Skipped'; Note = 'No third-party drivers to add' } }
+                        $code = Invoke-AkariDism "/Image:$($w.Mount)" /Add-Driver "/Driver:$dir" /Recurse
+                        if ($code -eq 0) { return @{ State = 'Done'; Note = "$($hold.Drivers) drivers" } }
+                        Write-Log "This PC's drivers were not added (DISM exit code $code)"
+                        @{ State = 'Failed'; Note = "DISM exit code $code" }
+                    }
+                }
                 'Apps' {
                     # the user's picks plus the image's apps the groups' patterns name
                     $pats = Get-AkariIsoList $Choices.AppPatterns

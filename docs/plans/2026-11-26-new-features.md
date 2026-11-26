@@ -170,6 +170,10 @@ A list on the Optimize › Gaming page (`$AkariCatalogueLists`, under its Tweaks
   `IImage.AddDrivers`.
 - Tests: the plan's step order with the setting on and off (pure, `IsoWizardOracleTests`), the recorders' calls in
   `IsoBuildOracleTests`, the report's operations.
+- Built 2026-11-26 (`IsoBuildOracleTests.Adds_this_pcs_drivers_after_the_mount` and the every-setting build; the
+  Review lines' tests in both apps). Decided while building: off in every mode (a mode's ISO is meant for any PC);
+  install.wim only, not boot.wim (setup on an Intel VMD / RST drive can still use Load driver); both the export and
+  the add go through DISM (`dism /Online /Export-Driver`), so the two apps make the same calls. VM check: to do.
 
 ## Notes
 

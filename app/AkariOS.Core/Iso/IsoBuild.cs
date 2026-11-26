@@ -230,6 +230,29 @@ public sealed partial class IsoBuild(IsoParts p)
                             break;
                         }
                     case "Bake": BakeAkariOS(w.Mount, c); break;
+                    case "Drivers":
+                        {
+                            // X7: this PC's third-party drivers (dism /Export-Driver), then into the image in one DISM call
+                            var dir = Path.Combine(w.Root, "Drivers");
+                            Directory.CreateDirectory(dir);
+                            var count = 0;
+                            Op("Export this PC's drivers", () =>
+                            {
+                                var code = p.Image.Dism(["/Online", "/Export-Driver", $"/Destination:{dir}"]);
+                                if (code != 0) return (IsoOpState.Failed, $"DISM exit code {code}");
+                                count = Directory.GetDirectories(dir).Length;
+                                return (IsoOpState.Done, $"{count} drivers");
+                            });
+                            Op("Add the drivers to the image", () =>
+                            {
+                                if (count == 0) return (IsoOpState.Skipped, "No third-party drivers to add");
+                                var code = p.Image.Dism([$"/Image:{w.Mount}", "/Add-Driver", $"/Driver:{dir}", "/Recurse"]);
+                                if (code == 0) return (IsoOpState.Done, $"{count} drivers");
+                                p.Log.Write($"This PC's drivers were not added (DISM exit code {code})");
+                                return (IsoOpState.Failed, $"DISM exit code {code}");
+                            });
+                            break;
+                        }
                     case "Files":
                         foreach (var path in groups.SelectMany(x => x.Remove))
                             Op(path, () => RemovePaths(w.Mount, [path]) is var n and > 0 ? (IsoOpState.Done, $"{n} removed") : (IsoOpState.Skipped, "Not in this image"));

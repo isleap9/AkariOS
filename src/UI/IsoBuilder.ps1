@@ -506,6 +506,7 @@ function Get-AkariIsoView {
     foreach ($o in @(
             @{ Key = 'Turbo'; Text = 'Turbo feature removal'; Note = 'The Windows features you picked go in one DISM call instead of one each, then each one is checked.' }
             @{ Key = 'CleanLeftovers'; Text = 'Remove leftover image data'; Note = 'Downloaded updates, temp files, archived logs, error reports and crash dumps inside the image. Nothing is removed while the image has updates waiting to finish.' }
+            @{ Key = 'AddDrivers'; Text = 'Add this PC''s drivers'; Note = 'This PC''s third-party drivers (graphics, network, storage, audio) go into the image, so Windows has them from the first boot. Meant for this PC or one built like it.' }
             @{ Key = 'LeaveOutNetFx3Files'; Text = 'Leave .NET 3.5''s setup files off the ISO'; Note = 'The ISO''s sources\sxs folder. .NET Framework 3.5 is still added to the image first; the ISO just can''t serve as an offline source for it later.' }
         )) {
         $p[$o.Key] = New-AkariIsoCheck $o.Text
@@ -525,7 +526,7 @@ function Get-AkariIsoView {
 function Get-AkariIsoPickedSettings {
     $p = $script:IsoParts
     @{ Compression = [string](Get-AkariComboTag $p.Compression); Turbo = [bool]$p.Turbo.IsChecked
-        CleanLeftovers = [bool]$p.CleanLeftovers.IsChecked; LeaveOutNetFx3Files = [bool]$p.LeaveOutNetFx3Files.IsChecked }
+        CleanLeftovers = [bool]$p.CleanLeftovers.IsChecked; LeaveOutNetFx3Files = [bool]$p.LeaveOutNetFx3Files.IsChecked; AddDrivers = [bool]$p.AddDrivers.IsChecked }
 }
 
 # the edition picked (an opened ISO's), else $null
@@ -632,7 +633,7 @@ function Set-AkariIsoMode {
         }
         $set = Get-AkariIsoSettings @{ Settings = $(if ($m) { $m.Settings } else { @{ Compression = 'Recovery' } }) }
         foreach ($it in $p.Compression.Items) { if ($it.Tag -eq $set.Compression) { $p.Compression.SelectedItem = $it } }
-        foreach ($k in 'Turbo', 'CleanLeftovers', 'LeaveOutNetFx3Files') { $p[$k].IsChecked = $set[$k] }
+        foreach ($k in 'Turbo', 'CleanLeftovers', 'LeaveOutNetFx3Files', 'AddDrivers') { $p[$k].IsChecked = $set[$k] }
         if ($m -and $m.AkariOS) { $p.AkariOS.IsChecked = $true }
     }
     finally { $script:IsoState.Applying = $false }

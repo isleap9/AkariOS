@@ -55,13 +55,15 @@ public enum IsoCompression { Recovery, Maximum, Fast }
 /// <summary>The Build settings step's switches (plan docs/plans/2026-11-20-iso-builder-wizard.md, Build settings): the
 /// final compression; Turbo = the Windows features removed in one DISM call, each read back; CleanLeftovers = the
 /// image's leftover data (<see cref="IsoPlan.Leftovers"/>) removed unless servicing is pending; LeaveOutNetFx3Files =
-/// sources\sxs not on the ISO. All off by default, compression Maximum.</summary>
+/// sources\sxs not on the ISO; AddDrivers (X7) = this PC's third-party drivers exported and added to the image. All off
+/// by default, compression Maximum.</summary>
 public sealed record IsoBuildSettings
 {
     public IsoCompression Compression { get; init; } = IsoCompression.Maximum;
     public bool Turbo { get; init; }
     public bool CleanLeftovers { get; init; }
     public bool LeaveOutNetFx3Files { get; init; }
+    public bool AddDrivers { get; init; }
 
     public static string CompressionText(IsoCompression c) => c switch
     {
@@ -77,6 +79,7 @@ public sealed record IsoBuildSettings
         $"Turbo feature removal: {OnOff(Turbo)}",
         $"Remove leftover image data: {OnOff(CleanLeftovers)}",
         $".NET 3.5's setup files on the ISO: {(LeaveOutNetFx3Files ? "Left out" : "Kept")}",
+        $"This PC's drivers: {(AddDrivers ? "Added" : "Not added")}",
     ];
 
     private static string OnOff(bool on) => on ? "On" : "Off";
@@ -121,6 +124,7 @@ public static partial class IsoPlan
         var g = groups ?? [];
         Add("Adk", "Getting the ISO tool ready (Windows ADK)");
         Add("Mount", $"Mounting {c.Edition}");
+        if (c.Settings.AddDrivers) Add("Drivers", "Adding this PC's drivers");
         if (List(c.Apps).Count > 0 || List(c.AppPatterns).Count > 0) Add("Apps", "Removing apps");
         Add("NetFx3", "Adding .NET Framework 3.5");
         Add("Cleanup", "Cleaning up the component store");

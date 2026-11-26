@@ -201,6 +201,7 @@ public sealed partial class IsoBuilderViewModel
         Turbo = settings.Turbo;
         CleanLeftovers = settings.CleanLeftovers;
         LeaveOutNetFx3Files = settings.LeaveOutNetFx3Files;
+        AddDrivers = settings.AddDrivers;
         if (m?.AkariOS == true && AkariOSEnabled) AkariOS = true;
         UpdatePlan();
     }
@@ -305,11 +306,15 @@ public sealed partial class IsoBuilderViewModel
     [ObservableProperty]
     public partial bool LeaveOutNetFx3Files { get; set; }
 
+    /// <summary>X7: this PC's third-party drivers into the image.</summary>
+    [ObservableProperty]
+    public partial bool AddDrivers { get; set; }
+
     /// <summary>The switches as the build takes them.</summary>
     public IsoBuildSettings Settings => new()
     {
         Compression = Compressions[Math.Clamp(CompressionIndex, 0, Compressions.Count - 1)],
-        Turbo = Turbo, CleanLeftovers = CleanLeftovers, LeaveOutNetFx3Files = LeaveOutNetFx3Files,
+        Turbo = Turbo, CleanLeftovers = CleanLeftovers, LeaveOutNetFx3Files = LeaveOutNetFx3Files, AddDrivers = AddDrivers,
     };
 
     // an operation reported by the build, onto the UI thread

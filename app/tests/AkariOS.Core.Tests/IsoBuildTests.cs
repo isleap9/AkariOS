@@ -311,7 +311,7 @@ public sealed class IsoBuildTests
 
     [Fact]
     public void Says_the_settings_as_review_lines() => Assert.Equal(
-        ["Compression: Recovery ESD (smallest, slowest)", "Turbo feature removal: On", "Remove leftover image data: Off", ".NET 3.5's setup files on the ISO: Kept"],
+        ["Compression: Recovery ESD (smallest, slowest)", "Turbo feature removal: On", "Remove leftover image data: Off", ".NET 3.5's setup files on the ISO: Kept", "This PC's drivers: Not added"],
         new IsoBuildSettings { Compression = IsoCompression.Recovery, Turbo = true }.Lines());
 
     private sealed class CapabilitiesImage(IImage inner) : IImage

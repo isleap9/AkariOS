@@ -279,7 +279,7 @@ public sealed class IsoBuilderTests : IDisposable
         iso.LeaveOutNetFx3Files = true;
         iso.Step = IsoBuilderViewModel.ReviewStep;
         Assert.Equal(
-            "Compression: Recovery ESD (smallest, slowest)\nTurbo feature removal: On\nRemove leftover image data: On\n.NET 3.5's setup files on the ISO: Left out",
+            "Compression: Recovery ESD (smallest, slowest)\nTurbo feature removal: On\nRemove leftover image data: On\n.NET 3.5's setup files on the ISO: Left out\nThis PC's drivers: Not added",
             iso.ReviewCards.Single(c => c.Title == "Build settings").Lines);
 
         t.Dialogs.Answers.Enqueue("Build ISO");

@@ -926,7 +926,7 @@ Describe 'ISO Builder page helpers (UI\IsoBuilder.ps1)' {
             Lists = @(@{ Title = 'Store apps'; Ticked = 3; Count = 40 }); OutDir = 'E:\Out'; Answer = 'Local'; SkipOobe = $true; User = 'Gamer'; AkariOS = $true
             Settings = @{ Compression = 'Recovery'; Turbo = $true } }
         ($cards | ForEach-Object { $_.Title }) -join ',' | Should Be 'Windows image,Custom,Output and workspace,Installation options,Build settings'
-        $cards[4].Lines | Should Be "Compression: Recovery ESD (smallest, slowest)`nTurbo feature removal: On`nRemove leftover image data: Off`n.NET 3.5's setup files on the ISO: Kept"
+        $cards[4].Lines | Should Be "Compression: Recovery ESD (smallest, slowest)`nTurbo feature removal: On`nRemove leftover image data: Off`n.NET 3.5's setup files on the ISO: Kept`nThis PC's drivers: Not added"
         $cards[0].Lines | Should Be "Windows 11 Pro`nD:\Win11.iso"
         $cards[1].Lines | Should Be ("1 removal group`n- Skip the hardware checks`n`nStore apps: 3 of 40")
         $cards[2].Lines | Should Be "ISO`nE:\Out\Win11-Akari.iso`n`nWork folder`nE:\Out\AkariIso"
@@ -948,7 +948,7 @@ Describe 'ISO Builder page helpers (UI\IsoBuilder.ps1)' {
         "$($j.Compression)|$($j.Turbo)|$($j.LeaveOutNetFx3Files)" | Should Be 'Fast|False|True'
         (Get-AkariIsoSettings @{ Settings = @{ Compression = 'Zip' } }).Compression | Should Be 'Maximum'
         (Get-AkariIsoSettingsLines (Get-AkariIsoSettings @{ Settings = @{ CleanLeftovers = $true; LeaveOutNetFx3Files = $true } })) -join '|' |
-            Should Be "Compression: Maximum WIM|Turbo feature removal: Off|Remove leftover image data: On|.NET 3.5's setup files on the ISO: Left out"
+            Should Be "Compression: Maximum WIM|Turbo feature removal: Off|Remove leftover image data: On|.NET 3.5's setup files on the ISO: Left out|This PC's drivers: Not added"
     }
 
     It 'plans the build settings'' steps' {

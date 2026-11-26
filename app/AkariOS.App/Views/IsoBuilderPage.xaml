@@ -370,6 +370,17 @@
                             <ToggleSwitch Grid.Column="1" VerticalAlignment="Center" MinWidth="0" IsOn="{x:Bind ViewModel.LeaveOutNetFx3Files, Mode=TwoWay}" />
                         </Grid>
                     </Border>
+                    <Border Style="{StaticResource Card}">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Add this PC's drivers" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <TextBlock Style="{StaticResource Note}"
+                                           Text="This PC's third-party drivers (graphics, network, storage, audio) go into the image, so Windows has them from the first boot. Meant for this PC or one built like it." />
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" VerticalAlignment="Center" MinWidth="0" IsOn="{x:Bind ViewModel.AddDrivers, Mode=TwoWay}" />
+                        </Grid>
+                    </Border>
                 </StackPanel>
 
                 <!-- 5 Review -->

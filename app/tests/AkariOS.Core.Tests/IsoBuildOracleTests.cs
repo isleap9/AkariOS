@@ -411,8 +411,18 @@ public sealed partial class IsoBuildOracleTests
     public void Leaves_the_net35_setup_files_off_the_iso(bool noSxs) => Same(WithSettings(new() { LeaveOutNetFx3Files = true }, x => { if (noSxs) x["NoSxs"] = true; }));
 
     [Fact]
+    public void Adds_this_pcs_drivers_after_the_mount()
+    {
+        // X7: no driver exported in the fakes, so the add is Skipped; the export's DISM call is the same on both sides
+        var o = Same(WithSettings(new() { AddDrivers = true }));
+        Assert.Contains(o.Ops, x => x.EndsWith("|Export this PC's drivers|Done|0 drivers"));
+        Assert.Contains(o.Ops, x => x.EndsWith("|Add the drivers to the image|Skipped|No third-party drivers to add"));
+        Assert.Contains(".settings.addDrivers=true", o.Report);
+    }
+
+    [Fact]
     public void Builds_with_every_setting_on() => Same(WithSettings(
-        new() { Compression = IsoCompression.Recovery, Turbo = true, CleanLeftovers = true, LeaveOutNetFx3Files = true },
+        new() { Compression = IsoCompression.Recovery, Turbo = true, CleanLeftovers = true, LeaveOutNetFx3Files = true, AddDrivers = true },
         x => Choices(x)["Features"] = new[] { "Recall" }));
 
     [Fact]
