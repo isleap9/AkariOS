@@ -54,62 +54,57 @@ function Get-AkariWhenText([datetime]$When, [datetime]$Now = (Get-Date)) {
 $AkariQuickSettings = 'disable-game-dvr', 'gaming-game-mode', 'performance-background-apps-off', 'privacy-ads'
 $script:HomeStat = @{}
 
-# a fact of the hero (.facts): the number (Subtitle, right-aligned), its label (Caption, Mu)
-function Add-AkariHeroFact($Grid, [string]$Key, [string]$Label) {
-    $r = $Grid.RowDefinitions.Count
-    [void]$Grid.RowDefinitions.Add([Windows.Controls.RowDefinition]::new())
-    $n = New-AkariText ([string][char]0x2014) 20
-    $n.TextAlignment = 'Right'; $n.TextWrapping = 'NoWrap'; $n.Margin = [Windows.Thickness]::new(0, 1, 14, 1)
-    $l = New-AkariText $Label 12 'Mu'
-    $l.LineHeight = 28; $l.TextWrapping = 'NoWrap'; $l.VerticalAlignment = 'Center'
-    [Windows.Controls.Grid]::SetRow($n, $r); [Windows.Controls.Grid]::SetRow($l, $r); [Windows.Controls.Grid]::SetColumn($l, 1)
-    [void]$Grid.Children.Add($n); [void]$Grid.Children.Add($l)
+# a fact (the native Home's): a glass card with the 36 px icon square, the number (SemiBold) over its label (Caption, Mu);
+# $script:HomeStat[$Key] = the number
+function New-AkariHomeFact([string]$Icon, [string]$Key, [string]$Label) {
+    $c = [Windows.Controls.Border]::new()
+    $c.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'GlassCard')
+    $c.Padding = [Windows.Thickness]::new(14); $c.Margin = [Windows.Thickness]::new(4)
+    $dp = [Windows.Controls.DockPanel]::new()
+    $ic = New-AkariBlob $Icon 36; $ic.Margin = [Windows.Thickness]::new(0, 0, 12, 0)
+    [Windows.Controls.DockPanel]::SetDock($ic, 'Left'); [void]$dp.Children.Add($ic)
+    $tx = [Windows.Controls.StackPanel]::new(); $tx.VerticalAlignment = 'Center'
+    $n = New-AkariText ([string][char]0x2014) 14 'Tx' 'SemiBold'; $n.TextWrapping = 'NoWrap'
+    $l = New-AkariText $Label 12 'Mu'; $l.TextWrapping = 'NoWrap'
+    [void]$tx.Children.Add($n); [void]$tx.Children.Add($l)
+    [void]$dp.Children.Add($tx)
+    $c.Child = $dp
     $script:HomeStat[$Key] = $n
+    $c
+}
+# the facts (Start-AkariHomeStats): Tweaks, apps you can remove, changes applied; one under the other under 600 px
+function New-AkariHomeFacts {
+    $g = [Windows.Controls.Primitives.UniformGrid]::new()
+    $g.Columns = 3; $g.Margin = [Windows.Thickness]::new(-4, 0, -4, 0)
+    [void]$g.Children.Add((New-AkariHomeFact 'sliders-horizontal' 'Tweaks' 'Tweaks'))
+    [void]$g.Children.Add((New-AkariHomeFact 'trash-2' 'Apps' 'Apps you can remove'))
+    [void]$g.Children.Add((New-AkariHomeFact 'check' 'Applied' 'Changes applied'))
+    $script:HeroFacts = $g
+    $g
 }
 
-# the hero card (.hero): the soft AccSoft light in its top-right corner, the 76 px logo, "Windows, tuned for games",
-# the lead, Start One-click (accent) and Choose changes, the facts on the right behind a Div rule
+# the hero (the native Home's banner, ADR 0011): straight on the light, no card: the 112 px logo, the version overline,
+# "Windows, tuned for games" at 40 px, the lead, Start One-click (accent) and Choose changes
 function New-AkariHero {
-    $b = [Windows.Controls.Border]::new()
-    $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Panel')
-    $b.Padding = [Windows.Thickness]::new(24)
-    $b.ClipToBounds = $true
     $g = [Windows.Controls.Grid]::new()
-    # the corner light: an AccSoft disc faded at its edge by a radial mask (380 px, 80 px past the right, 120 above)
-    $c = [Windows.Controls.Canvas]::new(); $c.IsHitTestVisible = $false
-    $glow = [Windows.Shapes.Ellipse]::new()
-    $glow.Width = 380; $glow.Height = 380
-    $glow.SetResourceReference([Windows.Shapes.Shape]::FillProperty, 'AccSoft')
-    $m = [Windows.Media.RadialGradientBrush]::new()
-    [void]$m.GradientStops.Add([Windows.Media.GradientStop]::new([Windows.Media.Color]::FromArgb(255, 0, 0, 0), 0))
-    [void]$m.GradientStops.Add([Windows.Media.GradientStop]::new([Windows.Media.Color]::FromArgb(0, 0, 0, 0), 1))
-    $glow.OpacityMask = $m
-    [Windows.Controls.Canvas]::SetTop($glow, -144)
-    [void]$c.Children.Add($glow)
-    $c.Add_SizeChanged({ param($s, $a) [Windows.Controls.Canvas]::SetLeft($s.Children[0], $a.NewSize.Width - 300 + 24) })
-    [void]$g.Children.Add($c)
-    $dp = [Windows.Controls.DockPanel]::new()
-    $logo = New-AkariLogoImage 76
-    $logo.Margin = [Windows.Thickness]::new(0, 0, 24, 0); $logo.VerticalAlignment = 'Center'
-    [Windows.Controls.DockPanel]::SetDock($logo, 'Left'); [void]$dp.Children.Add($logo)
-    # the facts: Tweaks, apps you can remove, changes applied
-    $facts = [Windows.Controls.Border]::new()
-    $facts.BorderThickness = [Windows.Thickness]::new(1, 0, 0, 0)
-    $facts.SetResourceReference([Windows.Controls.Border]::BorderBrushProperty, 'Div')
-    $facts.Padding = [Windows.Thickness]::new(24, 0, 0, 0); $facts.Margin = [Windows.Thickness]::new(24, 0, 0, 0)
-    $facts.VerticalAlignment = 'Center'
-    $fg = [Windows.Controls.Grid]::new()
-    foreach ($w in 'Auto', 'Auto') { [void]$fg.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new()); $fg.ColumnDefinitions[-1].Width = [Windows.GridLength]::Auto }
-    Add-AkariHeroFact $fg 'Tweaks' 'Tweaks'
-    Add-AkariHeroFact $fg 'Apps' 'Apps you can remove'
-    Add-AkariHeroFact $fg 'Applied' 'Changes applied'
-    $facts.Child = $fg
-    [Windows.Controls.DockPanel]::SetDock($facts, 'Right'); [void]$dp.Children.Add($facts)
-    $script:HeroFacts = $facts
+    $g.MinHeight = 220; $g.Margin = [Windows.Thickness]::new(4, 8, 0, 16)
+    foreach ($w in 'Auto', 'Star') { $cd = [Windows.Controls.ColumnDefinition]::new(); $cd.Width = if ($w -eq 'Auto') { [Windows.GridLength]::Auto } else { [Windows.GridLength]::new(1, 'Star') }; [void]$g.ColumnDefinitions.Add($cd) }
+    $logo = New-AkariLogoImage 112
+    $logo.Margin = [Windows.Thickness]::new(0, 0, 28, 0); $logo.VerticalAlignment = 'Center'
+    [void]$g.Children.Add($logo)
     $tx = [Windows.Controls.StackPanel]::new(); $tx.VerticalAlignment = 'Center'
-    [void]$tx.Children.Add((New-AkariText 'Windows, tuned for games' 28))
-    [void]$tx.Children.Add((New-AkariText 'Debloat and optimize Windows in one click, or pick every change yourself.' 14 'Mu'))
-    $bt = [Windows.Controls.WrapPanel]::new(); $bt.Margin = [Windows.Thickness]::new(0, 16, 0, 0)
+    [Windows.Controls.Grid]::SetColumn($tx, 1)
+    $ov = New-AkariText "AkariOS $AkariVersion" 14 'Mu'; $ov.Margin = [Windows.Thickness]::new(0, 0, 0, 6)
+    [void]$tx.Children.Add($ov)
+    $h = New-AkariText 'Windows, tuned for games' 28
+    Set-AkariFont $h Display
+    $h.FontSize = 40; $h.LineHeight = 52; $h.FontWeight = 'SemiBold'; $h.TextWrapping = 'Wrap'
+    $h.Margin = [Windows.Thickness]::new(0, 0, 0, 6)
+    [void]$tx.Children.Add($h)
+    $ld = New-AkariText 'Debloat and optimize Windows 10 and 11 in one go, or pick each change yourself. Every Toggle and Choice goes back to Windows'' default.' 14 'Mu'
+    $ld.TextWrapping = 'Wrap'; $ld.MaxWidth = 560; $ld.HorizontalAlignment = 'Left'
+    [void]$tx.Children.Add($ld)
+    $bt = [Windows.Controls.WrapPanel]::new(); $bt.Margin = [Windows.Thickness]::new(0, 20, 0, 0)
     $one = [Windows.Controls.Button]::new()
     $one.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Accent')
     $oc = [Windows.Controls.StackPanel]::new(); $oc.Orientation = 'Horizontal'
@@ -126,25 +121,25 @@ function New-AkariHero {
     $choose.Add_Click({ Start-AkariGuided })
     [void]$bt.Children.Add($one); [void]$bt.Children.Add($choose)
     [void]$tx.Children.Add($bt)
-    [void]$dp.Children.Add($tx)
-    [void]$g.Children.Add($dp)
-    $b.Child = $g
+    [void]$g.Children.Add($tx)
     $script:HeroOneClick = $one; $script:HeroChoose = $choose
-    $b
+    $g
 }
 
-# a tile (.tile: Get started, the Install AkariOS chooser): the 40 px icon square (48 with -Big), the title, its text,
-# a footer line in AccText; -Rec = the recommended one, an Acc stroke
-function New-AkariTile([string]$Icon, [string]$Title, [string]$Text, [string]$Foot, [scriptblock]$Click, [switch]$Rec, [switch]$Big) {
+# a tile (.tile: Get started, the Install AkariOS chooser) on the glass (GlassTile, ADR 0011): the 40 px icon square
+# (48 with -Big), the title, its text, a footer line (Ter; AccText with -Rec or -Accent); -Rec = the recommended one,
+# an Acc stroke too; -Bloom = a featured tile: the Akari bloom in its top right corner in that palette (New-AkariBloom),
+# the content over it. A small tile (Home's, as the native app's) has its footer right under its text.
+function New-AkariTile([string]$Icon, [string]$Title, [string]$Text, [string]$Foot, [scriptblock]$Click, [switch]$Rec, [switch]$Big, [string]$Bloom = '', [switch]$Accent) {
     $b = [Windows.Controls.Button]::new()
-    $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'ModeCard')
+    $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'GlassTile')
     if ($Rec) { $b.SetResourceReference([Windows.Controls.Control]::BorderBrushProperty, 'Acc') }
     if ($Big) { $b.MinHeight = 200; $b.Padding = [Windows.Thickness]::new(20) }
     $dp = [Windows.Controls.DockPanel]::new()
-    $f = [Windows.Controls.StackPanel]::new(); $f.Orientation = 'Horizontal'; $f.Margin = [Windows.Thickness]::new(0, 10, 0, 0)
-    $ft = New-AkariText $Foot 12 'AccText'
+    $f = [Windows.Controls.StackPanel]::new(); $f.Orientation = 'Horizontal'; $f.Margin = [Windows.Thickness]::new(0, $(if ($Big) { 10 } else { 6 }), 0, 0)
+    $ft = New-AkariText $Foot 12 $(if ($Rec -or $Accent) { 'AccText' } else { 'Ter' })
     [void]$f.Children.Add($ft)
-    [Windows.Controls.DockPanel]::SetDock($f, 'Bottom'); [void]$dp.Children.Add($f)
+    if ($Big) { [Windows.Controls.DockPanel]::SetDock($f, 'Bottom'); [void]$dp.Children.Add($f) }
     $sp = [Windows.Controls.StackPanel]::new()
     $ic = New-AkariBlob $Icon $(if ($Big) { 48 } else { 40 })
     $ic.HorizontalAlignment = 'Left'; $ic.Margin = [Windows.Thickness]::new(0, 0, 0, 10)
@@ -152,9 +147,22 @@ function New-AkariTile([string]$Icon, [string]$Title, [string]$Text, [string]$Fo
     $tt = if ($Big) { New-AkariText $Title 20 } else { New-AkariText $Title 14 'Tx' 'SemiBold' }
     $tt.Margin = [Windows.Thickness]::new(0, 0, 0, 6)
     [void]$sp.Children.Add($tt)
-    [void]$sp.Children.Add((New-AkariText $Text $(if ($Big) { 14 } else { 12 }) 'Mu'))
+    $dt = New-AkariText $Text 14 'Mu'; $dt.TextWrapping = 'Wrap'
+    [void]$sp.Children.Add($dt)
+    if (-not $Big) { [void]$sp.Children.Add($f) }
     [void]$dp.Children.Add($sp)
     $b.Content = $dp
+    if ($Bloom) {
+        # the bloom takes no room: the tile's padding moves onto its content, the bloom clipped to the tile's inside
+        # GlassTile's own padding (16) is not on the button until its style applies; -Big set 20
+        $p = if ($Big) { 20 } else { 16 }
+        $pad = [Windows.Thickness]::new($p)
+        $b.Padding = [Windows.Thickness]::new(1)
+        $bg = [Windows.Controls.Grid]::new(); $bg.ClipToBounds = $true
+        [void]$bg.Children.Add((New-AkariBloom $Bloom 360 180 7))
+        $dp.Margin = $pad; $b.Content = $null; [void]$bg.Children.Add($dp)
+        $b.Content = $bg
+    }
     $b.Margin = [Windows.Thickness]::new(4)
     $b.Add_Click($Click)
     $b
@@ -192,10 +200,12 @@ function Show-AkariHome {
         [void]$HomePanel.Children.Add($db.Bar)
     }
     [void]$HomePanel.Children.Add((New-AkariHero))
+    [void]$HomePanel.Children.Add((New-AkariHomeFacts))
+    $since = @()
     # X6: the numbers before the last Run and after its restart (Core\Metrics.ps1)
     $mr = Get-AkariMetricsShown $script:MetricsRecords
     if ($mr) {
-        [void]$HomePanel.Children.Add((New-AkariSection 'Since AkariOS'))
+        $since += New-AkariSection 'Since AkariOS' 
         $st = [Windows.Controls.StackPanel]::new()
         foreach ($row in @(Get-AkariMetricsDiff $mr.Metrics['Before'] $mr.Metrics['After'])) {
             $c = New-AkariSettingsCard 'gauge' $row.Name '' (New-AkariText $row.Text 14 'Tx' 'SemiBold') 'Plain'
@@ -204,17 +214,18 @@ function Show-AkariHome {
         $note = New-AkariText "Before `"$($mr.Name)`" and after its restart. These numbers change from one boot to the next: read them as a rough guide." 12 'Mu'
         $note.TextWrapping = 'Wrap'; $note.Margin = [Windows.Thickness]::new(0, 6, 0, 0)
         [void]$st.Children.Add($note)
-        [void]$HomePanel.Children.Add($st)
+        $since += $st
     }
     [void]$HomePanel.Children.Add((New-AkariSection 'Get started'))
     $tiles = [Windows.Controls.Primitives.UniformGrid]::new()
     $tiles.Columns = 3
     $tiles.Margin = [Windows.Thickness]::new(-4)
-    [void]$tiles.Children.Add((New-AkariTile 'zap' 'One-click' 'The full AkariOS setup: apps, drivers, Safe Mode and tweaks, with restarts handled for you.' 'Recommended for a fresh install' { Start-AkariOneClick } -Rec))
+    [void]$tiles.Children.Add((New-AkariTile 'zap' 'One-click' 'The full AkariOS setup: apps, drivers, Safe Mode and tweaks, with restarts handled for you.' 'Recommended for a fresh install' { Start-AkariOneClick } -Accent))
     [void]$tiles.Children.Add((New-AkariTile 'wand' 'Guided' 'Pick the apps to remove and the Tweaks to apply, review, then apply in one go.' 'For a PC you already use' { Start-AkariGuided }))
     [void]$tiles.Children.Add((New-AkariTile 'sliders-horizontal' 'Optimize' 'Every Tweak by category. Each change applies the moment you flip it.' 'For power users' { Select-AkariPage 'Optimize' }))
     $script:HomeTiles = $tiles
     [void]$HomePanel.Children.Add($tiles)
+    foreach ($x in $since) { [void]$HomePanel.Children.Add($x) }
     # Quick settings: four AkariOS Tweaks as the Catalogue's own cards (they act right away)
     $quick = @($AkariQuickSettings | ForEach-Object { Find-AkariTweak $_ } | Where-Object { $_ -and @(Get-AkariCatalogueTweaks @($_)).Count })
     if ($quick.Count) {
@@ -252,7 +263,9 @@ function Show-AkariHome {
 function Update-AkariHomeWidth([double]$Width) {
     if ($Width -le 0) { return }
     if ($script:HomeTiles) { $script:HomeTiles.Columns = if ($Width -lt 600) { 1 } else { 3 } }
-    if ($script:HeroFacts) { $script:HeroFacts.Visibility = if ($Width -lt 760) { 'Collapsed' } else { 'Visible' } }
+    # Install AkariOS' chooser tiles: one under the other under 600 px too (ADR 0011's narrow rule)
+    if ($script:ChooserTiles) { $script:ChooserTiles.Columns = if ($Width -lt 600) { 1 } else { 2 } }
+    if ($script:HeroFacts) { $script:HeroFacts.Columns = if ($Width -lt 600) { 1 } else { 3 } }
 }
 
 # $Stats: @{ Tweaks; Apps; Applied }, each a count or $null (a dash: not read)
@@ -311,8 +324,7 @@ function Complete-AkariHomeStats($Shared) {
 # ---- Optimize: its five sections as cards (their categories and Tweak counts), then a few Tools, then the Legacy pages
 $AkariOptimizeTools = @('oneclick-restore-point', 'cleanup-temp-files', 'tools-driver-nvidia', 'tools-driver-amd', 'tools-driver-intel')
 function Show-AkariOptimize {
-    Set-AkariHeader @('Optimize')
-    [void]$StepBody.Children.Add((New-AkariLead 'Every Tweak, by section. Each change applies the moment you flip it, and you can switch it back the same way.'))
+    Set-AkariHeader @('Optimize') 'Every Tweak, by section. Each change applies the moment you flip it, and you can switch it back the same way.'
     $cat = Get-AkariCatalogueOf $script:Tweaks
     $grid = [Windows.Controls.Primitives.UniformGrid]::new()
     $grid.Columns = 2
@@ -323,7 +335,7 @@ function Show-AkariOptimize {
         $count = New-AkariText "$n" 12 'Ter'; $count.VerticalAlignment = 'Center'; $count.Margin = [Windows.Thickness]::new(0, 0, 12, 0)
         $chev = New-AkariIcon 'chevron-right' 12 'Mu'
         $icon = if ($AkariSectionIcons.Contains($s.Section)) { $AkariSectionIcons[$s.Section] } else { 'settings' }
-        $c = New-AkariSettingsCard $icon $s.Header ((@($cats | Select-Object -First 4) -join ', ') + $(if ($cats.Count -gt 4) { [char]0x2026 } else { '' })) @($count, $chev) 'CardButton'
+        $c = New-AkariSettingsCard $icon $s.Header ((@($cats | Select-Object -First 4) -join ', ') + $(if ($cats.Count -gt 4) { [char]0x2026 } else { '' })) @($count, $chev) 'GlassRow'
         $c.Card.Tag = "$AkariCataloguePrefix$($s.Section)"
         $c.Card.Margin = [Windows.Thickness]::new(2)
         $c.Card.Add_Click({ param($x, $e) Select-AkariPage ([string]$x.Tag) })

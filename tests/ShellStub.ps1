@@ -8,15 +8,19 @@ $CatBars = [Windows.Controls.StackPanel]::new()
 $StepFooter = [Windows.Controls.Border]::new(); $StepFooter.Visibility = 'Collapsed'
 $StepBack = [Windows.Controls.Button]::new(); $StepNext = [Windows.Controls.Button]::new()
 $StepLabel = [Windows.Controls.TextBlock]::new(); $StepFill = [Windows.Shapes.Rectangle]::new()
-$Heading = [Windows.Controls.TextBlock]::new(); $Crumbs = [Windows.Controls.StackPanel]::new(); $PageHeader = [Windows.Controls.StackPanel]::new()
+$Heading = [Windows.Controls.TextBlock]::new(); $Crumbs = [Windows.Controls.StackPanel]::new(); $PageHeader = [Windows.Controls.Grid]::new()
+$HeaderLead = [Windows.Controls.TextBlock]::new(); $HeaderActions = [Windows.Controls.ContentControl]::new()
+$PageFooterHost = [Windows.Controls.ContentControl]::new()
+function Set-AkariPageFooter($Content) { $PageFooterHost.Content = $Content }
 $Search = [Windows.Controls.TextBox]::new()
 $Layer = [Windows.Controls.Border]::new()
 $script:History = [Collections.Generic.List[object]]::new()
 $script:Toasts = @(); $script:Activity = @()
 
-# the breadcrumb: the earlier parts' labels in $Crumbs, the last one in $Heading
-function Set-AkariHeader($Parts) {
+# the breadcrumb: the earlier parts' labels in $Crumbs, the last one in $Heading; the banner's lead and actions
+function Set-AkariHeader($Parts, [string]$Lead = '', $Actions = $null) {
     $Crumbs.Children.Clear()
+    $HeaderLead.Text = $Lead; $HeaderActions.Content = $Actions
     $p = @($Parts)
     if (-not $p.Count) { $Heading.Text = ''; return }
     for ($i = 0; $i -lt $p.Count - 1; $i++) { [void]$Crumbs.Children.Add([Windows.Controls.TextBlock]@{ Text = $(if ($p[$i] -is [array]) { $p[$i][0] } else { $p[$i] }) }) }

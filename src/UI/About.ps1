@@ -52,24 +52,26 @@ $AkariThemeLabels = [ordered]@{ Light = 'Light'; Dark = 'Dark'; System = 'Use sy
 $AkariAccentLabels = [ordered]@{ Akari = 'Akari crimson'; Windows = 'Windows accent' }
 
 function Show-AkariSettings {
-    Set-AkariHeader @('Settings')
+    Set-AkariHeader @('Settings') 'How AkariOS looks, your settings files, recovery and updates.'
     $p = @{}
+    # each section one glass panel (ADR 0011, the native Settings): rows of 64 px at least, split by hairlines, a hover fill
     [void]$StepBody.Children.Add((New-AkariSection 'Appearance' -First))
-    # App theme: an expander with Light / Dark / Use system setting radios (a quick cross-fade on switch)
-    $ex = New-AkariExpander 'sun-moon' 'App theme' 'Select which app theme to display' $true
+    $ap = New-AkariGlassPanel
+    # App theme: Light / Dark / Use system setting radios on its row (a quick cross-fade on switch)
     $radios = [Windows.Controls.StackPanel]::new()
-    $radios.Margin = [Windows.Thickness]::new(0, 4, 0, 4)
+    $radios.Orientation = 'Horizontal'
     foreach ($k in $AkariThemeLabels.Keys) {
         $r = [Windows.Controls.RadioButton]::new()
         $r.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Radio')
         $r.GroupName = 'theme'; $r.Content = $AkariThemeLabels[$k]; $r.Tag = $k
+        $r.Margin = [Windows.Thickness]::new(16, 0, 0, 0); $r.VerticalAlignment = 'Center'
         $r.IsChecked = ($k -eq $script:ThemeSetting)
         $r.Add_Checked({ param($s, $e) if ([string]$s.Tag -ne $script:ThemeSetting) { Switch-AkariTheme ([string]$s.Tag) } })
         [void]$radios.Children.Add($r)
     }
-    [void]$ex.Body.Children.Add((New-AkariExpanderRow $radios))
+    $c0 = New-AkariSettingsCard 'sun-moon' 'App theme' 'Select which app theme to display' $radios 'GlassListRow'
+    Add-AkariGlassRow $ap $c0.Card -Hover
     $p.Theme = $radios
-    [void]$StepBody.Children.Add($ex.Card)
     # Accent colour, Animation effects
     $acc = [Windows.Controls.ComboBox]::new()
     $acc.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Combo')
@@ -77,7 +79,7 @@ function Show-AkariSettings {
     foreach ($k in $AkariAccentLabels.Keys) { $it = [Windows.Controls.ComboBoxItem]::new(); $it.Content = $AkariAccentLabels[$k]; $it.Tag = $k; [void]$acc.Items.Add($it); if ($k -eq (Get-AkariAccentSetting)) { $acc.SelectedItem = $it } }
     $acc.Add_SelectionChanged({ param($s, $e) if ($s.SelectedItem) { Save-AkariSetting 'Accent' ([string]$s.SelectedItem.Tag); Set-AkariTheme $script:ThemeSetting } })
     $p.Accent = $acc
-    $c1 = New-AkariSettingsCard 'palette' 'Accent colour' 'Akari crimson, or your Windows accent' $acc
+    $c1 = New-AkariSettingsCard 'palette' 'Accent colour' 'Akari crimson, or your Windows accent' $acc 'GlassListRow'
     $anim = [Windows.Controls.Primitives.ToggleButton]::new()
     $anim.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Switch')
     $anim.IsChecked = ([string](Read-AkariSettings).Animations -ne 'Off')
@@ -89,35 +91,34 @@ function Show-AkariSettings {
         $script:AkariMotionOn = $on -and (Test-AkariMotionOn)
     })
     $p.Animations = $anim
-    $c2 = New-AkariSettingsCard 'sparkle' 'Animation effects' 'Follows Windows; turn it off here for AkariOS only' $anim
-    $st = [Windows.Controls.StackPanel]::new(); $st.Margin = [Windows.Thickness]::new(0, 0, 0, 0)
-    [void]$st.Children.Add($c1.Card); [void]$st.Children.Add($c2.Card)
-    [void]$StepBody.Children.Add($st)
+    $c2 = New-AkariSettingsCard 'sparkle' 'Animation effects' 'Follows Windows; turn it off here for AkariOS only' $anim 'GlassListRow'
+    Add-AkariGlassRow $ap $c1.Card -Hover; Add-AkariGlassRow $ap $c2.Card -Hover
+    [void]$StepBody.Children.Add($ap.Card)
     # Settings files
     [void]$StepBody.Children.Add((New-AkariSection 'Settings files'))
-    $st = [Windows.Controls.StackPanel]::new()
+    $st = New-AkariGlassPanel
     foreach ($x in @(
         @('file-input', 'Import settings', 'Load choices you saved on another PC into Guided', { Start-AkariImport }),
         @('file-output', 'Export settings', 'Save your current choices to a file', { Start-AkariExport }))) {
-        $c = New-AkariSettingsCard $x[0] $x[1] $x[2] (New-AkariIcon 'chevron-right' 12 'Mu') 'CardButton'
+        $c = New-AkariSettingsCard $x[0] $x[1] $x[2] (New-AkariIcon 'chevron-right' 12 'Mu') 'GlassListButton'
         $c.Card.Add_Click($x[3])
-        [void]$st.Children.Add($c.Card)
+        Add-AkariGlassRow $st $c.Card -Hover
     }
-    [void]$StepBody.Children.Add($st)
+    [void]$StepBody.Children.Add($st.Card)
     # Recovery
     [void]$StepBody.Children.Add((New-AkariSection 'Recovery'))
-    $st = [Windows.Controls.StackPanel]::new()
+    $st = New-AkariGlassPanel
     foreach ($x in @(
         @('arrow-reset', 'System Restore', "Open Windows' restore points", { Start-Process "$env:SystemRoot\System32\rstrui.exe" }),
         @('document', 'Logs', 'Open the folder with akari.log', { Open-AkariLogFolder }),
         @('rotate-ccw', 'Undo the last run', 'Put back the values the last Guided or One-click Run changed', { Start-AkariUndo }),
         @('shield-check', 'Check my setup', 'Find the AkariOS settings Windows changed back, e.g. after an update', { Start-AkariDriftCheck $true }),
         @('bug', 'Save a support file', 'A zip of the logs and this PC''s details for a bug report; your names are left out', { Save-AkariSupportFile }))) {
-        $c = New-AkariSettingsCard $x[0] $x[1] $x[2] (New-AkariIcon 'external-link' 12 'Mu') 'CardButton'
+        $c = New-AkariSettingsCard $x[0] $x[1] $x[2] (New-AkariIcon 'external-link' 12 'Mu') 'GlassListButton'
         $c.Card.Add_Click($x[3])
-        [void]$st.Children.Add($c.Card)
+        Add-AkariGlassRow $st $c.Card -Hover
     }
-    [void]$StepBody.Children.Add($st)
+    [void]$StepBody.Children.Add($st.Card)
     # About: the version, the update check, then the links and the credits
     [void]$StepBody.Children.Add((New-AkariSection 'About'))
     $d = $script:AboutData

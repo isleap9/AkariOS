@@ -33,14 +33,16 @@ $window = Get-AkariXaml "$Root\UI\MainWindow.xaml"
 # the WinUI controls and the fonts (UI\Controls.xaml), the Fluent icons (Ic.<name>, built by build\Icons.ps1)
 $window.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Controls.xaml"))
 $window.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Icons.xaml"))
-foreach ($n in 'Shell', 'Body', 'TopBar', 'BackBtn', 'PaneBtn', 'Logo', 'TitleText', 'AppVersionText',
-               'Nav', 'SearchBox', 'Search', 'SearchHint', 'SearchKey', 'NavFoot', 'NavList', 'NavLayer', 'NavPill', 'Layer', 'PageScroll', 'Page',
-               'PageHeader', 'Crumbs', 'Heading', 'CatBars', 'StepsPanel', 'StepBody', 'HomePanel', 'Rows', 'StepFooter', 'StepBack', 'StepNext',
-               'StepLabel', 'StepBar', 'StepFill', 'Toasts', 'BusyToast', 'BusyLogo', 'StatusText', 'StatusBar', 'StatusFill', 'StatusLoop',
+foreach ($n in 'Shell', 'Body', 'TopBar', 'BackBtn', 'PaneBtn', 'Logo', 'TitleText', 'AppVersionText', 'AppVersionRun', 'PaneHead', 'PaneLogo', 'LogoGlow',
+               'Nav', 'SearchBox', 'Search', 'SearchHint', 'SearchKey', 'NavFoot', 'NavList', 'NavLayer', 'NavPill', 'Layer', 'Aurora', 'PageScroll', 'Page',
+               'PageHeader', 'Crumbs', 'Heading', 'HeaderLead', 'HeaderActions', 'CatBars', 'StepsPanel', 'StepBody', 'HomePanel', 'Rows', 'StepFooter', 'StepBack', 'StepNext',
+               'StepLabel', 'StepBar', 'StepFill', 'PageFooter', 'PageFooterHost', 'Toasts', 'BusyToast', 'BusyLogo', 'StatusText', 'StatusBar', 'StatusFill', 'StatusLoop',
                'ModalOverlay') { Set-Variable $n $window.FindName($n) }
-$AppVersionText.Text = $AkariVersion
+$AppVersionText.Text = $AkariVersion; $AppVersionRun.Text = $AkariVersion
 # the page glides on the mouse wheel (UI\Motion.ps1)
 Enable-AkariSmoothScroll $PageScroll
+# the Aurora banner's light behind the top of the content layer (UI\Aurora.ps1)
+New-AkariAurora $Aurora
 
 # ---- theme: UI\Theme.Dark.xaml or UI\Theme.Light.xaml, merged first into the window's resources (every brush is a
 # DynamicResource, so swapping the dictionary repaints the window); System follows Windows' app mode and changes with it
@@ -106,7 +108,7 @@ function Get-AkariLogo {
 }
 function Update-AkariLogo {
     $img = Get-AkariLogo
-    foreach ($l in @($Logo, $BusyLogo) + @($script:LogoImages)) { if ($l) { $l.Source = $img } }
+    foreach ($l in @($Logo, $PaneLogo, $BusyLogo) + @($script:LogoImages)) { if ($l) { $l.Source = $img } }
 }
 $script:LogoImages = [Collections.Generic.List[object]]::new()
 # an Image of the logo that follows the theme (the hero's, the toasts')
@@ -131,6 +133,7 @@ function Set-AkariTheme([string]$Theme = 'System', [switch]$Save) {
     Set-AkariAccent
     Update-AkariFrame
     Update-AkariLogo
+    Update-AkariAuroraTheme
     if ($Save) { Save-AkariThemeSetting $Theme }
 }
 
@@ -261,6 +264,7 @@ function Add-Log([string]$m) {
 # ---- the NavigationView: its items (a NavItem radio button each: the icon, regular and filled for the selected one in
 # AccText, the label, Optimize's chevron) and Optimize's sections indented under it (NavKids)
 $AkariNav = [ordered]@{ Home = 'house'; 'Install AkariOS' = 'zap'; Optimize = 'sliders-horizontal'; Downloads = 'download'; 'Install USB' = 'usb'; 'ISO Builder' = 'disc-3' }
+$AkariNavColors = @{ Home = 'NavHome'; 'Install AkariOS' = 'NavInstall'; Optimize = 'NavOptimize'; Downloads = 'NavDownloads'; 'Install USB' = 'NavUsb'; 'ISO Builder' = 'NavIso'; Settings = 'NavSettings' }
 $script:NavItems = [ordered]@{}
 $script:NavSync = $false
 
@@ -270,8 +274,10 @@ function New-AkariNavItem([string]$Page, [string]$Label, [string]$Icon, [double]
     $ic = [Windows.Controls.Grid]::new()
     $ic.Margin = [Windows.Thickness]::new($Indent, 0, 0, 0)
     $ic.RenderTransformOrigin = [Windows.Point]::new(0.5, 0.5)
-    $r = New-AkariIcon $Icon 16 'Tx'
-    $f = New-AkariIcon "$Icon.Filled" 16 'AccText'
+    # a page's icon in its own colour (the native app's; Nav<page> in the theme), Optimize's sections in Tx / AccText
+    $nc = $AkariNavColors[$Page]
+    $r = New-AkariIcon $Icon 16 $(if ($nc) { $nc } else { 'Tx' })
+    $f = New-AkariIcon "$Icon.Filled" 16 $(if ($nc) { $nc } else { 'AccText' })
     $f.Visibility = 'Collapsed'
     [void]$ic.Children.Add($r); [void]$ic.Children.Add($f)
     [void]$g.Children.Add($ic)
@@ -394,6 +400,8 @@ function Set-AkariCompact([bool]$Compact) {
     if ($Compact) { Set-AkariNavKids $false }
     Set-AkariSize $Nav Width $(if ($Compact) { 48 } else { 280 }) Slow
     $SearchBox.IsHitTestVisible = -not $Compact
+    # the pane's header goes in compact mode, as the native NavigationView's
+    $PaneHead.Visibility = if ($Compact) { 'Collapsed' } else { 'Visible' }
     Start-AkariMotion $SearchBox Fade $null $(if ($Compact) { 0 } else { 1 }) -Speed Base
     foreach ($it in $script:NavItems.Values) {
         Start-AkariMotion $it.Label Fade $null $(if ($Compact) { 0 } else { 1 }) -Speed Fast
@@ -422,10 +430,16 @@ $Layer.Add_SizeChanged({ param($s, $e) Update-AkariHomeWidth $e.NewSize.Width })
 
 # the page header (the native app's rule): the last part is the heading; the parts before it, when there are any, are a
 # small line of links above it (Mu, Tx on hover) with a chevron after each. $Parts: strings, or @(label, page) for a
-# link. $Parts empty = no header (Home).
-function Set-AkariHeader($Parts) {
+# link. $Parts empty = no header (Home). The banner (ADR 0011): -Lead = one line under the title (Mu), -Actions = the
+# page's main actions (an element) on the right at the bottom, under the text below 640 px (Update-AkariHeaderLayout).
+function Set-AkariHeader($Parts, [string]$Lead = '', $Actions = $null) {
     $Crumbs.Children.Clear()
     $parts = @($Parts)
+    $HeaderLead.Text = $Lead
+    $HeaderLead.Visibility = if ($Lead) { 'Visible' } else { 'Collapsed' }
+    if ($Actions -and $Actions.Parent) { $Actions.Parent.Content = $null }
+    $HeaderActions.Content = $Actions
+    $HeaderActions.Visibility = if ($null -ne $Actions) { 'Visible' } else { 'Collapsed' }
     if (-not $parts.Count) { $PageHeader.Visibility = 'Collapsed'; return }
     $PageHeader.Visibility = 'Visible'
     for ($i = 0; $i -lt $parts.Count - 1; $i++) {
@@ -444,6 +458,16 @@ function Set-AkariHeader($Parts) {
     $last = $parts[-1]
     $Heading.Text = if ($last -is [array]) { $last[0] } else { $last }
 }
+# the banner's actions: on the right at the bottom, under the text below 640 px (the native PageBanner's NarrowWidth)
+function Update-AkariHeaderLayout([double]$Width) {
+    $narrow = $Width -lt 640
+    [Windows.Controls.Grid]::SetColumn($HeaderActions, $(if ($narrow) { 0 } else { 1 }))
+    [Windows.Controls.Grid]::SetRow($HeaderActions, $(if ($narrow) { 1 } else { 0 }))
+    $HeaderActions.HorizontalAlignment = if ($narrow) { 'Left' } else { 'Right' }
+    $HeaderActions.Margin = if ($narrow) { [Windows.Thickness]::new(4, 0, 0, 8) } else { [Windows.Thickness]::new(24, 8, 0, 8) }
+}
+$PageHeader.Add_SizeChanged({ param($s, $e) if ($e.WidthChanged) { Update-AkariHeaderLayout $e.NewSize.Width } })
+
 # a breadcrumb link: Install AkariOS goes back to its chooser
 function Open-AkariCrumb([string]$Page) {
     if ($Page -eq 'Install AkariOS' -and $script:Mode -ne 'Choose') { Push-AkariHistory; $script:Mode = 'Choose'; $script:Step = 0; Show-Page; return }
@@ -478,7 +502,7 @@ function Show-Page {
 
 function Show-AkariPageNow {
     # a new page (or another search, or another step of a flow) comes in: scrolled to the top, each top-level child
-    # rising from 28 px, staggered (Start-AkariPageEntrance)
+    # rising from 16 px, staggered (Start-AkariPageEntrance)
     $key = "$($script:Cat)|$($script:Query)|$($script:Mode)|$($script:Step)|$(if ($script:Cat -eq 'ISO Builder') { $script:IsoState.Step })"
     $script:PageMoved = ($key -ne $script:PageMotionKey)
     $script:PageMotionKey = $key
@@ -487,6 +511,9 @@ function Show-AkariPageNow {
     $Rows.Children.Clear(); $StepBody.Children.Clear()
     $StepsPanel.Visibility = 'Collapsed'; $HomePanel.Visibility = 'Collapsed'
     Set-AkariFooter $false
+    Set-AkariPageFooter $null
+    # the page's light (UI\Aurora.ps1): its palette, Home's taller one; Downloads' palette follows its section
+    Set-AkariAuroraPalette (Get-AkariPagePalette $script:Cat $script:Query $script:DlSection) ($script:Cat -eq 'Home') $script:Cat
     switch -Wildcard ($script:Cat) {
         'Home' { Set-AkariHeader @(); $HomePanel.Visibility = 'Visible'; Show-AkariHome }
         'Search' { Show-AkariCataloguePage $script:Query }
@@ -535,6 +562,13 @@ function Select-AkariPage([string]$Name) { Open-AkariPage $Name $script:Cat }
 function Get-AkariOptimizeTarget { 'Optimize' }
 
 # ---- Guided's footer (.foot): slides up from the bottom when Guided shows, down when it leaves (Motion.Slow)
+# a page's own footer on the glass (Install USB): $Content (an element) in PageFooter, $null = none
+function Set-AkariPageFooter($Content) {
+    if ($Content -and $Content.Parent) { $Content.Parent.Content = $null }
+    $PageFooterHost.Content = $Content
+    $PageFooter.Visibility = if ($null -ne $Content) { 'Visible' } else { 'Collapsed' }
+}
+
 function Set-AkariFooter([bool]$On) {
     $was = $StepFooter.Visibility -eq 'Visible'
     if ($On -eq $was) { return }
@@ -551,8 +585,9 @@ function Show-AkariToast([string]$Title, [string]$Text = '') {
     $b = [Windows.Controls.Border]::new()
     $b.Width = 340; $b.Margin = [Windows.Thickness]::new(0, 8, 0, 0); $b.Padding = [Windows.Thickness]::new(16, 14, 16, 14)
     $b.CornerRadius = [Windows.CornerRadius]::new(8); $b.BorderThickness = [Windows.Thickness]::new(1)
-    $b.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, 'S2')
-    $b.SetResourceReference([Windows.Controls.Border]::BorderBrushProperty, 'Fly')
+    # on the glass (ADR 0011), as the busy toast
+    $b.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, 'Glass')
+    $b.SetResourceReference([Windows.Controls.Border]::BorderBrushProperty, 'GlassStroke')
     $fx = [Windows.Media.Effects.DropShadowEffect]::new(); $fx.BlurRadius = 16; $fx.ShadowDepth = 8; $fx.Direction = 270
     # an Effect is not a FrameworkElement: its colour is the theme's ShadeFly now (a toast lives seconds)
     $fx.Color = $window.FindResource('ShadeFly')

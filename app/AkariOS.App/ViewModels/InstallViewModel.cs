@@ -17,6 +17,8 @@ public sealed record StepItem(int Number, string Name, string State)
     public bool IsDone => State == "Done";
     public bool IsCurrent => State == "Current";
     public bool HasLine => Number > 1;
+    public bool IsToCome => State == "";
+    public double TextOpacity => IsToCome ? 0.6 : 1;
     public string NumberText => $"{Number}";
 }
 
@@ -196,7 +198,16 @@ public sealed partial class InstallViewModel : ObservableObject
     // ---- Review
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ReviewSide), nameof(ReviewMain))]
     public partial IReadOnlyList<ReviewGroup> Review { get; private set; } = [];
+
+    /// <summary>Review's left column (the design's page D): the app groups, Remove and Install.</summary>
+    public IReadOnlyList<ReviewGroup> ReviewSide => Review.Where(g => g.Title != TweaksGroup).ToList();
+
+    /// <summary>Review's wider right column: the Tweaks group.</summary>
+    public IReadOnlyList<ReviewGroup> ReviewMain => Review.Where(g => g.Title == TweaksGroup).ToList();
+
+    private const string TweaksGroup = "Tweaks";
 
     [ObservableProperty]
     public partial (int Remove, int Install, int Tweaks) ReviewCounts { get; private set; }
@@ -416,7 +427,7 @@ public sealed partial class InstallViewModel : ObservableObject
         [
             new("", "Remove", S(rm.Count, "app"), rm.Select(p => Row(p, "Remove")).ToList(), false),
             new("", "Install", S(inst.Count, "app") + ", from winget where possible", inst.Select(p => Row(p, "Install")).ToList(), false),
-            new("", "Tweaks", S(tw.Count, "change"), tweakRows, true),
+            new("", TweaksGroup, S(tw.Count, "change"), tweakRows, true),
         ];
     }
 

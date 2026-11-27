@@ -182,7 +182,7 @@ $script:Tweaks = @(
 ) + @($fx.Tweaks | Where-Object { $_.Group })
 $AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
 $AkariLogFile = "$env:TEMP\akari-quick-test\akari.log"
-$env:AKARI_MOTION = 'off'; . "$Root\UI\Motion.ps1"
+$env:AKARI_MOTION = 'off'; . "$Root\UI\Motion.ps1"; . "$Root\UI\Aurora.ps1"
 foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps', 'Pages') { . "$Root\UI\$f.ps1" }
 . "$Root\..\tests\ShellStub.ps1"
 function Get-AkariAppxPackages { @() }

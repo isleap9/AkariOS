@@ -79,7 +79,7 @@ $script:Tweaks = @(
     ConvertTo-AkariTweak @{ Id = 'leg'; Name = 'Leg'; Description = 'D'; Section = 'Windows'; Category = ''; Risk = 'Safe'; Apply = { }; Revert = { } } 'x' $true
 )
 $AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
-$env:AKARI_MOTION = 'off'; . "$Root\UI\Motion.ps1"
+$env:AKARI_MOTION = 'off'; . "$Root\UI\Motion.ps1"; . "$Root\UI\Aurora.ps1"
 foreach ($f in 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Pages') { . "$Root\UI\$f.ps1" }
 . "$Root\..\tests\ShellStub.ps1"
 # no real AppX read in tests: no app installed, no data-list Group
@@ -91,9 +91,9 @@ $res.Resources.MergedDictionaries.Add((Get-AkariXaml "$Root\UI\Icons.xaml"))
 [void]$res.Children.Add($StepBody)
 function Click($b) { $b.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Primitives.ButtonBase]::ClickEvent)) }
 $script:Cat = 'Install AkariOS'; Show-Page
-$tiles = $StepBody.Children[1]
+$tiles = $StepBody.Children[0]
 "chooser=$($tiles.Children.Count)|$($Heading.Text)|$($StepFooter.Visibility)|$($tiles.Children[0].BorderBrush -eq $res.FindResource('Acc'))"
-"chooserParts=$(($StepBody.Children | ForEach-Object { $_.GetType().Name }) -join ',')|$($StepBody.Children[4].Tag)"
+"chooserParts=$(($StepBody.Children | ForEach-Object { $_.GetType().Name }) -join ',')|$($StepBody.Children[3].Tag)|$($HeaderLead.Text)"
 # One-click: declined, then accepted (Start-Process and the window are stubs: nothing is launched)
 $realRoot = $Root; $Root = 'X:\Akari'
 function Test-Path($p) { $true }
@@ -152,6 +152,8 @@ $tweakBox.Text = ''
 Click $StepNext
 "review=$script:Step|$(($StepBody.Children | ForEach-Object { $_.GetType().Name }) -join ',')|$($StepNext.Content)|$($StepLabel.Text -replace '[^ -~]', '.')"
 "sums=$(($StepBody.Children[1].Children | ForEach-Object { $_.Child.Children[0].Text }) -join ',')"
+$rg = $StepBody.Children[2]; $rw = "$($rg.Tag.Left.Children.Count)|$([Windows.Controls.Grid]::GetColumn($rg.Tag.Right))|$($rg.Tag.Right.Style -eq $res.FindResource('GlassCard'))"
+Set-AkariReviewColumns $rg $true; "reviewPanels=$rw|$([Windows.Controls.Grid]::GetColumn($rg.Tag.Right)),$([Windows.Controls.Grid]::GetRow($rg.Tag.Right))"; Set-AkariReviewColumns $rg $false
 "plan=$((Get-AkariPlanItems $script:Sel | ForEach-Object { $_.Id + ':' + $_.Mode }) -join ',')"
 Click $StepBack
 "reattached=$script:Step|$($StepBody.Children.Count)"
@@ -171,7 +173,7 @@ Click $StepBack; Click $StepBack
     It 'runs without errors' { $out['error'] | Should BeNullOrEmpty }
     It 'opens on the chooser: One-click (recommended) and Guided tiles, the five phases, the warning; no footer' {
         $out.chooser | Should Be '2|Install AkariOS|Collapsed|True'
-        $out.chooserParts | Should Be 'TextBlock,UniformGrid,TextBlock,Border,Border|Warn'
+        $out.chooserParts | Should Be 'UniformGrid,TextBlock,Border,Border|Warn|Two ways to optimize Windows. Both make a restore point first.'
     }
     It 'One-click asks first, saying when the PC is a laptop; No launches nothing' { $out.declinedLaunch | Should Be 'False|Laptop' }
     It 'One-click asks for the browser next: Helium (recommended) first, then by name, No browser last; Cancel launches nothing' {
@@ -207,7 +209,8 @@ Click $StepBack; Click $StepBack
         $out.chOpened | Should Be 'False|True|Ch'
     }
     It 'Review: three summary cards and the changes, Apply n changes; planned in order: Apply, Revert, Choice' {
-        $out.review | Should Be '2|StackPanel,UniformGrid,Border,Border,Border|Apply 3 changes|Step 3 of 3 . Review & Apply'
+        $out.review | Should Be '2|StackPanel,UniformGrid,Grid|Apply 3 changes|Step 3 of 3 . Review & Apply'
+        $out.reviewPanels | Should Be '2|1|True|0,1'
         $out.sums | Should Be '0,0,3'
         $out.plan | Should Be 'tog:Apply,opt:Revert,ch:Apply'
     }
@@ -288,7 +291,7 @@ $LogQueue = [Collections.Concurrent.ConcurrentQueue[string]]::new()
 $fake = ConvertTo-AkariTweak @{ Id = 'zz-fake-id'; Name = 'Fake'; Description = 'D'; Section = 'Optimize'; Category = 'Gaming'; Risk = 'Safe'; Apply = { }; Revert = { } } 'x' $false
 $script:Tweaks = @($fake)
 $AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
-$env:AKARI_MOTION = 'off'; . "$Root\UI\Motion.ps1"
+$env:AKARI_MOTION = 'off'; . "$Root\UI\Motion.ps1"; . "$Root\UI\Aurora.ps1"
 foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps', 'Pages') { . "$Root\UI\$f.ps1" }
 . "$Root\..\tests\ShellStub.ps1"
 # no real AppX read in tests: no app installed, no data-list Group
@@ -546,7 +549,7 @@ $script:Tweaks = @(
     ConvertTo-AkariTweak @{ Id = 'tools-update-apps'; Name = 'Update all apps'; Description = 'D'; Section = 'Tools'; Category = 'Setup'; Kind = 'Action'; Risk = 'Safe'; Confirm = 'Update every app?'; Apply = { } } 'x' $false
 )
 $AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
-$env:AKARI_MOTION = 'off'; . "$Root\UI\Motion.ps1"
+$env:AKARI_MOTION = 'off'; . "$Root\UI\Motion.ps1"; . "$Root\UI\Aurora.ps1"
 foreach ($f in 'Selection', 'Cards', 'Apps', 'Steps', 'Pages') { . "$Root\UI\$f.ps1" }
 . "$Root\..\tests\ShellStub.ps1"
 # the fake PC has three of the listed apps and one the list doesn't know

@@ -9,7 +9,7 @@
        dialog's smoke. The frame is extended over the whole window (GlassFrameThickness -1) so Windows draws Mica behind
        it; Windows draws the caption buttons (minimize, maximize, close) itself, in a hole Body leaves for them. -->
   <WindowChrome.WindowChrome>
-    <WindowChrome CaptionHeight="48" GlassFrameThickness="-1" ResizeBorderThickness="6"
+    <WindowChrome CaptionHeight="32" GlassFrameThickness="-1" ResizeBorderThickness="6"
                   UseAeroCaptionButtons="True" CornerRadius="0"/>
   </WindowChrome.WindowChrome>
 
@@ -347,7 +347,7 @@
 
   <Grid x:Name="Shell">
     <Grid.RowDefinitions>
-      <RowDefinition Height="48"/>
+      <RowDefinition Height="32"/>
       <RowDefinition Height="*"/>
     </Grid.RowDefinitions>
     <Grid.ColumnDefinitions>
@@ -358,22 +358,14 @@
     <!-- Mica behind the whole window on Windows 11 (Tint over it), the solid Bg on Windows 10 (Update-AkariFrame) -->
     <Border x:Name="Body" Grid.RowSpan="2" Grid.ColumnSpan="2" Background="{DynamicResource Bg}"/>
 
-    <!-- Title bar, 48 px (the window's drag region; its buttons stay clickable): Back (Alt+Left, disabled with no
-         history), the pane toggle, the 16 px logo, "AkariOS" and the version in Caption; Windows' own caption buttons at the right. -->
+    <!-- Title bar, 32 px, as Windows' own (the native app's): the 16 px logo and "AkariOS"; Windows' caption buttons at the
+         right. BackBtn stays for the history (Alt+Left walks back) but is never shown: the pane has the menu button alone. -->
     <Grid x:Name="TopBar" Grid.ColumnSpan="2">
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-        <Button x:Name="BackBtn" Style="{StaticResource Ghost}" Width="40" Height="36" Padding="0" Margin="4,0,0,0" IsEnabled="False"
-                ToolTip="Back (Alt+Left)" Foreground="{DynamicResource Mu}" WindowChrome.IsHitTestVisibleInChrome="True">
-          <Viewbox Width="16" Height="16"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.arrow-left}"/></Viewbox>
-        </Button>
-        <Button x:Name="PaneBtn" Style="{StaticResource Ghost}" Width="40" Height="36" Padding="0"
-                ToolTip="Collapse navigation" Foreground="{DynamicResource Mu}" WindowChrome.IsHitTestVisibleInChrome="True">
-          <Viewbox Width="16" Height="16"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.menu}"/></Viewbox>
-        </Button>
+        <Button x:Name="BackBtn" Visibility="Collapsed" IsEnabled="False" Focusable="False"/>
         <!-- the logo for the theme (Update-AkariLogo, UI\Shell.ps1) -->
-        <Image x:Name="Logo" Width="16" Height="16" Margin="6,0,12,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+        <Image x:Name="Logo" Width="16" Height="16" Margin="12,0,10,0" RenderOptions.BitmapScalingMode="HighQuality"/>
         <TextBlock x:Name="TitleText" Text="AkariOS" FontFamily="{DynamicResource FontSmall}" FontSize="12" VerticalAlignment="Center"/>
-        <TextBlock x:Name="AppVersionText" Margin="8,0,0,0" FontFamily="{DynamicResource FontSmall}" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource Ter}"/>
       </StackPanel>
     </Grid>
 
@@ -383,9 +375,30 @@
          (Move-AkariNavPill, UI\Shell.ps1). The pane's width is one of ADR 0008's three animated sizes. -->
     <Grid x:Name="Nav" Grid.Row="1" Width="280" ClipToBounds="True">
       <DockPanel Margin="0,0,0,8">
+        <!-- the menu button (compact mode), as the native NavigationView's -->
+        <Button x:Name="PaneBtn" DockPanel.Dock="Top" Style="{StaticResource Ghost}" Width="40" Height="36" Padding="0" Margin="4,2,0,0"
+                HorizontalAlignment="Left" ToolTip="Collapse navigation" Foreground="{DynamicResource Mu}">
+          <Viewbox Width="16" Height="16"><Path Style="{StaticResource Ic}" Data="{DynamicResource Ic.menu}"/></Viewbox>
+        </Button>
+        <!-- the pane's header (the native app's): the logo over the accent's glow, AkariOS and its version; gone in compact mode -->
+        <StackPanel x:Name="PaneHead" DockPanel.Dock="Top" Orientation="Horizontal" Margin="16,4,0,12">
+          <Grid Width="48" Height="48">
+            <Ellipse x:Name="LogoGlow" Fill="{DynamicResource Acc}" Opacity="0.33" IsHitTestVisible="False">
+              <Ellipse.OpacityMask>
+                <RadialGradientBrush><GradientStop Color="Black" Offset="0"/><GradientStop Color="Transparent" Offset="1"/></RadialGradientBrush>
+              </Ellipse.OpacityMask>
+            </Ellipse>
+            <Image x:Name="PaneLogo" Width="36" Height="36" RenderOptions.BitmapScalingMode="HighQuality"/>
+          </Grid>
+          <StackPanel VerticalAlignment="Center" Margin="12,0,0,0">
+            <TextBlock Text="AkariOS" FontFamily="{DynamicResource FontText}" FontSize="14" FontWeight="SemiBold"/>
+            <TextBlock FontFamily="{DynamicResource FontSmall}" FontSize="12" Foreground="{DynamicResource Mu}"><Run Text="Version "/><Run x:Name="AppVersionRun"/></TextBlock>
+            <TextBlock x:Name="AppVersionText" Visibility="Collapsed"/>
+          </StackPanel>
+        </StackPanel>
         <Grid x:Name="SearchBox" DockPanel.Dock="Top" Margin="16,0,16,8">
           <TextBox x:Name="Search" Style="{StaticResource Flat}" Padding="10,5,58,6"/>
-          <TextBlock x:Name="SearchHint" Text="Search Tweaks" Foreground="{DynamicResource Ter}" Margin="12,0,0,1"
+          <TextBlock x:Name="SearchHint" Text="Search tweaks" Foreground="{DynamicResource Ter}" Margin="12,0,0,1"
                      VerticalAlignment="Center" IsHitTestVisible="False">
             <TextBlock.Style>
               <Style TargetType="TextBlock">
@@ -398,7 +411,7 @@
               </Style>
             </TextBlock.Style>
           </TextBlock>
-          <Border x:Name="SearchKey" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,30,0" Padding="5,1" CornerRadius="4"
+          <Border x:Name="SearchKey" Visibility="Collapsed" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,30,0" Padding="5,1" CornerRadius="4"
                   BorderBrush="{DynamicResource CtlBd2}" BorderThickness="1" IsHitTestVisible="False">
             <TextBlock Text="Ctrl+F" FontSize="11" Foreground="{DynamicResource Ter}"/>
           </Border>
@@ -425,18 +438,31 @@
     <Border x:Name="Layer" Grid.Row="1" Grid.Column="1" Background="{DynamicResource Surf}" BorderBrush="{DynamicResource Div}"
             BorderThickness="1,1,0,0" CornerRadius="8,0,0,0" ClipToBounds="True">
       <Grid>
+        <!-- The Aurora banner's light (ADR 0011, UI\Aurora.ps1): the page's glows and the Akari bloom behind the top of the
+             layer, filled by New-AkariAurora, set per page by Show-AkariPageNow; the page scrolls over it -->
+        <Grid x:Name="Aurora" Height="460" VerticalAlignment="Top" IsHitTestVisible="False" Focusable="False"/>
         <!-- PageScroll glides on the wheel (Enable-AkariSmoothScroll) and goes back to the top on a new page -->
         <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <!-- the page fills the layer up to 1064 px (its 36 px sides included), centred in a wider window as the
                native app's (Views\PageLayout.cs): MaxWidth 992 + the margins, Stretch centres it past that -->
           <Grid>
           <StackPanel x:Name="Page" Margin="36,28,36,120" MaxWidth="992">
-            <!-- the page title, or a breadcrumb whose earlier parts are links (Set-AkariHeader) -->
-            <StackPanel x:Name="PageHeader" Margin="0,0,0,20">
-              <StackPanel x:Name="Crumbs" Orientation="Horizontal" Margin="0,0,0,4" Visibility="Collapsed"/>
-              <TextBlock x:Name="Heading" FontFamily="{DynamicResource FontDisplay}" FontSize="28" LineHeight="36" FontWeight="SemiBold"
-                         TextTrimming="CharacterEllipsis"/>
-            </StackPanel>
+            <!-- the page's banner (ADR 0011, Set-AkariHeader): on the light with no card, at least 150 px, the text at its
+                 bottom with 8 px between lines: the crumbs (links), the 40 px title, one line of lead; the page's main
+                 actions on the right at the bottom (under the text below 640 px: Update-AkariHeaderLayout) -->
+            <Grid x:Name="PageHeader" MinHeight="150" Margin="0,0,0,12">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+              <StackPanel VerticalAlignment="Bottom" Margin="4,8,0,8">
+                <StackPanel x:Name="Crumbs" Orientation="Horizontal" Margin="0,0,0,8" Visibility="Collapsed"/>
+                <TextBlock x:Name="Heading" FontFamily="{DynamicResource FontDisplay}" FontSize="40" LineHeight="52" FontWeight="SemiBold"
+                           TextWrapping="Wrap"/>
+                <TextBlock x:Name="HeaderLead" FontFamily="{DynamicResource FontText}" FontSize="14" LineHeight="20" Foreground="{DynamicResource Mu}"
+                           TextWrapping="Wrap" MaxWidth="640" HorizontalAlignment="Left" Margin="0,8,0,0" Visibility="Collapsed"/>
+              </StackPanel>
+              <ContentControl x:Name="HeaderActions" Grid.Column="1" VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                              Margin="24,8,0,8" Focusable="False" IsTabStop="False" Visibility="Collapsed"/>
+            </Grid>
             <!-- InfoBars at the top of a page: restart required, changes waiting for Safe Mode (UI\CataloguePage.ps1) -->
             <StackPanel x:Name="CatBars"/>
             <!-- Install AkariOS, its flows, Settings, Install USB, the ISO Builder and Optimize: built into StepBody -->
@@ -449,10 +475,10 @@
           </StackPanel>
           </Grid>
         </ScrollViewer>
-        <!-- Guided's footer (.foot): slides up from the bottom; "Step n of 3 . Name", a progress bar, Cancel / Back and
-             the accent Next ("Apply n changes" on the last step) -->
-        <Border x:Name="StepFooter" VerticalAlignment="Bottom" Visibility="Collapsed" Background="{DynamicResource Bg}"
-                BorderBrush="{DynamicResource Div}" BorderThickness="0,1,0,0" Padding="36,16">
+        <!-- Guided's footer (.foot) on the glass (ADR 0011): slides up from the bottom; "Step n of 3 . Name", a progress
+             bar, Cancel / Back and the accent Next ("Apply n changes" on the last step) -->
+        <Border x:Name="StepFooter" VerticalAlignment="Bottom" Visibility="Collapsed" Background="{DynamicResource Glass}"
+                BorderBrush="{DynamicResource GlassStroke}" BorderThickness="0,1,0,0" Padding="36,16">
           <Border.RenderTransform><TranslateTransform/></Border.RenderTransform>
           <DockPanel>
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
@@ -468,13 +494,18 @@
             </StackPanel>
           </DockPanel>
         </Border>
+        <!-- a page's own footer on the glass (ADR 0011; Set-AkariPageFooter): Install USB's saves beside the USB's name -->
+        <Border x:Name="PageFooter" VerticalAlignment="Bottom" Visibility="Collapsed" Background="{DynamicResource Glass}"
+                BorderBrush="{DynamicResource GlassStroke}" BorderThickness="0,1,0,0" Padding="36,12">
+          <ContentControl x:Name="PageFooterHost" Focusable="False" IsTabStop="False"/>
+        </Border>
       </Grid>
     </Border>
 
     <!-- Toasts (.toast): at the bottom right, stacking upwards; a Run's is sticky, with an indeterminate bar
          (BusyToast: the job's label in StatusText, its progress in StatusFill, else the sliding StatusLoop) -->
     <StackPanel x:Name="Toasts" Grid.RowSpan="2" Grid.ColumnSpan="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,20,12">
-      <Border x:Name="BusyToast" Width="340" Margin="0,8,0,0" Padding="16,14" Background="{DynamicResource S2}" BorderBrush="{DynamicResource Fly}"
+      <Border x:Name="BusyToast" Width="340" Margin="0,8,0,0" Padding="16,14" Background="{DynamicResource Glass}" BorderBrush="{DynamicResource GlassStroke}"
               BorderThickness="1" CornerRadius="8" Visibility="Collapsed">
         <Border.Effect><DropShadowEffect Color="{DynamicResource ShadeFly}" BlurRadius="16" ShadowDepth="8" Direction="270" Opacity="1"/></Border.Effect>
         <DockPanel>

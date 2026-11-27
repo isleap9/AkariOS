@@ -63,7 +63,7 @@ function Get-AkariGameBar {
     $count = New-AkariText '' 13 'Mu'
     $count.VerticalAlignment = 'Center'
     [void]$bar.Children.Add($count)
-    $script:GameBar = @{ Bar = $bar; Count = $count }
+    $script:GameBar = @{ Bar = (New-AkariGlassBar $bar); Count = $count }
     $script:GameBar
 }
 

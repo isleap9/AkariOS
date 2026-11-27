@@ -70,20 +70,23 @@ function New-AkariCatalogueCard($t) {
     $rt = New-AkariText 'Running' 12 'Mu'; $rt.Margin = [Windows.Thickness]::new(8, 0, 0, 0); $rt.VerticalAlignment = 'Center'
     [void]$ring.Children.Add($rt)
     [void]$act.Children.Add($ring)
-    $card = New-AkariSettingsCard (Get-AkariCategoryIcon $t.Category) $t.Name '' @((New-AkariBadges $t), (New-AkariMarks $t), $act)
+    # the native app's card (Views/Cards.xaml's CardTemplate): no icon; the name, then the id in Cascadia Mono (Ter) with
+    # the AkariOS / Risk badges, the description, the State line; the marks and the control on the right
+    $card = New-AkariSettingsCard '' $t.Name '' @((New-AkariMarks $t), $act)
     $card.Card.Tag = $t.Id
-    # the description, with the Tweak's id after it in Cascadia Mono, Ter
+    $idRow = [Windows.Controls.WrapPanel]::new(); $idRow.Margin = [Windows.Thickness]::new(0, 2, 0, 2)
+    $id = New-AkariText $t.Id 12 'Ter'; Set-AkariFont $id Mono
+    $id.Margin = [Windows.Thickness]::new(0, 0, 8, 0); $id.VerticalAlignment = 'Center'
+    [void]$idRow.Children.Add($id)
+    [void]$idRow.Children.Add((New-AkariBadges $t))
+    $card.Text.Children.Insert(1, $idRow)
     $d = $card.Desc
-    $d.Visibility = 'Visible'
-    $d.Text = ''
-    if ($t.Description) { [void]$d.Inlines.Add([Windows.Documents.Run]::new("$($t.Description) ")) }
-    $id = [Windows.Documents.Run]::new($t.Id)
-    $id.SetResourceReference([Windows.Documents.TextElement]::FontFamilyProperty, 'FontMono')
-    $id.SetResourceReference([Windows.Documents.TextElement]::ForegroundProperty, 'Ter')
-    [void]$d.Inlines.Add($id)
-    # the State line: reading, waiting, running, failed, waiting for Safe Mode (empty at rest)
+    $d.Text = [string]$t.Description
+    $d.Visibility = if ($t.Description) { 'Visible' } else { 'Collapsed' }
+    $d.TextWrapping = 'Wrap'
+    # the State line: Optimized, Windows default, reading, waiting, running, failed, waiting for Safe Mode
     $e.StateText = New-AkariText '' 12 'Ter'
-    $e.StateText.Margin = [Windows.Thickness]::new(0, 4, 0, 0)
+    $e.StateText.Margin = [Windows.Thickness]::new(0, 2, 0, 0)
     [void]$card.Text.Children.Add($e.StateText)
     $e.Card = $card.Card; $e.Control = $ctl; $e.Ring = $ring; $e.Name = $card.Title
     $e
@@ -114,8 +117,6 @@ function Set-AkariCatalogueCard($e) {
         $e.StateText.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, 'Bad')
     } else {
         $e.StateText.Text = Get-AkariCatalogueStateText $t $e.State $e.Busy $pending
-        # at rest the switch or combobox says it all: only Custom / Unknown, and the busy states, keep a line
-        if (-not $e.Busy -and -not $pending -and $e.State -in 'Optimized', 'Default') { $e.StateText.Text = '' }
         $e.StateText.SetResourceReference([Windows.Controls.TextBlock]::ForegroundProperty, $(if ($pending) { 'Warn' } else { 'Ter' }))
     }
     $e.StateText.Visibility = if ($e.StateText.Text) { 'Visible' } else { 'Collapsed' }
@@ -220,11 +221,10 @@ function Show-AkariCataloguePage([string]$Query) {
     $hs = if ($AkariCatalogueHeaders.ContainsKey($sec)) { $AkariCatalogueHeaders[$sec] } else { $sec }
     if (-not $k.Category) { Show-AkariSectionPage $cat $sec $hs; return }
     $key = "$AkariCataloguePrefix$sec/$($k.Category)"
-    Set-AkariHeader @(@('Optimize', 'Optimize'), @($hs, "$AkariCataloguePrefix$sec"), $k.Category)
+    Set-AkariHeader @(@('Optimize', 'Optimize'), @($hs, "$AkariCataloguePrefix$sec"), $k.Category) 'Each change applies right away.'
     $list = @(Find-AkariCatalogueList $cat $key '')
     $extra = $AkariCatalogueLists[$key]
     if (-not $list.Count -and -not $extra) { [void]$Rows.Children.Add((New-AkariEmpty 'search' 'Nothing here yet' '')); return }
-    [void]$Rows.Children.Add((New-AkariLead 'Each change applies right away.'))
     $body = [Windows.Controls.StackPanel]::new()
     foreach ($t in $list) { $e = Get-AkariCatalogueCard $t; Set-AkariCardHighlight $e ''; Add-AkariCard $body $e; Set-AkariCatalogueCard $e }
     # Services, Scheduled tasks: the category's Tweaks, then its list ($AkariCatalogueLists)
@@ -250,10 +250,9 @@ function Show-AkariCataloguePage([string]$Query) {
 # Category's page
 function Show-AkariSectionPage($Catalogue, [string]$Section, [string]$Header) {
     $script:SectionLoading = ''
-    Set-AkariHeader @(@('Optimize', 'Optimize'), $Header)
+    Set-AkariHeader @(@('Optimize', 'Optimize'), $Header) 'Pick a category. Each change applies right away.'
     $list = @(Get-AkariCategoryRows $Catalogue $Section $script:CategoryInfo)
     if (-not $list.Count) { [void]$Rows.Children.Add((New-AkariEmpty 'search' 'Nothing here yet' '')); return }
-    [void]$Rows.Children.Add((New-AkariLead 'Pick a category. Each change applies right away.'))
     $groups = [ordered]@{}
     foreach ($r in $list) { if (-not $groups.Contains($r.Group)) { $groups[$r.Group] = [Collections.Generic.List[object]]::new() }; $groups[$r.Group].Add($r) }
     $first = $true
@@ -274,8 +273,9 @@ function New-AkariCategoryRow($Row) {
     $badge.Child = New-AkariText "$($Row.Count)" 12 'Mu'
     $badge.ToolTip = "$($Row.Count) tweak$(if ($Row.Count -ne 1) { 's' })"
     $chev = New-AkariIcon 'chevron-right' 12 'Mu'
-    $c = New-AkariSettingsCard (Get-AkariCategoryIcon $Row.Category) $Row.Category $Row.Line @($badge, $chev) 'CardButton'
+    $c = New-AkariSettingsCard (Get-AkariCategoryIcon $Row.Category) $Row.Category $Row.Line @($badge, $chev) 'GlassRow'
     $c.Desc.TextWrapping = 'Wrap'
+    $c.Card.Margin = [Windows.Thickness]::new(0, 0, 0, 4)
     $c.Card.Tag = $Row.Key
     $c.Card.Add_Click({ param($x, $e) Select-AkariPage ([string]$x.Tag) })
     $c.Card
@@ -302,13 +302,13 @@ function Show-AkariSearchResults([string]$Query) {
         Update-AkariCatalogueBars
         return
     }
-    [void]$Rows.Children.Add((New-AkariLead "$($list.Count) Tweak$(if ($list.Count -ne 1) { 's' })"))
+    Set-AkariHeader @("Results for `"$Query`"") "$($list.Count) Tweak$(if ($list.Count -ne 1) { 's' })"
     $last = ''
     foreach ($t in $list) {
         if ("$($t.Section)/$($t.Category)" -ne $last) {
             $last = "$($t.Section)/$($t.Category)"
             $hs = if ($AkariCatalogueHeaders.ContainsKey($t.Section)) { $AkariCatalogueHeaders[$t.Section] } else { $t.Section }
-            [void]$Rows.Children.Add((New-AkariSection "$hs $([char]0x203A) $($t.Category)" -First:($Rows.Children.Count -eq 1)))
+            [void]$Rows.Children.Add((New-AkariSection "$hs $([char]0x203A) $($t.Category)" -First:($Rows.Children.Count -eq 0)))
         }
         $e = Get-AkariCatalogueCard $t
         Set-AkariCardHighlight $e $Query

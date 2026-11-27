@@ -29,6 +29,7 @@ public sealed partial class DownloadsPage : Page
         }
         ViewModel.PropertyChanged += OnViewModel;
         ViewModel.Windows.PropertyChanged += OnWindows;
+        SizeChanged += (_, e) => Layout(e.NewSize.Width);
         Loaded += (_, _) =>
         {
             Sync();
@@ -58,6 +59,24 @@ public sealed partial class DownloadsPage : Page
         Sections.SelectedItem = Sections.Items.FirstOrDefault(i => (string)i.Tag == ViewModel.Section);
         WinLists.SelectedItem = WinLists.Items.FirstOrDefault(i => (string)i.Tag == ViewModel.Windows.Apps.RemoveList);
         _filling = false;
+        Aurora.Palette = ViewModel.IsWindows ? "Remove" : "Downloads";
+    }
+
+    // narrow: the picks alone on the first row, Only installed, the count and Remove (n) under them; the search under
+    // the categories
+    private void Layout(double width)
+    {
+        var narrow = width < 800;
+        Grid.SetColumnSpan(WinPicks, narrow ? 4 : 1);
+        Grid.SetRow(WinOnly, narrow ? 1 : 0);
+        Grid.SetColumn(WinOnly, narrow ? 0 : 1);
+        WinOnly.Margin = narrow ? new Microsoft.UI.Xaml.Thickness(0) : new Microsoft.UI.Xaml.Thickness(8, 0, 0, 0);
+        Grid.SetColumnSpan(WinOnly, narrow ? 2 : 1);
+        Grid.SetRow(WinCount, narrow ? 1 : 0);
+        Grid.SetRow(WinRemove, narrow ? 1 : 0);
+        Grid.SetRow(ExtSearch, narrow ? 1 : 0);
+        Grid.SetColumn(ExtSearch, narrow ? 0 : 1);
+        ExtSearch.HorizontalAlignment = narrow ? Microsoft.UI.Xaml.HorizontalAlignment.Left : Microsoft.UI.Xaml.HorizontalAlignment.Stretch;
     }
 
     private void OnSection(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)

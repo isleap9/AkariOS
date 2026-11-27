@@ -11,45 +11,43 @@
             <KeyboardAccelerator Modifiers="Control" Key="E" Invoked="OnSearchKey" />
             <KeyboardAccelerator Modifiers="Menu" Key="Left" Invoked="OnBackKey" />
         </Grid.KeyboardAccelerators>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-
-        <!-- the title bar (drag region): back, the logo, AkariOS and its version; Windows draws the caption buttons -->
-        <Grid x:Name="AppTitleBar" Height="48" Background="Transparent">
-            <StackPanel Orientation="Horizontal" Spacing="12" Margin="12,0,0,0" VerticalAlignment="Center">
-                <Button
-                    x:Name="BackBtn"
-                    Width="40" Height="32" Padding="0"
-                    Background="Transparent" BorderThickness="0"
-                    IsEnabled="False"
-                    Click="OnBack"
-                    ToolTipService.ToolTip="Back">
-                    <FontIcon Glyph="&#xE72B;" FontSize="12" />
-                </Button>
-                <Image x:Name="Logo" Width="16" Height="16" Stretch="Uniform" />
-                <TextBlock Text="AkariOS" VerticalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}" />
-                <TextBlock
-                    x:Name="VersionText"
-                    VerticalAlignment="Center"
-                    Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                    Style="{StaticResource CaptionTextBlockStyle}" />
-            </StackPanel>
-        </Grid>
-
+        <!-- Windows' own title bar (the design's page D): the pane holds the menu button (compact mode), the logo and the
+             search box; no back arrow (Alt+Left still goes back) -->
         <NavigationView
             x:Name="NavView"
-            Grid.Row="1"
             IsBackButtonVisible="Collapsed"
+            IsBackEnabled="False"
+            BackRequested="OnNavBack"
             IsSettingsVisible="False"
             IsPaneToggleButtonVisible="True"
             IsTitleBarAutoPaddingEnabled="False"
             PaneDisplayMode="Auto"
-            OpenPaneLength="280"
+            OpenPaneLength="300"
             CompactModeThresholdWidth="0"
             ExpandedModeThresholdWidth="1000"
             ItemInvoked="OnNavInvoked">
+            <!-- the pane's header: the logo, AkariOS and its version (Settings' account header, the AkariOS way) -->
+            <NavigationView.PaneHeader>
+                <StackPanel Orientation="Horizontal" Spacing="12" Margin="4,8,0,12">
+                    <Grid Width="48" Height="48">
+                        <!-- the logo's glow: the accent fading out (none in high contrast: AkariGlowOpacity) -->
+                        <Ellipse Opacity="{ThemeResource AkariGlowOpacity}">
+                            <Ellipse.Fill>
+                                <RadialGradientBrush>
+                                    <GradientStop Color="{ThemeResource SystemAccentColor}" Offset="0" />
+                                    <GradientStop Color="Transparent" Offset="1" />
+                                </RadialGradientBrush>
+                            </Ellipse.Fill>
+                        </Ellipse>
+                        <Image x:Name="Logo" Width="36" Height="36" Stretch="Uniform" />
+                    </Grid>
+                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                        <TextBlock Text="AkariOS" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock x:Name="VersionText" Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </StackPanel>
+            </NavigationView.PaneHeader>
             <NavigationView.AutoSuggestBox>
                 <AutoSuggestBox x:Name="SearchBox" PlaceholderText="Search tweaks" QueryIcon="Find"
                                 TextChanged="OnSearchTyped" QuerySubmitted="OnSearchSubmitted">
@@ -66,13 +64,20 @@
             </NavigationView.AutoSuggestBox>
 
             <Grid>
-                <Frame x:Name="ContentFrame" />
+                <!-- a page comes in with WinUI's own entrance (rises and fades in) -->
+                <Frame x:Name="ContentFrame">
+                    <Frame.ContentTransitions>
+                        <TransitionCollection>
+                            <NavigationThemeTransition />
+                        </TransitionCollection>
+                    </Frame.ContentTransitions>
+                </Frame>
                 <!-- the first run's tip next to the search box (Show-AkariSearchTip) -->
                 <TeachingTip x:Name="SearchTipView" Target="{x:Bind SearchBox}" PreferredPlacement="Right" IsLightDismissEnabled="True"
                              Title="Search every Tweak" ActionButtonContent="Got it" ActionButtonStyle="{StaticResource AccentButtonStyle}"
                              ActionButtonClick="OnSearchTipGotIt" Closed="OnSearchTipClosed" />
-                <!-- the toasts (Show-AkariToast, Set-Busy), stacked at the bottom right: results newest on top, the busy
-                     toast under them -->
+                <!-- the toasts (Show-AkariToast, Set-Busy), stacked at the bottom right on the glass: results newest on
+                     top, the busy toast under them -->
                 <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,24,24" Width="380" Spacing="8">
                     <ItemsControl ItemsSource="{x:Bind Shell.Toasts}">
                         <ItemsControl.ItemContainerTransitions>
@@ -90,7 +95,7 @@
                             <DataTemplate x:DataType="shell:Toast">
                                 <InfoBar IsOpen="True" IsClosable="True" Severity="{x:Bind Severity}" Title="{x:Bind Title}" Message="{x:Bind Text}"
                                          CloseButtonCommand="{x:Bind CloseCommand}"
-                                         Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}">
+                                         Background="{ThemeResource AkariGlassBrush}">
                                     <InfoBar.ActionButton>
                                         <Button Content="{x:Bind ActionText}" Command="{x:Bind ActCommand}" Visibility="{x:Bind HasAction}" />
                                     </InfoBar.ActionButton>
@@ -102,7 +107,7 @@
                     <InfoBar
                         Severity="Informational" IsClosable="False"
                         IsOpen="{x:Bind Shell.IsBusy, Mode=OneWay}" Title="{x:Bind Shell.BusyText, Mode=OneWay}"
-                        Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}">
+                        Background="{ThemeResource AkariGlassBrush}">
                         <ProgressBar IsIndeterminate="{x:Bind Shell.Indeterminate, Mode=OneWay}" Value="{x:Bind Shell.ProgressValue, Mode=OneWay}"
                                      Maximum="100" Margin="0,0,0,12" />
                     </InfoBar>

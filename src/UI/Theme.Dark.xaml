@@ -56,4 +56,59 @@
   <Color x:Key="Shade">#2E000000</Color> <!-- Tile hover shadow, rgba(0,0,0,.18) -->
   <Color x:Key="ShadeFly">#42000000</Color> <!-- Flyout and toast shadow, rgba(0,0,0,.26 / .14) -->
   <Color x:Key="ShadeDlg">#5E000000</Color> <!-- Dialog shadow, rgba(0,0,0,.37 / .19) -->
+  <!-- The Aurora banner (ADR 0011, plan docs/plans/2026-11-26-aurora-powershell.md; UI\Aurora.ps1): each page's light,
+       three glows A, B, C, then the ribbons' colour and its light end; the same in both themes (Aurora.ps1 sets the
+       layers' opacity per theme). AuroraWhite = the middle ribbon's bright end. -->
+  <Color x:Key="AuroraHomeA">#E3263F</Color>
+  <Color x:Key="AuroraHomeB">#A21CAF</Color>
+  <Color x:Key="AuroraHomeC">#FF7A3C</Color>
+  <Color x:Key="AuroraHomeRibbon">#E3263F</Color>
+  <Color x:Key="AuroraHomeRibbonLight">#FF9AA6</Color>
+  <Color x:Key="AuroraInstallA">#FF4D2E</Color>
+  <Color x:Key="AuroraInstallB">#E3263F</Color>
+  <Color x:Key="AuroraInstallC">#FF9A3C</Color>
+  <Color x:Key="AuroraInstallRibbon">#FF4D2E</Color>
+  <Color x:Key="AuroraInstallRibbonLight">#FFB199</Color>
+  <Color x:Key="AuroraOptimizeA">#E3263F</Color>
+  <Color x:Key="AuroraOptimizeB">#7C3AED</Color>
+  <Color x:Key="AuroraOptimizeC">#FF7A3C</Color>
+  <Color x:Key="AuroraOptimizeRibbon">#E3263F</Color>
+  <Color x:Key="AuroraOptimizeRibbonLight">#FF9AA6</Color>
+  <Color x:Key="AuroraRemoveA">#0F9D8A</Color>
+  <Color x:Key="AuroraRemoveB">#2B6FFF</Color>
+  <Color x:Key="AuroraRemoveC">#14B8A0</Color>
+  <Color x:Key="AuroraRemoveRibbon">#0F9D8A</Color>
+  <Color x:Key="AuroraRemoveRibbonLight">#7CE0CF</Color>
+  <Color x:Key="AuroraDownloadsA">#2B6FFF</Color>
+  <Color x:Key="AuroraDownloadsB">#0EA5E9</Color>
+  <Color x:Key="AuroraDownloadsC">#7C3AED</Color>
+  <Color x:Key="AuroraDownloadsRibbon">#2B6FFF</Color>
+  <Color x:Key="AuroraDownloadsRibbonLight">#9CC4FF</Color>
+  <Color x:Key="AuroraUsbA">#5B6B82</Color>
+  <Color x:Key="AuroraUsbB">#2B6FFF</Color>
+  <Color x:Key="AuroraUsbC">#94A3B8</Color>
+  <Color x:Key="AuroraUsbRibbon">#5B6B82</Color>
+  <Color x:Key="AuroraUsbRibbonLight">#C4CDD8</Color>
+  <Color x:Key="AuroraIsoA">#A21CAF</Color>
+  <Color x:Key="AuroraIsoB">#E3263F</Color>
+  <Color x:Key="AuroraIsoC">#7C3AED</Color>
+  <Color x:Key="AuroraIsoRibbon">#A21CAF</Color>
+  <Color x:Key="AuroraIsoRibbonLight">#E59CF0</Color>
+  <Color x:Key="AuroraSettingsA">#E3263F</Color>
+  <Color x:Key="AuroraSettingsB">#64748B</Color>
+  <Color x:Key="AuroraSettingsC">#A21CAF</Color>
+  <Color x:Key="AuroraSettingsRibbon">#E3263F</Color>
+  <Color x:Key="AuroraSettingsRibbonLight">#FF9AA6</Color>
+  <Color x:Key="AuroraWhite">#FFFFFF</Color>
+  <!-- Glass: the main cards and panels over the light (no blur in WPF: a translucent fill); the stroke's top pixel brighter -->
+  <SolidColorBrush x:Key="Glass" Color="#A62A2425"/>
+  <LinearGradientBrush x:Key="GlassStroke" MappingMode="Absolute" StartPoint="0,0" EndPoint="0,2"><GradientStop Color="#26FFFFFF" Offset="0"/><GradientStop Color="#26FFFFFF" Offset="0.5"/><GradientStop Color="#14FFFFFF" Offset="1"/></LinearGradientBrush>
+  <!-- the nav pane's page icons, each in its own colour (the native app's MainWindow.IconColors); the system's text colour in high contrast (UI\Aurora.ps1) -->
+  <SolidColorBrush x:Key="NavHome" Color="#FF4D62"/>
+  <SolidColorBrush x:Key="NavInstall" Color="#FF7A3C"/>
+  <SolidColorBrush x:Key="NavOptimize" Color="#9B6CFF"/>
+  <SolidColorBrush x:Key="NavDownloads" Color="#3B8BFF"/>
+  <SolidColorBrush x:Key="NavUsb" Color="#7C8BA1"/>
+  <SolidColorBrush x:Key="NavIso" Color="#D03BE0"/>
+  <SolidColorBrush x:Key="NavSettings" Color="#9A9A9A"/>
 </ResourceDictionary>

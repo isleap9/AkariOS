@@ -1,3 +1,4 @@
+using AkariOS.App.Controls;
 using AkariOS.App.Shell;
 using AkariOS.App.ViewModels;
 using AkariOS.App.Views;
@@ -16,7 +17,8 @@ using Windows.Graphics;
 namespace AkariOS.App;
 
 /// <summary>
-/// The shell (Shell.ps1): a 48 px title bar over Mica, the left NavigationView built from NavTable, the page frame.
+/// The shell (Shell.ps1): Windows' own title bar over Mica (dark or light with the theme), the left NavigationView built
+/// from NavTable (back, the menu button, the logo header, each page's icon in its own colour), the page frame.
 /// Pages are keyed by the PowerShell app's page names; one still to come shows a placeholder naming its batch.
 /// </summary>
 public sealed partial class MainWindow : Window, IShellNavigator
@@ -50,10 +52,8 @@ public sealed partial class MainWindow : Window, IShellNavigator
         };
 
         Title = App.AppName;
-        VersionText.Text = AkariInfo.Version;
+        VersionText.Text = $"Version {AkariInfo.Version}";
         SystemBackdrop = new MicaBackdrop();
-        ExtendsContentIntoTitleBar = true;
-        SetTitleBar(AppTitleBar);
         ConfigureWindow();
 
         foreach (var e in NavTable.Menu) NavView.MenuItems.Add(Item(e));
@@ -68,9 +68,15 @@ public sealed partial class MainWindow : Window, IShellNavigator
         NavView.Collapsed += OnNavCollapsed;
         NavView.Expanding += OnNavExpanding;
         RootElement.SizeChanged += (_, e) => Note($"size {(int)e.NewSize.Width}x{(int)e.NewSize.Height}");
+        ColorIcons();
+        // high contrast followed through Contrast (AccessibilitySettings' own event throws in an unpackaged app)
+        Action recolor = () => DispatcherQueue.TryEnqueue(ColorIcons);
+        Contrast.Changed += recolor;
+        Closed += (_, _) => Contrast.Changed -= recolor;
+        RootElement.ActualThemeChanged += (_, _) => ColorIcons();
 
         _navigation.SetFrame(ContentFrame);
-        _navigation.Navigated += (_, _) => BackBtn.IsEnabled = _navigation.CanGoBack;
+        _navigation.Navigated += (_, _) => NavView.IsBackEnabled = _navigation.CanGoBack;
         Open("Home");
         ShowSearchTipLater();
 
@@ -289,9 +295,36 @@ public sealed partial class MainWindow : Window, IShellNavigator
         ApplyTitleBarColors(theme);
     }
 
+    // each top-level page's icon colour (Settings' coloured icons; the design's page D); a Section under Optimize keeps
+    // the text colour
+    private static readonly IReadOnlyDictionary<string, Windows.UI.Color> IconColors = new Dictionary<string, Windows.UI.Color>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Home"] = Microsoft.UI.ColorHelper.FromArgb(255, 0xFF, 0x4D, 0x62),
+        [NavTable.Install] = Microsoft.UI.ColorHelper.FromArgb(255, 0xFF, 0x7A, 0x3C),
+        ["Optimize"] = Microsoft.UI.ColorHelper.FromArgb(255, 0x9B, 0x6C, 0xFF),
+        ["Downloads"] = Microsoft.UI.ColorHelper.FromArgb(255, 0x3B, 0x8B, 0xFF),
+        ["Install USB"] = Microsoft.UI.ColorHelper.FromArgb(255, 0x7C, 0x8B, 0xA1),
+        ["ISO Builder"] = Microsoft.UI.ColorHelper.FromArgb(255, 0xD0, 0x3B, 0xE0),
+        [NavTable.Settings] = Microsoft.UI.ColorHelper.FromArgb(255, 0x9A, 0x9A, 0x9A),
+    };
+
+
+    // the icon colours, none in high contrast (the system's colours only); followed live
+    private void ColorIcons()
+    {
+        var plain = Contrast.On;
+        foreach (var (key, item) in _items)
+        {
+            if (item.Icon is not FontIcon icon || !IconColors.TryGetValue(key, out var color)) continue;
+            if (plain) icon.ClearValue(IconElement.ForegroundProperty);
+            else icon.Foreground = new SolidColorBrush(color);
+        }
+    }
+
     private NavigationViewItem Item(NavEntry e)
     {
-        var item = new NavigationViewItem { Content = e.Label, Tag = e.Key, Icon = new FontIcon { Glyph = e.Glyph } };
+        var icon = new FontIcon { Glyph = e.Glyph };
+        var item = new NavigationViewItem { Content = e.Label, Tag = e.Key, Icon = icon };
         foreach (var c in e.Children) item.MenuItems.Add(Item(c));
         _items[e.Key] = item;
         return item;
@@ -301,6 +334,8 @@ public sealed partial class MainWindow : Window, IShellNavigator
     {
         if (args.InvokedItemContainer?.Tag is string key) Open(key);
     }
+
+    private void OnNavBack(NavigationView sender, NavigationViewBackRequestedEventArgs args) => OnBack(sender, new RoutedEventArgs());
 
     private void OnBack(object sender, RoutedEventArgs e)
     {
@@ -329,19 +364,15 @@ public sealed partial class MainWindow : Window, IShellNavigator
         ApplyTitleBarColors(_theme.CurrentTheme);
     }
 
+    // Windows' own title bar, dark or light with the app's theme (DWM's immersive dark mode)
     private void ApplyTitleBarColors(AppTheme theme)
     {
-        var bar = GetAppWindow().TitleBar;
         var dark = theme switch
         {
             AppTheme.Dark => true,
             AppTheme.Light => false,
             _ => RootElement.ActualTheme == ElementTheme.Dark,
         };
-        var fore = dark ? Microsoft.UI.Colors.White : Microsoft.UI.Colors.Black;
-        bar.ButtonForegroundColor = fore;
-        bar.ButtonHoverForegroundColor = fore;
-        bar.ButtonBackgroundColor = Microsoft.UI.Colors.Transparent;
-        bar.ButtonInactiveBackgroundColor = Microsoft.UI.Colors.Transparent;
+        DwmTitleBar.SetDark(WinRT.Interop.WindowNative.GetWindowHandle(this), dark);
     }
 }

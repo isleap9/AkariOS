@@ -18,7 +18,7 @@ function Invoke-Probe([string]$Path, [hashtable]$Params = @{}) {
 
 # the styles the UI files define (Controls.xaml, MainWindow.xaml) and use
 $AkariStyles = 'Switch', 'CatSwitch', 'Check', 'Radio', 'Combo', 'ComboItem', 'SettingCard', 'CategoryCard', 'CardRow', 'Panel', 'CardButton', 'ExpHead',
-    'Accent', 'ModeCard', 'Selector', 'NavItem', 'Crumb'
+    'Accent', 'ModeCard', 'Selector', 'NavItem', 'Crumb', 'GlassCard', 'GlassTile', 'GlassRow', 'GlassListRow', 'GlassListButton'
 $AkariRetired = 'Segmented', 'SegItem', 'Tab', 'Chip', 'ModeCardHot', 'StepNum'
 
 Describe 'UI files' {
@@ -183,8 +183,8 @@ Describe 'Icons (UI\Icons.xaml, Fluent System Icons)' {
 }
 
 Describe 'Themes (UI\Theme.Dark.xaml, UI\Theme.Light.xaml)' {
-    # brushes, and the colours DropShadowEffects need (Shade*)
-    $keys = { param($f) $x = ([xml](Get-Content $f -Raw)).ResourceDictionary; @($x.SolidColorBrush) + @($x.Color) | Where-Object { $_ } | ForEach-Object { $_.Key } }
+    # brushes (the glass stroke is a gradient), and the colours DropShadowEffects and the Aurora need (Shade*, Aurora*)
+    $keys = { param($f) $x = ([xml](Get-Content $f -Raw)).ResourceDictionary; @($x.SolidColorBrush) + @($x.LinearGradientBrush) + @($x.Color) | Where-Object { $_ } | ForEach-Object { $_.Key } }
     $value = { param($f, $k) $x = ([xml](Get-Content $f -Raw)).ResourceDictionary; @(@($x.SolidColorBrush) | Where-Object { $_.Key -eq $k } | ForEach-Object { $_.Color }) + @(@($x.Color) | Where-Object { $_.Key -eq $k } | ForEach-Object { $_.'#text' }) | Select-Object -First 1 }
     $dark = @(& $keys "$Root\UI\Theme.Dark.xaml" | Sort-Object)
     $light = @(& $keys "$Root\UI\Theme.Light.xaml" | Sort-Object)
@@ -736,7 +736,7 @@ $script:Queue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
 $loaded = @{ Problems = @() }
 function Get-AkariAppxInstalled { @() }; function Start-AkariFeatureRead { }
 $AkariReadInline = $true  # the steps read the States and apps at once (no dispatcher runs here)
-foreach ($f in 'Motion', 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Pages', 'Shell', 'Rows', 'CataloguePage', 'ServicesPage', 'TasksPage', 'StartupPage', 'GamesPage', 'About', 'UnattendForm', 'Unattend', 'IsoBuilder', 'ImportExport') { . "$Root\UI\$f.ps1" }
+foreach ($f in 'Motion', 'Aurora', 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Pages', 'Shell', 'Rows', 'CataloguePage', 'ServicesPage', 'TasksPage', 'StartupPage', 'GamesPage', 'About', 'UnattendForm', 'Unattend', 'IsoBuilder', 'ImportExport') { . "$Root\UI\$f.ps1" }
 $timer.Stop()
 function Test-AkariSafeMode { $false }
 function Get-AkariAppxPackages { @() }
@@ -749,11 +749,16 @@ function Crumbs { (@($Crumbs.Children | Where-Object { $_ -is [Windows.Controls.
 "nav=$(@($script:NavItems.Keys) -join ',')"
 "navFoot=$($NavFoot.Children[1].Tag)|$($Nav.Width)"
 Show-Page; "home=$($HomePanel.Visibility)|$(NavOn)|$($PageHeader.Visibility)|$($BackBtn.IsEnabled)"
+"auroraHome=$($script:AuroraState.Palette)|$($script:AuroraState.Tall)|$($Aurora.Children.Count)|$($Aurora.IsHitTestVisible)"
 "homeStats=$($script:HomeStat.Tweaks.Text)|$(@($script:Jobs | Where-Object { $_.Code -match 'Get-AkariExportItems' }).Count)|$($script:HomeTiles.Children.Count)"
 "homeHero=$($script:HeroOneClick.Style -eq $window.FindResource('Accent'))|$($script:HomeTiles.Children[0].BorderBrush -eq $window.FindResource('Acc'))"
+$t0 = $script:HomeTiles.Children[0]; $t1 = $script:HomeTiles.Children[1]
+$f0 = $HomePanel.Children[1].Children[0]
+"homeGlass=$($t0.Style -eq $window.FindResource('GlassTile'))|$($t0.Content -is [Windows.Controls.DockPanel])|$($t0.Content.Children[0].Children[-1].Children[0].Foreground -eq $window.FindResource('AccText'))|$($t1.Content.Children[0].Children[-1].Children[0].Foreground -eq $window.FindResource('Ter'))|$($HomePanel.Children[0] -is [Windows.Controls.Grid])|$($HomePanel.Children[0].Children[1].Children[1].FontSize)|$($f0.Style -eq $window.FindResource('GlassCard'))|$($HomePanel.Children[1].Columns)|$($HomePanel.Children[0].Children[1].Children[0].Text -like 'AkariOS *')"
 Complete-AkariHomeStats @{ Apps = 12; Applied = 34 }; "homeStatsDone=$($script:HomeStat.Apps.Text)|$($script:HomeStat.Applied.Text)"
 $script:Jobs = @()
-Click $script:HeroChoose; "choose=$script:Cat|$script:Mode|$script:Step|$(NavOn)|$($StepFooter.Visibility)|$(Crumbs)|$($StepLabel.Text -replace '[^ -~]', '.')|$($StepBack.Content)|$($BackBtn.IsEnabled)"
+Click $script:HeroChoose; "auroraInstall=$($script:AuroraState.Palette)|$($script:AuroraState.Tall)"
+"choose=$script:Cat|$script:Mode|$script:Step|$(NavOn)|$($StepFooter.Visibility)|$(Crumbs)|$($StepLabel.Text -replace '[^ -~]', '.')|$($StepBack.Content)|$($BackBtn.IsEnabled)"
 Click $StepNext; "next=$script:Step|$($StepLabel.Text -replace '[^ -~]', '.')"
 Step-AkariHistoryBack; "backStep=$script:Cat|$script:Step"
 Click $StepBack; "cancel=$script:Cat|$script:Mode|$(Crumbs)|$($StepFooter.Visibility)"
@@ -798,15 +803,22 @@ $safe.Control.IsChecked = $false; Click $safe.Control
 Open-AkariSearch 'Cat'
 "search=$script:Cat|$(NavOn)|$($Heading.Text)|$(($Rows.Children | Where-Object { $_ -is [Windows.Controls.TextBlock] -and $_.FontWeight -eq 'SemiBold' } | ForEach-Object { $_.Text -replace '[^ -~]', '>' }) -join ',')"
 "highlight=$((@($script:CatCards['cat-tog'].Name.Inlines) | Where-Object { $_.FontWeight -eq 'SemiBold' } | ForEach-Object { $_.Text }) -join ',')"
-Open-AkariSearch 'zzz'; "searchNone=$($Rows.Children[0].Tag.Text)"
+"searchLead=$($HeaderLead.Text)|$($HeaderLead.Visibility)"
+Open-AkariSearch 'zzz'; "searchNone=$($Rows.Children[0].Tag.Text)|$($HeaderLead.Visibility)"
 # the Legacy pages, from the Optimize page: legacy rows only, Optimize selected
 Select-AkariPage 'Check'; "legacy=$script:Cat|$(NavOn)|$(Crumbs)|$($Rows.Children.Count)"
 # Back walks the history
 $h = $script:History.Count; Step-AkariHistoryBack; "back=$script:Cat|$($script:History.Count -eq $h - 1)"
 # the other pages
 Select-AkariPage 'Downloads'; "downloads=$script:Cat|$(NavOn)|$(Crumbs)"
+$w0 = "$($HeaderActions.Visibility)|$($null -eq $HeaderActions.Content)"; $script:DlSection = 'External'; Show-Page
+"banner=$w0|$script:DlSection|$($HeaderLead.Text)|$($HeaderActions.Visibility)|$($HeaderActions.Content.ToolTip)|$($Heading.FontSize)|$($PageHeader.MinHeight)"
+Update-AkariHeaderLayout 500; $n = "$([Windows.Controls.Grid]::GetRow($HeaderActions)),$([Windows.Controls.Grid]::GetColumn($HeaderActions)),$($HeaderActions.HorizontalAlignment)"
+Update-AkariHeaderLayout 900; "bannerNarrow=$n|$([Windows.Controls.Grid]::GetRow($HeaderActions)),$([Windows.Controls.Grid]::GetColumn($HeaderActions)),$($HeaderActions.HorizontalAlignment)"
+$script:DlSection = 'Windows'; Show-Page
 Open-AkariSuggestion 'cat-tog2'; "suggestOpen=$script:Cat|$(Crumbs)|$script:FlashId"
 Select-AkariPage 'Remove apps'; "remove=$script:Cat|$(NavOn)|$script:DlSection|$($script:Win.Go.IsEnabled)|$(@($script:Win.Grids.Keys) -join ',')|$(($script:DlSections.Items.Children | ForEach-Object { $_.Tag }) -join ',')"
+"bannerWindows=$($HeaderActions.Visibility)|$($null -eq $HeaderActions.Content)"
 # closing: one question naming what runs and waits (the job, installs waiting, Optimize's queue)
 $hold = @{ Job = $script:Job; Q = @($script:InstallQueue); C = @($script:CatQueue) }
 $script:Job = @{ Kind = 'Install'; Label = 'Installing Steam' }; $script:Installing = 'steam'
@@ -816,13 +828,15 @@ $script:CatQueue.Clear(); $script:CatQueue.Add(@{ Id = 'x' })
 "closingText=$((Get-AkariClosingText @('Installing Steam', '2 apps waiting to install')) -replace "`n", '/')"
 $script:Job = $hold.Job; $script:Installing = $null; $script:InstallQueue.Clear(); $script:CatQueue.Clear()
 "closingNone=$(@(Get-AkariRunningLines).Count)"
-Select-AkariPage 'Install USB'; "usb=$script:Cat|$(NavOn)|$($script:UaSections.Count -eq $script:UnattendSpec.Sections.Count)|$($script:UaSections[0].Desc.Text)|$($script:UnattendParts.Usb.IsEnabled)|$($script:UnattendParts.DriveName.Text)"
+Select-AkariPage 'Install USB'; "usbGlass=$($PageFooter.Visibility)|$($PageFooterHost.Content -eq $script:UnattendParts.Footer)|$($HeaderActions.Content -eq $script:UnattendParts.Commands)|$($script:UnattendParts.FooterName.Text)"
+"usb=$script:Cat|$(NavOn)|$($script:UaSections.Count -eq $script:UnattendSpec.Sections.Count)|$($script:UaSections[0].Desc.Text)|$($script:UnattendParts.Usb.IsEnabled)|$($script:UnattendParts.DriveName.Text)"
 Select-AkariPage 'Unattend Generator'; "usbOld=$script:Cat"
 # the Catalogue's job above never ends here: free the job slot first
 $script:Job = $null; Set-Busy $false
 # the ISO Builder's wizard: Start (the modes), Windows image, Components, Build settings, Review, Create ISO
 function Foot { "$($StepNext.Content)|$($StepNext.IsEnabled)|$($StepBack.IsEnabled)" }
-Select-AkariPage 'ISO Builder'; "iso=$script:Cat|$(NavOn)|$($script:IsoState.Step)|$(Crumbs)|$($StepFooter.Visibility)|$(Foot)|$($script:IsoParts.ModeTiles.Count)|$((@($script:IsoParts.ModeTiles | Where-Object { $_.IsEnabled }) | ForEach-Object { $_.Tag } | Select-Object -Unique) -join ',')"
+Select-AkariPage 'ISO Builder'; "isoSide=$($PageFooter.Visibility)|$($script:IsoParts.SideSummary.Text -eq $script:IsoParts.SummaryText.Text)|$($script:IsoParts.SideSummary.Parent.Parent.Parent.Width)"
+"iso=$script:Cat|$(NavOn)|$($script:IsoState.Step)|$(Crumbs)|$($StepFooter.Visibility)|$(Foot)|$($script:IsoParts.ModeTiles.Count)|$((@($script:IsoParts.ModeTiles | Where-Object { $_.IsEnabled }) | ForEach-Object { $_.Tag } | Select-Object -Unique) -join ',')"
 Click $StepNext; "isoImage=$($script:IsoState.Step)|$(Crumbs)|$(Foot)|$($StepLabel.Text -replace '[^ -~]', '.')|$($script:IsoParts.SummaryText.Text)"
 # Minimal asks first: declined = nothing changes; agreed = picked
 Click $StepBack; function Confirm-AkariDialog { $script:MinimalAsked = "$($args[4])|$($args[1])"; $false }
@@ -909,6 +923,7 @@ Save-AkariSetting 'Accent' 'Windows'; Set-AkariTheme 'Dark'; "accentWindows=$($w
 Save-AkariSetting 'Accent' 'Akari'; Set-AkariTheme 'Dark'; "accentAkari=$($window.FindResource('Acc').Color)"
 "title=$($TitleText.Text)|$AppVersionText.Text"
 "version=$($AppVersionText.Text -eq $AkariVersion)"
+"pane=$($PaneHead.Visibility)|$($BackBtn.Visibility)|$($AppVersionRun.Text -eq $AkariVersion)|$($PaneBtn.Parent -ne $TopBar.Children[0])|$($window.FindResource('NavHome').Color)"
 "winIcon=$($window.Icon.Decoder.GetType().Name)|$(Split-Path ([string]$window.Icon) -Leaf)|$($window.Icon.Decoder.Frames.Count)"
 # the pane collapses to 48 px under 1000 px, and with the pane toggle
 Update-AkariWidth 900; "narrow=$($script:Compact)|$($Nav.Width)|$($script:NavItems['Home'].Button.ToolTip)"
@@ -952,10 +967,15 @@ function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My
         $out.nav | Should Be 'Home,Install AkariOS,Optimize,Catalogue:Optimize,Catalogue:Customize,Catalogue:Hardware,Catalogue:Advanced,Catalogue:Tools,Downloads,Install USB,ISO Builder,Settings'
         $out.navFoot | Should Be 'Settings|280'
     }
+    It 'the Aurora banner''s light: Home''s palette and taller light on Home, Install''s on Install AkariOS, never hit-tested' {
+        $out.auroraHome | Should Be 'Home|True|2|False'
+        $out.auroraInstall | Should Be 'Install|False'
+    }
     It 'Home: no header, its nav item selected, no history yet' { $out.home | Should Be 'Visible|Home|Collapsed|False' }
+    It 'Home (ADR 0011, as the native app): the hero on the light (overline, 40 px headline), the facts as three glass cards, glass tiles with no bloom' { $out.homeGlass | Should Be 'True|True|True|True|True|40|True|3|True' }
     It 'Home: Tweaks counted at once, the other facts in one background read, three tiles, One-click the accent and recommended one' {
         $out.homeStats | Should Be '4|1|3'
-        $out.homeHero | Should Be 'True|True'
+        $out.homeHero | Should Be 'True|False'
         $out.homeStatsDone | Should Be '12|34'
     }
     It 'Choose changes opens Guided on its first step, with the footer and a breadcrumb' {
@@ -979,7 +999,7 @@ function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My
     }
     It 'reads States in the background: skeletons and a waiting switch until they arrive' {
         $out.reading | Should Be 'Reading.|False|True'
-        $out.read | Should Be '|False|True|True|True'
+        $out.read | Should Be 'Windows default|False|True|True|True'
     }
     It 'a switch applies right away in the job; a second change queues; Explorer changes show the restart InfoBar' {
         $out.run | Should Be 'Applying.|Catalogue|Apply'
@@ -996,7 +1016,8 @@ function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My
         $out.suggestOpen | Should Be 'Catalogue:Customize/Start|Optimize>Customize>Start|cat-tog2'
         $out.search | Should Be 'Search|Optimize|Results for "Cat"|Customize > Start,Customize > Taskbar,Advanced > Security'
         $out.highlight | Should Be 'Cat'
-        $out.searchNone | Should Be 'No Tweaks match "zzz"'
+        $out.searchNone | Should Be 'No Tweaks match "zzz"|Collapsed'
+        $out.searchLead | Should Be '3 Tweaks|Visible'
     }
     It 'the Legacy pages open from Optimize, legacy rows only' { $out.legacy | Should Be 'Check|Optimize|Optimize>Check|1' }
     It 'Back returns to the page before' { $out.back | Should Be 'Search|True' }
@@ -1004,11 +1025,18 @@ function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My
         $out.downloads | Should Be 'Downloads|Downloads|Downloads'
         $out.remove | Should Be 'Downloads|Downloads|Windows|False|Store apps,Optional features,Windows features,Legacy apps|Windows apps,External apps'
     }
+    It 'the banner (ADR 0011): a 40 px title, the lead, the page''s actions on the right (under the text when narrow)' {
+        $out.banner | Should Be 'Collapsed|True|External|Remove Windows'' own apps, or download and install the apps you use.|Visible|Update every app winget knows a newer version of|40|150'
+        $out.bannerNarrow | Should Be '1,0,Left|0,1,Right'
+        $out.bannerWindows | Should Be 'Collapsed|True'
+    }
     It 'closing asks once, naming the job, the installs waiting and Optimize''s changes waiting' {
         $out.closing | Should Be 'Installing Steam|2 apps waiting to install|1 change from Optimize waiting'
         $out.closingText | Should Be "These are still running:/- Installing Steam/- 2 apps waiting to install//Close AkariOS anyway? What is running may be left half done, and what waits won't run."
         $out.closingNone | Should Be '0'
         $out.usb | Should Be 'Install USB|Install USB|True|Default|False|No Windows setup USB found'
+        $out.usbGlass | Should Be 'Visible|True|True|No Windows setup USB found'
+        $out.isoSide | Should Be 'Collapsed|True|280'
         $out.usbOld | Should Be 'Install USB'
     }
     It 'the ISO Builder is a wizard: modes, the image (Pro picked), Components reading the image, Review, the stages, Build another' {
@@ -1054,6 +1082,7 @@ function Invoke-AkariDialog($Dialog) { $Dialog.FindName('DlgInput').Text = '  My
     }
     It 'the title bar: AkariOS and the version; the window icon is AkariLogo.ico' {
         $out.version | Should Be 'True'
+        $out.pane | Should Be 'Visible|Collapsed|True|True|#FFFF4D62'
         $out.winIcon | Should Be 'IconBitmapDecoder|AkariLogo.ico|9'
     }
     It 'collapses the pane to 48 px under 1000 px (tooltips on its items), and with the pane toggle' {

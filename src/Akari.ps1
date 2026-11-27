@@ -154,7 +154,7 @@ $script:Ported = $loaded.Ported
 foreach ($p in @(Test-AkariPorted $script:Ported $script:Tweaks)) { $loaded.Problems.Add($p) }
 
 # ---- GUI: Guided steps, shell, Legacy rows (UI\*.ps1), then show the window
-foreach ($f in 'Motion', 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Pages', 'Shell', 'Rows', 'CataloguePage', 'ServicesPage', 'TasksPage', 'StartupPage', 'GamesPage', 'About', 'UnattendForm', 'Unattend', 'IsoBuilder', 'ImportExport') { . "$Root\UI\$f.ps1" }
+foreach ($f in 'Motion', 'Aurora', 'Dialog', 'Selection', 'Catalogue', 'Cards', 'Apps', 'Steps', 'Pages', 'Shell', 'Rows', 'CataloguePage', 'ServicesPage', 'TasksPage', 'StartupPage', 'GamesPage', 'About', 'UnattendForm', 'Unattend', 'IsoBuilder', 'ImportExport') { . "$Root\UI\$f.ps1" }
 [void]$window.ShowDialog()
 
 # ---- One-click: the window closed to hand this console to the AkariOS preset's Run (Core\Phases.ps1 restarts the PC

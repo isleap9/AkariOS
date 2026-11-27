@@ -7,6 +7,8 @@
 $AkariSectionOrder = 'Optimize', 'Customize', 'Hardware', 'Advanced'
 $AkariSectionHeaders = @{ Hardware = 'Graphics & Hardware' }
 $AkariStepNames = 'Apps', 'Tweaks', 'Review & Apply'
+# each step's lead in the banner (the native app's InstallViewModel)
+$AkariStepLeads = 'Pick the apps to remove and the apps to install', 'Pick what to change. Hover a row for details.', 'These changes run in one go, after an AkariOS restore point'
 # page title and subtitle per step (the last one is the result screen)
 $AkariStepHeaders = @(
     , @('Apps', 'Pick the apps to remove and the apps to install')
@@ -550,14 +552,15 @@ $AkariOneClickPhases = @(
 
 # Install AkariOS: two large tiles (One-click recommended, Guided), what One-click does in five phases, and the warning
 function Show-AkariChooser {
-    Set-AkariHeader @('Install AkariOS')
-    [void]$StepBody.Children.Add((New-AkariLead 'Two ways to optimize Windows. Both make a restore point first.'))
+    Set-AkariHeader @('Install AkariOS') 'Two ways to optimize Windows. Both make a restore point first.'
     $g = [Windows.Controls.Primitives.UniformGrid]::new()
     $g.Columns = 2
     $g.Margin = [Windows.Thickness]::new(-4)
-    [void]$g.Children.Add((New-AkariTile 'zap' 'One-click' 'The full AkariOS setup in one go: removes bloat, cleans and reinstalls graphics drivers, applies every AkariOS Tweak, including the ones that need Safe Mode. Your PC restarts several times.' 'Recommended for a fresh install' { Start-AkariOneClick } -Rec -Big))
+    [void]$g.Children.Add((New-AkariTile 'zap' 'One-click' 'The full AkariOS setup in one go: removes bloat, cleans and reinstalls graphics drivers, applies every AkariOS Tweak, including the ones that need Safe Mode. Your PC restarts several times.' 'Recommended for a fresh install' { Start-AkariOneClick } -Rec -Big -Bloom 'Install'))
     [void]$g.Children.Add((New-AkariTile 'wand' 'Guided' 'Pick the apps to remove and install and the Tweaks to apply, review everything, then apply it in one go. Nothing changes until you press Apply.' 'For a PC you already use' { Start-AkariGuided } -Big))
     [void]$StepBody.Children.Add($g)
+    $script:ChooserTiles = $g
+    if (Get-Command Update-AkariHomeWidth -ErrorAction SilentlyContinue) { Update-AkariHomeWidth $Layer.ActualWidth }
     [void]$StepBody.Children.Add((New-AkariSection 'What One-click does'))
     $ex = New-AkariExpander 'list-checks' 'Five phases, about 20 minutes' 'Akari runs them in its own console and restarts the PC between them'
     $ph = [Windows.Controls.StackPanel]::new()
@@ -636,7 +639,7 @@ function New-AkariStepItem([int]$Number, [string]$Name, [string]$State) {
 # a summary card (.sum .c): the number in Title type, its label in Caption
 function New-AkariSumCard([int]$Count, [string]$Label, [string]$Brush = 'Tx') {
     $b = [Windows.Controls.Border]::new()
-    $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Panel')
+    $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'GlassCard')
     $b.Margin = [Windows.Thickness]::new(4)
     $sp = [Windows.Controls.StackPanel]::new()
     [void]$sp.Children.Add((New-AkariText "$Count" 28 $Brush))
@@ -649,6 +652,8 @@ function New-AkariSumRow($Cards) {
     $g.Rows = 1
     $g.Margin = [Windows.Thickness]::new(-4, -4, -4, 4)
     foreach ($c in $Cards) { [void]$g.Children.Add($c) }
+    # the count cards one under the other under 600 px (ADR 0011's narrow rule; the row is the page less its sides)
+    $g.Add_SizeChanged({ param($s, $e) if ($e.WidthChanged) { $n = $e.NewSize.Width -lt 528; $s.Rows = if ($n) { 0 } else { 1 }; $s.Columns = if ($n) { 1 } else { 0 } } })
     $g
 }
 
@@ -658,7 +663,7 @@ function Show-AkariSteps {
     if ($script:AppsView -and $script:AppsView.Parent) { $script:AppsView.Parent.Children.Remove($script:AppsView) }
     if ($script:Mode -ne 'Guided') { Show-AkariChooser; return }
     if ($script:Step -eq 3) { if ($script:Running) { Show-AkariRun } else { Show-AkariResult }; return }
-    Set-AkariHeader @(@('Install AkariOS', 'Install AkariOS'), $AkariStepNames[$script:Step])
+    Set-AkariHeader @(@('Install AkariOS', 'Install AkariOS'), $AkariStepNames[$script:Step]) $AkariStepLeads[$script:Step]
     [void]$StepBody.Children.Add((New-AkariStepsHeader $script:Step))
     Set-AkariFooter $true
     switch ($script:Step) {
@@ -686,21 +691,44 @@ function Show-AkariReview {
     # changes that restart the PC run last (Core\Runner.ps1): say so before Apply
     $note = Get-AkariRestartNote $script:Sel $script:Tweaks
     if ($note) { $ib = New-AkariInfoBar 'Warn' 'Restart needed' $note; $ib.Bar.Margin = [Windows.Thickness]::new(0, 4, 0, 12); [void]$StepBody.Children.Add($ib.Bar) }
-    foreach ($k in @(@('trash-2', 'Remove', "$($rm.Count) app$(if ($rm.Count -ne 1) { 's' })", $rm, $false),
-                     @('download', 'Install', "$($in.Count) app$(if ($in.Count -ne 1) { 's' }), from winget where possible", $in, $false),
-                     @('sliders-horizontal', 'Tweaks', "$($tw.Count) change$(if ($tw.Count -ne 1) { 's' })", $tw, $true))) {
-        $ex = New-AkariExpander $k[0] $k[1] $k[2] $k[4]
-        if (-not @($k[3]).Count) { [void]$ex.Body.Children.Add((New-AkariExpanderRow (New-AkariText 'Nothing' 14 'Mu') $null 52)) }
+    # a glass panel per group (ADR 0011, the native app's Review): Remove and Install on the left beside the Tweaks in a
+    # 1.3 times wider column, one column under 800 px (Set-AkariReviewColumns); no collapsing
+    $panels = @{}
+    foreach ($k in @(@('trash-2', 'Remove', "$($rm.Count) app$(if ($rm.Count -ne 1) { 's' })", $rm),
+                     @('download', 'Install', "$($in.Count) app$(if ($in.Count -ne 1) { 's' }), from winget where possible", $in),
+                     @('sliders-horizontal', 'Tweaks', "$($tw.Count) change$(if ($tw.Count -ne 1) { 's' })", $tw))) {
+        $p = New-AkariGlassPanel $k[0] $k[1] $k[2]
+        if (-not @($k[3]).Count) { Add-AkariGlassRow $p (New-AkariExpanderRow (New-AkariText 'Nothing' 14 'Mu') $null 16) }
         $shownHidden = $false
         foreach ($r in @(@($k[3]) | Where-Object { -not $_.Hidden }) + @(@($k[3]) | Where-Object { $_.Hidden })) {
             if ($r.Hidden -and -not $shownHidden) {
                 $shownHidden = $true
-                [void]$ex.Body.Children.Add((New-AkariExpanderRow (New-AkariText "Advanced settings (Optimize $([char]0x203A) Advanced)" 14 'Tx' 'SemiBold') $null 52))
+                Add-AkariGlassRow $p (New-AkariExpanderRow (New-AkariText "Advanced settings (Optimize $([char]0x203A) Advanced)" 14 'Tx' 'SemiBold') $null 16)
             }
-            [void]$ex.Body.Children.Add((New-AkariReviewRow $r.Id $r.Name $(if ($k[1] -eq 'Tweaks') { if ($r.From) { "$($r.From) $([char]0x2192) $($r.To)" } else { $r.To } } else { $k[1] }) '' ''))
+            Add-AkariGlassRow $p (New-AkariReviewRow $r.Id $r.Name $(if ($k[1] -eq 'Tweaks') { if ($r.From) { "$($r.From) $([char]0x2192) $($r.To)" } else { $r.To } } else { $k[1] }) '' '')
         }
-        [void]$StepBody.Children.Add($ex.Card)
+        $panels[$k[1]] = $p.Card
     }
+    $g = [Windows.Controls.Grid]::new()
+    foreach ($w in 1, 1.3) { $c = [Windows.Controls.ColumnDefinition]::new(); $c.Width = [Windows.GridLength]::new($w, 'Star'); [void]$g.ColumnDefinitions.Add($c) }
+    foreach ($i in 0, 1) { $rd = [Windows.Controls.RowDefinition]::new(); $rd.Height = [Windows.GridLength]::Auto; [void]$g.RowDefinitions.Add($rd) }
+    $left = [Windows.Controls.StackPanel]::new()
+    $panels['Install'].Margin = [Windows.Thickness]::new(0, 8, 0, 0)
+    [void]$left.Children.Add($panels['Remove']); [void]$left.Children.Add($panels['Install'])
+    [void]$g.Children.Add($left); [void]$g.Children.Add($panels['Tweaks'])
+    $g.Tag = @{ Left = $left; Right = $panels['Tweaks'] }
+    Set-AkariReviewColumns $g $false
+    $g.Add_SizeChanged({ param($s, $e) if ($e.WidthChanged) { Set-AkariReviewColumns $s ($e.NewSize.Width -lt 728) } })
+    [void]$StepBody.Children.Add($g)
+}
+
+# Review's columns: Remove and Install, then the Tweaks beside them; one column when $Narrow (the page under 800 px)
+function Set-AkariReviewColumns($Grid, [bool]$Narrow) {
+    $t = $Grid.Tag
+    $Grid.ColumnDefinitions[1].Width = if ($Narrow) { [Windows.GridLength]::new(0) } else { [Windows.GridLength]::new(1.3, 'Star') }
+    [Windows.Controls.Grid]::SetColumn($t.Right, $(if ($Narrow) { 0 } else { 1 }))
+    [Windows.Controls.Grid]::SetRow($t.Right, $(if ($Narrow) { 1 } else { 0 }))
+    $t.Right.Margin = if ($Narrow) { [Windows.Thickness]::new(0, 8, 0, 0) } else { [Windows.Thickness]::new(8, 0, 0, 0) }
 }
 
 # a Review / run / result row inside an expander: the app's icon or the Tweak's Category icon, its name and the change
@@ -839,8 +867,7 @@ function Set-AkariRunState($It, [string]$State) {
 # the run page: the overall bar (the current item and the percent), then a row per change that goes Waiting -> Working ->
 # Applied / Failed / Skipped, the page scrolling to the current row
 function Show-AkariRun {
-    Set-AkariHeader @(@('Install AkariOS', 'Install AkariOS'), 'Applying')
-    [void]$StepBody.Children.Add((New-AkariLead 'Keep Akari open. Changes apply one after another; Explorer restarts once at the end.'))
+    Set-AkariHeader @(@('Install AkariOS', 'Install AkariOS'), 'Applying') 'Keep Akari open. Changes apply one after another; Explorer restarts once at the end.'
     $bb = [Windows.Controls.StackPanel]::new(); $bb.Margin = [Windows.Thickness]::new(0, 4, 0, 20)
     $lbl = [Windows.Controls.DockPanel]::new(); $lbl.Margin = [Windows.Thickness]::new(0, 0, 0, 8)
     $script:RunPct = New-AkariText '0%' 12 'Mu'; [Windows.Controls.DockPanel]::SetDock($script:RunPct, 'Right'); [void]$lbl.Children.Add($script:RunPct)
@@ -855,8 +882,10 @@ function Show-AkariRun {
     [void]$bar.Children.Add($tr); [void]$bar.Children.Add($script:RunFill)
     [void]$bb.Children.Add($bar)
     [void]$StepBody.Children.Add($bb)
+    # the run's list on the glass (ADR 0011)
     $box = [Windows.Controls.Border]::new()
-    $box.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'CategoryCard')
+    $box.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'GlassCard')
+    $box.Padding = [Windows.Thickness]::new(0)
     $sp = [Windows.Controls.StackPanel]::new()
     $first = $true
     foreach ($it in $script:RunItems) {
@@ -1038,7 +1067,7 @@ function Complete-AkariInstalledRead($Shared) {
 # the result page: a success InfoBar, "Restart to finish" with Restart now, Applied / Failed / Skipped cards, then
 # Needs attention (each failure with its reason and Open log) and Skipped (with the reason), Done and Open Optimize
 function Show-AkariResult {
-    Set-AkariHeader @(@('Install AkariOS', 'Install AkariOS'), 'Done')
+    Set-AkariHeader @(@('Install AkariOS', 'Install AkariOS'), 'Done') 'What happened to each change'
     $out = @($script:Outcomes)
     $ok = @($out | Where-Object { $_.Outcome -in 'Applied', 'Reverted' })
     $bad = @($out | Where-Object { $_.Outcome -eq 'Failed' })

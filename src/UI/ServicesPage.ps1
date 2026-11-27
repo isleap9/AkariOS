@@ -161,7 +161,7 @@ function Get-AkariServiceBar {
     $count = New-AkariText '' 13 'Mu'
     $count.VerticalAlignment = 'Center'
     [void]$bar.Children.Add($count)
-    $script:SvcBar = @{ Bar = $bar; Count = $count }
+    $script:SvcBar = @{ Bar = (New-AkariGlassBar $bar); Count = $count }
     $script:SvcBar
 }
 

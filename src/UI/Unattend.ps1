@@ -48,15 +48,27 @@ function New-AkariUnattendButton([string]$Text, [string]$Style, [scriptblock]$Cl
     $b
 }
 
-# builds the page once (the prototype's PAGES.usb): the drive bar (the USB found, Refresh, Save to a folder..., the accent
-# Save to USB), a command bar (Open file..., Reset to defaults), then his sections as expanders
+# a numbered section's heading (the design's page D): the number in AccText, its name
+function New-AkariNumberedHeading([int]$N, [string]$Text) {
+    $h = [Windows.Controls.StackPanel]::new(); $h.Orientation = 'Horizontal'
+    $h.Margin = [Windows.Thickness]::new(4, 8, 0, 8)
+    $num = New-AkariText "$N" 14 'AccText' 'SemiBold'; $num.Margin = [Windows.Thickness]::new(0, 0, 10, 0)
+    [void]$h.Children.Add($num); [void]$h.Children.Add((New-AkariText $Text 14 'Tx' 'SemiBold'))
+    $h
+}
+
+# builds the page once (the prototype's PAGES.usb, the design's numbered sections, ADR 0011): 1 Drive (the USB found,
+# Refresh, on the glass), the generator's checks, 2 Setup choices (his sections as expanders); Open file... and Reset to
+# defaults go in the banner ($p.Commands), Save to a folder... and the accent Save to USB in the glass footer beside the
+# USB's name ($p.Footer: Set-AkariPageFooter)
 function Get-AkariUnattendView {
     if ($script:UnattendView) { return $script:UnattendView }
     $p = @{}
     $stack = [Windows.Controls.StackPanel]::new()
-    # the drive bar (.usbbar)
+    [void]$stack.Children.Add((New-AkariNumberedHeading 1 'Drive'))
+    # the drive bar (.usbbar) on the glass; its button under the text below 700 px
     $bar = [Windows.Controls.Border]::new()
-    $bar.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'Panel')
+    $bar.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'GlassCard')
     $bar.Margin = [Windows.Thickness]::new(0, 0, 0, 20)
     $dp = [Windows.Controls.DockPanel]::new()
     $ic = New-AkariIcon 'usb' 16 'Tx'; $ic.Margin = [Windows.Thickness]::new(0, 0, 12, 0); $ic.VerticalAlignment = 'Center'
@@ -65,9 +77,11 @@ function Get-AkariUnattendView {
     $p.Refresh = New-AkariAppsButton 'Refresh' 'Look for a Windows setup USB again' { Update-AkariUnattendDrives -Spin } 'refresh-cw'
     $p.Folder = New-AkariAppsButton "Save to a folder$([char]0x2026)" 'Save autounattend.xml anywhere, to copy it to a USB later' { Invoke-AkariUnattendFolder }
     $p.Usb = New-AkariUnattendButton 'Save to USB' 'Accent' { Invoke-AkariUnattendUsb }
-    $p.Usb.Margin = [Windows.Thickness]::new(0)
-    foreach ($b in $p.Refresh, $p.Folder, $p.Usb) { [void]$btns.Children.Add($b) }
+    $p.Usb.Margin = [Windows.Thickness]::new(0); $p.Usb.MinWidth = 110
+    $p.Refresh.Margin = [Windows.Thickness]::new(0)
+    [void]$btns.Children.Add($p.Refresh)
     [Windows.Controls.DockPanel]::SetDock($btns, 'Right'); [void]$dp.Children.Add($btns)
+    Enable-AkariBarWrap $dp $btns 628
     $tx = [Windows.Controls.StackPanel]::new(); $tx.VerticalAlignment = 'Center'; $tx.Margin = [Windows.Thickness]::new(0, 0, 8, 0)
     $p.DriveName = New-AkariText 'No Windows setup USB found' 14
     $p.DriveNote = New-AkariText 'Plug one in, then refresh' 12 'Mu'
@@ -83,15 +97,27 @@ function Get-AkariUnattendView {
     $p.Error = New-AkariText '' 14 'Bad'
     $p.Error.Margin = [Windows.Thickness]::new(0, -8, 0, 12)
     [void]$stack.Children.Add($p.Error)
-    # the command bar
-    $cmd = [Windows.Controls.StackPanel]::new(); $cmd.Orientation = 'Horizontal'; $cmd.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
-    [void]$cmd.Children.Add((New-AkariAppsButton "Open file$([char]0x2026)" 'A file made on Schneegans'' site or by Akari' { Invoke-AkariUnattendOpen } 'folder-open' -Subtle))
-    [void]$cmd.Children.Add((New-AkariAppsButton 'Reset to defaults' 'Every section back to the defaults and this PC''s settings' {
+    # the command bar: in the banner (Show-AkariUnattend)
+    $cmd = [Windows.Controls.StackPanel]::new(); $cmd.Orientation = 'Horizontal'
+    [void]$cmd.Children.Add((New-AkariAppsButton "Open file$([char]0x2026)" 'A file made on Schneegans'' site or by Akari' { Invoke-AkariUnattendOpen } 'folder-open'))
+    $reset = New-AkariAppsButton 'Reset to defaults' 'Every section back to the defaults and this PC''s settings' {
         if (Confirm-AkariDialog "The form goes back to the defaults and this PC's language, keyboard, region and time zone." 'Reset' 'Cancel' 'Question' 'Reset every section?') {
             Set-AkariUnattendStartFields; $script:UnattendParts.Error.Text = ''
         }
-    } 'arrow-reset' -Subtle))
-    [void]$stack.Children.Add($cmd)
+    } 'arrow-reset'
+    $reset.Margin = [Windows.Thickness]::new(0)
+    [void]$cmd.Children.Add($reset)
+    $p.Commands = $cmd
+    # the footer: the USB it saves to, Save to a folder..., the accent Save to USB
+    $ft = [Windows.Controls.DockPanel]::new()
+    $fb = [Windows.Controls.StackPanel]::new(); $fb.Orientation = 'Horizontal'
+    [void]$fb.Children.Add($p.Folder); [void]$fb.Children.Add($p.Usb)
+    [Windows.Controls.DockPanel]::SetDock($fb, 'Right'); [void]$ft.Children.Add($fb)
+    $p.FooterName = New-AkariText '' 12 'Mu'; $p.FooterName.VerticalAlignment = 'Center'
+    $p.FooterName.TextTrimming = 'CharacterEllipsis'; $p.FooterName.TextWrapping = 'NoWrap'
+    [void]$ft.Children.Add($p.FooterName)
+    $p.Footer = $ft
+    [void]$stack.Children.Add((New-AkariNumberedHeading 2 'Setup choices'))
     New-AkariUaForm $stack $script:UnattendSpec.Sections
     $script:UnattendParts = $p
     Set-AkariUnattendStartFields
@@ -110,11 +136,11 @@ function Set-AkariUnattendStartFields {
 }
 
 function Show-AkariUnattend {
-    Set-AkariHeader @('Install USB')
-    [void]$StepBody.Children.Add((New-AkariLead 'An autounattend.xml for a Windows install USB: accounts, language, edition, disk and setup choices, after Christoph Schneegans'' generator.'))
     $view = Get-AkariUnattendView
+    Set-AkariHeader @('Install USB') 'An autounattend.xml for a Windows install USB: accounts, language, edition, disk and setup choices, after Christoph Schneegans'' generator.' $script:UnattendParts.Commands
     if ($view.Parent) { $view.Parent.Children.Remove($view) }
     [void]$StepBody.Children.Add($view)
+    Set-AkariPageFooter $script:UnattendParts.Footer
 }
 
 # the drive bar's text: the drive picked and where the file goes, or "No Windows setup USB found"; Save to USB needs one
@@ -124,6 +150,7 @@ function Update-AkariUnattendDriveText {
     $p.DriveName.Text = if ($it) { [string]$it.Content } else { 'No Windows setup USB found' }
     $p.DriveNote.Text = if ($it) { 'The file goes to the root of the drive' } else { 'Plug one in, then refresh' }
     $p.Drive.Visibility = if ($p.Drive.Items.Count -gt 1) { 'Visible' } else { 'Collapsed' }
+    if ($p.FooterName) { $p.FooterName.Text = $p.DriveName.Text }
     $p.Usb.IsEnabled = [bool]$it
 }
 # the drive list: drives with Windows setup first (and picked)

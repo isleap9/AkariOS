@@ -151,7 +151,7 @@ function Start-AkariStagger($Elements, [int]$Max = 12, [string]$Kind = 'Rise', $
 # sixth (the prototype's .enter > *:nth-child(n): 0, 30, 60, 90, 120, then 150 ms). Pure.
 function Get-AkariEntranceDelay([int]$Index, [double]$Gap = 30) { [Math]::Min($Index, 5) * $Gap }
 
-# a new page: each of its visible top-level children ($Elements, in order) fades in and rises from 28 px over
+# a new page: each of its visible top-level children ($Elements, in order) fades in and rises from 16 px (ADR 0011) over
 # Motion.Page, staggered (Get-AkariEntranceDelay), on the decelerate curve
 function Start-AkariPageEntrance($Elements) {
     if (-not $script:AkariMotionOn) { return }
@@ -159,7 +159,7 @@ function Start-AkariPageEntrance($Elements) {
     $i = 0
     foreach ($e in @($Elements)) {
         if ($e -isnot [Windows.UIElement] -or $e.Visibility -ne 'Visible') { continue }
-        Start-AkariEntrance $e Rise 28 Page -Delay ([TimeSpan]::FromMilliseconds((Get-AkariEntranceDelay $i $gap)))
+        Start-AkariEntrance $e Rise 16 Page -Delay ([TimeSpan]::FromMilliseconds((Get-AkariEntranceDelay $i $gap)))
         $i++
     }
 }
@@ -415,6 +415,36 @@ function Start-AkariLoop($Target, $Property, [double]$From, [double]$To, [double
     $a = [Windows.Media.Animation.DoubleAnimation]::new($From, $To, [Windows.Duration]::new([TimeSpan]::FromSeconds($Seconds)))
     $a.RepeatBehavior = [Windows.Media.Animation.RepeatBehavior]::Forever
     $Target.BeginAnimation($Property, $a)
+}
+
+# the Aurora's slow drift (UI\Aurora.ps1, ADR 0011): $Target's $Property from $From to $To over $Seconds and back, on a
+# sine ease in-out, forever (a loop has its own duration, not a Motion token), at 30 frames a second (a drift this slow
+# needs no more); motion off = it stays where it is. Stop-AkariDrift ends it.
+function Start-AkariDrift($Target, $Property, [double]$From, [double]$To, [double]$Seconds) {
+    if (-not $Target) { return }
+    if (-not $script:AkariMotionOn -or $From -eq $To) { $Target.BeginAnimation($Property, $null); return }
+    $a = [Windows.Media.Animation.DoubleAnimation]::new($From, $To, [Windows.Duration]::new([TimeSpan]::FromSeconds($Seconds)))
+    $e = [Windows.Media.Animation.SineEase]::new(); $e.EasingMode = 'EaseInOut'
+    $a.EasingFunction = $e
+    $a.AutoReverse = $true
+    $a.RepeatBehavior = [Windows.Media.Animation.RepeatBehavior]::Forever
+    [Windows.Media.Animation.Timeline]::SetDesiredFrameRate($a, 30)
+    $Target.BeginAnimation($Property, $a)
+}
+function Stop-AkariDrift($Target, $Property) { if ($Target) { $Target.BeginAnimation($Property, $null) } }
+
+# the Aurora's fade in when a page shows: $Element's opacity 0 -> 1 over $Seconds (1.2, ADR 0011), cubic ease out; the
+# end value set first, the animation stops there; motion off = shown at once
+function Start-AkariFadeIn($Element, [double]$Seconds = 1.2) {
+    if (-not $Element) { return }
+    $Element.BeginAnimation([Windows.UIElement]::OpacityProperty, $null)
+    $Element.Opacity = 1
+    if (-not $script:AkariMotionOn) { return }
+    $a = [Windows.Media.Animation.DoubleAnimation]::new(0, 1, [Windows.Duration]::new([TimeSpan]::FromSeconds($Seconds)))
+    $e = [Windows.Media.Animation.CubicEase]::new(); $e.EasingMode = 'EaseOut'
+    $a.EasingFunction = $e
+    $a.FillBehavior = 'Stop'
+    $Element.BeginAnimation([Windows.UIElement]::OpacityProperty, $a)
 }
 
 # a RotateTransform turned to $Angle over $Speed on the decelerate curve (an expander's or the nav's chevron)

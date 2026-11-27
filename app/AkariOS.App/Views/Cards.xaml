@@ -4,7 +4,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:vm="using:AkariOS.App.ViewModels"
     xmlns:shell="using:AkariOS.App.Shell"
-    xmlns:views="using:AkariOS.App.Views">
+    xmlns:views="using:AkariOS.App.Views"
+    xmlns:controls="using:AkariOS.App.Controls">
 
     <!-- the settings card the Catalogue pages and Home's Quick settings share (merged in App.xaml) -->
     <!-- a settings card (the prototype's .card): WinUI's card fill and stroke, 4 px corners -->
@@ -85,8 +86,9 @@
             </Grid>
         </Border>
     </DataTemplate>
-    <!-- a tile (New-AkariTile, the prototype's .tile): the card fill and stroke, 8 px corners, at least 152 px; the
-         card's secondary fill on hover, the tertiary control fill pressed -->
+    <!-- a tile (New-AkariTile, the prototype's .tile): the card fill and stroke, 8 px corners, at least 152 px; a subtle
+         fill over its own and a 2 px lift on hover (eased only with Windows' animation effects on: Controls/Motion), a
+         stronger one pressed. The overlay keeps a glass tile (App.xaml's GlassTile) glass on hover. -->
     <Style x:Key="Tile" TargetType="Button">
         <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
         <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
@@ -105,18 +107,20 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Grid x:Name="Root" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                          BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}">
+                          BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}"
+                          controls:Motion.Lift="True">
                         <VisualStateManager.VisualStateGroups>
                             <VisualStateGroup x:Name="CommonStates">
                                 <VisualState x:Name="Normal" />
                                 <VisualState x:Name="PointerOver">
                                     <VisualState.Setters>
-                                        <Setter Target="Root.Background" Value="{ThemeResource CardBackgroundFillColorSecondaryBrush}" />
+                                        <Setter Target="Hover.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                                        <Setter Target="Root.Translation" Value="0,-2,0" />
                                     </VisualState.Setters>
                                 </VisualState>
                                 <VisualState x:Name="Pressed">
                                     <VisualState.Setters>
-                                        <Setter Target="Root.Background" Value="{ThemeResource ControlFillColorTertiaryBrush}" />
+                                        <Setter Target="Hover.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
                                     </VisualState.Setters>
                                 </VisualState>
                                 <VisualState x:Name="Disabled">
@@ -126,6 +130,7 @@
                                 </VisualState>
                             </VisualStateGroup>
                         </VisualStateManager.VisualStateGroups>
+                        <Border x:Name="Hover" Background="Transparent" CornerRadius="{TemplateBinding CornerRadius}" />
                         <ContentPresenter Margin="{TemplateBinding Padding}" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
                                           HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                                           VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />

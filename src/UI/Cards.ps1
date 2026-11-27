@@ -142,12 +142,11 @@ function New-AkariBadge([string]$Kind) {
     $b.Margin = [Windows.Thickness]::new(0, 0, 12, 0)
     $b.VerticalAlignment = 'Center'
     $fg, $bg = switch ($Kind) {
-        'AkariOS' { 'Mu', 'Sub' }
+        'AkariOS' { 'AccT', 'Acc' }
         'Caution' { 'Tx', 'WarnSoft' }
         default { 'WarnT', 'Warn' }
     }
     $b.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, $bg)
-    if ($Kind -eq 'AkariOS') { $b.BorderThickness = [Windows.Thickness]::new(1); $b.SetResourceReference([Windows.Controls.Border]::BorderBrushProperty, 'CtlBd') }
     $sp = [Windows.Controls.StackPanel]::new(); $sp.Orientation = 'Horizontal'; $sp.VerticalAlignment = 'Center'
     if ($Kind -eq 'Caution') { $i = New-AkariIcon 'triangle-alert.Filled' 12 'Warn'; $i.Margin = [Windows.Thickness]::new(0, 0, 4, 0); [void]$sp.Children.Add($i) }
     $t = New-AkariText $Kind 12 $fg
@@ -195,9 +194,11 @@ function New-AkariSettingsCard([string]$Icon, [string]$Title, [string]$Desc = ''
     if (-not $Desc) { $dd.Visibility = 'Collapsed' }
     [void]$txt.Children.Add($dd)
     [void]$dp.Children.Add($txt)
-    $card = if ($Style -eq 'CardButton') { [Windows.Controls.Button]::new() } else { [Windows.Controls.Border]::new() }
+    # CardButton / GlassRow (ADR 0011: a row on the glass that opens a page) are buttons
+    $button = $Style -in 'CardButton', 'GlassRow', 'GlassListButton'
+    $card = if ($button) { [Windows.Controls.Button]::new() } else { [Windows.Controls.Border]::new() }
     if ($Style -ne 'Plain') { $card.SetResourceReference([Windows.FrameworkElement]::StyleProperty, $Style) }
-    if ($Style -eq 'CardButton') { $card.Content = $dp } else { $card.Child = $dp }
+    if ($button) { $card.Content = $dp } else { $card.Child = $dp }
     @{ Card = $card; Title = $tt; Desc = $dd; End = $endPanel; Icon = $ic; Text = $txt }
 }
 
@@ -242,6 +243,62 @@ function New-AkariExpanderRow($Content, $End = $null, [double]$Left = 52) {
     foreach ($x in @($Content)) { if ($x) { [void]$dp.Children.Add($x) } }
     $b.Child = $dp
     $b
+}
+
+# a glass panel (ADR 0011, the native app's ReviewGroupTemplate / Settings' sections): a GlassCard with no padding, an
+# optional header (icon, title, a Mu line) over a Div hairline, then its rows (Add-AkariGlassRow) split by hairlines,
+# none under the last. Returns @{ Card; Head; Body }
+function New-AkariGlassPanel([string]$Icon = '', [string]$Title = '', [string]$Sub = '') {
+    $card = [Windows.Controls.Border]::new()
+    $card.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'GlassCard')
+    $card.Padding = [Windows.Thickness]::new(0)
+    $sp = [Windows.Controls.StackPanel]::new()
+    $head = $null
+    if ($Title) {
+        $head = [Windows.Controls.Border]::new()
+        $head.Padding = [Windows.Thickness]::new(16, 12, 16, 12)
+        $head.BorderThickness = [Windows.Thickness]::new(0, 0, 0, 1)
+        $head.SetResourceReference([Windows.Controls.Border]::BorderBrushProperty, 'Div')
+        $dp = [Windows.Controls.DockPanel]::new()
+        if ($Icon) {
+            $ic = New-AkariIcon $Icon 20 'Tx'; $ic.Margin = [Windows.Thickness]::new(0, 0, 12, 0); $ic.VerticalAlignment = 'Center'
+            [Windows.Controls.DockPanel]::SetDock($ic, 'Left'); [void]$dp.Children.Add($ic)
+        }
+        $tx = [Windows.Controls.StackPanel]::new(); $tx.VerticalAlignment = 'Center'
+        [void]$tx.Children.Add((New-AkariText $Title 14 'Tx' 'SemiBold'))
+        if ($Sub) { [void]$tx.Children.Add((New-AkariText $Sub 12 'Mu')) }
+        [void]$dp.Children.Add($tx)
+        $head.Child = $dp
+        [void]$sp.Children.Add($head)
+    }
+    $body = [Windows.Controls.StackPanel]::new()
+    [void]$sp.Children.Add($body)
+    $card.Child = $sp
+    @{ Card = $card; Head = $head; Body = $body }
+}
+# a toolbar on the glass (ADR 0011: the Catalogue's lists): $Bar inside a GlassCard, which takes over its margin
+function New-AkariGlassBar($Bar) {
+    $g = [Windows.Controls.Border]::new()
+    $g.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'GlassCard')
+    $g.Padding = [Windows.Thickness]::new(12, 8, 12, 8)
+    $g.Margin = $Bar.Margin
+    $Bar.Margin = [Windows.Thickness]::new(0)
+    $g.Child = $Bar
+    $g
+}
+# a row into a glass panel's body: a hairline above all but the first; a CardRow loses its own fill (the glass shows),
+# a GlassListRow / GlassListButton (-Hover) keeps its hover fill
+function Add-AkariGlassRow($Panel, $Row, [switch]$Hover) {
+    $top = if ($Panel.Body.Children.Count) { [Windows.Thickness]::new(0, 1, 0, 0) } else { [Windows.Thickness]::new(0) }
+    if ($Row -is [Windows.Controls.Border]) {
+        if (-not $Hover) { $Row.Background = $null }
+        $Row.SetResourceReference([Windows.Controls.Border]::BorderBrushProperty, 'Div')
+        $Row.BorderThickness = $top
+    } elseif ($Row -is [Windows.Controls.Control]) {
+        $Row.SetResourceReference([Windows.Controls.Control]::BorderBrushProperty, 'Div')
+        $Row.BorderThickness = $top
+    }
+    [void]$Panel.Body.Children.Add($Row)
 }
 
 # an InfoBar (WinUI, the prototype's .info): $Kind Info (InfoSoft, an Info icon), Warn, Ok or Bad; a filled severity

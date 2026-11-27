@@ -1032,6 +1032,20 @@ function Add-AkariWindowsFeatures([string[]]$Capabilities, [string[]]$Features, 
 # Windows apps, built once: the lead, the four lists' SelectorBar, the command bar (Select recommended, AkariOS,
 # Clear, Only installed, "n selected", the accent Remove (n)), the search, then the list's cards. The features are read
 # in the background (one read for Guided and here).
+# a toolbar (a DockPanel, $Right docked right) that wraps on a narrow page (ADR 0011: Downloads' toolbars under
+# 800 px, the bar being the page less its sides): $Right goes on a row of its own under the rest
+function Enable-AkariBarWrap($Bar, $Right, [double]$Under = 728) {
+    $Bar.Tag = @{ Right = $Right; Under = $Under }
+    $Bar.Add_SizeChanged({ param($s, $e) if ($e.WidthChanged) { Set-AkariBarWrap $s ($e.NewSize.Width -lt $s.Tag.Under) } })
+}
+function Set-AkariBarWrap($Bar, [bool]$Narrow) {
+    if (-not $Bar.Tag) { return }
+    $r = $Bar.Tag.Right
+    [Windows.Controls.DockPanel]::SetDock($r, $(if ($Narrow) { 'Bottom' } else { 'Right' }))
+    $r.HorizontalAlignment = if ($Narrow) { 'Left' } else { 'Stretch' }
+    $r.Margin = if ($Narrow) { [Windows.Thickness]::new(0, 8, 0, 0) } else { [Windows.Thickness]::new(0) }
+}
+
 function Get-AkariWindowsView {
     if ($script:Win -and $script:Win.View) { return $script:Win.View }
     if (-not $script:Appx) {
@@ -1063,6 +1077,7 @@ function Get-AkariWindowsView {
     $w.Go.Add_Click({ Start-AkariWindowsRemove })
     [void]$right.Children.Add($w.Go)
     [Windows.Controls.DockPanel]::SetDock($right, 'Right'); [void]$bar.Children.Add($right)
+    Enable-AkariBarWrap $bar $right
     $left = [Windows.Controls.WrapPanel]::new()
     [void]$left.Children.Add((New-AkariAppsButton 'Select recommended' 'Win11Debloat''s pick: what is on this PC and marked Recommended' { Select-AkariWindowsApps { param($t) $t.Risk -eq 'Safe' } } 'check'))
     [void]$left.Children.Add((New-AkariAppsButton 'AkariOS' 'The AkariOS debloat (FR33THY''s): every Store app, optional feature, Windows feature and legacy app on this PC except its keep-list' { Select-AkariWindowsApps { param($t) -not $t.Keep } }))
@@ -1263,6 +1278,7 @@ function Get-AkariDownloadsView {
     $fb = New-AkariFilterBox 'Search apps' 220 { param($q) $script:DlQuery = $q; Set-AkariDownloadsFilter $false }
     [void]$right.Children.Add($fb.Box)
     [Windows.Controls.DockPanel]::SetDock($right, 'Right'); [void]$bar.Children.Add($right)
+    Enable-AkariBarWrap $bar $right
     $cats = @('All') + @($AkariDownloadCategories.Keys)
     $sel = New-AkariSelectorBar $cats $script:DlFilter { param($v) $script:DlFilter = $v; Set-AkariDownloadsFilter $true }
     $sel.Bar.Margin = [Windows.Thickness]::new(0)
@@ -1325,7 +1341,13 @@ function Set-AkariDownloadsFilter([bool]$Animate) {
 }
 
 function Show-AkariDownloads {
-    Set-AkariHeader @('Downloads')
+    # the banner; External apps' Update all apps (winutil W4) on its right (ADR 0011, the native DownloadsPage)
+    $up = $null
+    if ($script:DlSection -ne 'Windows') {
+        $up = New-AkariAppsButton 'Update all apps' 'Update every app winget knows a newer version of' { Start-AkariUpdateApps } 'arrow-clockwise'
+        $up.Margin = [Windows.Thickness]::new(0)
+    }
+    Set-AkariHeader @('Downloads') 'Remove Windows'' own apps, or download and install the apps you use.' $up
     $sec = New-AkariSelectorBar @($AkariDownloadSections.Values) $AkariDownloadSections[$script:DlSection] {
         param($v)
         $script:DlSection = @($AkariDownloadSections.Keys | Where-Object { $AkariDownloadSections[$_] -eq $v })[0]
@@ -1340,11 +1362,8 @@ function Show-AkariDownloads {
         return
     }
     $n = @(Get-AkariInstallList $script:Tweaks | Where-Object { -not $_.Tweak.Group }).Count
-    # the lead, and Update all apps (winutil W4) on its right
+    # the section's lead (Update all apps is in the banner)
     $dp = [Windows.Controls.DockPanel]::new(); $dp.Margin = [Windows.Thickness]::new(0, 0, 0, 16)
-    $up = New-AkariAppsButton 'Update all apps' 'Update every app winget knows a newer version of' { Start-AkariUpdateApps } 'arrow-clockwise' -Subtle
-    $up.Margin = [Windows.Thickness]::new(16, -6, 0, 0); $up.VerticalAlignment = 'Top'
-    [Windows.Controls.DockPanel]::SetDock($up, 'Right'); [void]$dp.Children.Add($up)
     $lead = New-AkariText "Apps, game launchers, runtimes and tools, installed from winget where possible. $n in the catalogue." 14 'Mu'
     [void]$dp.Children.Add($lead)
     [void]$StepBody.Children.Add($dp)

@@ -86,7 +86,7 @@ function Get-AkariTaskBar {
     $count = New-AkariText '' 13 'Mu'
     $count.VerticalAlignment = 'Center'
     [void]$bar.Children.Add($count)
-    $script:TaskBar = @{ Bar = $bar; Count = $count }
+    $script:TaskBar = @{ Bar = (New-AkariGlassBar $bar); Count = $count }
     $script:TaskBar
 }
 

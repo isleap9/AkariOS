@@ -25,7 +25,6 @@
       <Setter.Value>
         <ControlTemplate TargetType="ToggleButton">
           <StackPanel Orientation="Horizontal" Background="Transparent">
-            <TextBlock x:Name="L" Text="Off" MinWidth="22" TextAlignment="Right" Margin="0,0,12,1" VerticalAlignment="Center" Foreground="{DynamicResource Mu}"/>
             <Grid Width="40" Height="20" VerticalAlignment="Center">
               <Border CornerRadius="10" Background="{DynamicResource Ctl}" BorderBrush="{DynamicResource Line}" BorderThickness="1"/>
               <Border x:Name="H" CornerRadius="10" Margin="1" Background="{DynamicResource CtlH}" Opacity="0"/>
@@ -37,6 +36,8 @@
                 <Border x:Name="ThumbOn" CornerRadius="6" Background="{DynamicResource AccT}" Opacity="0"/>
               </Grid>
             </Grid>
+            <!-- the label after the switch, as WinUI's ToggleSwitch -->
+            <TextBlock x:Name="L" Text="Off" MinWidth="22" TextAlignment="Left" Margin="12,0,0,1" VerticalAlignment="Center" Foreground="{DynamicResource Mu}"/>
           </StackPanel>
           <ControlTemplate.Triggers>
             <Trigger Property="IsChecked" Value="True">
@@ -410,6 +411,104 @@
             <Trigger Property="IsPressed" Value="True">
               <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleX)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="0.99"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleY)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="0.99"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
               <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleX)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleY)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Glass card (ADR 0011): the main cards and panels over the page's light. Glass, a GlassStroke edge, 8 px corners, 16 px padding. -->
+  <Style x:Key="GlassCard" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource Glass}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource GlassStroke}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="8"/>
+    <Setter Property="Padding" Value="16"/>
+  </Style>
+
+  <!-- Glass tile (ADR 0011, the Aurora banner): the Tile on the glass (Glass fill, the GlassStroke edge; Acc for the recommended one: set its BorderBrush); hover = a CtlH overlay, a 2 px lift and ADR 0008's soft Shade shadow, pressed 99 %. Home's Get started, the Install AkariOS chooser, the ISO modes. -->
+  <Style x:Key="GlassTile" TargetType="Button">
+    <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
+    <Setter Property="Background" Value="{DynamicResource Glass}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource GlassStroke}"/>
+    <Setter Property="Padding" Value="16"/>
+    <Setter Property="MinHeight" Value="152"/>
+    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+    <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+    <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusBox}"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Grid x:Name="Root" Background="Transparent" RenderTransformOrigin="0.5,0.5">
+            <Grid.RenderTransform><TransformGroup><TranslateTransform/><ScaleTransform/></TransformGroup></Grid.RenderTransform>
+            <Border x:Name="Sh" CornerRadius="8" Background="{TemplateBinding Background}" Opacity="0">
+              <Border.Effect><DropShadowEffect Color="{DynamicResource Shade}" BlurRadius="14" ShadowDepth="6" Direction="270" Opacity="1"/></Border.Effect>
+            </Border>
+            <Border CornerRadius="8" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"/>
+            <Border x:Name="H" CornerRadius="8" Margin="1" Background="{DynamicResource CtlH}" Opacity="0"/>
+            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Stretch" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Sh" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(TranslateTransform.Y)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="-2"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Sh" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(TranslateTransform.Y)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleX)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="0.99"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleY)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="0.99"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleX)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames><DoubleAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(ScaleTransform.ScaleY)"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Base.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Glass row (ADR 0011): a row that opens a page, on the glass (Optimize's sections, a section's categories): the Glass tile at 68 px, 16,12 padding, its content centred. -->
+  <Style x:Key="GlassRow" TargetType="Button" BasedOn="{StaticResource GlassTile}">
+    <Setter Property="MinHeight" Value="68"/>
+    <Setter Property="Padding" Value="16,12"/>
+    <Setter Property="VerticalContentAlignment" Value="Center"/>
+  </Style>
+
+  <!-- Glass list row (ADR 0011, Settings' sections): a row inside a glass panel (New-AkariGlassPanel), 64 px at least, a hover fill; Add-AkariGlassRow draws the hairline above it. -->
+  <Style x:Key="GlassListRow" TargetType="Border">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Padding" Value="18,10"/>
+    <Setter Property="MinHeight" Value="64"/>
+    <Style.Triggers>
+      <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource CtlH}"/></Trigger>
+    </Style.Triggers>
+  </Style>
+
+  <!-- Glass list button (ADR 0011): a Glass list row you click (Settings' Import, Export, Recovery): the hover fill fades in over Motion.Fast, pressed S1Alt. -->
+  <Style x:Key="GlassListButton" TargetType="Button">
+    <Setter Property="Foreground" Value="{DynamicResource Tx}"/>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Padding" Value="18,10"/>
+    <Setter Property="MinHeight" Value="64"/>
+    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+    <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusRing}"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Grid Background="Transparent">
+            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"/>
+            <Border x:Name="H" Background="{DynamicResource CtlH}" Opacity="0"/>
+            <Border x:Name="P" Background="{DynamicResource S1Alt}" Opacity="0"/>
+            <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="Center" HorizontalAlignment="Stretch"/>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="H" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Ease}" Value="1"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimationUsingKeyFrames Storyboard.TargetName="P" Storyboard.TargetProperty="Opacity"><SplineDoubleKeyFrame KeyTime="{StaticResource Motion.Fast.T}" KeySpline="{StaticResource Motion.Exit}" Value="0"/></DoubleAnimationUsingKeyFrames></Storyboard></BeginStoryboard></Trigger.ExitActions>
             </Trigger>
             <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
           </ControlTemplate.Triggers>

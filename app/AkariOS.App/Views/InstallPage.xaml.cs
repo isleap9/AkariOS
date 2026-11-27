@@ -19,6 +19,36 @@ public sealed partial class InstallPage : Page
         PageLayout.Fit(Scroller, Column);
         DataContext = viewModel;
         Loaded += (_, _) => ViewModel.Shown();
+        SizeChanged += (_, e) => Layout(e.NewSize.Width);
+    }
+
+    // under 600 px the chooser's tiles and the count cards go one under the other (Home's rule)
+    private void Layout(double width)
+    {
+        var narrow = width < 600;
+        // Review's columns: the apps beside the Tweaks, or the apps above them under 800 px
+        var stacked = width < 800;
+        ReviewColumns.ColumnDefinitions[1].Width = stacked ? new GridLength(0) : new GridLength(1.3, GridUnitType.Star);
+        ReviewColumns.ColumnSpacing = stacked ? 0 : 12;
+        Grid.SetColumn(ReviewMainList, stacked ? 0 : 1);
+        Grid.SetRow(ReviewMainList, stacked ? 1 : 0);
+        foreach (var grid in new[] { Tiles, ReviewCounts, ResultCounts })
+        {
+            var n = grid.Children.Count;
+            grid.ColumnDefinitions.Clear();
+            grid.RowDefinitions.Clear();
+            for (var i = 0; i < n; i++)
+            {
+                if (narrow) grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                else grid.ColumnDefinitions.Add(new ColumnDefinition());
+            }
+            for (var i = 0; i < n; i++)
+            {
+                var child = (FrameworkElement)grid.Children[i];
+                Grid.SetColumn(child, narrow ? 0 : i);
+                Grid.SetRow(child, narrow ? i : 0);
+            }
+        }
     }
 
     // the prototype's role="checkbox": a click anywhere on an install card ticks it (the box itself handles its own)
@@ -57,6 +87,23 @@ public sealed partial class InstallPage : Page
         if (sender.DataContext is not TweakRowViewModel row) return;
         row.Type(args.Text);
         args.Handled = true;
+    }
+
+    // the hairlines of the run page's and Review's rows (page D): under every row but the last
+    private void OnLinedRowPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
+    {
+        SetLine(sender, args.Element, args.Index);
+        // a row added at the end: the one above it was the last and had no line
+        if (args.Index > 0 && sender.TryGetElement(args.Index - 1) is { } above) SetLine(sender, above, args.Index - 1);
+    }
+
+    private void OnLinedRowMoved(ItemsRepeater sender, ItemsRepeaterElementIndexChangedEventArgs args) => SetLine(sender, args.Element, args.NewIndex);
+
+    private static void SetLine(ItemsRepeater list, UIElement row, int index)
+    {
+        if (row is not Grid grid) return;
+        var last = (list.ItemsSourceView?.Count ?? 0) - 1;
+        grid.BorderThickness = new Thickness(0, 0, 0, index < last ? 1 : 0);
     }
 
     private void OnRemoveApps(object sender, RoutedEventArgs e) => ViewModel.OpenRemoveAppsCommand.Execute(null);

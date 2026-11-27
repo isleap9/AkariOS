@@ -12,6 +12,57 @@
                 <views:Cards />
             </ResourceDictionary.MergedDictionaries>
 
+            <!-- the Aurora banner's glass (the design's page D): in-app acrylic, so the page's aurora shows through it -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Default">
+                    <x:Double x:Key="AkariGlowOpacity">0.33</x:Double>
+                    <AcrylicBrush x:Key="AkariGlassBrush" TintColor="#2A2425" TintOpacity="0.5" TintLuminosityOpacity="0.62" FallbackColor="#2D2728" />
+                    <!-- the stroke, its top pixel brighter (the design's inset 1 px glass edge): an absolute gradient, as WinUI's own
+                         ControlElevationBorderBrush -->
+                    <LinearGradientBrush x:Key="AkariGlassStrokeBrush" MappingMode="Absolute" StartPoint="0,0" EndPoint="0,2">
+                        <GradientStop Offset="0" Color="#26FFFFFF" />
+                        <GradientStop Offset="0.5" Color="#26FFFFFF" />
+                        <GradientStop Offset="1" Color="#14FFFFFF" />
+                    </LinearGradientBrush>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <x:Double x:Key="AkariGlowOpacity">0.25</x:Double>
+                    <AcrylicBrush x:Key="AkariGlassBrush" TintColor="#FFFFFF" TintOpacity="0.55" TintLuminosityOpacity="0.75" FallbackColor="#FBF8F8" />
+                    <!-- the stroke, its top pixel brighter (the design's inset 1 px glass edge): an absolute gradient, as WinUI's own
+                         ControlElevationBorderBrush -->
+                    <LinearGradientBrush x:Key="AkariGlassStrokeBrush" MappingMode="Absolute" StartPoint="0,0" EndPoint="0,2">
+                        <GradientStop Offset="0" Color="#FFFFFFFF" />
+                        <GradientStop Offset="0.5" Color="#FFFFFFFF" />
+                        <GradientStop Offset="1" Color="#CCFFFFFF" />
+                    </LinearGradientBrush>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="HighContrast">
+                    <x:Double x:Key="AkariGlowOpacity">0</x:Double>
+                    <SolidColorBrush x:Key="AkariGlassBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="AkariGlassStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+
+            <!-- a glass card: the glass fill, a hairline stroke, 8 px corners -->
+            <Style x:Key="GlassCard" TargetType="Border">
+                <Setter Property="Background" Value="{ThemeResource AkariGlassBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource AkariGlassStrokeBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="16" />
+            </Style>
+            <!-- a glass tile (Cards.xaml's Tile on the glass): Home's Get started, the Install chooser, the ISO modes -->
+            <Style x:Key="GlassTile" TargetType="Button" BasedOn="{StaticResource Tile}">
+                <Setter Property="Background" Value="{ThemeResource AkariGlassBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource AkariGlassStrokeBrush}" />
+            </Style>
+            <!-- a glass row (a settings row that opens a page): Optimize's Sections, a Section's Categories -->
+            <Style x:Key="GlassRow" TargetType="Button" BasedOn="{StaticResource GlassTile}">
+                <Setter Property="MinHeight" Value="68" />
+                <Setter Property="Padding" Value="16,12" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+            </Style>
+
             <!-- Akari crimson (WinUI's SystemAccentColor ramp) is put in from code: Shell/AppParts.cs, Accent -->
             <conv:EnumToStringConverter x:Key="EnumToStringConverter" />
             <conv:BooleanToVisibilityConverter x:Key="BoolToVisibility" />

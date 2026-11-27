@@ -264,8 +264,9 @@ function New-AkariIsoRadio([string]$Group, [string]$Text) {
 }
 # a card with a heading: @{ Card; Panel }
 function New-AkariIsoCard([string]$Title, [string]$Sub = '') {
+    # a step card on the glass (ADR 0011)
     $card = [Windows.Controls.Border]::new()
-    $card.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
+    $card.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'GlassCard')
     $card.Margin = [Windows.Thickness]::new(0, 0, 0, 8)
     $card.Padding = [Windows.Thickness]::new(16)
     $sp = [Windows.Controls.StackPanel]::new()
@@ -537,13 +538,46 @@ function Get-AkariIsoEdition {
 # the page's own job runs (an ISO, a list, a download, the build): its controls are off meanwhile
 function Test-AkariIsoBusy { [bool]($script:Job -and "$($script:Job.Kind)" -like 'Iso*') }
 
+# the side panel (the native IsoBuilderPage's): the steps as a list (done ones ticked, the current Acc), a hairline, the
+# image picked; $script:IsoParts.SideSummary follows the edition
+function New-AkariIsoSide([int]$Step) {
+    $b = [Windows.Controls.Border]::new()
+    $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'GlassCard')
+    $b.Width = 280; $b.Margin = [Windows.Thickness]::new(24, 0, 0, 0); $b.VerticalAlignment = 'Top'
+    $sp = [Windows.Controls.StackPanel]::new()
+    for ($i = 0; $i -lt $AkariIsoStepNames.Count; $i++) {
+        $state = if ($i -eq $Step) { 'Current' } elseif ($i -lt $Step) { 'Done' } else { '' }
+        $it = New-AkariStepItem ($i + 1) $AkariIsoStepNames[$i] $state
+        $it.Margin = [Windows.Thickness]::new(0, 0, 0, 10)
+        [void]$sp.Children.Add($it)
+    }
+    $hr = [Windows.Controls.Border]::new(); $hr.Height = 1; $hr.Margin = [Windows.Thickness]::new(0, 4, 0, 12)
+    $hr.SetResourceReference([Windows.Controls.Border]::BackgroundProperty, 'Div')
+    [void]$sp.Children.Add($hr)
+    $img = [Windows.Controls.DockPanel]::new()
+    $ic = New-AkariIcon 'disc-3' 16 'Mu'; $ic.Margin = [Windows.Thickness]::new(0, 0, 8, 0); $ic.VerticalAlignment = 'Top'
+    [Windows.Controls.DockPanel]::SetDock($ic, 'Left'); [void]$img.Children.Add($ic)
+    $tx = New-AkariText (Get-AkariIsoSummary (Get-AkariIsoEdition)) 12 'Mu'; $tx.TextWrapping = 'Wrap'
+    [void]$img.Children.Add($tx)
+    $script:IsoParts.SideSummary = $tx
+    [void]$sp.Children.Add($img)
+    $b.Child = $sp
+    $b
+}
+# wide: the side panel, no stepper row or image line; narrow: those, no side panel
+function Set-AkariIsoLayout($Grid, [bool]$Narrow) {
+    $t = $Grid.Tag
+    if (-not $t) { return }
+    $t.Side.Visibility = if ($Narrow) { 'Collapsed' } else { 'Visible' }
+    foreach ($x in $t.Top) { $x.Visibility = if ($Narrow) { 'Visible' } else { 'Collapsed' } }
+}
+
 function Show-AkariIsoBuilder {
     $st = $script:IsoState
     $p = Get-AkariIsoView
-    if ($st.Step -eq 0) { Set-AkariHeader @('ISO Builder') } else { Set-AkariHeader @(@('ISO Builder', 'ISO Builder'), $AkariIsoStepNames[$st.Step]) }
-    [void]$StepBody.Children.Add((New-AkariLead $AkariIsoLeads[$st.Step]))
+    if ($st.Step -eq 0) { Set-AkariHeader @('ISO Builder') $AkariIsoLeads[0] } else { Set-AkariHeader @(@('ISO Builder', 'ISO Builder'), $AkariIsoStepNames[$st.Step]) $AkariIsoLeads[$st.Step] }
     $h = New-AkariStepsHeader $st.Step $AkariIsoStepNames
-    $h.Margin = [Windows.Thickness]::new(0, -8, 0, 12)
+    $h.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
     [void]$StepBody.Children.Add($h)
     $sum = New-AkariIconText 'disc-3' (Get-AkariIsoSummary (Get-AkariIsoEdition)) 'Mu'
     $sum.Margin = [Windows.Thickness]::new(0, 0, 0, 16)
@@ -555,10 +589,20 @@ function Show-AkariIsoBuilder {
         default { $p.Steps[$st.Step] }
     }
     if ($panel.Parent) { $panel.Parent.Children.Remove($panel) }
+    # the step beside a 280 px glass side panel (ADR 0011: the steps as a list, the image picked); under 1000 px the
+    # panel goes and the stepper row and image line show above the step (Set-AkariIsoLayout)
     $col = [Windows.Controls.Grid]::new()
     $cd = [Windows.Controls.ColumnDefinition]::new(); $cd.Width = [Windows.GridLength]::new(1, 'Star'); $cd.MaxWidth = 860
     [void]$col.ColumnDefinitions.Add($cd)
+    $sd = [Windows.Controls.ColumnDefinition]::new(); $sd.Width = [Windows.GridLength]::Auto
+    [void]$col.ColumnDefinitions.Add($sd)
     [void]$col.Children.Add($panel)
+    $side = New-AkariIsoSide $st.Step
+    [Windows.Controls.Grid]::SetColumn($side, 1)
+    [void]$col.Children.Add($side)
+    $col.Tag = @{ Side = $side; Top = @($h, $sum) }
+    Set-AkariIsoLayout $col (($Layer.ActualWidth -gt 0) -and ($Layer.ActualWidth - 72 -lt 928))
+    $col.Add_SizeChanged({ param($s, $e) if ($e.WidthChanged) { Set-AkariIsoLayout $s ($s.ActualWidth -lt 928) } })
     $p.Current = $panel
     [void]$StepBody.Children.Add($col)
     Update-AkariIsoModeLook
@@ -574,6 +618,7 @@ function Update-AkariIsoWizard {
     $busy = Test-AkariIsoBusy
     $ed = Get-AkariIsoEdition
     if ($p.SummaryText) { $p.SummaryText.Text = Get-AkariIsoSummary $ed }
+    if ($p.SideSummary) { $p.SideSummary.Text = Get-AkariIsoSummary $ed }
     $f = Get-AkariIsoFooter $st.Step ([bool]$ed) $busy ([bool]$st.ResultPath) ([bool]$st.BuildError)
     $StepLabel.Text = "Step $($st.Step + 1) of $($AkariIsoStepNames.Count) $([char]0x00B7) $($AkariIsoStepNames[$st.Step])" + $(if ($f.Hint) { "`n$($f.Hint)" } else { '' })
     Start-AkariMotion $StepFill Fill $null (($st.Step + 1) / $AkariIsoStepNames.Count) -Speed Slow
@@ -687,7 +732,7 @@ function New-AkariIsoReview {
     $g = New-AkariCardGrid 320
     foreach ($c in $cards) {
         $b = [Windows.Controls.Border]::new()
-        $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
+        $b.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'GlassCard')
         $b.Padding = [Windows.Thickness]::new(20, 16, 20, 16); $b.Margin = [Windows.Thickness]::new(4); $b.MinHeight = 170
         $v = [Windows.Controls.StackPanel]::new()
         $ic = New-AkariIcon $c.Icon 24 'AccText'; $ic.HorizontalAlignment = 'Left'; $ic.Margin = [Windows.Thickness]::new(0, 0, 0, 8)
@@ -720,7 +765,7 @@ function New-AkariIsoBuildView {
     Set-AkariIsoCurrentOp
     [void]$sp.Children.Add($cur)
     $card = [Windows.Controls.Border]::new()
-    $card.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'SettingCard')
+    $card.SetResourceReference([Windows.FrameworkElement]::StyleProperty, 'GlassCard')
     $card.Padding = [Windows.Thickness]::new(8, 6, 8, 6)
     $rows = [Windows.Controls.StackPanel]::new()
     foreach ($s in @($st.Stages)) {

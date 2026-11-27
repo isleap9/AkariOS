@@ -75,7 +75,7 @@ function Get-AkariStartupBar {
     $count = New-AkariText '' 13 'Mu'
     $count.VerticalAlignment = 'Center'
     [void]$bar.Children.Add($count)
-    $script:StartupBar = @{ Bar = $bar; Count = $count }
+    $script:StartupBar = @{ Bar = (New-AkariGlassBar $bar); Count = $count }
     $script:StartupBar
 }
 

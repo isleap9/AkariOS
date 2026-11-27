@@ -11,6 +11,7 @@ public sealed partial class PlaceholderPage : Page
     {
         ViewModel = viewModel;
         InitializeComponent();
+        PageLayout.Fit(Scroller, Column);
         DataContext = viewModel;
     }
 }

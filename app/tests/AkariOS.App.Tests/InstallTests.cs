@@ -225,6 +225,24 @@ public sealed class InstallTests : IDisposable
     }
 
     [Fact]
+    public void Review_puts_the_apps_beside_the_Tweaks_and_says_so_when_it_changes()
+    {
+        var t = Make();
+        var i = Guided(t);
+        var changed = new List<string?>();
+        i.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        i.Apps.Rows["fix-legacy"].IsChecked = true;
+        i.NextCommand.Execute(null);
+        i.Tweaks.Rows["fix-plain"].IsChecked = true;
+        i.NextCommand.Execute(null);
+        Assert.Equal(["Remove", "Install"], i.ReviewSide.Select(g => g.Title));
+        Assert.Equal(["Tweaks"], i.ReviewMain.Select(g => g.Title));
+        Assert.Equal(["Legacy thing"], i.ReviewSide[0].Rows.Select(r => r.Name));
+        Assert.Contains(nameof(InstallViewModel.ReviewSide), changed);
+        Assert.Contains(nameof(InstallViewModel.ReviewMain), changed);
+    }
+
+    [Fact]
     public async Task Apply_runs_after_a_restore_point_and_shows_the_result()
     {
         var t = Make();
